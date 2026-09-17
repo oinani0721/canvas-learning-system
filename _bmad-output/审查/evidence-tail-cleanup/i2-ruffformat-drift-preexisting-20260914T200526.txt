@@ -1,0 +1,32 @@
+# (i) ruff format --check 漂移归因 @ 20260914T200526
+# 主张: background_task_manager.py 与 test_background_task_manager.py 的 format 漂移是
+#       主干 B14_BASE(08100483) 既有，非本卡引入；且重排 hunk 不落在本卡改动行。
+---
+## 证据 1: 直接对 08100483 原版跑 ruff format --check（未经本卡任何改动）
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/4d6e7de3-6059-4629-9ca3-488f2df65c2b/scratchpad/base/background_task_manager.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t5-bugs/4d6e7de3-6059-4629-9ca3-488f2df65c2b/scratchpad/base/test_background_task_manager.py
+2 files would be reformatted
+rc=1 （1 = 原版就漂移）
+
+## 证据 2: 本卡工作树版 ruff format --diff 的行段 vs 本卡改动行段
+### 2a. ruff format --diff 想改的行段（@@ 头）
+--- backend/app/services/background_task_manager.py
++++ backend/app/services/background_task_manager.py
+@@ -64,9 +64,7 @@
+@@ -280,9 +278,7 @@
+@@ -402,9 +398,7 @@
+--- backend/tests/unit/test_background_task_manager.py
++++ backend/tests/unit/test_background_task_manager.py
+@@ -61,8 +61,7 @@
+@@ -121,12 +120,8 @@
+@@ -224,10 +219,8 @@
+@@ -282,17 +275,13 @@
+@@ -300,6 +289,4 @@
+
+### 2b. 本卡改动行段（git diff -U0 的 @@ 头）
+diff --git a/backend/app/services/background_task_manager.py b/backend/app/services/background_task_manager.py
+@@ -345,7 +345,13 @@ class BackgroundTaskManager:
+@@ -356,0 +363,7 @@ class BackgroundTaskManager:
+diff --git a/backend/tests/unit/test_background_task_manager.py b/backend/tests/unit/test_background_task_manager.py
+@@ -15,0 +16,2 @@ import pytest
+@@ -156,0 +159,147 @@ class TestContextVarInheritance:

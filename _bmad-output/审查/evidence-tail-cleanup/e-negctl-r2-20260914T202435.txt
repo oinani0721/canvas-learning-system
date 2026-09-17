@@ -1,0 +1,49 @@
+# (e) 负控 1~4 + 对照输入 — 绑 round-2 代码 @ 20260914T202435
+# 承重断言行号: 守卫 :198/:259 · 首轮序列 :237 · 循环继续(A) :242 · enter/exit 4 事件 :307 · 等待>0 :315 · 循环继续(B) :317
+# 还原: EXIT trap 从 SCR 副本 cp 回（禁 git stash / git checkout）
+## 跑前 shasum -a 256
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+0f98aa80b7a25968190d69dfe8dd65baf92a4149c04dbe3801bc90aa0d38102c  backend/tests/unit/test_background_task_manager.py
+---变异开始---
+
+### 负控 1: config 新字段改名 → 声称杀 根因门 + 两测守卫 :198/:259
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sys;sys.path.insert(0,'.');from app.config import settings;assert hasattr(settings,'TASK_CLEANUP_INTERVAL_SECONDS'), 'no field';print('ok')
+                                                                             ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no field
+rc_rootcause=1
+tests/unit/test_background_task_manager.py:198: in test_cleanup_loop_sleeps_the_configured_interval
+E   AssertionError: no field
+tests/unit/test_background_task_manager.py:259: in test_cleanup_loop_backs_off_after_exception
+E   AssertionError: no field
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_sleeps_the_configured_interval
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_backs_off_after_exception
+============================== 2 failed in 0.91s ===============================
+
+### 负控 2: 删 except 分支的 await 等待(:369) → 声称杀 :307
+tests/unit/test_background_task_manager.py:307: in test_cleanup_loop_backs_off_after_exception
+E   AssertionError: except Exception 分支必须**就地 await** 一个等待(enter/exit 成对), 再经循环顶 sleep 才进下一轮清理 —— 共 4 个 sleep 事件。少于 4 个 = 异常分支没等待(错误会被立刻重试); 两个 enter 连着 = 等待没有被就地 await。⚠️ 注意: 这不等于说少了它就恢复成原先那个「不交还事件循环」的忙循环 —— 循环顶的 sleep 仍会让出; 本条钉的是「异常路径必须等待」这条约定本身。实测异常与下一轮清理之间 = ['sleep-enter', 'sleep-exit']; 完整序列 = [('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-raise', 0), ('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-ok', 0), ('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-ok', 0), ('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-ok', 0), ('sleep-enter', 3600)]
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_backs_off_after_exception
+========================= 1 failed, 1 passed in 0.87s ==========================
+
+### 负控 3(新, 对 Codex LOW-1): 把 :369 的 await 换成 create_task → 声称杀 :307(两个 enter 连着)
+tests/unit/test_background_task_manager.py:307: in test_cleanup_loop_backs_off_after_exception
+E   AssertionError: except Exception 分支必须**就地 await** 一个等待(enter/exit 成对), 再经循环顶 sleep 才进下一轮清理 —— 共 4 个 sleep 事件。少于 4 个 = 异常分支没等待(错误会被立刻重试); 两个 enter 连着 = 等待没有被就地 await。⚠️ 注意: 这不等于说少了它就恢复成原先那个「不交还事件循环」的忙循环 —— 循环顶的 sleep 仍会让出; 本条钉的是「异常路径必须等待」这条约定本身。实测异常与下一轮清理之间 = ['sleep-enter', 'sleep-enter', 'sleep-exit']; 完整序列 = [('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-raise', 0), ('sleep-enter', 3600), ('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-ok', 0), ('sleep-enter', 3600), ('sleep-exit', 3600), ('sleep-exit', 3600), ('cleanup-ok', 0), ('sleep-enter', 3600)]
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_backs_off_after_exception
+========================= 1 failed, 1 passed in 0.87s ==========================
+
+### 负控 4(新, 对 Codex LOW-2): cleanup 后注入 break → 声称杀 :242 与 :317
+tests/unit/test_background_task_manager.py:242: in test_cleanup_loop_sleeps_the_configured_interval
+E   AssertionError: 调度器必须**继续**周期运行: 本用例让 spy 在第 3 次进入 sleep 时才终止, 期间应完成 2 轮清理; 只有 1 轮说明循环在首轮后就退出了。实测 1 轮, 序列 = [('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup', 0)]
+tests/unit/test_background_task_manager.py:317: in test_cleanup_loop_backs_off_after_exception
+E   AssertionError: 失败恢复后调度器必须**继续**周期运行: spy 在第 5 次进入 sleep 才终止, 期间应至少完成 2 轮成功清理; 实测 1 轮, 序列 = [('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-raise', 0), ('sleep-enter', 3600), ('sleep-exit', 3600), ('sleep-enter', 3600), ('sleep-exit', 3600), ('cleanup-ok', 0)]
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_sleeps_the_configured_interval
+FAILED tests/unit/test_background_task_manager.py::TestCleanupScheduler::test_cleanup_loop_backs_off_after_exception
+============================== 2 failed in 0.90s ===============================
+
+## 跑后 shasum -a 256（须与跑前逐字同）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+0f98aa80b7a25968190d69dfe8dd65baf92a4149c04dbe3801bc90aa0d38102c  backend/tests/unit/test_background_task_manager.py

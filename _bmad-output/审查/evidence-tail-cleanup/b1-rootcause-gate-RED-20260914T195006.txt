@@ -1,0 +1,10 @@
+# (b)① 根因门 — 改代码前（先红）  @ 20260914T195006  HEAD=08100483
+# 命令: ( cd backend && PYTHONDONTWRITEBYTECODE=1 "$PY" -c "...hasattr assert..." )
+# PY=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/.venv/bin/python  (树根绝对路径；cd backend 后相对路径会 rc=127 不算红)
+---
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sys;sys.path.insert(0,'.');from app.config import settings;assert hasattr(settings,'TASK_CLEANUP_INTERVAL_SECONDS'), 'no field';assert settings.TASK_CLEANUP_INTERVAL_SECONDS>0;print('ok')
+                                                                             ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: no field
+rc=1

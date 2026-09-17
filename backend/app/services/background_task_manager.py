@@ -342,18 +342,31 @@ class BackgroundTaskManager:
         async def cleanup_loop():
             while True:
                 try:
-                    # ⛔ 实测: Settings 没有 TASK_CLEANUP_INTERVAL_SECONDS → 本行运行期恒
-                    # AttributeError, 被本 while 循环的 `except Exception` 捕获后立即重试
-                    # (无退避) ⇒ 清理调度退化为忙循环。既有真缺陷, 修它要选定间隔值 =
-                    # 语义决策, 不在本卡范围 → 只做类型层标注并登记 TAIL。
-                    await asyncio.sleep(
-                        settings.TASK_CLEANUP_INTERVAL_SECONDS  # pyright: ignore[reportAttributeAccessIssue]
-                    )
+                    # TASK_CLEANUP_INTERVAL_SECONDS 已入 Settings (app/config.py,
+                    # default=3600 + gt=0) —— CARD-TAIL-CLEANUP-LOOP
+                    # [BATCH-2026-09-11-第十四批] 修复 T-new-4: 此前该字段不存在,
+                    # 本行的参数求值发生在 await 执行**之前**, 恒抛 AttributeError,
+                    # 被下面的 `except Exception` 接住后无退避直接回到循环顶
+                    # ⇒ 清理调度退化为 CPU 紧循环 (try 块内再无 yield 点)。
+                    # 字段补齐后本行正常 yield; 原先挂在本行的那条类型层抑制注解
+                    # (reportAttributeAccessIssue) 随之多余, 已一并删除 ——
+                    # pyrightconfig 把 reportUnnecessaryTypeIgnoreComment 设为
+                    # warning, 留着会让 warnings 从 81 涨到 82。
+                    # (本注释刻意不写出那条抑制注解的完整字面形态: 写全了 pyright
+                    #  会把本注释行当成真的抑制指令, 反而自己触发上面那条 warning。)
+                    await asyncio.sleep(settings.TASK_CLEANUP_INTERVAL_SECONDS)
                     await self.cleanup_old_tasks()
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
                     logger.error(f"Cleanup error: {e}")
+                    # 退避 (T-new-4 的第二层): 异常路径也必须 await 一个 > 0 的间隔
+                    # 才回到循环顶。否则一次持续性失败 (例如上面的 AttributeError)
+                    # 就会把 while True 变成不交还事件循环的紧循环 —— 这正是本卡
+                    # 修复的形态, 光补配置字段挡不住它。
+                    # 复用同一间隔 = 零新增配置面; 「独立的更短退避常量」这一取舍
+                    # 已登记移交 (见验收单「台账待登记条目」)。
+                    await asyncio.sleep(settings.TASK_CLEANUP_INTERVAL_SECONDS)
 
         # P0-2 multi-vault hotfix (2026-05-12, wave-2 cleanup follow-up):
         # 与 create_task 主流程同款,把 cleanup_loop 也绑定到 caller context.

@@ -1,0 +1,35 @@
+# (f) 地盘门 @ 20260914T201602  HEAD=8ace89c1  BASE=08100483
+# 期望 ⊆ {backend/app/config.py, backend/app/services/background_task_manager.py, backend/tests/unit/test_background_task_manager.py}
+---
+## 判据: git --no-pager diff --name-only --no-color 08100483 HEAD -- . ':(exclude)_bmad-output'
+backend/app/config.py
+backend/app/services/background_task_manager.py
+backend/tests/unit/test_background_task_manager.py
+[代码面清单结束]
+
+## 验伪锚: 去掉 ':(exclude)_bmad-output' 必须多出 _bmad-output/ 路径
+不带 exclude 的文件数 =       24
+其中 _bmad-output/ 开头的 = 0
+
+## config.py hunk 行段（必须不落在 :640-655 MEMORY_RETRY 块 = T10-E 面）
+@@ -724,0 +725,11 @@ class Settings(BaseSettings):
+验伪锚: 同一命令对 background_task_manager.py 能产出 @@ 行 = 2
+
+## MEMORY_RETRY 两字段在 HEAD 上的行号（本卡未碰，供集成期核不重叠）
+HEAD:backend/app/config.py:644:    MEMORY_RETRY_BASE_DELAY: float = Field(
+HEAD:backend/app/config.py:650:    MEMORY_RETRY_MAX_DELAY: float = Field(
+
+## 零写者/硬边界自查
+三改动文件中 fsrs_bridge 命中 =        0
+本卡是否碰 canvas-vault/ =        0
+本卡是否碰 backend/openapi.json =        0
+本卡是否碰 main.py/conftest/pyrightconfig/lefthook/models/requirements =        0
+
+## ⚠️ 验伪锚判据自身更正（如实）
+上面「其中 _bmad-output/ 开头的 = 0」是**我的 grep 写错了**，不是锚点不成立：
+git 对含非 ASCII 的路径会加引号输出（形如 "_bmad-output/\345..."），
+故 '^_bmad-output/' 匹配不到（首字符是引号）。用 -c core.quotePath=false 重判：
+  不带 exclude 的文件总数 =       24
+  其中 _bmad-output/ 开头的 = 21
+  带 exclude 时的文件数 =        3
+  ⇒ 24 - 21 = 3，exclude 确实在起作用（锚点成立）。

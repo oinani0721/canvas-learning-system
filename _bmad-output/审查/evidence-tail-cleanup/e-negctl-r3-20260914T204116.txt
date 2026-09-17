@@ -1,0 +1,41 @@
+# (e) 负控 1~6 — 绑 round-3 代码 @ 20260914T204116
+# 承重断言: 守卫 :198/:268 · A 整段序列 :250 · B enter/exit 四事件 :316 · 等待>0 :325 · B 整段序列 :345
+# 负控 5/6 是 Codex round-2 LOW-1 点名的两种「未被拦下的输入」，本轮新增门后应变红
+## 跑前 shasum -a 256
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+2c3fa521ccf2655726de2a355118025ebe7eba84dca4c34bfc6e10ccbadd5813  backend/tests/unit/test_background_task_manager.py
+---变异开始---
+
+### 负控 1: config 字段改名 → 杀 根因门 + :198/:268
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:198: AssertionError: no field
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:268: AssertionError: no field
+============================== 2 failed in 0.82s ===============================
+
+### 负控 2: 删异常分支 await → 杀 :316
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:316: AssertionError: except Exception 分支必须**就地 await** 一个等待(enter/exit 成对), 再经循环顶 sleep 才进下一轮清理 —— 共 4 个 sleep 事件。少于 4 个 = 异常分支没有自己的等待(失败后只剩循环顶那一次等待, 不是「立刻」重试, 但「异常路径必须等待」这条约定没了); 两个 enter 连着 = 等待没有被就地 await。⚠️ 本条**不**声称少了它就恢复成原先那个「不交还事件循环」的忙循环 —— 循环顶的 sleep 仍会让出。
+========================= 1 failed, 1 passed in 0.90s ==========================
+
+### 负控 3: 异常分支 await → create_task → 杀 :316（两个 enter 连着）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:316: AssertionError: except Exception 分支必须**就地 await** 一个等待(enter/exit 成对), 再经循环顶 sleep 才进下一轮清理 —— 共 4 个 sleep 事件。少于 4 个 = 异常分支没有自己的等待(失败后只剩循环顶那一次等待, 不是「立刻」重试, 但「异常路径必须等待」这条约定没了); 两个 enter 连着 = 等待没有被就地 await。⚠️ 本条**不**声称少了它就恢复成原先那个「不交还事件循环」的忙循环 —— 循环顶的 sleep 仍会让出。
+========================= 1 failed, 1 passed in 1.01s ==========================
+
+### 负控 4: cleanup 后注入 break → 杀 :250 与 :345
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:250: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cleanup 就证明取配置不再抛 AttributeError。
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:345: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待都等满配置间隔。
+============================== 2 failed in 0.91s ===============================
+
+### 负控 5(新, Codex r2 LOW-1 甲): 首轮等配置间隔、之后各轮 sleep(0) → 杀 :250 与 :345
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:250: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cleanup 就证明取配置不再抛 AttributeError。
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:345: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待都等满配置间隔。
+============================== 2 failed in 1.22s ===============================
+
+### 负控 6(新, Codex r2 LOW-1 乙): 一轮里连做两次 cleanup 后 break → 杀 :250 与 :345
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:250: AssertionError: 调度必须是「等配置间隔 → 清理」严格交替、且**每一轮**都等满配置间隔; 走到 cleanup 就证明取配置不再抛 AttributeError。
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs/backend/tests/unit/test_background_task_manager.py:345: AssertionError: 失败恢复后调度器必须**继续**按「等配置间隔 → 清理」严格交替运行, 且每个循环顶等待都等满配置间隔。
+============================== 2 failed in 0.88s ===============================
+
+## 跑后 shasum -a 256（须与跑前逐字同）
+6688a79efb604a5b6e8c3cc137bd7685b410198ed05de600b6239b27b3244c4b  backend/app/config.py
+ae9be4cae5c8a7e2fd143e836b67d0a829f60723c4970b0201b20810031ad01d  backend/app/services/background_task_manager.py
+2c3fa521ccf2655726de2a355118025ebe7eba84dca4c34bfc6e10ccbadd5813  backend/tests/unit/test_background_task_manager.py

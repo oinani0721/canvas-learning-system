@@ -1,0 +1,54 @@
+# CARD-TAIL-CLEANUP-LOOP 第 0 分钟自证 (a)  @ 20260914T194929
+## pwd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t5-bugs
+## branch
+card/t5-bugs
+## HEAD short8
+08100483
+## git status --porcelain | wc -l
+       1
+## test -x backend/.venv/bin/pytest
+ok
+## test -e backend/.env
+ok
+## test -x $P (pyright)
+ok
+## pyright --version
+pyright 1.1.411
+## test -x $PY
+ok
+## 基线 R-B14-2 唯一口径: test -f $BASE && grep -vc '^#' $BASE
+64
+## 基线含 test_background_task_manager 行数 (应 0)
+0
+## §〇 核验: sed -n '343,356p' services/background_task_manager.py
+            while True:
+                try:
+                    # ⛔ 实测: Settings 没有 TASK_CLEANUP_INTERVAL_SECONDS → 本行运行期恒
+                    # AttributeError, 被本 while 循环的 `except Exception` 捕获后立即重试
+                    # (无退避) ⇒ 清理调度退化为忙循环。既有真缺陷, 修它要选定间隔值 =
+                    # 语义决策, 不在本卡范围 → 只做类型层标注并登记 TAIL。
+                    await asyncio.sleep(
+                        settings.TASK_CLEANUP_INTERVAL_SECONDS  # pyright: ignore[reportAttributeAccessIssue]
+                    )
+                    await self.cleanup_old_tasks()
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"Cleanup error: {e}")
+## §〇 核验: grep -nF 'class Settings' backend/app/config.py (应 77)
+77:class Settings(BaseSettings):
+## §〇 核验: core/ 两文件均不存在
+ls: backend/app/core/background_task_manager.py: No such file or directory
+ls: backend/app/core/config.py: No such file or directory
+## §〇 核验: test 文件 blob (应 cf8d02a9) 与行数 (应 156)
+100644 blob cf8d02a99fd979aa2fa7c66cec7d8998d645a79a	backend/tests/unit/test_background_task_manager.py
+     156
+## 结论: §〇 全部 file:line 与实测逐字相符，无漂移
+rc=0
+
+## ⚠️ 如实更正：上面 'git status --porcelain | wc -l' = 1 的来源
+本 tee 块在 mkdir $EV 之后执行，1 项 = 本自证文件自身（_bmad-output 下的 evidence 目录）。
+开工瞬间（mkdir 之前）实测为空，见本 session 首条命令输出 '=== status ===' 与 '[status end]' 之间无任何行。
+代码面判据（排除 _bmad-output）如下，必须为空：
+[代码面 porcelain 结束 — 空即代码树干净]

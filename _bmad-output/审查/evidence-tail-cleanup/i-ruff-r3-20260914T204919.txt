@@ -1,0 +1,22 @@
+# (i) ruff — 绑 round-3 @ 20260914T204919（生效配置 backend/ruff.toml: select=E9,F63,F7,F82）
+---
+files=3
+All checks passed!
+rc=0
+## 验伪锚(F821)
+F821 Undefined name `undefined_name_t5a`
+ --> backend/_t5a_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_t5a
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+## ruff format --check config.py
+1 file already formatted
+config_fmt_rc=0
+## test 文件 formatter 行段（应只剩主干既有 61/121）
+@@ -61,8 +61,7 @@
+@@ -121,12 +120,8 @@
