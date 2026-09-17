@@ -1,0 +1,23 @@
+### 真实三文件（防误杀）
+test_episode_worker_coverage_epw.py                      rc=0 EPW-PATH-GATE: PASS
+test_story_38_6_scoring_reliability.py                   rc=0 EPW-PATH-GATE: PASS
+test_episode_worker_retry.py                             rc=0 EPW-PATH-GATE: PASS
+
+### r5 LOW-1：包装别名 P(...) 包纯字面量 ⇒ 必 FAIL（修前 PASS）
+P(拼接字面量)                                                 rc=1 EPW-PATH-GATE: FAIL
+
+### r5 LOW-2：tmp_path 下同名文件 ⇒ 必 PASS（修前被误杀 FAIL）
+str(tmp_path / 'dead_letter_episodes.jsonl')             rc=0 EPW-PATH-GATE: PASS
+
+### 全历史锚回归
+①漏传+直调 ⇒ FAIL                                            rc=1 EPW-PATH-GATE: FAIL
+②import ms 无 patch(strict) ⇒ FAIL                        rc=1 EPW-PATH-GATE: FAIL
+②b 非 strict ⇒ PASS                                       rc=0 EPW-PATH-GATE: PASS
+③位置参数 ⇒ FAIL                                             rc=1 EPW-PATH-GATE: FAIL
+⑤裸危险字面量 ⇒ FAIL                                           rc=1 EPW-PATH-GATE: FAIL
+⑥别名 ⇒ FAIL                                               rc=1 EPW-PATH-GATE: FAIL
+⑦str()包字面量 ⇒ FAIL                                        rc=1 EPW-PATH-GATE: FAIL
+⑧跨模块别名 ⇒ FAIL                                            rc=1 EPW-PATH-GATE: FAIL
+⑨f-string 整段 ⇒ FAIL                                      rc=1 EPW-PATH-GATE: FAIL
+⑩三段拼接 ⇒ FAIL                                             rc=1 EPW-PATH-GATE: FAIL
+反向锚：tmp/(data/+dead_letter.jsonl) ⇒ PASS                 rc=0 EPW-PATH-GATE: PASS

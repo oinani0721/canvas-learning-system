@@ -1,0 +1,21 @@
+### 汇总行对照
+开工: = 34 failed, 5116 passed, 35 skipped, 23 xfailed, 171 warnings in 390.00s (0:06:29) =
+收工: = 34 failed, 5163 passed, 35 skipped, 20 xfailed, 171 warnings in 530.29s (0:08:50) =
+
+收工红集条数 = 34
+开工红集条数 = 34
+基线(64) 条数 = 64
+
+### 判据 4-a：收工红集 vs 基线 64 —— 只许 '<'（任何 '>' 阻断）
+diff rc=1
+'<' 行数 = 30
+'>' 行数 = 0  ← 必须为 0
+（无 '>' 行）
+
+### 判据 4-b：收工红集 vs 开工红集 —— 本卡 delta（协议 §5）
+diff rc=0
+差异行数 = 0  ← 0 = 本卡零 delta
+
+### 验伪锚：证 diff 判据会发火（喂一条基线里没有的假 nodeid）
+> FAILED tests/unit/test_this_is_a_probe.py::test_probe
+↑ 门发火（rc 非 0 的 '>' 行出现）

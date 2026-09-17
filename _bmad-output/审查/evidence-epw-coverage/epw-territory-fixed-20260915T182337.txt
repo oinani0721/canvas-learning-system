@@ -1,0 +1,20 @@
+### 先证上一次验伪锚为何是 0（假阴性）：git 默认把非 ASCII 路径加引号+八进制转义
+"_bmad-output/\345\256\241\346\237\245/evidence-epw-coverage/PREV.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-epw-coverage/base.nodeids"
+↑ 行首是双引号，所以 grep '^_bmad-output/' 恒不命中 —— 锚失效，不是 exclude 不起作用
+
+### 更正后的验伪锚：core.quotepath=false 让路径原样输出
+_bmad-output/审查/evidence-epw-coverage/PREV.txt
+_bmad-output/审查/evidence-epw-coverage/base.nodeids
+_bmad-output/审查/evidence-epw-coverage/coverage-matrix-20260915T121111.md
+不带 exclude 时 _bmad-output/ 路径数 = 41（必 > 0）
+带 exclude 时 _bmad-output/ 路径数 = 0（必 = 0）
+
+### 判据 5 正本（地盘门）
+backend/tests/unit/test_episode_worker_coverage_epw.py
+backend/tests/unit/test_story_38_6_scoring_reliability.py
+地盘外文件数 = 0（必 = 0）
+
+### ':!…' 写法在本机的表现（协议 §1 提醒：zsh 下会被吃掉 / git 报错）
+fatal: Unimplemented pathspec magic '_' in ':!_bmad-output'
+rc=0

@@ -1,0 +1,42 @@
+### 加固后：两份地盘文件仍必须 PASS
+worker=3 deadletter=5 singleton=0 imports_memory_service=False strict_ms=True
+EPW-PATH-GATE: PASS
+rc=0
+worker=1 deadletter=0 singleton=0 imports_memory_service=True strict_ms=False
+EPW-PATH-GATE: PASS
+rc=0
+worker=1 deadletter=0 singleton=0 imports_memory_service=False strict_ms=False
+EPW-PATH-GATE: PASS
+rc=0
+
+### 新验伪锚 A（Codex r1 MEDIUM-4 第 1 条）：kwarg 在场但值是写死的真坟场路径 ⇒ 必 FAIL
+worker=1 deadletter=0 singleton=0 imports_memory_service=False strict_ms=False
+❌ /tmp/epw-gate2.AgDtJb/probe.py:2 [<module>] GraphitiEpisodeWorker(dead_letter_path=…) 的值是写死的路径字面量（'data/dead_letter_episodes.jsonl'）——必须是 tmp_path 派生的表达式
+EPW-PATH-GATE: FAIL
+rc=1
+
+### 新验伪锚 B（第 2 条）：import 别名后直调单例 ⇒ 必 FAIL
+worker=0 deadletter=0 singleton=1 imports_memory_service=False strict_ms=False
+❌ /tmp/epw-gate2.AgDtJb/probe.py:2 [<module>] get_w( 单例工厂恒用默认死信路径，禁直调（import 别名，实为 cleanup_episode_worker/get_episode_worker 之一）
+EPW-PATH-GATE: FAIL
+rc=1
+
+### 新验伪锚 C：DeadLetterStore 字面量值 ⇒ 必 FAIL
+worker=0 deadletter=1 singleton=0 imports_memory_service=False strict_ms=False
+❌ /tmp/epw-gate2.AgDtJb/probe.py:2 [<module>] DeadLetterStore(file_path=…) 的值是写死的路径字面量（'data/dead_letter_episodes.jsonl'）——必须是 tmp_path 派生的表达式
+EPW-PATH-GATE: FAIL
+rc=1
+
+### 旧四锚回归（证加固没弄坏原有能力）
+❌ /tmp/epw-gate2.AgDtJb/probe.py:2 [<module>] GraphitiEpisodeWorker( 缺 kwarg dead_letter_path=（位置参数形态也判 FAIL，改写成 kwarg）
+❌ /tmp/epw-gate2.AgDtJb/probe.py:3 [<module>] get_episode_worker( 单例工厂恒用默认死信路径，禁直调
+EPW-PATH-GATE: FAIL
+rc=0
+worker=1 deadletter=0 singleton=0 imports_memory_service=True strict_ms=True
+❌ /tmp/epw-gate2.AgDtJb/probe.py: import 了 memory_service 却没 patch get_episode_worker（间接入口：memory_service 的 4 处 get_episode_worker() 调用）
+EPW-PATH-GATE: FAIL
+rc=0
+worker=1 deadletter=0 singleton=0 imports_memory_service=True strict_ms=False
+⚠️ ADVISORY(登记不阻断，归因见 scope) /tmp/epw-gate2.AgDtJb/probe.py: import 了 memory_service 却没 patch get_episode_worker（间接入口：memory_service 的 4 处 get_episode_worker() 调用）
+EPW-PATH-GATE: PASS
+rc=0

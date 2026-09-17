@@ -1,0 +1,25 @@
+PREV=15fddbc1bbaf2c47e8b6c08c216d36e02d110668  HEAD=a8e316238fa3e214afaea58a9f6103e9e0bcbe78
+### 地盘门
+ .../tests/unit/test_episode_worker_coverage_epw.py | 949 +++++++++++++++++++++
+ .../unit/test_story_38_6_scoring_reliability.py    | 122 ++-
+ 2 files changed, 1031 insertions(+), 40 deletions(-)
+### 文件清单
+backend/tests/unit/test_episode_worker_coverage_epw.py
+backend/tests/unit/test_story_38_6_scoring_reliability.py
+地盘外 = 0（必 0）
+### 验伪锚（quotepath=false 才有效）
+不带 exclude 的 _bmad-output/ 路径数 = 95（必 >0）
+带 exclude 的 = 0（必 0）
+### backend/app 越界 = 0（必 0）
+### 禁改面逐个
+test_qa_38_4_dual_write_extra                 0
+test_cache_configuration                      0
+test_memory_service_write_retry               0
+test_failure_observability                    0
+test_qa_38_6_scoring_reliability_extra        0
+test_episode_worker_retry                     0
+conftest                                      0
+requirements.txt                              0
+fsrs_bridge                                   0
+decay_beta                                    0
+### *.stderr* 入库数 = 0（必 0）

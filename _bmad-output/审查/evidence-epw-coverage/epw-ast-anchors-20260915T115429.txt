@@ -1,0 +1,34 @@
+=== find episode_worker.py ===
+backend/app/services/episode_worker.py
+=== wc -l ===
+     681 backend/app/services/episode_worker.py
+=== AST symbols ===
+('DeadLetterStore', 199, 274)
+('EpisodeTask', 73, 121)
+('GraphitiEpisodeWorker', 282, 658)
+('WorkerMetrics', 125, 167)
+('__init__', 224, 226)
+('__init__', 303, 313)
+('_handle_failure', 635, 658)
+('_process_episode', 562, 633)
+('_redact', 189, 196)
+('_run', 530, 560)
+('_store_full_body_enabled', 229, 231)
+('backoff_seconds', 98, 102)
+('can_retry', 94, 95)
+('cleanup_episode_worker', 676, 681)
+('count', 270, 274)
+('enqueue', 496, 515)
+('get_episode_worker', 668, 673)
+('is_ready', 524, 526)
+('metrics', 518, 521)
+('record_processing_time', 137, 140)
+('start', 443, 452)
+('stop', 454, 494)
+('store', 233, 268)
+('to_dict', 104, 121)
+('to_dict', 154, 167)
+=== grep default dead letter path ===
+207:    credential — was permanently archived in ``data/dead_letter_episodes.jsonl``.
+224:    def __init__(self, file_path: str = "data/dead_letter_episodes.jsonl") -> None:
+306:        dead_letter_path: str = "data/dead_letter_episodes.jsonl",

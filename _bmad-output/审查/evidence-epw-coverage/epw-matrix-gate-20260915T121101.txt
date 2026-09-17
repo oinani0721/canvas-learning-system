@@ -1,0 +1,33 @@
+### 正例：真矩阵 ⇒ 必 PASS rc=0
+red-align: C1=33 原本绿=4 合计=37
+matrix: rows=37
+N1(新文件)=21 N2(已有 retry 测试)=0 T10-C=15 N3(退役)=1
+EPW-MATRIX-GATE: PASS
+rc=0
+
+### 验伪锚 A：删掉第 20 行 ⇒ 必 FAIL（行数 36 ≠ 37）
+red-align: C1=33 原本绿=4 合计=37
+matrix: rows=36
+❌ 主表行数 36 ≠ 37
+rc=1
+
+### 验伪锚 B：把一行的 nodeid 换成 red-align 里没有的 ⇒ 必 FAIL（缺/多各 1）
+red-align: C1=33 原本绿=4 合计=37
+matrix: rows=37
+❌ 矩阵缺 nodeid: tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_write_succeeds_first_attempt
+❌ 矩阵多出 red-align 没有的 nodeid: tests/unit/test_memory_service_write_retry.py::TestWriteToGraphitiJsonWithRetry::test_this_nodeid_does_not_exist
+rc=1
+
+### 验伪锚 C：把退役那行的承接方改成「新文件」⇒ N1=22/N3=0，与统计段自述不符 ⇒ 必 FAIL
+red-align: C1=33 原本绿=4 合计=37
+matrix: rows=37
+N1(新文件)=22 N2(已有 retry 测试)=0 T10-C=15 N3(退役)=0
+❌ 统计段自述 {'N1': 21, 'N2': 0, 'T10C': 15, 'N3': 1} 与表内实数 (N1=22,N2=0,T10C=15,N3=0) 不一致
+rc=1
+
+### 验伪锚 D：统计段自述 N1 改成 20（表内仍 21）⇒ 必 FAIL
+red-align: C1=33 原本绿=4 合计=37
+matrix: rows=37
+N1(新文件)=21 N2(已有 retry 测试)=0 T10-C=15 N3(退役)=1
+❌ 统计段自述 {'N1': 20, 'N2': 0, 'T10C': 15, 'N3': 1} 与表内实数 (N1=21,N2=0,T10C=15,N3=1) 不一致
+rc=1

@@ -1,0 +1,22 @@
+backend/data:
+total 72
+drwxr-xr-x@ 11 Heishing  staff   352 Sep 14 19:53 .
+drwxr-xr-x@ 41 Heishing  staff  1312 Sep 14 20:37 ..
+-rw-r--r--@  1 Heishing  staff   300 Sep 11 11:12 .gitignore
+-rw-r--r--@  1 Heishing  staff  6104 Sep 14 23:19 failed_edge_syncs.jsonl
+-rw-r--r--@  1 Heishing  staff  9159 Sep 14 23:20 failed_writes.jsonl
+drwxr-xr-x@  2 Heishing  staff    64 Sep 14 19:51 lancedb
+-rw-------@  1 Heishing  staff   110 Sep 14 19:53 learning_memories.json
+-rw-------@  1 Heishing  staff   148 Sep 14 19:53 neo4j_memory.json
+drwxr-xr-x@  3 Heishing  staff    96 Sep 14 19:53 outbox
+drwxr-xr-x@  6 Heishing  staff   192 Sep 11 11:12 presets
+-rw-r--r--@  1 Heishing  staff  1727 Sep 11 11:12 reference_priority.json
+
+data:
+total 136
+drwxr-xr-x@  6 Heishing  staff    192 Sep 11 11:12 .
+drwxr-xr-x@ 56 Heishing  staff   1792 Sep 14 20:19 ..
+-rw-r--r--@  1 Heishing  staff  33239 Sep 11 11:12 gdr_wave2_agent_d_survey_findings.json
+drwxr-xr-x@  5 Heishing  staff    160 Sep 11 11:12 lancedb
+-rw-r--r--@  1 Heishing  staff    148 Sep 11 11:12 neo4j_memory.json
+-rw-r--r--@  1 Heishing  staff  28672 Sep 11 11:12 review_data.db

@@ -1,0 +1,18 @@
+# 归因证据：backend/data 两个 jsonl 的写入发生在【开工目录级跑】期间，早于本卡任何文件进入收集面
+## 1. sentinel 与开工跑的时刻
+2026-09-15 11:54:18 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/_bmad-output/审查/evidence-epw-coverage/sentinel
+2026-09-15 12:02:55 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t10-red/_bmad-output/审查/evidence-epw-coverage/epw-unit-open-20260915T115641.txt
+## 2. 本卡两份地盘文件的 mtime（新文件创建时刻 / 38_6 去标时刻）
+2026-09-15 12:01:43 backend/tests/unit/test_episode_worker_coverage_epw.py
+2026-09-15 12:00:52 backend/tests/unit/test_story_38_6_scoring_reliability.py
+## 3. 被写的两个 data 文件
+2026-09-15 11:57:55 backend/data/failed_edge_syncs.jsonl
+2026-09-15 11:59:26 backend/data/failed_writes.jsonl
+## 4. 真死信坟场是否出现（期望：不存在）
+ls: backend/data/dead_letter_episodes.jsonl: No such file or directory
+ls: data/dead_letter_episodes.jsonl: No such file or directory
+## 5. 开工跑的收集面是否含本卡新文件（期望 0 = 未被收集）
+0
+## 6. 生产侧这两个路径是 __file__ 派生的绝对路径（与 cwd 无关）
+12:    Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
+25:    Path(__file__).parent.parent.parent / "data" / "failed_edge_syncs.jsonl"

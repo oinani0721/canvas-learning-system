@@ -1,0 +1,14 @@
+### 新文件
+======================= 47 passed, 10 warnings in 1.37s ========================
+### 38_6
+================== 1 failed, 16 passed, 10 warnings in 0.81s ===================
+### retry 参照
+======================== 5 passed, 10 warnings in 0.92s ========================
+### ruff
+All checks passed!
+rc=0
+### grep CARD-EPW-COVERAGE in 38_6（必 0）
+0
+### 用例数重数
+funcs = 33
+asserts = 168

@@ -1,0 +1,28 @@
+PREV = 15fddbc1bbaf2c47e8b6c08c216d36e02d110668 ; HEAD = 65a84a91971db43c7bd0681b453f33ed71894480
+
+### 判据 5：地盘门（排除 _bmad-output）⇒ 必 ⊆ {新文件, test_story_38_6_scoring_reliability.py}
+ .../tests/unit/test_episode_worker_coverage_epw.py | 834 +++++++++++++++++++++
+ .../unit/test_story_38_6_scoring_reliability.py    | 112 ++-
+ 2 files changed, 906 insertions(+), 40 deletions(-)
+
+### 同一命令的文件名清单（逐行核）
+backend/tests/unit/test_episode_worker_coverage_epw.py
+backend/tests/unit/test_story_38_6_scoring_reliability.py
+
+### 验伪锚：去掉 ':(exclude)_bmad-output' 应多出 _bmad-output/ 路径
+0
+（上面这个数 > 0 证明 exclude 语法真的在起作用，而不是命令没跑成）
+
+### backend/app 越界核：必须为 0
+0
+### 禁改面逐个核：必须全 0
+test_qa_38_4_dual_write_extra.py              0
+test_cache_configuration.py                   0
+test_memory_service_write_retry.py            0
+test_failure_observability.py                 0
+test_qa_38_6_scoring_reliability_extra.py     0
+test_episode_worker_retry.py                  0
+conftest.py                                   0
+requirements.txt                              0
+### fsrs_bridge / decay_beta 零写者
+0
