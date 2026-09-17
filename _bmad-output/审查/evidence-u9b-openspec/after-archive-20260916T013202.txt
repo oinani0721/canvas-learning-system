@@ -1,0 +1,26 @@
+# (d) 后绿：archive 不再撞 SPEC_NO_REQUIREMENTS（仓外 SCRATCH COPY of 改后树）
+# SCRATCH=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.8i0FcTF1B5  CLI=/Users/Heishing/Desktop/canvas/canvas-learning-system/node_modules/.bin/openspec (1.2.0)
+
+## archive 前
+  主 spec sha=2db22e97db4cde07f164408836311690a3eb07e67ada12ea31d1cb424806ff78
+  Requirement=1  Scenario=4
+  changes/archive 条目数=      15
+
+## 跑 archive
+Task status: No tasks
+
+Specs to update:
+  concept-identity: update
+Applying changes to openspec/specs/concept-identity/spec.md:
+  ~ 1 modified
+Totals: + 0, ~ 1, - 0, → 0
+Specs updated successfully.
+Change 'restate-concept-identity' archived as '2026-09-15-restate-concept-identity'.
+ARCHIVE_RC=0
+
+## archive 后
+  主 spec sha=3fb04dbd8cdfb5ae86d5f197da6931fffa83eae0fb88dc37cd01251d091d193d
+  ✓ sha 变了 = archive 真的写了主 spec（不是又被中止）
+  Requirement=1  ← 非 0 = spec 未变空
+  changes/archive 条目数=      16
+  新档案: 2026-09-15-restate-concept-identity

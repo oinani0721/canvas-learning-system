@@ -1,0 +1,18 @@
+=== 真实树零污染核（archive 只在仓外 scratch 跑）===
+git status -- openspec/changes/ :
+  行数=       0  ← 0 = 档案/在途 change 零改动
+git status -- backend/app/models/ :
+  行数=       0  ← 0 = models 零写者
+git status -- backend/app/ :
+  行数=       0  ← 0 = T4-C 不触 backend/app
+
+=== 工作树全部改动（应恰为地盘 3 文件 + evidence）===
+ M backend/tests/regression/test_g3_7_truth_source.py
+ M docs/project-status/fr-exploration/A6-phase0-reference-card.md
+ M openspec/specs/concept-identity/spec.md
+?? "_bmad-output/\345\256\241\346\237\245/evidence-u9b-openspec/"
+
+=== 代码面改动文件（排除 _bmad-output）===
+   M backend/tests/regression/test_g3_7_truth_source.py
+   M docs/project-status/fr-exploration/A6-phase0-reference-card.md
+   M openspec/specs/concept-identity/spec.md

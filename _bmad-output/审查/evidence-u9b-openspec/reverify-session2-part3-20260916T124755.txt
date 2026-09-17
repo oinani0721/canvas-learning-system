@@ -1,0 +1,26 @@
+=== 口径更正：真正的 .stderr 被跟踪文件数（须0）===
+count=0
+-- 验伪锚：同正则对磁盘上确实存在的 4 份 U9B stderr 命中数(须4) --
+14
+
+=== (c) 替代 Requirement 引符号名 ===
+_save_card_states 出现次数=5
+_card_states_lock 出现次数=1
+_card_states 出现次数=12
+Requirement 标题: ### Requirement: FSRS Card State Projection Snapshot Persistence
+Purpose 段是否原样（对 PREV 比）:
+  (无 Purpose 行改动 = 占位符未动)
+
+=== (l) commit header 长度与标记 ===
+af4793bc  chars=85  批次标记=1  卡号=1
+1c8d315f  chars=85  批次标记=1  卡号=1
+86b9aed8  chars=85  批次标记=1  卡号=1
+52afdb9b  chars=91  批次标记=1  卡号=1
+66f0c388  chars=86  批次标记=1  卡号=1
+a38f3c92  chars=77  批次标记=1  卡号=1
+
+=== 验收单 DoD-3 / 两节计数 ===
+验收单存在=yes
+「本卡未证明什么」条目数=0
+「台账待登记」条目数=13
+154:## 五 DoD-3 双段

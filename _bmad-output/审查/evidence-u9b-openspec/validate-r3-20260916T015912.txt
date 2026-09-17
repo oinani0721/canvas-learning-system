@@ -1,0 +1,18 @@
+=== r2 整改后全判据重跑 ===
+结构: Requirement=1  Scenario(4#)=5  Scenario(3#)=0
+裸名字三文件: spec=0 A6=0 test=0  ← 期望 0/0/0
+验伪锚(地盘外仍命中)=2
+Purpose 未动=1
+Specification 'concept-identity' is valid
+
+=== A6 与主 spec 的 Scenario 名逐条一致性（L2 判据）===
+  1. ✓ Snapshot is published by atomic replace, never by writing the destination
+  2. ✓ Unresolvable vault scope fails closed without any filesystem write
+  3. ✓ Serialization failure is normalized to False and the mutation is rolled back
+  4. ✓ A successful snapshot clears every dirty marker without restoring lost values
+  5. ✓ A dirty marker in one vault does not make a same-named concept in another look unpersisted
+  全部一致
+
+=== ast + collect-only ===
+ast OK
+========================= 21 tests collected in 0.11s ==========================

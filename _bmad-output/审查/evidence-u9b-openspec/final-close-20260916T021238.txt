@@ -1,0 +1,29 @@
+# CARD-U9B-OPENSPEC 收官核
+PREV(T4-B 末)=02f59e5f9b52c1431f42c0bd59b3c7784f4d4cbe
+审SHA(r4)     =52afdb9b2024d8ab46627dfde8df1b4b26a93551
+HEAD          =66f0c3882c061026dcc42ce7df014a9fb4df8fd3
+
+## 1 终审绑定（非空判据：HEAD 已前进一个文档 commit）
+代码树 diff 行数=       0  ← 0 = 仍绑定
+验伪锚(去 exclude)行数=       7  ← 非 0 = 判据没跑空
+
+## 2 地盘核 PREV..HEAD
+  backend/tests/regression/test_g3_7_truth_source.py
+  docs/project-status/fr-exploration/A6-phase0-reference-card.md
+  openspec/specs/concept-identity/spec.md
+
+## 3 越界自证（全 0）
+  backend/app                     0
+  openspec/changes                0
+  backend/app/models              0
+
+## 4 工作树 / 未 push
+  status 行数=       1
+  ✓ origin/card/t4-g3 不存在 = 从未 push
+
+## 5 本卡 commit 链
+  66f0c388 docs(u9b): Codex r4 终审 B0/H0/M0/L0 + 验收单定稿 [BATCH-2026-09-11-第十四批 / CARD-U9B-OPENSPEC]
+  52afdb9b docs(u9b): 采纳 Codex r3 一条 LOW（Scenario 5 前置条件补全）[BATCH-2026-09-11-第十四批 / CARD-U9B-OPENSPEC]
+  86b9aed8 docs(u9b): 采纳 Codex r2 两条 MEDIUM + 两条 LOW [BATCH-2026-09-11-第十四批 / CARD-U9B-OPENSPEC]
+  1c8d315f docs(u9b): 采纳 Codex r1 一条 MEDIUM + 两条 LOW [BATCH-2026-09-11-第十四批 / CARD-U9B-OPENSPEC]
+  af4793bc docs(u9b): 悬空 Requirement 换成实现态契约 + 裸名字归零 [BATCH-2026-09-11-第十四批 / CARD-U9B-OPENSPEC]

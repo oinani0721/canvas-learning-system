@@ -1,0 +1,35 @@
+# (b) 先红：archive blocker 复现（仓外 SCRATCH COPY，真实仓零污染）
+# ⚠️ 卡文 §二 写的 `cd $SBD && npx --no-install openspec` **跑不通**：npx 从 CWD 解析 node_modules，
+#   仓外报 'could not determine executable to run'。改用本地已装 CLI 的绝对路径（未装任何包）。
+# CLI=/Users/Heishing/Desktop/canvas/canvas-learning-system/node_modules/.bin/openspec  version=1.2.0
+# SCRATCH=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.HFEZPUGptr
+
+## change 内容自证（REMOVED delta 确实写了）
+1:## REMOVED Requirements
+3:### Requirement: FSRS Card State Legacy Bucket Preservation On Save
+5:**Reason**: 悬空 Requirement —— 它描述的 `self._legacy_card_states` 双桶模型与
+9:**Migration**: 无需迁移 —— 该行为从未实现，无生产调用方。持久化职责现由
+
+## archive 前主 spec sha
+  e5c5c899eda42074e6c92ac64ff52cd36c7c15ba21b8759a7af9792c9757f1cc
+  Requirement 计数=1
+
+## 跑 archive
+
+Proposal warnings in proposal.md (non-blocking):
+  ⚠ Requirement must contain SHALL or MUST keyword
+  ⚠ Requirement must contain SHALL or MUST keyword
+Task status: No tasks
+
+Specs to update:
+  concept-identity: update
+
+Validation errors in rebuilt spec for concept-identity (will not write changes):
+  ✗ Spec must have at least one requirement
+Aborted. No files were changed.
+ARCHIVE_RC=0  ← ⚠️ 卡文 §〇 已记：中止却可能退 0，rc 不是判据
+
+## archive 后主 spec sha（判据：必须与 before 相同 = 主 spec 未被写）
+  e5c5c899eda42074e6c92ac64ff52cd36c7c15ba21b8759a7af9792c9757f1cc
+  ✓ sha 相同 = archive 确实中止、未改主 spec
+  Requirement 计数=1
