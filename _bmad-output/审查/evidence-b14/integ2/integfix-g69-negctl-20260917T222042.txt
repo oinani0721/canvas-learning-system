@@ -1,0 +1,14 @@
+### negctl 登记门 @ 65b2ed65
+sha_before=40bb4485623646a2
+sha_mutated=91fbe28f6c55410e
+E   AssertionError: runner 推送落账键在 backend/app 的消费面变了：['backend/app/__init__.py:last_push_kind', 'backend/app/api/v1/endpoints/review_overview.py:generated_push_failed'] ≠ ['backend/app/api/v1/endpoint
+    assert ['backend/app..._push_failed'] == ['backend/app..._push_failed']
+      At index 0 diff: 'backend/app/__init__.py:last_push_kind' != 'backend/app/api/v1/endpoints/review_overview.py:generated_push_failed'
+      Left contains one more item: 'backend/app/api/v1/endpoints/review_overview.py:generated_push_failed'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/tests/regression/test_g6_9_boundary_matrix.py:654: AssertionError: runner 推送落账键在 backend/app 的消费面变了：['bac
+FAILED tests/regression/test_g6_9_boundary_matrix.py::test_push_failure_visibility_in_backend_app_is_exactly_review_overview
+================== 1 failed, 23 passed, 10 warnings in 0.46s ===================
+pytest_rc=1
+sha_restored=40bb4485623646a2
+porcelain(除测试文件)=0
+rc=0

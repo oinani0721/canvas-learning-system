@@ -1,0 +1,61 @@
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/regression/test_g3_2_review_ledger.py:6984
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/tests/regression/test_g3_2_review_ledger.py:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+    \u00b7 `\s+` \u5f53\u5206\u9694\uff1aPython `\s` \u542b\u5168\u89d2\u7a7a\u683c/NBSP\uff0cYAML s-white \u53ea\u6709 SP/TAB \u2014\u2014
+
+tests/regression/test_recap_scan_signals.py:6100
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/tests/regression/test_recap_scan_signals.py:6100: SyntaxWarning: "\S" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\S"? A raw string is also an option.
+    （`^##[^\S\n]` / `^#{2,3}[^\S\n]`）要求井号后**实际有空白**。
+
+tests/regression/test_all_index_entrypoints_hostile_env.py: 8 warnings
+tests/regression/test_board_manifest_contracts.py: 167 warnings
+tests/regression/test_projection_sync_ghost_edges.py: 4 warnings
+tests/regression/test_recap_scan_signals.py: 4 warnings
+tests/regression/test_snapshot_v3_contract.py: 86 warnings
+tests/regression/test_sync_board_concepts.py: 18 warnings
+tests/regression/test_targeting_material_isolation.py: 10 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+tests/regression/test_rag_stage1_index_contracts.py: 15 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/lib/agentic_rag/clients/lancedb_client.py:4414: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if data and table_name in self._db.table_names():
+
+tests/regression/test_rag_stage1_index_contracts.py: 58 warnings
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/regression/test_rag_stage1_index_contracts.py: 15 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/lib/agentic_rag/clients/lancedb_client.py:4423: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name in self._db.table_names():
+
+tests/regression/test_rag_stage1_index_contracts.py: 14 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/tests/regression/test_rag_stage1_index_contracts.py:71: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table not in client._db.table_names():
+
+tests/regression/test_rag_stage1_index_contracts.py: 14 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch14-integ2/backend/app/services/vault_index_orchestrator.py:649: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if client._db is None or table not in client._db.table_names():
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g6_9_boundary_matrix.py::test_push_failure_is_invisible_to_backend_app
+= 1 failed, 1912 passed, 6 skipped, 1 xfailed, 425 warnings in 409.49s (0:06:49) =
+rc=1

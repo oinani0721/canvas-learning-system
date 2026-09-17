@@ -1,0 +1,2 @@
+WROTE: backend/openapi.json (paths=199 schemas=357, x-generated-at=2026-09-17T10:54:40.440439+00:00)
+rc=0

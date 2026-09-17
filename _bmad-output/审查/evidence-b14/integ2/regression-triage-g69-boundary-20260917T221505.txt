@@ -1,0 +1,49 @@
+### 定性 tests/regression/test_g6_9_boundary_matrix.py::test_push_failure_is_invisible_to_backend_app
+--- feature-obsidian-hybrid-dev @ f8a8509f ---
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 0.48s ========================
+rc=0
+--- card-t3-review @ 424abd20 ---
+app/api/v1/endpoints/metadata.py:103
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g6_9_boundary_matrix.py::test_push_failure_is_invisible_to_backend_app
+======================== 1 failed, 10 warnings in 0.45s ========================
+rc=1
+--- batch14-integ2 @ 65b2ed65 ---
+app/api/v1/endpoints/metadata.py:103
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g6_9_boundary_matrix.py::test_push_failure_is_invisible_to_backend_app
+======================== 1 failed, 10 warnings in 0.48s ========================
+rc=1

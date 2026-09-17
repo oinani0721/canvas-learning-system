@@ -1,0 +1,4 @@
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-17T10:47:24.227984Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-17T10:47:24.228000Z"}
+WROTE: backend/openapi.json (paths=199 schemas=357, x-generated-at=2026-09-17T10:47:24.636749+00:00)
+rc=0

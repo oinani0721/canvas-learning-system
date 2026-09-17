@@ -1,0 +1,114 @@
+files=113
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/negctl.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/prefix.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/probe_direction.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/probe_r3_selfaudit.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/probe_walk_delta.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/readme_selfcheck.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/rounds2.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/rounds_instr.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/rounds_real.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/verify_r1.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/verify_r2.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/verify_r3.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-epw-coverage/coverage_matrix_check.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-epw-coverage/epw_negctl.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-epw-coverage/epw_path_gate.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-expect-loc-narrow/ast_equal_after_comment_edit.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-expect-loc-narrow/negctl_expect_loc_driver.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-expect-loc-narrow/negctl_extra_loc_uncovered.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-expect-loc-narrow/pre-comment-edit/g32cb_mutation_gates.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-expect-loc-narrow/pre-comment-edit/g32ccr1_negative_controls.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-expect-loc-narrow/pre-comment-edit/g33_mutation_gates.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/probe_fifo_hang.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/probe_other_read_points.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/probe_read_equivalence.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/probe_special_kinds.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-g39/g39_mutation_negctl.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-g68/scripts/g68_negctl.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-harness-tree/repro-counterexample-20260914.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-harness-tree/verify-new-gates-kill-mutants-20260915.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-runtime-sha-surface/noexec_contract.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-runtime-sha-surface/run_gate_probes.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-runtime-sha-surface/sqlite_sha_stability.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-skill-port-lint-parser/judge-ast-equivalence.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-skill-port-lint-parser/judge-module-verifier.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-w4final/ast-protected.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-w4final/nc-remove-protection.py":1:1
+
+E902 No such file or directory (os error 2)
+--> "_bmad-output/\345\256\241\346\237\245/evidence-w4final/three-run-abc.py":1:1
+
+Found 37 errors.
+rc=1

@@ -1,0 +1,15 @@
+### Docker 启动（用户 2026-09-18「请你开始」授权）20260918T013940
+open -a Docker rc=0
+daemon up after ~3s
+--- 容器状态（启动后 restart 策略自动拉起）---
+canvas-learning-system-backend	Up About a minute (healthy)	127.0.0.1:8011->8001/tcp
+canvas-learning-system-neo4j-test	Up About a minute (healthy)	127.0.0.1:7479->7474/tcp, 127.0.0.1:7692->7687/tcp
+canvas-learning-system-neo4j	Up About a minute (healthy)	127.0.0.1:7478->7474/tcp, 127.0.0.1:7691->7687/tcp
+canvas-backend-worktree	Exited (137) 4 months ago	
+neo4j-canvas-graphiti	Exited (137) 4 months ago	
+neo4j-graphiti	Exited (137) 4 months ago	
+--- 等 7692 bolt ---
+7692 READY after ~3s
+canvas-learning-system-neo4j-test	Up About a minute (healthy)
+canvas-learning-system-neo4j	Up About a minute (healthy)
+rc=0
