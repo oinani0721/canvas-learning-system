@@ -1,0 +1,15 @@
+# 负控两段（r3：绑最终 parser 8cf9cb96）  2026-09-14T23:26:37+0800
+⛔ 串行：本段还原确认后才启动目录级
+════ 负控①：三态退回旧 2-way ════
+跑前 sha: e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab
+=================== 3 failed, 3 passed, 10 warnings in 0.79s ===================
+跑后 sha: e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab
+
+════ 负控②：身份退化成 nodeid 集 ════
+跑前 sha: 8cf9cb96ac5b19f2e14c95222c1e7ccd8aa81989f6709e0beb6b3dcf2c2eb2f9
+================== 12 failed, 26 passed, 10 warnings in 0.85s ==================
+  退化实现下 r4 vs r4b rc = 1（期望 1）
+跑后 sha: 8cf9cb96ac5b19f2e14c95222c1e7ccd8aa81989f6709e0beb6b3dcf2c2eb2f9
+  还原后 rc = 0（期望 0）⇒ 双向成立
+════ 还原确认 ════
+======================= 38 passed, 10 warnings in 0.81s ========================

@@ -1,0 +1,24 @@
+# (g) 目录级 diff 判定（r2：绑最终代码）  2026-09-14T23:16:46+0800
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/unit-close-r2-20260914T231032.txt
+  # tests/unit 目录级（r2：绑最终代码，全程无并发变异）2026-09-14T23:10:32+0800
+  # 跑前 parser sha（Codex MEDIUM-6：判据须绑审查版本）:
+  c52a8a5bf005312eb939315040060f42a600555ede0d2833e0e60ed409ece81f  backend/tests/support/w4_sentinel_identity.py
+  e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab  backend/tests/support/hygiene_snapshot_tristate.py
+= 35 failed, 5112 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 335.95s (0:05:35) =
+rc=1
+base=64  close=64
+--- diff base → close（只允许 <）---
+diff_rc=0
+  '>' 行数（本卡引入，必须 0）= 0
+  本卡新测试在红集里 = 0（期望 0）
+  验伪锚：同一 grep 对作废那跑 = 3（期望 3，证明 grep 能命中）
+
+--- 只读守卫（本卡零改这三份）---
+  ✅ 未改 backend/tests/support/live_port_guard.py
+  ✅ 未改 backend/tests/support/guard_plugin.py
+  ✅ 未改 backend/tests/conftest.py
+
+--- 地盘（期望 4）---
+ M backend/tests/support/w4_sentinel_identity.py
+ M backend/tests/unit/conftest.py
+ M backend/tests/unit/test_w4_sentinel_rebind.py

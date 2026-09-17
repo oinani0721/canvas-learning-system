@@ -20,6 +20,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.support.hygiene_snapshot_tristate import classify_sha_change
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CARD-TEST-hygiene-vaultinit [BATCH-2026-09-05-第十二批]
 # Session-level invariant: running tests/unit must not leave a vault skeleton
@@ -78,7 +80,12 @@ def _hygiene_snapshot() -> dict:
 
     setup 与 teardown 共用本函数 —— 若两侧各写一份逻辑, 环境差异
     (例如 /tmp 一时不可读) 会让前后口径不一致, 门就成了假红。
-    读不到的目标一律记 None, 前后同为 None 即视为未变化。
+    读不到的目标一律记 None。
+    ⛔ CARD-W4-SENTINEL-REBIND 起, sha 侧的 None 不再当「未变化」:
+       任一侧 None (含前后同为 None) 一律判 unchecked -> cannot_check,
+       因为 None 的含义是「这一次没读到」而不是「内容没变」。
+       (旧口径把 None <-> None 静默当未变化, 那是把「没查完」当「没问题」。)
+       exists 侧是 bool, 无此问题, 语义不变。
     """
     root = _hygiene_backend_root()
     exists = {rel: (root / rel).exists() for rel in _HYGIENE_SKELETON_PATHS}
@@ -308,12 +315,26 @@ def _no_vault_skeleton_left_behind():
         if after["exists"][rel] and not before["exists"][rel]:
             pollution.append(f"  新出现 vault 骨架: {root / rel}")
 
+    # CARD-W4-SENTINEL-REBIND [BATCH-2026-09-11-第十四批]: sha 比对由 2-way 改三态。
+    # 旧写法 `after != before` 把两种 None 形态都判错:
+    #   None <-> hash  -> 判 pollution (假阳: 没读到 != 内容变了);
+    #   None <-> None  -> `!=` 为假 -> **静默**当未变化放过 (假阴: 把「没查完」当「没问题」,
+    #                     正是 :302 注释所禁的那件事)。
+    # 现在 unchecked 一律进 cannot_check —— 门拒绝把「没检查」当「没问题」。
     for rel in _HYGIENE_TRACKED_FILES:
-        if after["sha"][rel] != before["sha"][rel]:
+        verdict = classify_sha_change(before["sha"][rel], after["sha"][rel])
+        if verdict == "changed":
             pollution.append(
                 f"  已入库文件被改写: {root / rel}\n"
                 f"    before sha256={before['sha'][rel]}\n"
                 f"    after  sha256={after['sha'][rel]}"
+            )
+        elif verdict == "unchecked":
+            cannot_check.append(
+                f"  已入库文件这次没读成, 是否被动过无从判断: {root / rel}\n"
+                f"    before sha256={before['sha'][rel]}\n"
+                f"    after  sha256={after['sha'][rel]}\n"
+                f"    (None = 那一次 read_bytes 抛了 OSError; 两侧同为 None 也算没查成)"
             )
 
     if literal_hits:

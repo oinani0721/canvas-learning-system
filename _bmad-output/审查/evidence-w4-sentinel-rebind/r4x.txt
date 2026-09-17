@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+collected 5141 items
+
+tests/unit/test_candidate_service.py .....F....                           [ 12%]
+tests/unit/test_mock_degradation_transparency.py .........                [ 34%]
+
+=================================== FAILURES ===================================
+______________ test_accept_candidate_already_accepted_returns_422 ______________
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422)
+=========================== short test summary info ============================
+FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=2 (blocked=2, advisory=0, unaccounted=0)
+= 1 failed, 5140 passed in 401.42s =

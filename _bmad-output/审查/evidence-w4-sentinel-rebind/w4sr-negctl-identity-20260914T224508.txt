@@ -1,0 +1,28 @@
+# 负控②：failure_body_identities 退回「返回 FAILED nodeid 集」  2026-09-14T22:45:08+0800
+跑前 sha: 73c5fa34eea96ab4c0a5d4433bb15e30d1491781ac110a749effcf246a41bc46  backend/tests/support/w4_sentinel_identity.py
+  对照输入已写入（只把身份定义退化这一层）
+    assert failure_body_identities(SAMPLE_R4) == failure_body_identities(SAMPLE_R4B)
+E   AssertionError: assert {'tests/unit/..._returns_422'} == {'tests/unit/...logs_warning'}
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_r4_and_r4b_have_the_same_identity
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_identity_excludes_owner
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_identity_is_the_expected_string
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_both_indent_forms_are_collected
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_ipv4_two_tuple_is_collected
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestFailureBodyIdentities::test_owner_containing_on_thread_does_not_leak_into_identity
+FAILED tests/unit/test_w4_sentinel_rebind.py::TestNaiveNodeidsIsTheFalsificationAnchor::test_new_criterion_holds_where_old_one_drifts
+=================== 7 failed, 3 passed, 10 warnings in 1.09s ===================
+--- CLI 在退化实现下对 r4/r4b 应改判 DIFFER（rc=1）---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/r4.txt: blocked=1 bodies=['tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422']
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/_bmad-output/审查/evidence-w4-sentinel-rebind/r4b.txt: blocked=1 bodies=['tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning']
+  rc=0
+跑后 sha: 73c5fa34eea96ab4c0a5d4433bb15e30d1491781ac110a749effcf246a41bc46  backend/tests/support/w4_sentinel_identity.py
+
+════ ⚠️ 补正：上面那条 CLI 的『rc=0』是假的 ════
+写法 `( … | tail -2 ); echo rc=$?` 取到的是管道末端 tail 的 rc，不是 python 的。
+（与记忆里 reference_tail_n_positional_anchor_breaks 同族：管道吃 rc。）
+正确取法 + 重跑对照输入：
+  跑前 sha: fbe484bd8ef1751a3e79…
+  退化实现下 r4 vs r4b 的真实 rc = 1（期望 1 = DIFFER；退化后身份变回会漂的 nodeid）
+  跑后 sha: 73c5fa34eea96ab4c0a5…
+  还原后同一对照的 rc = 0（期望 0 = CONSISTENT）
+⇒ 「退化即翻红、还原即翻绿」双向成立，判据锁的是身份定义本身。

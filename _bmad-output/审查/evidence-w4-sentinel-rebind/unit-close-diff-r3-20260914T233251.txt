@@ -1,0 +1,32 @@
+# (g) 目录级 diff 判定（r3：绑最终代码 8cf9cb96）  2026-09-14T23:32:51+0800
+⚠️ 本跑落盘用了 tail -80——先自证 short summary 区段完整（64 条应全在）：
+  存档里 FAILED/ERROR 行数 = 64
+  # tests/unit 目录级（r3：绑最终代码，全程无并发变异）2026-09-14T23:27:22+0800
+  # 跑前 sha:
+  8cf9cb96ac5b19f2e14c95222c1e7ccd8aa81989f6709e0beb6b3dcf2c2eb2f9  backend/tests/support/w4_sentinel_identity.py
+  e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab  backend/tests/support/hygiene_snapshot_tristate.py
+  f0ca72257117bfe17f7cc152404bb3612f8005d30d543e4d50893f1ed8f39682  backend/tests/unit/conftest.py
+= 35 failed, 5116 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 298.05s (0:04:58) =
+rc=0
+base=64  close=64
+--- diff base → close ---
+diff_rc=0
+  '>' 行数 = 0
+  本卡新测试在红集 = 0（期望 0）
+  验伪锚：同 grep 对作废跑 = 3（期望 3）
+--- 只读守卫 ---
+  ✅ 未改 backend/tests/support/live_port_guard.py
+  ✅ 未改 backend/tests/support/guard_plugin.py
+  ✅ 未改 backend/tests/conftest.py
+
+════ ⚠️ 补正：unit-close-r3 存档末行的『rc=0』是假的 ════
+该跑我写成 `pytest … | tail -80 | tee -a $RUN > /dev/null`，
+$pipestatus[1] 取的是**管道第二段 tail** 的 rc，不是 pytest 的。
+（本卡第三次踩同族：管道吃 rc。前两次在负控② 与 unit-close-diff。）
+真值旁证：该跑 35 failed + 29 errors ⇒ pytest 必然 rc=1，不可能是 0。
+结论不受影响——(g) 的判据是 nodeid 集 diff，不是 pytest 的 rc：
+  存档里 FAILED/ERROR 行数 = 64（与 base 同）
+  diff base close = 完全相同，'>' 行数 = 0
+
+⛔ 规则（本卡第三次后写死）：承重跑一律 `… 2>&1 | tee $RUN; echo rc=$pipestatus[1]`，
+   中间**不得插 tail/head/grep**；要截断就先 tee 全量、再从存档里截。

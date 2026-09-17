@@ -1,0 +1,16 @@
+============================= test session starts ==============================
+collected 5141 items
+
+tests/unit/test_candidate_service.py ..........                           [ 12%]
+tests/unit/test_mock_degradation_transparency.py ....F....                [ 34%]
+
+=================================== FAILURES ===================================
+_____________ TestMockScoringWarningLogs.test_mock_mode_logs_warning ___________
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning)
+=========================== short test summary info ============================
+FAILED tests/unit/test_mock_degradation_transparency.py::TestMockScoringWarningLogs::test_mock_mode_logs_warning
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+= 1 failed, 5140 passed in 398.77s =

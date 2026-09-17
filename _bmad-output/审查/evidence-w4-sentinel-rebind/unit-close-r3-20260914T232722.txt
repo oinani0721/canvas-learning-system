@@ -1,0 +1,108 @@
+# tests/unit 目录级（r3：绑最终代码，全程无并发变异）2026-09-14T23:27:22+0800
+# 跑前 sha:
+8cf9cb96ac5b19f2e14c95222c1e7ccd8aa81989f6709e0beb6b3dcf2c2eb2f9  backend/tests/support/w4_sentinel_identity.py
+e21500b4c2dd187b1817eb3f8c3242f5f2305063c91a750595abdca8f909ffab  backend/tests/support/hygiene_snapshot_tristate.py
+f0ca72257117bfe17f7cc152404bb3612f8005d30d543e4d50893f1ed8f39682  backend/tests/unit/conftest.py
+tests/unit/test_vault_scope_409.py: 1 warning
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_inheritance_distill_mismatch_409
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/app/api/v1/endpoints/inheritance.py:83: DeprecationWarning: deprecated
+    request.vault_id, legacy_group_id=request.group_id
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception
+FAILED tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_config_has_debug_agent_response_field
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+FAILED tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+FAILED tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format
+FAILED tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_main_imports_fallback_sync
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestStartupIntegration::test_fallback_sync_called_in_lifespan
+FAILED tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_normalizes_schema
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_passes_node_id_filter_to_search_memories
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean - AssertionError: [2m台账[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t9-w4/backend/scripts/vault_doc_roles.yaml
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled
+ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_without_debug_logging
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_field_used_when_present
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_node_text
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_concept_fallback_to_unknown
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_color_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_node_removed_event_type
+ERROR tests/unit/test_memory_service_batch.py::TestRecordBatchLearningEventsConcept::test_neo4j_disconnected_still_stores_in_memory
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_50_events_all_processed
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_neo4j_called_for_each_event
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_parallel_faster_than_sequential
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchParallelExecution::test_performance_stats_recorded
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_neo4j_failure_does_not_block_processing
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_validation_failure_isolated
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchPartialFailure::test_episode_ids_only_for_successful
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchSemaphore::test_concurrency_limited_by_semaphore
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchNeo4jDegradation::test_neo4j_unavailable_still_processes_to_memory
+ERROR tests/unit/test_story_30_11_batch_parallel.py::TestBatchIdempotencyCompat::test_duplicate_batch_no_duplicates
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_duplicate_event_detection
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_idempotent_writes_across_retries
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_large_batch_idempotency
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchIdempotency::test_different_events_not_deduplicated
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_50_events_under_500ms
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_1000_events_completion
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_batch_memory_metrics
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPerformance::test_concurrent_batch_requests
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_partial_failure_recovery
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_event_ordering_preserved
+ERROR tests/unit/test_story_30_13_batch_idempotency.py::TestBatchPartialFailureRecovery::test_neo4j_unavailable_fallback
+= 35 failed, 5116 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 298.05s (0:04:58) =
+rc=0
+
+# ============================================================
+# ⚠️ 事后更正（2026-09-14，追加，不改上面任何原始行）
+# ============================================================
+# 【更正一：末行 rc=0 是假数字】
+#   第 86 行的 `rc=0` 不是 pytest 的退出码。该跑的命令写成
+#       pytest … 2>&1 | tail -80 | tee -a "$RUN" > /dev/null
+#       echo "rc=$pipestatus[1]"
+#   管道有三段，`$pipestatus[1]` 取的是**第一段之后被 tail 覆盖掉的那个位置**——
+#   实际落到 `tail` 的 rc（恒 0）。该跑 `35 failed + 29 errors`，pytest 的真 rc **必然是 1**。
+#   ⇒ **第 86 行的 rc 作废，不得引用**。本跑的承重判据从来不是这个 rc，而是
+#      nodeid 口径的红集与基线的 diff（见 unit-close-diff-r3-20260914T233251.txt），该结论不受影响。
+#   规则（已写死）：承重跑一律 `<命令> 2>&1 | tee "$RUN"; echo "rc=$pipestatus[1]"`，
+#   管道里只许有 tee 一段；要截断就先 tee 全量再从存档里截。本卡此坑共踩三次。
+#
+# 【更正二：跑前 sha 漏记一个文件】
+#   上面第 3-5 行只记了 3 个文件，漏了 backend/tests/unit/test_w4_sentinel_rebind.py
+#   （38 条新测试的来源）。事后补记其当前值：
+#     4da5db1cb7df4a703eb39fce549a0882c8a299c3eda95ecb5ae498ec2e527263  backend/tests/unit/test_w4_sentinel_rebind.py
+#   ⚠️ 这是**事后值**，不构成「跑前即为此值」的证明。可交叉印证的是：该文件在本跑之前的
+#   最后一次改动发生于 codex-r2-fix-verify-20260914T232556.txt 之前，且此后到 commit 9a280b16
+#   为止工作区代码面为空（git status --porcelain 无输出）。
