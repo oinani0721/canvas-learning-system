@@ -109,3 +109,45 @@ NC-7 / NC-8 是**引信可达性**证明而非先红：那两颗哑弹的真实�
 - `backend/tests/unit/test_review_app.py` — 「不相交是双向的」与「推迟键与完成键不同族」两条 JS 门
 
 请按 BLOCKER / HIGH / MEDIUM / LOW 分级给出结论，每条附精确的 file:line 与你的判断依据。
+
+---
+
+## ⑥ round-2 增补（本节是 round-1 之后的变化，请一并审）
+
+round-1（绑 `f73dedfe..3fa154ef`）判 BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 2。两条 LOW 车道
+**主动采纳并自修**，另自修两处由本卡改动直接造成的失实，故再送本轮绑新 HEAD。本轮改动**全部
+在测试与注释层，生产逻辑一字未动**（`scripts/daily_review_run.py` 与 `review_overview.py`
+的代码行与 round-1 逐字相同）。
+
+1. **LOW-2（定性错误，已逐字更正）**：`review_app.py` 的 `doneKey` 注释与
+   `test_review_app.py` 新门第 ④ 条原写「vaultId 与 board 都取自 POSIX 名」。板名那半是
+   错的——板名取自 frontmatter（`daily_review_pick` 的 `_fm_str` → `_board_name`），那条链
+   能保留 NUL；据此推出的「未来用户直填板名即可打破」也不成立。更正后的定性：**单射只需
+   `vaultId` 不含 NUL**，此时 `v+NUL+b` 里第一个 NUL 的位置恒是 `len(v)`，故
+   `len(v1)=len(v2) ⇒ v1=v2 ⇒ b1=b2`，**板名不受任何约束**；现状满足（`vault_id` =
+   `review_overview.py:1070/:1172` 的 `vault_dir.name` / `v.name`，真实目录名）。
+   **请核这个论证本身与两处来源的实测，以及更正后的注释有没有留下新的不准确。**
+
+2. **LOW-1（证明力度收紧 + 补两条负控）**：补了 NC-3b（`wall_now` 偏移 1 秒 ⇒ 身份层红在
+   `'…23:59:58.9…' vs '…23:59:59.9…'`，同日不同刻）与 NC-3c（同变异 + 临时摘除身份层 ⇒
+   行为层 **1 passed**）。两条合起来才是「偏移 1 秒只让身份层变红」的证明；验收单里 NC-3
+   的表述已改为「证明绕开可钉入口会被抓住，不能单独证明只有身份层变红」。
+   **请核这两条负控是否真的构成那个证明。**
+
+3. **本卡改动直接造成的失实自修（DD-13）**：`test_review_overview.py` 的 `_pin_child_now`
+   docstring 原写「刻意**不**给生产加旗标」并列三条理由——那是 U6-C 当时决定不做的依据，被
+   本卡 item ② 推翻；已逐条更正为「仍成立 / 仍成立但不再是不做的理由 / 仍成立」三档。该
+   helper 原先盲目 `argv += ["--now", ...]`，生产加旗标后 argv 会出现两个 `--now`；两处
+   调用点都是 `pinned = _pin_now(...)` 紧接 `_pin_child_now(..., pinned)` ⇒ 两值相同、零
+   行为差异，但那是「argparse 取后一个」的隐式前提，已改为**显式替换**（`while "--now" in
+   argv: del argv[i:i+2]` 后再追加）。`:4527` 指向被推翻理由的注释同步更正。
+   **请核：显式替换的实现有没有边界问题（如 `--now` 出现在末尾时的切片）、更正后的
+   docstring 有没有仍然失实的句子、以及这次改动会不会削弱那两条既有端到端门。**
+
+4. **验收单一并更正了 round-1 指出的两处事实**：`load_state`（`daily_review_run.py:122` 起）
+   对三个账本键已有顶层 `isinstance(..., dict)` 校验（不是原样透传）；`_read_entry` 是
+   **同一次 refresh 的回读阶段**再次读钟（不是「之后 GET 那次」），故不宣称整次刷新已统一
+   归日。**请核这两处更正后的表述是否仍有说过头的地方。**
+
+本轮实跑：三个受影响测试文件 **290 passed**；`pyright app` **0 errors / 82 warnings**（与
+开工基线逐条相同）；六文件 ruff check + format 全绿；地盘核恰 6 文件、`openapi.json` 净变化 0。
