@@ -1,0 +1,23 @@
+### 收官绑定核（协议 §1：终审绑定看代码树）
+  审SHA 存在自证: commit
+  git diff --stat "bcd487db" HEAD -- . ':(exclude)_bmad-output'  ⇒ 期望空:
+  行数(期望 0) =        0
+  ⛔ 验伪锚(去掉 exclude, 用 --name-only 免 --stat 缩写) 期望 >=1 = 7
+  ⇒ 绑定成立: 自 bcd487db 起代码树零改动, 只多了 _bmad-output
+
+### 最终硬门复跑（复审期做过临时改文件实验, 必须证明最终态干净）
+0 errors, 80 warnings, 0 informations
+rc=0
+
+### 最终态与 HEAD 逐文件 shasum 一致性（证临时实验已完全还原）
+  pyrightconfig.json                             ✅同
+  backend/app/dependencies.py                    ✅同
+  backend/app/services/canvas_service.py         ✅同
+  backend/app/services/exam_service.py           ✅同
+  backend/app/services/review_service.py         ✅同
+  git status --porcelain | wc -l (期望 0) =        2
+
+### 三个 commit
+  ef4214f9 docs(pyright): Codex r1 存档+验收单+复审后三项实测 [BATCH-2026-09-11-第十四批 / CARD-PYRIGHT-TAIL]
+  bcd487db docs(pyright): 收工判据证据入库(地盘/census-only/负控/ruff) [BATCH-2026-09-11-第十四批 / CARD-PYRIGHT-TAIL]
+  d1c40998 chore(pyright): TAIL census + 清死配置/冗余 ignore/三处注释措辞 [BATCH-2026-09-11-第十四批 / CARD-PYRIGHT-TAIL]
