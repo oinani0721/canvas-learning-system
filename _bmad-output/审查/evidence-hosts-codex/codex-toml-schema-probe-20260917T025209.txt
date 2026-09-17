@@ -1,0 +1,15 @@
+# codex 0.153.3 HTTP MCP server 的 TOML 规范形态实测（只读；CODEX_HOME 重定向到 scratchpad）
+# 目的：卡文 (c).2 写 'type = "http"'，需核它是不是 codex 的规范键。
+codex --version = codex-cli 0.153.3
+
+## ① codex mcp add canvas-learning-mcp --url http://127.0.0.1:8011/mcp（CODEX_HOME=scratch）生成：
+[mcp_servers.canvas-learning-mcp]
+url = "http://127.0.0.1:8011/mcp"
+
+## ② 两种形态 codex mcp list 都能解析（带 type / 不带 type），rc 均 0 ⇒ type 键被静默忽略
+带 type:  canvas-learning-mcp  http://127.0.0.1:8011/mcp  -                     enabled  Unsupported
+不带type:  canvas-learning-mcp  http://127.0.0.1:8011/mcp  -                     enabled  Unsupported
+
+## 裁定：生成规范形态（只 url），不写被忽略的 type 键（DD-13 名实一致）。卡文措辞差异登记验收单。
+## ~/.codex/config.toml 全程未变（本文件每条命令前后 sha 相同）：
+579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml

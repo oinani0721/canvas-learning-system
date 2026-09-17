@@ -1,7 +1,7 @@
 {
   "version": 2,
   "source": "harness-canvas-vault",
-  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:73-77) 的机器可读投影。模板源 = <harness>/canvas-vault/ 的 git 追踪系统件 + 脚本生成件（E-4）；--source 可改指一个活 vault 取那些 gitignored、树里本就没有的件。extra_allow 是「覆盖面内允许多出来」的路径白名单（与 items 的 path 同口径，支持 *? 通配，与已声明项或 exclude 模式重叠即拒绝加载）——命中的项进报告的 allowed-extra 段，只报告不计退出码。item 级 optional=true 表示「声明了但允许它不在」：缺失进 optional-missing 段、同样不计退出码，在位时 copy 项照常比内容，generate 项不比（按定义每 vault 不同，Codex round-2 核对）。⚠️ origin 约定的两条例外（CARD-HOSTS-OPENCODE）：`.agents/skills` 与 `AGENTS.md` 的 origin 指向 **deploy-vault.sh** 而不是 install-vault.sh —— 它们由部署脚本步 3 在 `--hosts` 含 opencode 时生成，install-vault.sh 里没有任何对应锚行（`.obsidian/cls-internal-key.txt` 同属「由 deploy-vault.sh 生成」一类，但它在 install-vault.sh 里有一行自检反向判可作锚，这两件没有）。故本文件不再是 install-vault.sh 的**纯**投影；`test_generate_section_covers_exactly_the_generate_items` 的 OUTSOURCED 集合是这一归属差异的可执行形态。",
+  "description": "Canvas Learning System vault 部署清单 — install-vault.sh MANIFEST 区 (:73-77) 的机器可读投影。模板源 = <harness>/canvas-vault/ 的 git 追踪系统件 + 脚本生成件（E-4）；--source 可改指一个活 vault 取那些 gitignored、树里本就没有的件。extra_allow 是「覆盖面内允许多出来」的路径白名单（与 items 的 path 同口径，支持 *? 通配，与已声明项或 exclude 模式重叠即拒绝加载）——命中的项进报告的 allowed-extra 段，只报告不计退出码。item 级 optional=true 表示「声明了但允许它不在」：缺失进 optional-missing 段、同样不计退出码，在位时 copy 项照常比内容，generate 项不比（按定义每 vault 不同，Codex round-2 核对）。⚠️ origin 约定的两条例外（CARD-HOSTS-OPENCODE）：`.agents/skills` 与 `AGENTS.md` 的 origin 指向 **deploy-vault.sh** 而不是 install-vault.sh —— 它们由部署脚本步 3 在 `--hosts` 含 opencode 时生成，install-vault.sh 里没有任何对应锚行（`.obsidian/cls-internal-key.txt` 同属「由 deploy-vault.sh 生成」一类，但它在 install-vault.sh 里有一行自检反向判可作锚，这两件没有）。故本文件不再是 install-vault.sh 的**纯**投影；`test_generate_section_covers_exactly_the_generate_items` 的 OUTSOURCED 集合是这一归属差异的可执行形态。 ⚠️ origin 约定的第三条例外（CARD-HOSTS-CODEX）：`.codex/config.toml` 由 deploy-vault.sh 步 3 在 `--hosts` 含 codex 时生成，install-vault.sh 里同样没有任何对应锚行；它被登成 **exclude** 而不是 generate —— 理由与该项 note 同。",
   "generated_from": "scripts/install-vault.sh",
   "extra_allow": [
     ".claude/cache",
@@ -82,6 +82,13 @@
       "origin": "deploy-vault.sh step3 B4b (CARD-HOSTS-OPENCODE)",
       "optional": true,
       "note": "仅 `deploy-vault.sh --hosts` 含 opencode 时在位。内容 = 技能清单 + OpenCode 项目级 MCP 接线指引，首行带生成标记；缺标记的同名文件视为用户手写，脚本拒绝覆盖。"
+    },
+    {
+      "path": ".codex/config.toml",
+      "role": "codex-binding",
+      "action": "exclude",
+      "origin": "deploy-vault.sh step3 B4c (CARD-HOSTS-CODEX)",
+      "note": "仅 `deploy-vault.sh --hosts` 含 codex 时在位：Codex 的**项目级** MCP 模板（指向本实例 :<port>/mcp）。install-vault.sh 既不装也不清它，所以它不是 copy/generate 项；声明成 exclude = 让校验器**既不要求它在、也不把它当清单外的东西**（`is_excluded` 在 extra 扫描里短路掉它）。⚠️ 代价（Codex round-1 MEDIUM 更正，之前只写了「否则三条门会红」，把损失说小了）：exclude 项**不做形态校验** —— 部署后有人把 `.codex/config.toml` 换成目录或软链，独立校验器只会把它记进 intentionally-excluded，不会因形态错误失败；而 optional generate 项会查「在位且是普通文件」。也就是说本条登记换来的「不被当 rogue extra」是真的，但**同时放弃了**一条形态判据。形态面在部署当次由 deploy-vault.sh 自己的生成后在位判兜住（`[ -f ] && [ ! -L ]`），部署之后的漂移则无人看管。⚠️ 今天这层「不被当 rogue extra」也还是**潜在**的：`extra_scan` 只覆盖 .claude / .obsidian / .obsidian/plugins 三个根，够不到 `.codex/`。⚠️ 本该登成 generate 项（与 .agents/skills / AGENTS.md 同族），但那会让 test_vault_install_manifest.py 的三条钉死门变红（generate 集要求 install-vault.sh 清理段有对应锚行），而那个文件与 install-vault.sh 都在 CARD-HOSTS-CODEX 的地盘之外 —— 归属订正已登记移交。"
     },
     {
       "path": ".claude/scripts",

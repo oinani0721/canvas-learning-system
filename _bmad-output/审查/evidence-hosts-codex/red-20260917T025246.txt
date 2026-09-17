@@ -1,0 +1,13 @@
+### (b) 改前红/绿 —— 代码未改（HEAD=7a8d50e2，仅测试文件已加新门）
+--- ① 新门 test_codex_host_generates_binding 预期 FAILED ---
+(eval):8: command not found: timeout
+rc1=127
+--- ② 既有门① codex 两例 预期 passed ---
+(eval):11: command not found: timeout
+rc2=127
+--- ③ 既有门② not_implemented_anywhere 预期 passed ---
+(eval):14: command not found: timeout
+rc3=127
+--- ④ 卡文未点名的第三门 strips_all_whitespace_like_tr（尾部断言用 claude,codex）预期 passed ---
+(eval):17: command not found: timeout
+rc4=127

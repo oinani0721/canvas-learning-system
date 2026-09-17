@@ -1,0 +1,40 @@
+### (f) read-only 负控探针  ts=20260917T030951
+codex --version = codex-cli 0.153.3
+
+[1] 全新临时目录 D  = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.3knRRHz0u2
+    realpath    DR = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.3knRRHz0u2
+    放入本卡同款模板 2 行（给只读跑一个读面，内容不承重）
+
+[2] 验伪锚（跑前）: $D 的 realpath 在用户级 config 里命中数 = 0
+    [projects] 段总数（只计数，不看内容）= 17
+
+[3] SHA0 = 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+
+[4] codex exec -C $D --sandbox read-only --skip-git-repo-check --json …
+    rc=0   events.jsonl 行数=7
+    stderr（留 scratchpad，不入库）首 3 行:
+      Reading additional input from stdin...
+      2026-09-16T19:09:53.092711Z ERROR codex_skills_extension::host_service: failed to install system skills: io error while remove existing system skills dir: Directory not empty (os error 66)
+
+[5] SHA1 = 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+    验伪锚（跑后）: $D 命中数 = 0 ; [projects] 段总数 = 17
+
+[6] 前提核（只采信 --json 事件流，HOST-PROBE §三.9：模型自述不作执行凭据）
+  非法 JSON 行数 = 0
+  顶层事件类型   = {'thread.started': 1, 'turn.started': 1, 'item.completed': 3, 'item.started': 1, 'turn.completed': 1}
+  item 类型      = {'agent_message': 2, 'command_execution': 2}
+  已完成的 command_execution 条数 = 1
+    · exit_code=0 status=completed command=/bin/zsh -lc 'ls -la'
+  前提是否成立（rc=0 且至少一条已完成 command_execution）= True
+
+[7] 承重断言
+    ✅ sha before == after（read-only 未写用户级 config）
+    ✅ $D 跑后仍未进 [projects]（trust 表未被追加）
+    ✅ [projects] 段总数不变（17）
+
+### 本探针未证明什么
+###  · 只证本机 codex-cli 0.153.3 + 全新缺席目录 + 上面那条只读提示这一组合不写 config.toml；
+###  · 未重跑 workspace-write 正控（D-33/D-26(i) 禁写 trust 表）—— 验伪锚靠
+###    「HOST-PROBE §三.7 既有正控（首次遇新目录会追加 [projects]、sha 变）」
+###    + 「本卡证 $D 跑前缺席」两条合成；
+###  · ~/.codex/sessions/** 的 rollout 文件属运行期状态面（(ii) 面），登记不阻断，本探针不读其内容。

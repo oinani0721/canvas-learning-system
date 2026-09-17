@@ -28,11 +28,17 @@
 #   --port <n>            缺省 8011（与 vault 内全部消费方同源：.mcp.json / settings.json hook /
 #                         session-end-archive.py / 插件 data.json；compose :150 缺省是 8001，
 #                         .env.example:84 是 8011 —— 不一致已登记，本脚本按 8011 选边）。
-#   --hosts <list>        缺省 claude。本版支持 claude / opencode（逗号分隔，可并存）；
+#   --hosts <list>        缺省 claude。本版支持 claude / opencode / codex（逗号分隔，可并存）；
 #                         其余值 rc 64（E-1）。含 opencode 时步 3 在 --apply 态**生成**两件
 #                         静态绑定件：<vault>/.agents/skills/<name> 条目级软链（→ 同名
 #                         .claude/skills 条目）与 <vault>/AGENTS.md；不跑 OpenCode 模型、
 #                         不配 provider 凭据、对 ~/.config 下的用户级配置零写者。
+#                         含 codex 时步 3 再生成 <vault>/.codex/config.toml（项目级 MCP
+#                         **模板**, 指向本实例 :<port>）并往 <vault>/AGENTS.md 追加一个
+#                         `## Codex` 段；Codex 不自动读项目级 MCP（HOST-PROBE P7）,
+#                         所以那是模板 + 自己接线的说明, 不是自动接线。运行形态 =
+#                         `codex exec --sandbox read-only`（D-33）；对 Codex 的**用户级**
+#                         配置目录（含它的 trust 表）本脚本是零写者。
 #   --subject <s>         缺省 = vault 名。
 #   --apply               不传 = dry-run（只打印每步将做什么，零写）。
 #   --activate            仅与 --apply 同用（否则 rc 64）。真 `up -d` 需用户授权，见步 5。
@@ -134,6 +140,7 @@ HOSTS="claude"
 #    以及带空白的写法必须等价, 而字符串匹配会把 `claudex` 之类也认成命中。
 HOST_CLAUDE=0
 HOST_OPENCODE=0
+HOST_CODEX=0
 SUBJECT=""
 APPLY=0
 ACTIVATE=0
@@ -321,10 +328,16 @@ case "$PORT" in
 esac
 [ "$ACTIVATE" = 1 ] && [ "$APPLY" != 1 ] && die64 "--activate 只能与 --apply 同用"
 
-# --hosts：本版 claude / opencode（E-1 挡住其余）
+# --hosts：本版 claude / opencode / codex（E-1 挡住其余）
 # CARD-HOSTS-OPENCODE：opencode 从 E-1 拒列转正 —— 它只要**静态**绑定件
 # （条目级软链 + AGENTS.md），生成物纯文件树, 不需要 provider 凭据也不跑模型,
-# 所以能在本机零外部依赖地验完。codex / dsh 仍在 E-1 里（codex 归 T2-D）。
+# 所以能在本机零外部依赖地验完。
+# CARD-HOSTS-CODEX（T2-D, 用户裁 D-33）：codex 同法转正, 生成物同样是纯静态件
+# （项目级 MCP 模板 + AGENTS.md 的一段说明）。⛔ 转正的**边界**：本脚本不跑 codex、
+# 不写它的用户级配置、不碰它的 trust 表 —— D-33 定的运行形态是
+# `codex exec --sandbox read-only`, 而 workspace-write 首次遇到一个新目录时会往
+# 用户级配置里追加 trust 记录（HOST-PROBE §三.7）, 那是 D-26(i) 的硬禁写面。
+# dsh 仍在 E-1 里。
 # ⛔ 不用 here-string（Codex r9 HIGH-1）：Bash 3.2（本机 /bin/bash）对 `<<<` 会在
 #    `$TMPDIR` **建一个临时文件**。这一行在 preflight **之前**、dry-run 也会走到 ——
 #    `TMPDIR` 若指向保护目录, 那就是一次先于任何判据的写入, 事后删除撤不回。
@@ -344,11 +357,12 @@ while [ -n "$_rest" ]; do
     case "$_h" in
         claude) HOST_CLAUDE=1 ;;
         opencode) HOST_OPENCODE=1 ;;
+        codex) HOST_CODEX=1 ;;
         *)
             printf '❌ 用法错: --hosts 含未实现的宿主 %s。\n' "$_h" >&2
-            # ⛔ 名单必须与上面的 case 分支同步（DD-13 名实一致）：opencode 已转正,
+            # ⛔ 名单必须与上面的 case 分支同步（DD-13 名实一致）：opencode / codex 已转正,
             #    留在这句里就是「文案说不实现、代码其实实现了」。
-            printf '   E-1 二线宿主（codex / dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。\n' >&2
+            printf '   E-1 二线宿主（dsh 等）等 HOST-PROBE 实测表（U4-A），本版不实现。\n' >&2
             exit 64
             ;;
     esac
@@ -614,6 +628,18 @@ step1_preflight() {
         # ⚠️ 这里**没有** AGENTS.md.tmp：r3 起发布不再经临时文件（见 publish_agents_md
         #    顶部那段说明）。写入面清单只登记真正会被写的对象 —— 留一条永远不会被写的
         #    登记, 就是让清单说的和脚本做的对不上（DD-13 名实一致）。
+    fi
+    # CARD-HOSTS-CODEX：`--hosts` 含 codex 时步 3 多写 `.codex/` 下两件（目录 + 模板）,
+    # 同律进**同一份清单**。
+    if [ "$HOST_CODEX" = 1 ]; then
+        PENDING_WRITES+=(
+            "codex-config-dir:$VAULT/.codex"
+            "codex-config-toml:$VAULT/.codex/config.toml"
+        )
+        # ⚠️ AGENTS.md **只登记一次**：codex 与 opencode 同写这一个文件, 两条登记会让
+        #    下面那个软链/硬链循环对同一路径跑两遍同样的判据 —— 不是错, 但清单会显得
+        #    「有两个写入对象」, 与实际（一个文件、两个写者）不符。
+        [ "$HOST_OPENCODE" = 1 ] || PENDING_WRITES+=("codex-agents-md:$VAULT/AGENTS.md")
     fi
     # ⛔ TMPDIR 单独判（Codex r11 MEDIUM-1 —— 我 r10 把它塞进 PENDING_WRITES 的回归）：
     #    它是「**写入其中**的目录」, 不是「本脚本创建/截断的叶子文件」。
@@ -1376,6 +1402,7 @@ publish_agents_md() {
     local src srcrc=0
     src="$(
         cat << 'PYPUB'
+import fcntl
 import os
 import stat as statmod
 import sys
@@ -1475,6 +1502,11 @@ try:
     #    代价（如实声明）：写到一半失败会留下内容不完整的目标, 下面按身份清理。
     try:
         fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=dfd)
+        # ⛔ CARD-HOSTS-CODEX / Codex r4 HIGH：**两个发布器必须遵守同一把锁**。
+        #    本函数（opencode 侧）原本不取锁 —— 它短写到一个合法首行后暂停时,
+        #    codex 侧的追加发布器会拿到锁、认出生成标记并追加成功; 本函数随后失败清理
+        #    截零, 把 codex 追加的正文一起删掉。这里**只加一把锁, 不改本函数的任何逻辑**。
+        fcntl.flock(fd, fcntl.LOCK_EX)
     except FileExistsError:
         # 已存在 ⇒ 一律不动它, 只把「它是什么」说清楚。
         # ⚠️ 本脚本刻意**不**做「覆盖上次的产物」：替换必然要先 unlink, 而「目标存在」
@@ -1533,7 +1565,7 @@ finally:
                 incomplete = INCOMPLETE_MARK + b" deploy-vault.sh \xe5\x86\x99\xe5\x88\xb0\xe4\xb8\x80\xe5\x8d\x8a\xe5\xa4\xb1\xe8\xb4\xa5\xef\xbc\x8c\xe8\xaf\xb7\xe5\x88\xa0\xe6\x8e\x89\xe5\xae\x83\xe5\x86\x8d\xe9\x87\x8d\xe8\xb7\x91\xe3\x80\x82 -->\n"
                 write_all(fd, incomplete)
             except OSError as exc:
-                print(f"标记半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
+                print(f"未写半成品标记: {dst} ({exc})", file=sys.stderr)
         try:
             os.close(fd)
         except OSError:
@@ -1579,6 +1611,720 @@ write_agents_md() {
     printf '部署脚本对它是零写者, 手改会让不同课程的 vault 互相打架。项目级配置只影响这一个 vault。\n'
 }
 
+# ── codex 绑定件（--hosts 含 codex 时由步 3 生成）────────────────────────────
+# 生成两件, **都在 $VAULT 内**：
+#   ① $VAULT/.codex/config.toml  —— 项目级 MCP **模板**（指向本实例 :$PORT）
+#   ② $VAULT/AGENTS.md 的 `## Codex` 段 —— **追加**, 不重写 opencode 写的那部分
+#
+# ⛔ 对 Codex 的**用户级**配置（$HOME 下它那个点目录里的 config.toml, 含 trust 表）
+#    本脚本是零写者 —— D-33 定的运行形态是 `codex exec --sandbox read-only`,
+#    而 workspace-write 首次遇到一个新目录会往那份用户级配置追加 `[projects."<dir>"]`
+#    trust 记录（HOST-PROBE §三.7）, 那是 D-26(i) 的硬禁写面。两道防线：
+#      · 运行期 —— cls_forbidden_paths.py 把 $HOME/.codex 整目录入 targets;
+#      · 词法   —— test_deploy_sh_never_writes_codex_user_config 钉住「非注释行里
+#                  连那个路径的字样都不出现」。代价与 opencode 那条同律：下面 AGENTS.md
+#                  与模板的**正文**（printf = 非注释行）想提那个路径也不能提, 只好改成
+#                  给用户一条 `codex mcp add` 命令 —— 实测那条命令生成的段与本模板逐字同。
+#
+# ⚠️ 为什么是**模板 + 自己接线**而不是自动接线：HOST-PROBE 表 A / P7 实测 —— Codex
+#    未观测到读项目级 MCP 配置（项目级条目零出现在 `codex mcp list`）。声称「放好就能用」
+#    是本卡证不了的东西, 所以生成物与文案都只说模板。
+CODEX_ERR=""
+#: 项目级模板里的 MCP server 名 —— 与 vault 内 `.mcp.json` 的 claude 口径**同名**,
+#: 两边指的是同一个后端实例。
+CODEX_MCP_NAME="canvas-learning-mcp"
+#: AGENTS.md 里 Codex 段的首尾锚。幂等判据认首锚；**尾锚**用来把「上次追加写到一半」
+#: 与「上次追加完整写完」区分开 —— 只认首锚的话, 半截段会被下次跑读成「已经有了」,
+#: 于是那半截永远留在那里没人修（T2-C 的 INCOMPLETE 标记同型)。
+CODEX_SECTION_MARK="<!-- cls-codex-section: deploy-vault.sh (--hosts codex) -->"
+CODEX_SECTION_END="<!-- /cls-codex-section -->"
+#: codex 单宿主（`--hosts` 里没有 opencode）时 AGENTS.md 由本段**新建**, 首行写这个标记。
+#: ⚠️ 如实声明一处不精确：这样建出来的 AGENTS.md 之后若再跑 `--hosts opencode`,
+#:    T2-C 的 describe_existing 按**精确等于**它自己那个标记判, 于是会把它报成
+#:    「疑为手写（缺生成标记）」。行为是对的（两种情形都是「存在即拒, 要重建先删」）,
+#:    只有那句措辞不准 —— 改它要动 T2-C 的定稿面, 本卡不动, 登记移交。
+CODEX_AGENTS_MARK="<!-- generated-by: deploy-vault.sh (--hosts codex) -->"
+#: 两件各自实际做了什么（步 3 STEP_MSG 记账用）。
+CODEX_CFG_ACTION=""
+CODEX_AGENTS_ACTION=""
+
+# 项目级 MCP 模板正文 → **stdout**（落盘交给 publish_codex_config）。
+write_codex_config_toml() {
+    printf '# 由 deploy-vault.sh --hosts codex 生成 —— %s 的**项目级** Codex MCP 模板。\n' "$VAULT_NAME"
+    printf '#\n'
+    printf '# ⚠️ Codex 不会自动读这份文件（实测：项目级 MCP 条目零出现在 `codex mcp list`）。\n'
+    printf '#    要让 Codex 用上这个后端, 自己跑一次:\n'
+    printf '#\n'
+    printf '#      codex mcp add %s --url http://127.0.0.1:%s/mcp\n' "$CODEX_MCP_NAME" "$PORT"
+    printf '#\n'
+    printf '#    那条命令写出来的段与下面这段逐字相同; 也可以把下面这段原样并进\n'
+    printf '#    Codex 的用户级 config.toml。\n'
+    printf '# ⛔ 本脚本**不会**动你的 Codex 用户级配置（连它记「这个目录可信」的那张表都不动）。\n'
+    printf '\n'
+    # ⚠️ 只写 `url` 一个键（本机 codex-cli 0.153.3 实测口径）：`codex mcp add --url` 生成的
+    #    规范形态就是这两行, 不含 `type`。带 `type = "http"` 的写法 `codex mcp list` 也能解析,
+    #    但那个键**被静默忽略** —— 写一个不起作用的键 = 名实不一致（DD-13）, 所以不写。
+    printf '[mcp_servers.%s]\n' "$CODEX_MCP_NAME"
+    printf 'url = "http://127.0.0.1:%s/mcp"\n' "$PORT"
+}
+
+# AGENTS.md 的 `## Codex` 段正文 → **stdout**（落盘交给 publish_codex_agents_section）。
+write_codex_agents_section() {
+    printf '%s\n' "$CODEX_SECTION_MARK"
+    printf '\n## Codex\n\n'
+    printf '本 vault 的后端 MCP 端点是 `http://127.0.0.1:%s/mcp`（与 `.mcp.json` 同一个）。\n' "$PORT"
+    printf '`.codex/config.toml` 是这个端点的**项目级模板**。\n\n'
+    printf '⚠️ Codex **不会**自动读项目级 MCP 配置（实测：项目级条目零出现在 `codex mcp list`）,\n'
+    printf '所以光把模板放在这里是连不上的。要接上, 自己跑一次:\n\n'
+    printf '    codex mcp add %s --url http://127.0.0.1:%s/mcp\n\n' "$CODEX_MCP_NAME" "$PORT"
+    printf '⛔ 部署脚本**不会**改你 Codex 的用户级配置 —— 接不接、什么时候接由你决定。\n\n'
+    printf '运行形态: `codex exec --sandbox read-only`（只读沙箱）。本 vault 的部署不需要\n'
+    printf 'Codex 写任何东西; 用可写沙箱跑会让它往用户级配置里记「这个目录可信」, 那是本项目\n'
+    printf '划出的禁写面。\n'
+    printf '%s\n' "$CODEX_SECTION_END"
+}
+
+# 把 stdin 的正文发布成 $1/.codex/config.toml。**已存在则一律不动它**（不覆盖用户改动,
+# 与 A4 key「已存在则不重生」同口径）。stdout 打一个动作词: created | kept。
+# ⚠️ heredoc 放函数体内（Bash 3.2 会在 $TMPDIR 建临时文件, 顶层赋值会早于 preflight）。
+publish_codex_config() {
+    local src srcrc=0
+    src="$(
+        cat << 'PYCFG'
+import fcntl
+import os
+import stat as statmod
+import sys
+
+sys.path.insert(0, sys.argv[2])
+from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned, write_all  # noqa: E402
+
+
+# ⛔⛔ CLS-FDGUARD-BEGIN（本块与 publish_codex_agents_section 里那份**逐字相同**，
+#     由 test_codex_fd_guard_copies_are_identical 钉住不许漂。判据模块禁改 ⇒ 只能手抄两份,
+#     那就把「两份必须一样」做成门 —— 两份手抄的判据必然漂移，这是本仓的旧账。）
+# 用途：`open_pinned` 判的是「原路径」与「realpath(父目录)」，**判不到我们真正要建的那个子路径**。
+#   Codex r2 BLOCKER：`HOME=/home/alice`、vault=`/safe/redirect/alice`，把祖先 `redirect`
+#   换成指向 `/home` 的软链 —— 父目录解析成 `/home`（不是保护目标）⇒ open_pinned 放行,
+#   而随后相对该 fd 建的 `.codex` 就是 `$HOME/.codex`。「父目录允许」不蕴含「子路径允许」。
+# 做法：拿到**已打开 fd 的物理路径**，对「接下来真要写的每个名字」跑同一份 hits() 判据。
+#: 打开多段路径时用它**替换** O_NOFOLLOW —— `O_NOFOLLOW` 只管末段, 中间段的软链照样跟着走。
+#: 本卡实测（`evidence-hosts-codex/nofollow-any-probe-*.txt`）：`.codex` 是指向保护面的软链时,
+#: 只带 O_NOFOLLOW ⇒ **文件被建进保护面**; 带 O_NOFOLLOW_ANY ⇒ ELOOP; **两个同时带 ⇒ EINVAL**
+#: （所以是替换不是叠加）; 正常非软链路径不误拒; 叶子本身是软链时它同样 ELOOP（是 O_NOFOLLOW 的超集）。
+#: ⛔ Darwin 专有。**非 Darwin 一律 fail-closed**（Codex r6 BLOCKER-2）：
+#: 原来写成「退回 O_NOFOLLOW」——那等于在非 macOS 上**把中间段软链的洞重新打开**,
+#: 而注释里的「本脚本是 macOS 专用」是句说明, **不是一道执行门**。
+#: 这里在任何 mkdir/open 之前就拒, 保证「拿不到这个保证就一个字节都不写」。
+_NOFOLLOW_ANY = 0x20000000
+
+
+def _require_darwin(say):
+    if sys.platform != "darwin":
+        say(
+            "本发布器依赖 Darwin 专有的 O_NOFOLLOW_ANY 才能挡住多段路径的中间软链; "
+            "当前平台 %s 上拿不到这个保证, 拒绝写任何东西（fail-closed）" % sys.platform
+        )
+
+
+def _fd_realpath(fd):
+    """已打开 fd 的物理路径。问不出来一律抛 —— 不猜（问不出不能压成没问题）。"""
+    try:
+        import fcntl
+
+        return fcntl.fcntl(fd, fcntl.F_GETPATH, b"\0" * 1024).rstrip(b"\0").decode()
+    except (AttributeError, OSError, UnicodeDecodeError):
+        pass
+    try:
+        return os.readlink("/proc/self/fd/%d" % fd)
+    except OSError as exc:
+        raise OSError("问不出已打开目录的真实路径, 不敢往里写 (%s)" % exc)
+
+
+def _refuse_if_forbidden(fd, names, live, say):
+    """对已打开的 fd（目录或文件）的**物理路径**跑判据。names 为空 = 判 fd 自己。"""
+    real = _fd_realpath(fd)
+    targets, claude_prefixes, enum_failed = build_targets(live)
+    if enum_failed:
+        say("无法枚举 HOME, fail-closed")
+    for n in names or ("",):
+        p = os.path.join(real, n) if n else real
+        why = hits(p, targets, claude_prefixes, skip_env_name=True)
+        if why is not None:
+            say("打开后的真实落点在禁写面(%s): %s" % (why, p))
+
+
+# ⛔⛔ CLS-FDGUARD-END
+
+vault, live = sys.argv[1], sys.argv[3]
+
+#: 半成品标记 —— 写入失败时留在文件首行，下次跑认出来并拒绝把它当成正常模板。
+#: ⛔ Codex r1 MEDIUM：没有它的话，写到一半失败留下的**0 字节**文件会在下次跑时
+#:    走「已存在 ⇒ kept」分支，而生成后的在位判只查「是普通文件」⇒ 空模板被当成功。
+INCOMPLETE_MARK = b"# <!-- INCOMPLETE:"
+#: 已有模板的读取上限（模板本身只有几百字节；超过就不是我们生成的那种东西）。
+MAX_TEMPLATE = 1 << 20
+#: 一份**完整**模板必然含的段头 —— `kept` 分支的正向白名单锚（Codex r3 MEDIUM）。
+SECTION_HEADER = b"[mcp_servers."
+#: 完整模板必然含的 url 行前缀 —— 只判段头挡不住「停在段头之后、url 之前」的截断（Codex r4）。
+URL_LINE_PREFIX = b'url = "http://127.0.0.1:' 
+
+
+def die(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+# ⛔ 平台门放在**最前面**：任何 mkdir/open 之前（Codex r6 BLOCKER-2）。
+_require_darwin(die)
+
+body = sys.stdin.buffer.read()
+# 空正文一律拒（与 publish_agents_md 同律）：上游没把内容送进来时落一个 0 字节文件
+# 而 rc 仍是 0 —— 「成功地什么都没做」是本仓踩过的坑。
+if not body.strip():
+    die("codex 模板正文为空, 拒绝发布（上游没把内容送进来）")
+
+# ⛔ Codex r1 BLOCKER：原来这里是 `os.open(vault, …|O_NOFOLLOW)` —— `O_NOFOLLOW`
+#    **只挡末段**。`$VAULT` 的**祖先**在步 1 判据与这一刻之间被换成指向保护目录的软链时,
+#    这一句照样打开「换之后」的那个目录, 随后整棵 `.codex/` 就建到保护区里去了。
+#    改用本仓既有原语 open_pinned（同一份判据的单一来源, 不新发明判据形状）：
+#      ① realpath 父目录后**当场用 hits() 重新校验**（管「链被换到哪」）
+#      ② 再沿已校验的物理串逐级 O_DIRECTORY|O_NOFOLLOW（管「校验之后又被换」）
+#    ⚠️ 如实声明它仍关不住什么（引 open_pinned 自己的声明）：祖先被换成指向另一个
+#    **非保护**目录、或被改名/替换成真目录，仍可绕过 —— 那需要目录 fd 的稳定性前提。
+try:
+    vfd = open_pinned(vault, os.O_RDONLY | os.O_DIRECTORY, live_vault=live)
+except ForbiddenPath as exc:
+    die(f"vault 目录解析后落在禁写面, 拒绝生成 codex 绑定件: {exc}")
+except OSError as exc:
+    die(f"打开 vault 目录失败: {vault} ({exc})")
+
+# ⛔ Codex r2 BLOCKER：open_pinned 只判到「父目录」，判不到我们真要建的 `.codex/**`。
+#    拿 fd 的物理路径, 对**真正要写的每个名字**跑同一份判据。
+try:
+    _refuse_if_forbidden(vfd, (".codex", ".codex/config.toml"), live, die)
+except OSError as exc:
+    os.close(vfd)
+    die(str(exc))
+
+# `mkdir` 相对已打开的 vault fd。
+try:
+    os.mkdir(".codex", 0o755, dir_fd=vfd)
+except FileExistsError:
+    pass
+except OSError as exc:
+    os.close(vfd)
+    die(f"建 .codex 目录失败: {vault}/.codex ({exc})")
+
+# ⛔ `.codex` 必须是**真目录**, 不能是软链。
+#    下面的叶子按 `.codex/config.toml` 这条多段路径打开, 而 `O_NOFOLLOW` **只管末段** ——
+#    `.codex` 是软链时内核会跟着走。原来这条性质由「openat `.codex` 带 O_DIRECTORY|O_NOFOLLOW」
+#    顺带保证（ELOOP）, 去掉 cfd 之后必须显式判回来, 否则就是拿 r4 的修复换掉一条已有规则。
+#    ⚠️ 这仍是 check-then-act：判完到 open 之间被换掉挡不住（同 open_pinned 的未闭合面）。
+try:
+    _st = os.lstat(".codex", dir_fd=vfd)
+except OSError as exc:
+    os.close(vfd)
+    die(f"查不到 .codex 的状态, 不敢往里写: {vault}/.codex ({exc})")
+if statmod.S_ISLNK(_st.st_mode):
+    os.close(vfd)
+    die(f".codex 是软链, 拒绝沿链写: {vault}/.codex")
+if not statmod.S_ISDIR(_st.st_mode):
+    os.close(vfd)
+    die(f".codex 不是目录: {vault}/.codex")
+
+# ⛔ Codex r4 BLOCKER：这里**刻意不持有 `.codex` 的目录 fd**（原来先 openat 出 cfd 再用它写）。
+#    目录 fd 跟着 inode 走 —— `.codex` 在「判据」与「写」之间被 `rename` 搬成 `$HOME/.codex` 时,
+#    经旧 fd 的写会**照样落进搬过去的那个目录**。本卡实测（`resolve-beneath-probe-*.txt` ②）：
+#    同一场景下旧 fd 写成功、按多段路径相对 vfd 打开则 ENOENT。⇒ 改成后者, 越界变成如实失败。
+#    ⚠️ 试过但**不可用**：`O_RESOLVE_BENEATH` 在本机被内核**静默忽略**（同一探针 ①：
+#    带不带它, 逃出去的软链都照写不误）⇒ 写上去只是个不起作用的 flag（DD-13）。
+#    所以「判据 → syscall」这一小段本机没有原语能做成原子, 残留面如实登记（见验收单）。
+CFG_REL = ".codex/config.toml"
+dst = f"{vault}/{CFG_REL}"
+fd = None
+ok = False
+#: ⛔ 失败清理**默认禁写**, 只有落点守卫**正常返回**之后才解禁（Codex r6 HIGH-1）。
+#: 原来用的是「拒绝过就不清理」的黑名单 —— 漏掉了守卫**自己抛异常**那条路
+#: （`_fd_realpath` 问不出路径时抛 OSError, 没走 `_refuse`, 标志仍是 False）⇒
+#: 「落点根本没确认」的情况下照样截断并写标记。改成白名单：确认过才敢动。
+cleanup_allowed = False
+#: 写完发现「它已经不在我们放的位置」⇒ 清理**只截空、绝不写标记**（Codex r8）。
+#: 往一个已经被搬到别处（可能是保护面）的文件里写诊断文本, 是一次**多余的**越界写。
+displaced = False
+
+
+def _refuse(msg):
+    die(msg)
+try:
+    try:
+        fd = os.open(CFG_REL, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW_ANY, 0o644, dir_fd=vfd)
+        # ⛔ Codex r7 MEDIUM：模板发布器原来**没有互斥** —— A 写完正文还没 fsync,
+        #    B 无锁读到完整正文就报 `kept`; A 随后 fsync 失败把文件截成 INCOMPLETE ⇒
+        #    B 已经宣布成功, 而盘上是残件。新建、失败清理、已有文件读取**共用同一把锁**。
+        #    ⚠️ 与 AGENTS 侧同律：flock 是**协作式**的, 只挡同样取锁的写者。
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except FileExistsError:
+        # 已存在 ⇒ **一律不动它**（用户很可能已按自己的需要改过）。不比内容、不覆盖。
+        # ⛔ 但要先排除「它是上次写到一半留下的残件」（Codex r1 MEDIUM）：
+        #    生成后的在位判只查「是普通文件」, 一个 0 字节或带半成品标记的模板照样过 ——
+        #    那就是把「写坏了」伪装成「已经有了」。
+        try:
+            rfd = os.open(CFG_REL, os.O_RDONLY | _NOFOLLOW_ANY | os.O_NONBLOCK, dir_fd=vfd)
+        except OSError as exc:
+            die(f"已有 codex 模板打不开（是软链？）: {dst} ({exc})")
+        try:
+            # ⛔ Codex r7 MEDIUM：读之前取**同一把锁** —— 否则会读到另一个部署写到一半的正文,
+            #    报 `kept` 之后对方再把它截成残件。取锁后读到的是确定的状态。
+            fcntl.flock(rfd, fcntl.LOCK_EX)
+            if not statmod.S_ISREG(os.fstat(rfd).st_mode):
+                die(f"已有 codex 模板不是普通文件: {dst}")
+            full = os.read(rfd, MAX_TEMPLATE)
+        finally:
+            os.close(rfd)
+        if not full.strip():
+            die(f"已有 codex 模板是空文件（上次写到一半）, 请删掉它再重跑: {dst}")
+        # ⛔ Codex r3 MEDIUM：黑名单（空 / 完整标记 / 半截标记）**永远数不完** ——
+        #    正文只写到 `# 由 deploy-vault.sh…` 就中断、或清理本身也失败时，三条都不命中 ⇒ kept。
+        #    改成**正向白名单**：一份完整的模板必然含 MCP 段头；不含就是残件。
+        #    ⚠️ 这条把「用户手改过的模板」也一并约束住了：改可以，但那个段头得留着 ——
+        #    它正是这份文件存在的理由（没有它这份模板对 Codex 毫无意义）。
+        #    ⚠️ 半截标记那条判据**保留**：它能把「残件」与「用户删光了段头」区分开，
+        #    给出的诊断不一样（前者叫人删掉重跑，后者说的是缺段头）。
+        if full.startswith(INCOMPLETE_MARK) or (
+            full.split(b"\n", 1)[0] and INCOMPLETE_MARK.startswith(full.split(b"\n", 1)[0])
+        ):
+            die(f"已有 codex 模板是上次写到一半的残件, 请删掉它再重跑: {dst}")
+        # ⛔ Codex r4 MEDIUM：只判段头不够 —— 截断**正好停在** `[mcp_servers.`、
+        #    或停在段头之后 `url` 之前, 都仍含段头 ⇒ 旧判据放行。完整的模板必须三条齐：
+        #    段头 + url 行 + 以换行收尾（生成器最后一条 printf 带 `\n`）。
+        #    ⚠️ 如实声明：内容检查证不了「完整」这件事本身, 它只能一条条排除已知的截断形态；
+        #    真正的保证要靠写入侧的原子性（本脚本用 O_EXCL 直写目标 + 失败标记, 不是 rename 发布）。
+        missing = []
+        if SECTION_HEADER not in full:
+            missing.append(SECTION_HEADER.decode())
+        if URL_LINE_PREFIX not in full:
+            missing.append(URL_LINE_PREFIX.decode())
+        if not full.endswith(b"\n"):
+            missing.append("末尾换行")
+        if missing:
+            die(f"已有 codex 模板不完整（缺 {', '.join(missing)}）, 请删掉它再重跑: {dst}")
+        print("kept")
+        ok = True
+        sys.exit(0)
+    except OSError as exc:
+        die(f"建 codex 模板失败, 未写任何东西: {dst} ({exc})")
+
+    # ⛔ Codex r4 BLOCKER：**写第一个字节之前**再判一次 —— 判的是刚建出来的那个文件
+    #    fd 自己的物理路径。open 与这一步之间若已被搬走, 这里如实失败, 文件仍是 0 字节。
+    _refuse_if_forbidden(fd, (), live, _refuse)
+    cleanup_allowed = True  # 落点已确认 ⇒ 失败清理可以动这个 fd
+    write_all(fd, body)
+    os.fsync(fd)
+    # 写完核身份：这个 fd 指向的必须仍是 `config.toml` 这个名字下的那个 inode, 且 nlink==1。
+    # ⛔ 两侧**各自**要求 nlink==1 ——「两侧相等」挡不住两侧同时变坏。
+    mine = os.fstat(fd)
+    if mine.st_nlink != 1:
+        die(f"刚写的 codex 模板（fd 侧）有 {mine.st_nlink} 个硬链接, 不合格: {dst}")
+    # ⛔ Codex r8 BLOCKER 的可落地那一半：把「它还在我们放的位置吗」**显式**判出来。
+    #    目录在写入期间被 rename 搬走时, 这一句是 ENOENT —— 原来它作为未捕获异常冒出去,
+    #    清理分支照样往那个（此刻可能已落在保护面的）文件里写 INCOMPLETE 标记 = **多写一次**。
+    #    现在标成 displaced, 清理**只截空、不写标记**：持久化到那个位置的内容 = 0 字节。
+    #    ⚠️ 仍关不死「写入那一刻」本身（本机无可用原子原语, 见 resolve-beneath-probe）,
+    #    但把**留在保护面上的内容**从「模板正文 + 标记」压到了**零字节**。
+    try:
+        now = os.stat(CFG_REL, dir_fd=vfd, follow_symlinks=False)
+    except OSError as exc:
+        displaced = True
+        die(f"刚写的 codex 模板已不在我们放的位置（目录被搬走？）: {dst} ({exc})")
+    if now.st_nlink != 1:
+        die(f"刚写的 codex 模板（路径侧）有 {now.st_nlink} 个硬链接, 不合格: {dst}")
+    if (mine.st_dev, mine.st_ino) != (now.st_dev, now.st_ino):
+        displaced = True
+        die(f"codex 模板在写完之后被掉包: {dst}")
+    if not statmod.S_ISREG(mine.st_mode):
+        die(f"刚写的 codex 模板不是普通文件: {dst}")
+    print("created")
+    ok = True
+finally:
+    if fd is not None:
+        if not ok and cleanup_allowed:
+            # 写到一半失败 ⇒ 对**同一个 fd** 截断并写一行自解释标记（零路径解析）。
+            # ⛔ 清理是**白名单**：只有落点守卫**正常返回**过（`cleanup_allowed`）才敢动这个 fd。
+            #    守卫拒绝、或它自己抛异常（问不出路径）时一律只关 fd —— 在「落点没确认」
+            #    的情况下截断并写标记，正是 Codex r5/r6 连着点的那条。
+            # O_EXCL 保证它是本次新建的, 但写入期间仍可能被 link 出第二个名字,
+            # 那时截断会削到共享 inode ⇒ 先查 nlink。
+            # ⛔ 标记不能省（Codex r1 MEDIUM）：只截断到 0 字节的话, 下次跑会走
+            #    「已存在 ⇒ kept」把空模板当成正常产物。⚠️ 刻意写成**单行** write_all 调用：
+            #    写面门按字面量计数, 多行调用它数不到。
+            try:
+                if os.fstat(fd).st_nlink != 1:
+                    raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
+                os.ftruncate(fd, 0)
+                if displaced:
+                    raise OSError("目标已不在我们放的位置, 只截空、不写标记")
+                os.lseek(fd, 0, os.SEEK_SET)
+                incomplete = INCOMPLETE_MARK + b" deploy-vault.sh \xe5\x86\x99\xe5\x88\xb0\xe4\xb8\x80\xe5\x8d\x8a\xe5\xa4\xb1\xe8\xb4\xa5\xef\xbc\x8c\xe8\xaf\xb7\xe5\x88\xa0\xe6\x8e\x89\xe5\xae\x83\xe5\x86\x8d\xe9\x87\x8d\xe8\xb7\x91\xe3\x80\x82 -->\n"
+                write_all(fd, incomplete)
+            except OSError as exc:
+                print(f"未写半成品标记: {dst} ({exc})", file=sys.stderr)
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    os.close(vfd)
+PYCFG
+    )" || srcrc=$?
+    # 捕获失败必须当场拒：`$(...)` 在条件上下文里不触发 set -e, src 落成空串时
+    # `python3 -c ""` 会**返回 0** —— 一行都没跑而后置在位判在「本来就有一份」时照样通过。
+    if [ "$srcrc" != 0 ] || [ -z "$src" ]; then
+        printf '取 publish_codex_config 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
+        return 1
+    fi
+    python3 -c "$src" "$1" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT"
+}
+
+# 把 stdin 的段正文追加进 $1（AGENTS.md）。argv: 目标 / 新建时的首行标记 / 段首锚 /
+# 段尾锚 / opencode 的生成标记 / 判据脚本目录。stdout 打动作词:
+# created | appended | already-present。
+#
+# ⛔ 为什么**不**复用 publish_agents_md：那一支是 create-only（`O_CREAT|O_EXCL`,
+#    存在即拒）, 它整套安全论证就建立在「绝不覆盖、绝不 unlink」上。本段要的是
+#    「已经有一份我们生成的 AGENTS.md, 往它末尾加一段」—— 打开一个**已存在**的文件来写,
+#    是它刻意回避的形态, 所以另写一条并把它自己的判据补齐, 而不是把它那条放宽。
+# ⛔ 只对**带生成标记**的 AGENTS.md 追加：手写的文件一律不动（与 T2-C 「存在即拒」
+#    同一条不变量 —— 追加虽然不毁内容, 但那仍然是改用户的文件）。
+publish_codex_agents_section() {
+    local src srcrc=0
+    src="$(
+        cat << 'PYSEC'
+import fcntl
+import os
+import stat as statmod
+import sys
+
+sys.path.insert(0, sys.argv[6])
+from cls_forbidden_paths import ForbiddenPath, build_targets, hits, open_pinned, write_all  # noqa: E402
+
+
+# ⛔⛔ CLS-FDGUARD-BEGIN（本块与 publish_codex_agents_section 里那份**逐字相同**，
+#     由 test_codex_fd_guard_copies_are_identical 钉住不许漂。判据模块禁改 ⇒ 只能手抄两份,
+#     那就把「两份必须一样」做成门 —— 两份手抄的判据必然漂移，这是本仓的旧账。）
+# 用途：`open_pinned` 判的是「原路径」与「realpath(父目录)」，**判不到我们真正要建的那个子路径**。
+#   Codex r2 BLOCKER：`HOME=/home/alice`、vault=`/safe/redirect/alice`，把祖先 `redirect`
+#   换成指向 `/home` 的软链 —— 父目录解析成 `/home`（不是保护目标）⇒ open_pinned 放行,
+#   而随后相对该 fd 建的 `.codex` 就是 `$HOME/.codex`。「父目录允许」不蕴含「子路径允许」。
+# 做法：拿到**已打开 fd 的物理路径**，对「接下来真要写的每个名字」跑同一份 hits() 判据。
+#: 打开多段路径时用它**替换** O_NOFOLLOW —— `O_NOFOLLOW` 只管末段, 中间段的软链照样跟着走。
+#: 本卡实测（`evidence-hosts-codex/nofollow-any-probe-*.txt`）：`.codex` 是指向保护面的软链时,
+#: 只带 O_NOFOLLOW ⇒ **文件被建进保护面**; 带 O_NOFOLLOW_ANY ⇒ ELOOP; **两个同时带 ⇒ EINVAL**
+#: （所以是替换不是叠加）; 正常非软链路径不误拒; 叶子本身是软链时它同样 ELOOP（是 O_NOFOLLOW 的超集）。
+#: ⛔ Darwin 专有。**非 Darwin 一律 fail-closed**（Codex r6 BLOCKER-2）：
+#: 原来写成「退回 O_NOFOLLOW」——那等于在非 macOS 上**把中间段软链的洞重新打开**,
+#: 而注释里的「本脚本是 macOS 专用」是句说明, **不是一道执行门**。
+#: 这里在任何 mkdir/open 之前就拒, 保证「拿不到这个保证就一个字节都不写」。
+_NOFOLLOW_ANY = 0x20000000
+
+
+def _require_darwin(say):
+    if sys.platform != "darwin":
+        say(
+            "本发布器依赖 Darwin 专有的 O_NOFOLLOW_ANY 才能挡住多段路径的中间软链; "
+            "当前平台 %s 上拿不到这个保证, 拒绝写任何东西（fail-closed）" % sys.platform
+        )
+
+
+def _fd_realpath(fd):
+    """已打开 fd 的物理路径。问不出来一律抛 —— 不猜（问不出不能压成没问题）。"""
+    try:
+        import fcntl
+
+        return fcntl.fcntl(fd, fcntl.F_GETPATH, b"\0" * 1024).rstrip(b"\0").decode()
+    except (AttributeError, OSError, UnicodeDecodeError):
+        pass
+    try:
+        return os.readlink("/proc/self/fd/%d" % fd)
+    except OSError as exc:
+        raise OSError("问不出已打开目录的真实路径, 不敢往里写 (%s)" % exc)
+
+
+def _refuse_if_forbidden(fd, names, live, say):
+    """对已打开的 fd（目录或文件）的**物理路径**跑判据。names 为空 = 判 fd 自己。"""
+    real = _fd_realpath(fd)
+    targets, claude_prefixes, enum_failed = build_targets(live)
+    if enum_failed:
+        say("无法枚举 HOME, fail-closed")
+    for n in names or ("",):
+        p = os.path.join(real, n) if n else real
+        why = hits(p, targets, claude_prefixes, skip_env_name=True)
+        if why is not None:
+            say("打开后的真实落点在禁写面(%s): %s" % (why, p))
+
+
+# ⛔⛔ CLS-FDGUARD-END
+
+
+dst = sys.argv[1]
+head_mark = sys.argv[2].encode()
+sec_mark = sys.argv[3].encode()
+sec_end = sys.argv[4].encode()
+oc_mark = sys.argv[5].encode()
+live = sys.argv[7]
+ddir = os.path.dirname(dst) or "."
+base = os.path.basename(dst)
+#: 已有 AGENTS.md 的读取上限。段锚就在前面几行 / 末尾, 不需要把一个巨大的文件整个读进内存;
+#: 超过上限一律拒（问不出来不能压成没问题）。
+MAX_READ = 1 << 20
+
+
+def die(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+# ⛔ 平台门放在**最前面**：任何 open 之前（Codex r6 BLOCKER-2）。
+_require_darwin(die)
+
+body = sys.stdin.buffer.read()
+if not body.strip():
+    die("Codex 段正文为空, 拒绝写入（上游没把内容送进来）")
+
+# ⛔ Codex r1 BLOCKER（与 publish_codex_config 同一条）：`O_NOFOLLOW` 只挡末段,
+#    祖先被换成指向保护目录的软链时照样穿过去。改用 open_pinned：realpath 父目录后
+#    当场过判据 + 逐级 O_DIRECTORY|O_NOFOLLOW。残留面见 open_pinned 自己的声明。
+try:
+    dfd = open_pinned(ddir, os.O_RDONLY | os.O_DIRECTORY, live_vault=live)
+except ForbiddenPath as exc:
+    die(f"AGENTS.md 所在目录解析后落在禁写面, 拒绝写: {exc}")
+except OSError as exc:
+    die(f"打开 AGENTS.md 所在目录失败: {ddir} ({exc})")
+
+# ⛔ Codex r2 BLOCKER（与 publish_codex_config 同一条）：判到我们真要写的那个名字。
+try:
+    _refuse_if_forbidden(dfd, (base,), live, die)
+except OSError as exc:
+    os.close(dfd)
+    die(str(exc))
+
+fd = None
+created = False
+ok = False
+#: ⛔ 失败清理**默认禁写**, 只有落点守卫正常返回之后才解禁（Codex r6 HIGH-1）。
+cleanup_allowed = False
+
+
+def _refuse(msg):
+    die(msg)
+#: 追加前的文件长度 —— 追加失败时回滚到它。⛔ Codex r1 MEDIUM：不回滚的话，
+#: 「只写进半个首锚」（例如 `\n<!-- cls-codex`）留下的残件下次跑**认不出来**：
+#: 找不到完整首锚 ⇒ 直接再追加一段并报成功，那半截永远留在那里。
+#: 回滚是安全的：文件是我们刚验过生成标记的、nlink==1、且 fd 全程在手，
+#: 而 O_APPEND 只往末尾写、不动前面的字节 ⇒ 截回原长度 = 逐字节恢复原状。
+#: ⚠️ 如实声明：若**同时**有别的进程往同一个 fd 之外追加，这一下会连它写的也截掉。
+#: 部署脚本对一份自己生成的说明文档不假设有并发写者，与本脚本别处同律。
+keep_size = None
+#: 本次追加最多会写多少字节 —— 回滚前用它判「多出来的是不是别人写的」。
+append_len = 0
+try:
+    # ── 分支 A：不存在 ⇒ 新建（codex 单宿主时走这里）───────────────────────
+    # ⚠️ open 单独一个 try：把 write_all 也圈进来的话, **写**失败会掉进下面那个
+    #    `except OSError` 报成「未写任何东西」—— 那时文件已经建出来了, 消息是假的。
+    try:
+        fd = os.open(base, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _NOFOLLOW_ANY, 0o644, dir_fd=dfd)
+        created = True
+    except FileExistsError:
+        fd = None
+    except OSError as exc:
+        die(f"建 AGENTS.md 失败, 未写任何东西: {dst} ({exc})")
+
+    if created:
+        # ⛔ Codex r3 HIGH：**新建分支也要参与互斥**。原来只有追加分支上锁 ⇒
+        #    A 新建并短写到一个合法首行、B 走「已存在」分支拿到锁并追加完，
+        #    A 随后失败清理截零, 把 B 的正文一起删掉。新建的这一份从建出来就上锁,
+        #    B 的 flock 会等到 A 处理完（含清理）才拿到, 那时它读到的是确定的状态。
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        except OSError as exc:
+            os.close(fd)
+            die(f"给新建的 AGENTS.md 上排他锁失败, 不敢在无锁下写: {dst} ({exc})")
+        # ⛔ Codex r4 BLOCKER（同一条）：写第一个字节之前, 判一次刚拿到的**文件 fd** 的物理路径。
+        #    open 与这一步之间若目录已被搬走, 这里如实失败（新建的那份仍是 0 字节, 由清理兜）。
+        _refuse_if_forbidden(fd, (), live, _refuse)
+        cleanup_allowed = True  # 落点已确认 ⇒ 失败清理可以动这个 fd
+        write_all(fd, head_mark + b"\n\n" + body)
+    else:
+        # ── 分支 B：已存在 ⇒ 只在它是**我们生成的**时候追加 ─────────────────
+        # ⛔ 一次 O_RDWR|O_APPEND 打开就把读和写都办了, **不重开第二次** ——
+        #    「读完确认是我们的 → 按名字再打开一次来写」中间那一步换掉文件, 写就落到
+        #    别的东西上了。O_APPEND 保证每次写都落在当时的文件末尾, 不靠自己 seek。
+        # ⛔ O_NONBLOCK：stat 与 open 之间被换成 FIFO 时不带它会**卡死在 open 里**,
+        #    连 rc 73 都返回不了（挂起比报错更坏）。
+        try:
+            fd = os.open(base, os.O_RDWR | os.O_APPEND | _NOFOLLOW_ANY | os.O_NONBLOCK, dir_fd=dfd)
+        except OSError as exc:
+            die(f"打不开已有的 AGENTS.md（是软链？）: {dst} ({exc})")
+        # ⛔ Codex r2 HIGH：`O_APPEND` 只保证「每次写落在末尾」, 保不住整条
+        #    「读 → 判断段在不在 → 追加 → 失败回滚」。两个写者同时读到「还没有 Codex 段」
+        #    就会各追加一次；回滚也可能截掉对方刚追加的正文。
+        #    取排他锁把这整条串起来。⚠️ 如实声明：flock 是**协作式**的 ——
+        #    它只挡同样取锁的写者，挡不住不取锁的进程（那需要别的隔离手段，已登记）。
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        except OSError as exc:
+            os.close(fd)
+            die(f"给 AGENTS.md 上排他锁失败, 不敢在无锁下追加: {dst} ({exc})")
+        # ⛔ Codex r4 BLOCKER（同一条）：动它之前判一次这个 fd 的物理路径。
+        _refuse_if_forbidden(fd, (), live, _refuse)
+        cleanup_allowed = True  # 落点已确认
+        st = os.fstat(fd)
+        if not statmod.S_ISREG(st.st_mode):
+            die(f"AGENTS.md 不是普通文件, 不敢往里写: {dst}")
+        if st.st_nlink != 1:
+            die(f"AGENTS.md 有 {st.st_nlink} 个硬链接, 追加会改到共享 inode, 不敢写: {dst}")
+        if st.st_size > MAX_READ:
+            die(f"AGENTS.md 异常大({st.st_size} 字节), 不敢动它: {dst}")
+        cur = os.pread(fd, MAX_READ, 0)
+        first = cur.split(b"\n", 1)[0].rstrip(b"\r")
+        # ⛔ 首行**精确相等**, 不是全文子串匹配：子串匹配会把任何正文里碰巧引用过这行
+        #    标记的手写文件判成「我生成的」（T2-C 同律）。
+        if first not in (oc_mark, head_mark):
+            die(f"AGENTS.md 缺生成标记（疑为手写或上次写到一半的残件）, 不动它: {dst}")
+        if sec_mark in cur:
+            # 幂等：段已经在了。⛔ 但要区分「上次完整写完」与「上次追加写到一半」——
+            #    只认首锚的话, 半截段会被读成「已经有了」, 那半截就永远留在那里没人修。
+            if sec_end not in cur:
+                die(f"AGENTS.md 里的 Codex 段不完整（上次追加写到一半）, 请删掉末尾那段残件再重跑: {dst}")
+            print("already-present")
+            ok = True
+            sys.exit(0)
+        # ⛔ Codex r3 MEDIUM：**半截首锚**（回滚也失败时留下的, 例如末尾只有 `\n<!-- cls-codex`）
+        #    连 `sec_mark in cur` 都不命中 ⇒ 上面那条判不到, 于是直接再追加一整段,
+        #    残片被永久保留。判据：文件末尾若正好是 `\n`+首锚 的一段**真前缀**, 就是残件。
+        #    ⛔ 阈值不能取 1：正常的 AGENTS.md **本来就以 `\n` 结尾**, 而 `\n` 正是
+        #       `\n`+首锚 的 1 字符前缀 —— 本判据第一版因此把每一个健康文件都判成残件
+        #       （同批一条既有门当场变红）。取 `\n<!--` 这个长度：一个在文件末尾**没闭合**
+        #       的 HTML 注释开头，正常文本不会长这样。
+        #    ⚠️ 如实声明：比它更短的残片（只写进 `\n<` 之类）认不出来 —— 那种残片下次跑
+        #       会被再追加一整段、留下一两个多余字符, 属观感问题, 不影响内容正确性。
+        _pfx = b"\n" + sec_mark
+        #    ⚠️ Codex r4 LOW：阈值从 `len("\n<!--")`=5 收到 **2** —— `\n<` / `\n<!` / `\n<!-`
+        #       这些更短的残片同样可以与「正常的末尾换行」（长度 1）区分开, 没有理由漏掉。
+        _min = 2
+        for _n in range(len(_pfx) - 1, _min - 1, -1):
+            if cur.endswith(_pfx[:_n]):
+                die(f"AGENTS.md 末尾是半截 Codex 段首（上次追加写到一半）, 请删掉它再重跑: {dst}")
+        keep_size = st.st_size
+        payload = b"\n" + body
+        append_len = len(payload)
+        write_all(fd, payload)
+
+    os.fsync(fd)
+    mine = os.fstat(fd)
+    if mine.st_nlink != 1:
+        die(f"写完的 AGENTS.md（fd 侧）有 {mine.st_nlink} 个硬链接, 不合格: {dst}")
+    # ⛔ 同 PYCFG（Codex r8）：显式判「还在不在我们放的位置」, ENOENT 不再作为裸异常冒出去。
+    try:
+        now = os.stat(base, dir_fd=dfd, follow_symlinks=False)
+    except OSError as exc:
+        die(f"写完的 AGENTS.md 已不在我们放的位置（目录被搬走？）: {dst} ({exc})")
+    if now.st_nlink != 1:
+        die(f"写完的 AGENTS.md（路径侧）有 {now.st_nlink} 个硬链接, 不合格: {dst}")
+    if (mine.st_dev, mine.st_ino) != (now.st_dev, now.st_ino):
+        die(f"AGENTS.md 在写完之后被掉包: {dst}")
+    print("created" if created else "appended")
+    ok = True
+finally:
+    if fd is not None:
+        if not ok and created and cleanup_allowed:
+            # 本次新建的那份失败 ⇒ 截空（O_EXCL 保证它是我们建的）。
+            # ⛔ 白名单：只有落点守卫正常返回过才敢截断（守卫拒绝或自己抛异常时都不动）。
+            try:
+                if os.fstat(fd).st_nlink != 1:
+                    raise OSError("半成品已被加上硬链接, 不敢截断（会改到共享 inode）")
+                os.ftruncate(fd, 0)
+            except OSError as exc:
+                print(f"清理半成品失败, 文件内容不可信: {dst} ({exc})", file=sys.stderr)
+        elif not ok and keep_size is not None and cleanup_allowed:
+            # ⛔ 追加失败 ⇒ **回滚到追加前的长度**（Codex r1 MEDIUM）。
+            #    原来这里什么都不做, 理由是「截断会毁掉用户已有内容」—— 那个理由只对
+            #    「截到 0」成立；截回 keep_size 恰恰是**恢复**原有内容（O_APPEND 只往
+            #    末尾写）。不回滚的代价是：只写进半个首锚的残件下次跑认不出来,
+            #    会被再追加一段并报成功。
+            try:
+                if os.fstat(fd).st_nlink != 1:
+                    raise OSError("目标已被加上硬链接, 不敢回滚（会改到共享 inode）")
+                # ⛔ Codex r2 HIGH：只在「长得不比我们最多能写的还多」时才回滚 ——
+                #    多出来的字节只可能是**别人**追加的，那时截回去会删掉对方的正文。
+                #    宁可留下半截段（下面那条 die 会说清楚）也不删别人的东西。
+                grown = os.fstat(fd).st_size - keep_size
+                if grown > append_len:
+                    raise OSError(
+                        "文件比本次最多能写的还长(%d > %d), 疑有并发写者, 不回滚" % (grown, append_len)
+                    )
+                os.ftruncate(fd, keep_size)
+            except OSError as exc:
+                print(f"回滚追加失败, AGENTS.md 末尾可能留下半截段: {dst} ({exc})", file=sys.stderr)
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    os.close(dfd)
+PYSEC
+    )" || srcrc=$?
+    if [ "$srcrc" != 0 ] || [ -z "$src" ]; then
+        printf '取 publish_codex_agents_section 的程序源失败(rc=%s, 长度=%s)\n' "$srcrc" "${#src}" >&2
+        return 1
+    fi
+    python3 -c "$src" "$1" "$2" "$3" "$4" "$5" "$(dirname "$FORBID_PY")" "$CLS_LIVE_VAULT"
+}
+
+write_codex_binding() {
+    local agents="$VAULT/AGENTS.md" cfg="$VAULT/.codex/config.toml"
+    CODEX_ERR=""
+    CODEX_CFG_ACTION=""
+    CODEX_AGENTS_ACTION=""
+
+    # ── 先把**每个实际要写的对象**过同一份判据 ────────────────────────────────
+    # （步 1 的 PENDING_WRITES 已登记过同样这几条；这里是「写之前紧挨着再过一遍」,
+    #   与 write_opencode_binding 同律 —— 步 1 到步 3 之间树形态可能变。）
+    if check_forbidden_paths --outputs "codex-config-dir:$VAULT/.codex" \
+        "codex-config-toml:$cfg" \
+        "codex-agents-md:$agents"; then
+        CODEX_ERR="禁写面: $FORBIDDEN_HIT"
+        return 1
+    fi
+
+    local out rc=0
+    out="$(write_codex_config_toml | publish_codex_config "$VAULT" 2>&1)" || rc=$?
+    if [ "$rc" != 0 ]; then
+        CODEX_ERR="${out:-生成 codex 模板失败(rc=$rc)}"
+        return 1
+    fi
+    CODEX_CFG_ACTION="$out"
+
+    rc=0
+    out="$(write_codex_agents_section | publish_codex_agents_section "$agents" \
+        "$CODEX_AGENTS_MARK" "$CODEX_SECTION_MARK" "$CODEX_SECTION_END" \
+        "$OPENCODE_AGENTS_MARK" 2>&1)" || rc=$?
+    if [ "$rc" != 0 ]; then
+        CODEX_ERR="${out:-写 AGENTS.md 的 Codex 段失败(rc=$rc)}"
+        return 1
+    fi
+    CODEX_AGENTS_ACTION="$out"
+
+    # ── 生成后在位判（fail-closed）──────────────────────────────────────────
+    # ⚠️ 卡文把这条写在「A1 宿主绑定」里。A1 在 Phase A（**生成之前**）——
+    #    `.codex/config.toml` 正是步 3 自己生成的, 放那里首跑必然 return 1。
+    #    所以落点取「生成之后」, 判据形态与 A1 三件逐字同款（`[ -f ] || return 1`），
+    #    与 write_opencode_binding 的「③ 生成后在位判」同址同律。
+    [ -f "$cfg" ] && [ ! -L "$cfg" ] \
+        || { CODEX_ERR="生成后 codex 绑定件不在位或不是普通文件: $cfg"; return 1; }
+    [ -f "$agents" ] && [ ! -L "$agents" ] \
+        || { CODEX_ERR="生成后 AGENTS.md 不在位或不是普通文件: $agents"; return 1; }
+    return 0
+}
+
 # ═══ 步 3 postprocess ═══════════════════════════════════════════════════════
 KEY_REGENERATED="no"
 step3_postprocess() {
@@ -1589,6 +2335,16 @@ step3_postprocess() {
         # dry 态**零写**（头注契约）——这里只把生成意图说出来, 一个文件都不建。
         if [ "$HOST_OPENCODE" = 1 ]; then
             STEP_MSG="$STEP_MSG; 生成 opencode 绑定件 .agents/skills/<name> 条目级软链 + AGENTS.md"
+        fi
+        if [ "$HOST_CODEX" = 1 ]; then
+            # ⛔ `${PORT}` 必须带花括号（本卡实测踩中）：紧跟其后的 `）` 是 U+FF09 =
+            #    `EF BC 89`, 而 bash 的变量名扫描按 **locale** 判「字母」—— UTF-8 locale 下
+            #    `\xef` 被当成标识符字节吞进名字, `$PORT）` 于是读成变量 `PORT\xef`,
+            #    配上 `set -u` 当场 `unbound variable` 打进 stderr。
+            #    ⚠️ 它只在**继承了宿主 locale** 时显形：用最小 env 跑同一条命令 stderr 是空的,
+            #    差点被读成偶发。同类由 test_no_bare_var_before_multibyte 钉住整片。
+            STEP_MSG="$STEP_MSG; 生成 codex 绑定件 .codex/config.toml（项目级 MCP 模板, :${PORT}）"
+            STEP_MSG="$STEP_MSG + AGENTS.md 追加 Codex 段（**不写** Codex 的用户级配置/信任表）"
         fi
         return 2
     fi
@@ -1821,6 +2577,15 @@ PY
         write_opencode_binding || { STEP_MSG="${OPENCODE_ERR:-生成 opencode 绑定件失败}"; return 1; }
     fi
 
+    # B4c codex 绑定件（`--hosts` 含 codex 才做）
+    # ⚠️ 必须排在 B4b **之后**：两家同写 AGENTS.md —— opencode 负责**建**（create-only）,
+    #    codex 只往里**追加**一段。反过来排的话, codex 先建出文件, B4b 的 O_EXCL 当场
+    #    EEXIST ⇒ 同时选两家宿主直接 rc 73。
+    # ⚠️ 与 B4b 同样排在 B5 之前, 保住「key 文件落盘是 Phase B 最后一步」那条不变量。
+    if [ "$HOST_CODEX" = 1 ]; then
+        write_codex_binding || { STEP_MSG="${CODEX_ERR:-生成 codex 绑定件失败}"; return 1; }
+    fi
+
     # B5 key **文件**落盘 —— 最后一步。A4 已确定值; 已存在则不重写、只校正权限。
     # 为什么最后：「key 文件存在」是 A4 判「不重生」的锚点。若它先落盘而后续两处失败，
     # 下次重跑会读到它、不重生, 而另两处仍旧空 —— 半成品被这个最强信号掩盖。放最后则
@@ -1853,6 +2618,13 @@ PY
     STEP_MSG="$STEP_MSG .env 白名单跳过:${ENV_KEYS_SKIPPED:- 无}"
     if [ "$HOST_OPENCODE" = 1 ]; then
         STEP_MSG="$STEP_MSG; opencode 绑定: 条目级软链 $OPENCODE_BOUND 条 + AGENTS.md"
+    fi
+    if [ "$HOST_CODEX" = 1 ]; then
+        # ⚠️ 两个动作词都如实报出来（created / kept / appended / already-present）——
+        #    「已存在则不动」与「新生成」对用户是两件事, 记成同一句话就看不出模板到底
+        #    是不是这一次写的。
+        STEP_MSG="$STEP_MSG; codex 绑定: .codex/config.toml=$CODEX_CFG_ACTION"
+        STEP_MSG="$STEP_MSG, AGENTS.md Codex 段=$CODEX_AGENTS_ACTION"
     fi
     return 0
 }

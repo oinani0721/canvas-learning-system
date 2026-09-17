@@ -1,0 +1,9 @@
+### (h) nodeid diff r3  RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-hosts-codex/unit-close-r3-20260917T041146.txt
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 297.03s (0:04:57) =
+rc=1
+FAILED tests/unit/__probe__.py::t - X
+anchor1_rc=0
+anchor2_rc=0  close=64  base=64
+diff_rc=0
+'<' = 0
+'>' = 0

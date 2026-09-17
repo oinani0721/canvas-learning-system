@@ -1,0 +1,48 @@
+### (f) read-only 负控探针  ts=20260917T030813
+codex --version = codex-cli 0.153.3
+
+[1] 全新临时目录 D  = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.6WmzU3VVsi
+    realpath    DR = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.6WmzU3VVsi
+    放入模板:        2 行
+
+[2] 验伪锚（跑前）: $D 的 realpath 在用户级 config 里的命中数 = 0 (grep rc=1)
+    [projects] 段总数（只读计数，不看内容）= 17
+
+[3] SHA0 = 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+
+[4] codex exec -C $D --sandbox read-only --json  …
+    rc=1   events.jsonl 行数=       0
+    events 落盘: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-hosts-codex/codex-readonly-events-20260917T030813.jsonl
+
+[5] SHA1 = 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+    验伪锚（跑后）: $D 的 realpath 命中数 = 0
+
+[6] 承重断言
+    ✅ sha before == after（read-only 未写用户级 config）
+    ✅ $D 跑后仍未进 [projects]（trust 表未被追加）
+
+[7] --json 事件解析（HOST-PROBE §三.9：模型文本自述不作执行凭据）
+  非法 JSON 行数 = 0
+  事件类型计数   = {}
+  command_execution 类事件数 = 0
+  判读：事件流零 command_execution ⇒ 判「未执行」（不采信模型自述）
+
+### 本探针未证明什么：只证本机 codex-cli 0.153.3 + 全新缺席目录 + 上面那条只读提示
+### 这一组合不写 config.toml；未重跑 workspace-write 正控（D-33/D-26(i) 禁写 trust 表），
+### 验伪锚靠「HOST-PROBE §三.7 既有正控」+「本卡证 $D 跑前缺席」两条合成。
+### ~/.codex/sessions/** 的 rollout 文件属运行期状态面（(ii)），登记不阻断。
+
+════════════════════════════════════════════════════════════════════════════
+⛔ 本文件上面那两条 ✅ 作废 —— 它是一次**空判据**，保留只为记录这个发现。
+   实况：那一趟 codex **根本没跑起来**（rc=1、events.jsonl 0 行、0 个 command_execution）。
+   stderr（当时被本脚本误删，随后复现拿到）：
+       Reading additional input from stdin...
+       Not inside a trusted directory and --skip-git-repo-check was not specified.
+   即 codex exec 在「非受信且非 git」的全新临时目录里**直接拒跑**。
+   一次没发生的运行当然不会改 config.toml ⇒ 那条 sha-equal 什么也没证明
+   （「没跑完的探针不产出阴性结论」）。
+   修正：探针加 `--skip-git-repo-check`，并加一道前提核（rc=0 且至少一条已完成的
+   command_execution），前提不成立时只报「未测出」而不是「阴性」。
+   有效的那一份 = codex-readonly-negctl-20260917T030951.txt（rc=0 / 7 事件 /
+   1 条 command_execution exit_code=0 / sha 逐字相同 / [projects] 17→17）。
+════════════════════════════════════════════════════════════════════════════

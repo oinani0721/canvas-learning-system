@@ -1,0 +1,28 @@
+### (j) 地盘门  PREV=7a8d50e2b92d002700b64837a8b518a2ac5facc1 (T2-C tip)  HEAD=ef0cf1a9ff7bb8abee3485ca2981b2948dafa488
+(eval):7: command not found: -c
+### ⛔ ':(exclude)_bmad-output' 不写 ':!…'（协议 §1）； 必须在 diff **之前**
+### （上一份 territory-*.txt 里我把 -c 写在 diff 之后，git 当场 fatal: bad revision —— 那一份作废，
+###   但它恰好演示了为什么承重判据必须带验伪锚：没有锚就会把 fatal 后的空输出读成「干净」。）
+
+--- 代码面 ---
+backend/tests/unit/test_deploy_vault_sh.py
+scripts/deploy-vault.sh
+scripts/vault-install-manifest.json
+rc=0
+代码面文件数 = 3
+
+--- 子集判定（必须 ⊆ 三件）---
+
+--- ⛔ 验伪锚：去掉 exclude 必须**多出** _bmad-output/ 路径 ---
+全部=25  代码面=3  _bmad-output 路径数=22  差=22
+✅ 锚成立：exclude 真的在工作
+
+--- git 版本 ---
+git version 2.50.1 (Apple Git-155)
+
+--- 子集判定（显式计数，上面那段因为管道末尾是 sed、rc 恒 0 所以 ✅ 行没打出来）---
+越界文件数 = 0
+✅ 代码面 ⊆ {deploy-vault.sh, test_deploy_vault_sh.py, vault-install-manifest.json}
+--- ⛔ 该 grep 的验伪锚：喂一个已知越界名必须被列出来 ---
+scripts/install-vault.sh
+anchor_rc=0（0 且回显那一行 = 判据不是恒空）

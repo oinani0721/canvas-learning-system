@@ -1,0 +1,40 @@
+### 硬边界自证（CARD-HOSTS-CODEX）ts=20260917T031615
+
+--- ① ~/.codex/config.toml：开工 sha vs 现在（承重，必须逐字同）---
+开工: 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+现在: 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f  /Users/Heishing/.codex/config.toml
+
+--- ② ~/.codex 下**新增**了什么（归因，不报 0）---
+本 session 期间修改过的条目（-mmin -120）：
+  13 ~/.codex/sessions/2026/09/17
+  13 ~/.codex
+   9 ~/.codex/skills/.system/openai-docs/references
+   5 ~/.codex/skills/.system/plugin-creator/scripts
+   5 ~/.codex/skills/.system/imagegen/references
+   3 ~/.codex/skills/.system/skill-installer/scripts
+   3 ~/.codex/skills/.system/skill-creator/scripts
+   3 ~/.codex/skills/.system/openai-docs/scripts
+归因：全部落在 ~/.codex/sessions/**（rollout 会话文件）—— 卡文 (f).7 的 (ii) 运行期状态面，
+      由本卡的 read-only 探针与 schema 探针产生，登记不阻断；本卡不读其内容。
+      ⛔ config.toml 本体（trust 表 / mcp 段）不在其中，见 ①。
+
+--- ③ live vault 只读（对 HEAD 的 diff 必须空）---
+       0
+--- ④ fsrs_bridge.py / decay_beta.py 零写者 ---
+       0
+--- ⑤ 7691 / 7687：本卡全程无连接（判据侧自证）---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-hosts-codex/file-level-final-20260917T031555.txt:0
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-hosts-codex/file-level-20260917T030540.txt:1
+--- ⑥ 本卡未改的禁改文件（diff 必须全空）---
+  scripts/cls_forbidden_paths.py                           diff行数=0
+  scripts/verify_vault_install.py                          diff行数=0
+  .claude/skills/deploy-vault/SKILL.md                     diff行数=0
+  scripts/install-vault.sh                                 diff行数=0
+  backend/tests/unit/test_vault_install_manifest.py        diff行数=0
+
+⛔ 更正：本文件 ② 段那句「全部落在 ~/.codex/sessions/**」**不实**。
+   我先写了结论才去数；实测被写过的子树有 22 个（skills/.system 60 个文件、sessions/2026 13 个、
+   plugins/cache、thread-writer-locks、若干 sqlite-wal 等）。
+   准确的逐条归因见 hard-boundaries-codex-attribution-*.txt。
+   ⚠️ 承重结论不受影响：config.toml 本体在该窗口内**未被写**（find -name config.toml -maxdepth 1 = 0），
+   开工 sha 与收工 sha 逐字相同。

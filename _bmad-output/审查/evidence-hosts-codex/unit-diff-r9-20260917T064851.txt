@@ -1,0 +1,11 @@
+### (h) nodeid diff r9  RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-hosts-codex/unit-close-r9-20260917T064851.txt
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 264.84s (0:04:24) =
+rc=1
+FAILED tests/unit/__probe__.py::t - X
+anchor1_rc=0
+anchor2_rc=0  close=64  base=64
+diff_rc=0
+'<' = 0  '>' = 0
+--- 硬边界 ---
+config sha: 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f
+auth   sha: 19f3be27e1421fcd8e5a4bf0ab619ba9d6973de575b664c4c259e7e45e269a0c

@@ -1,0 +1,12 @@
+### round-4 敏感性负控 —— 用 Codex r4 点名的**字符串字面量**变异
+### （把真实调用换成同文本的字符串表达式：python 语法有效、真实调用数归零）
+原 sha256 = 256cc4d30475d2760281aec9a81ec88dfeb8eba0493e6038f6e10e1bd033c9d8
+
+① 还原态: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+   字符串变异已注入（6 处）
+   变异态 bash -n: rc=0
+   变异态 python 块语法: 有效
+② 变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_agents_append_takes_an_exclusive_lock
+FAILED tests/unit/test_deploy_vault_sh.py::test_codex_publishers_judge_the_real_write_target
+FAILED tests/unit/test_deploy_vault_sh.py::test_agents_append_takes_an_exclusive_lock
+③ 还原后: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)  | sha: OK

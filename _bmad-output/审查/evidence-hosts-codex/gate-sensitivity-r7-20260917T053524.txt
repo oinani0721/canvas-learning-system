@@ -1,0 +1,29 @@
+### round-6 敏感性负控 —— 四条整改各自必须被门锁住
+deploy sha=9143d9b919a510729a9acb396a75dfc752d5fe25749d05ca317acc4f1ce99dc6
+test   sha=bdc3a0634c56bca5d06cae587376e1f2612d990205e33ac0ad27532aea18a9b4
+
+── ① 删掉四处 open 的 `| _NOFOLLOW_ANY`（常量定义留着）
+   还原态: ====================== 1 passed, 250 deselected in 0.91s =======================
+   注入 4 处
+   变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_codex_publishers_use_nofollow_any_for_multiseg_paths
+====================== 1 failed, 250 deselected in 0.91s =======================
+
+── ② 把平台门改回静默退回 O_NOFOLLOW
+   注入 2 处
+   变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_codex_publishers_use_nofollow_any_for_multiseg_paths
+====================== 1 failed, 250 deselected in 0.92s =======================
+
+── ③ 把清理开关默认改成 True（回到「默认可写」）
+   注入 2 处
+   变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_codex_publishers_judge_the_real_write_target
+====================== 1 failed, 250 deselected in 0.91s =======================
+
+── ④ 把 AST 的「常量真分支 else」剪枝去掉（只剪 if False 的 body）
+   注入 1 处
+   变异态: FAILED tests/unit/test_deploy_vault_sh.py::test_structural_gates_are_not_fooled_by_comments_or_strings
+====================== 1 failed, 250 deselected in 0.91s =======================
+
+### 还原核
+deploy: OK
+test  : OK
+还原后全绿: ===================== 42 passed, 209 deselected in 35.69s ======================

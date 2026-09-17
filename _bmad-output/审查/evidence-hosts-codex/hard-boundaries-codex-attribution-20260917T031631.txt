@@ -1,0 +1,46 @@
+### ~/.codex 新增面归因（更正版）—— 上一份 hard-boundaries 文件里那句「全部落在 sessions/**」是错的
+### 我先写了结论才去数；实测 skills/.system/** 也在变。按「关于证据的断言必须先数一遍再写」重做。
+
+--- 本 session 窗口内被写过的文件，按顶层子树归并 ---
+  60 skills/.system
+  13 sessions/2026
+   4 plugins/cache
+   1 tmp/arg0
+   1 thread-writer-locks/01a0ab99-cd5c-7093-b4ad-603352cd4344.lock
+   1 thread-writer-locks/01a0ab99-cd46-7b23-84d5-de1c6eeb63de.lock
+   1 thread_history_1.sqlite/
+   1 thread_history_1.sqlite-wal/
+   1 state_5.sqlite/
+   1 state_5.sqlite-wal/
+   1 queue_1.sqlite-wal/
+   1 models_cache.json/
+   1 memories_1.sqlite-wal/
+   1 logs_2.sqlite/
+   1 logs_2.sqlite-wal/
+   1 history.jsonl/
+   1 goals_1.sqlite-wal/
+   1 cache/remote_plugin_catalog
+   1 cache/codex_apps_tools
+   1 cache/codex_apps_server_info
+   1 .codex-global-state.json/
+   1 .codex-global-state.json.bak/
+
+--- 承重面 config.toml 是否在其中（必须为 0）---
+0
+
+归因（逐条，不合并）：
+  · sessions/2026/09/17/**  = codex 每跑一次写一份 rollout 会话文件。本卡的 read-only 负控探针
+    与 TOML schema 探针各跑了几趟 ⇒ 预期内。卡文 (f).7：(ii) 运行期状态面，登记不阻断；本卡不读其内容。
+  · skills/.system/**       = codex **自己启动时**重装内建 skills（本卡探针 stderr 实测：
+    'codex_skills_extension::host_service: failed to install system skills: ... Directory not empty'）。
+    与本卡生成物无关，同属 (ii) 运行期状态面。⛔ 这一条是上一份文件漏掉的那半。
+
+⛔ 关键区分（别把两件事混成一件）：
+  · **交付物 deploy-vault.sh** 对 ~/.codex 是零写者 —— 三条判据：词法门
+    test_deploy_sh_never_writes_codex_user_config、运行期判据 cls_forbidden_paths（HIT+rc=1，
+    见 forbidden-gate-*.txt）、以及它**从不调用 codex**（脚本里没有 codex 这个可执行名）。
+  · **本卡的探针**（测试脚手架，不是交付物）确实跑了 codex，于是 codex 写了它自己的运行期状态。
+    承重面 config.toml（trust 表 / mcp 段）全程 sha 逐字未变 —— 那正是 D-33 要的那条结论。
+
+--- 佐证：deploy-vault.sh 里没有调用 codex 的非注释行 ---
+（上面若为空 = 脚本对 codex 可执行文件零调用；文案里那句 `codex mcp add` 是 printf 出去给用户看的字符串）

@@ -1,0 +1,23 @@
+### D-33 2×2 复跑 —— Codex r3 HIGH-1 整改（auth 用**副本**，不再用软链）  ts=20260917T043129
+r3 指出：0.153.3 刷新令牌时会**沿软链**截写真实 auth 文件 ⇒ 软链等于留了一条写穿
+$HOME/.codex 的路径，而只核 config.toml 的 sha 看不到它。
+整改：拷一份 0600 副本进 scratchpad，跑完当场**清零**；真 auth.json 跑前跑后都核 sha。
+
+真 auth.json 跑前 sha   = 19f3be27e1421fcd8e5a4bf0ab619ba9d6973de575b664c4c259e7e45e269a0c
+真 config.toml 跑前 sha = 579fc8ed7545bafb1055e689ee9adc0cca00aa3070b6ed8ca825e86cff7f149f
+
+read-only        rc=0  [projects] 0 -> 0  该目录进表=0  已完成执行事件=1
+  auth 副本已清零（字节数 0）
+workspace-write  rc=0  [projects] 0 -> 1  该目录进表=1  已完成执行事件=1
+  跑后 config.toml:
+    [projects."/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.sDJOXIHYJD"]
+    trust_level = "trusted"
+    # probe home (workspace-write)
+  auth 副本已清零（字节数 0）
+
+### 承重：真文件跑前跑后逐字相同
+auth.json   : SHA_EQUAL_OK
+config.toml : SHA_EQUAL_OK
+
+### 仍未证明：本次没有刻意触发令牌刷新，所以证的是「这两跑没写真 auth」，
+### 不是「任何情形下都不会写」。软链那条路径已从探针里彻底去掉 —— 那才是 r3 意见的实质。

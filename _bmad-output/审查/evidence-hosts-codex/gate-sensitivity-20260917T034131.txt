@@ -1,0 +1,24 @@
+### 新门敏感性负控：把 open_pinned 变回「只挡末段」的 os.open，那三条新门必须变红
+### （门绿 ≠ 锁住修复；不证敏感性的门可能只是避开了缺陷显形点）
+原 sha256 = 000fc0862a35da00d7a019e02f232305196c83b89901ec4b1898dfd8d68eecb6
+
+变异已注入（2 处）
+变异后 sha256 = 943e2a16693ec7a03e9f80879fc66ac29c4ab8d6b6c0832b1925cebff9696dfe
+
+--- 祖先软链门（期望 FAILED）---
+collected 1 item
+
+tests/unit/test_deploy_vault_sh.py .                                     [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 5.41s ===============================
+
+--- 还原 ---
+还原后 sha256 = 000fc0862a35da00d7a019e02f232305196c83b89901ec4b1898dfd8d68eecb6
+RESTORE_OK（与变异前逐字节相同）
+
+--- 还原后同一条门（期望 passed）---
+tests/unit/test_deploy_vault_sh.py .                                     [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 2.27s ===============================

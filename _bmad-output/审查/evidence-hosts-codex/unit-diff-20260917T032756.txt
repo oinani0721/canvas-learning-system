@@ -1,0 +1,17 @@
+### (h) nodeid diff —— close vs 基线 64（R-B14-2 口径）
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-hosts-codex/unit-close-20260917T032226.txt
+
+--- ⛔ 验伪锚①：这套 grep 认 --color=never 且能命中已知正例（/usr/bin/grep 不认 --no-color，rc=2+空输出=假绿）---
+FAILED tests/unit/__probe__.py::t - X
+anchor1_rc=0
+
+--- ⛔ 验伪锚②：close.nodeids 非空（空 = 64 条既有红一次全消失 = grep 没跑成，不得判绿）---
+anchor2_rc=0  close 行数=64  base 行数=64
+
+--- diff base close（只允许 < 行；任何 > = 阻断）---
+diff_rc=0
+'<' 行数（基线有、本次没有 = 修好了或没跑到）= 0
+'>' 行数（本次新增 = 阻断）              = 0
+
+--- 若有 '>' 行，逐条列出 ---
+(无 '>' 行)

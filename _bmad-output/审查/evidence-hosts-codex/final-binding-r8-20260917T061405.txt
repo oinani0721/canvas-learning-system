@@ -1,0 +1,24 @@
+### 终审绑定核 —— r8
+HEAD = 39cdd761aa547dd9e856939ff80f3f84e198d1a8
+审SHA = 39cdd761aa547dd9e856939ff80f3f84e198d1a8
+--- 代码树 diff（协议 §1 口径；⛔ 写 ':(exclude)…' 不写 ':!…'）---
+diff 行数 = 0  ✅ 仍绑定
+⛔ 验伪锚：去掉 exclude 后应非空（否则 pathspec 没生效）
+
+### 八轮 B/H/M/L 结算
+  r1 B1 H1 M3 L0 (ef0cf1a9)   r2 B1 H1 M2 L0 (532cfed7)  
+  r3 B1 H2 M3 L0 (41ddf0d0)   r4 B1 H1 M3 L1 (1d2d4b5b)  
+  r5 B2 H0 M2 L0 (afacca52)   r6 B2 H2 M2 L0 (3967da9c 绑HEAD)
+  r7 B1 H1 M1 L0 (ce236cc8 绑HEAD) r8 B1 H1 M0 L0 (39cdd761 绑HEAD)
+
+### 收敛曲线：M 3→2→3→3→2→2→1→**0**，L→0；r8 未发现任何新增问题。
+### 剩余 B1+H1 = 审查者自己写明「本卡内未找到已验证的闭合方案」与「历史写入不可追认」。
+
+⛔ 更正：上面那条「去掉 exclude 后应非空」的锚**在这里是空判据** ——
+   r8 的审SHA 就是 HEAD 本身，去不去 exclude 都是空。锚本身没坏，是**用错了地方**。
+   换一个有意义的锚：拿同一条 pathspec 去比一个**确实有改动**的区间，它必须能分出差别。
+   PREV..HEAD：全部=91  代码面=3  差=88  ✅ pathspec 确实在工作
+   代码面三件（地盘门同时成立）:
+     backend/tests/unit/test_deploy_vault_sh.py
+     scripts/deploy-vault.sh
+     scripts/vault-install-manifest.json

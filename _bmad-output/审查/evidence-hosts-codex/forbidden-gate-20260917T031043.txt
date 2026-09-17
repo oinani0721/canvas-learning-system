@@ -1,0 +1,13 @@
+### (i) 禁写面门 —— cls_forbidden_paths.py 对 Codex 用户级配置仍拦（本卡零改动该文件）
+LV=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault（只做 realpath，不写盘）
+--- 负控：喂 Codex 用户级配置目录下的落点，必 HIT + rc=1 ---
+HIT --vault /Users/Heishing/.codex（mkdir -p 会创建的中间段 /Users/Heishing/.codex）
+rc_neg=1
+--- 验伪锚（紧接着同一次跑，另起一跑；main() 累加 bad 后统一 return，塞进上一跑会恒 1）---
+OK --vault
+rc_anchor=0
+--- 附：vault 内的 .codex（本卡生成物落点）必须**不**被拦，否则部署自己过不去 ---
+OK --vault
+rc_vaultcodex=0
+--- 本卡未改该文件（对 HEAD 的 diff 必须为空）---
+       0

@@ -1,0 +1,29 @@
+### 门敏感性负控 r2 —— 结构门 test_codex_publishers_open_dirs_through_open_pinned
+### ⛔ 第一版行为门（断言 rc 非 0 + 保护面零污染）变异后**照样绿** = 假门，已删。
+###    真因：那一跑先撞步 3 A1「宿主绑定件缺失」，根本没走到 codex 段。
+###    改造场景让 vault 可达后，又被更早的 B3（data.json，同走 open_pinned）先拒 ——
+###    ⇒ 该 TOCTOU 端到端**不可确定性复现**，本卡改用结构门 + 如实声明。
+原 sha256 = 000fc0862a35da00d7a019e02f232305196c83b89901ec4b1898dfd8d68eecb6
+
+--- ① 还原态（已修）：期望 passed ---
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 1.42s ===============================
+
+变异已注入（2 处：open_pinned -> 裸 os.open）
+变异后 sha256 = 943e2a16693ec7a03e9f80879fc66ac29c4ab8d6b6c0832b1925cebff9696dfe
+
+--- ② 变异态：期望 FAILED 且失败信息点名那两行 ---
+E   AssertionError: codex 发布器里仍有按路径的目录 os.open（只挡末段，挡不住祖先）: [('PYCFG', 36, 'vfd = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)'), ('PYSEC', 34, 'dfd = os.open(ddir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)')]
+    assert [('PYCFG', 36...O_NOFOLLOW)')] == []
+      Left contains 2 more items, first extra item: ('PYCFG', 36, 'vfd = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)')
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/backend/tests/unit/test_deploy_vault_sh.py:5250: AssertionError: codex 发布器里仍有按路径的目录 os.open（只挡末段，挡不住祖先）: [('PYCFG', 36, 'vfd = os.open(vault, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)'), ('PYSEC', 34, 'dfd = os.open(ddir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)')]
+============================== 1 failed in 2.20s ===============================
+
+--- 还原后 sha256 = 000fc0862a35da00d7a019e02f232305196c83b89901ec4b1898dfd8d68eecb6 ---
+RESTORE_OK（逐字节相同）
+
+--- ③ 还原后再跑：期望 passed ---
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 1.30s ===============================
