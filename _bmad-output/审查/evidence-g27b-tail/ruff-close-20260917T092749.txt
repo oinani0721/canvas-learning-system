@@ -1,0 +1,7 @@
+files=1: backend/tests/unit/test_deploy_vault_sh.py
+All checks passed!
+check_rc=0
+1 file already formatted
+format_rc=0
+falsify_rc=1
+rc=0

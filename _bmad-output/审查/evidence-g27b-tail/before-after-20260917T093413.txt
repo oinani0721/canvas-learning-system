@@ -1,0 +1,25 @@
+# CARD-G2-7b-TAIL 改前/改后行为对照
+# 时刻 2026-09-17T01:34:13Z  HEAD=37b89ce0
+# 改前脚本 = git show HEAD:scripts/deploy-vault.sh（未提交的工作树改动即为「改后」）
+99669833972efecaa188edd0e74f1ca460437247f70655f68cc9ad0d6bf8c2c9  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/99f7656b-0712-4cb0-9662-9fc949b7c932/scratchpad/ba-20260917T093413/old/deploy-vault.sh
+b320676adac43554e48ec7e29a304caab29f9f23be24820f629550ba89577d7a  scripts/deploy-vault.sh
+
+① 目标漂移负控（src=$SRC_MIRROR -> src=$VAULT；期望 改前 rc=0 存活 / 改后 rc=74 被抓）
+  [改前] rc=0
+  [改后] rc=74
+      改前: [4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8189 口径)）, 报告 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/99f7656b-0712-4cb0-9662-9fc949b7c932/scratchpad/ba-20260917T093413/d1o/ev/verify-20260917T093414.txt
+      改后: [4/6] verify: FAIL 校验器把**目标 vault 自己**当成了基准（自己跟自己比, content-drift 恒 0 = 这一轴空转）, 应为 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//cls-srcmirror-YEnQJ1, 报告 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/99f7656b-0712-4cb0-9662-9fc949b7c932/scratchpad/ba-20260917T093413/d1n/ev/verify-20260917T093415.txt
+
+② 预置软链在 .env.<vault>.tmp（期望 改前 rc=71 拒服务 / 改后 rc=0 且受害文件原样）
+  [old] rc=71 victim=VICTIM-ORIGINAL
+  [new] rc=0 victim=VICTIM-ORIGINAL
+
+③ 落盘「## 六行状态」行数（期望 改前 5 / 改后 6）
+  [改前] rc=0
+  [改后] rc=0
+  s3o: 步骤行数=5
+  s3n: 步骤行数=6
+
+跑后 shasum（本体零改动）
+b320676adac43554e48ec7e29a304caab29f9f23be24820f629550ba89577d7a  scripts/deploy-vault.sh
+rc=0

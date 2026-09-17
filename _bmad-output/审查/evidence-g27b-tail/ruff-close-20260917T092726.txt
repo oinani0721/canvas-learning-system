@@ -1,0 +1,9 @@
+files=1: backend/tests/unit/test_deploy_vault_sh.py
+All checks passed!
+check_rc=0
+Would reformat: backend/tests/unit/test_deploy_vault_sh.py
+1 file would be reformatted
+format_rc=1
+All checks passed!
+falsify_rc=0
+rc=0
