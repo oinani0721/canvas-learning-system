@@ -1,0 +1,16 @@
+### 控制组: include 数组真的驱动分析集吗（排除「恒 305」的假绿）
+  临时去掉 tests 后 include:
+      "include": [
+        "backend/app"
+      ],
+  filesAnalyzed = 264   ← 必须 != 305, 否则 include 没被读 = 前一判据假绿
+  已还原配置
+
+### Codex 问题① 实测: 删 ignore 后, 在 app 以外的 include 面(tests)有没有连带新 error
+  -- 当前代码(本卡已删 ignore), 全 include 面 --
+     165 errors, 81 warnings, 0 informations
+  -- 临时把 dependencies.py 换回 BASE_F 版(ignore 还在), 全 include 面 --
+     165 errors, 82 warnings, 0 informations
+  已还原 dependencies.py
+  还原后 shasum 与 HEAD 版一致? ✅
+  git status --porcelain -uno | wc -l (期望 0) =        0

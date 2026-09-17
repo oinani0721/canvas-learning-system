@@ -1,0 +1,13 @@
+### MEDIUM-3 决定性判据 —— 受控对比: 两份配置只差 include 里的 src 一项, 比 filesAnalyzed
+  ⛔ 必须不带 path 参数: 'pyright app' 的 path 参数会覆盖 include, 那样测不到 include 的影响
+  (探针配置在 scratchpad, include 用绝对路径, 仓库零改动; 其余键为最小集 ⇒ 绝对错误数与真配置不可比, 但两侧同构 ⇒ filesAnalyzed 可比)
+  probe-with-src       include=['app', 'src', 'tests']            filesAnalyzed=0
+  probe-without-src    include=['app', 'tests']                   filesAnalyzed=0
+
+### 仓根 src 的文件系统层面自证（比 git ls-files 强: 覆盖未跟踪 / 被忽略的文件）
+  ls -d ./src           rc=1   (1 = 仓根不存在)
+  验伪锚 ls -d ./backend rc=0   (0 = 存在, 证该判据非恒 1)
+  深度<=2 同名目录: ./frontend/src  ← 前端 TS 目录; pyright include 相对仓根解析, 取不到它
+  .gitignore 里确有 src/ 前缀条目(证「曾预期有 src」而非「被忽略所以看不见」):
+    36:src/bmad_orchestrator/
+    37:src/tests/test_bmad_*.py
