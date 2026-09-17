@@ -102,6 +102,10 @@ commit: "终审绑定 fd0f3b85（Codex r2）"
 | 34 | `*.stderr*` 不入库 | ✅ `git diff --cached --name-only \| grep -c stderr` = **0** |
 | 35 | lefthook 全套（未用任何 `LEFTHOOK_EXCLUDE`、未用 `--no-verify`） | ✅ python-lint ✔ / python-typecheck ✔（0 errors）/ mutant-residue-scan ✔ / commitlint 0 problems |
 | 36 | prompt 与 diff 的禁用措辞核（协议 §2 四词） | ✅ prompt 与代码新增行各自 4 词全 **0**；验伪锚：同一 grep 在同一文件上命中「值域」5 / 「判型」5 / 「墙钟」8 |
+| 37 | **Codex 轮次（D-15）** | ✅ **r1** 绑 `f73dedfe..3fa154ef` → B0/H0/M0/**LOW 2**；车道自修后 **r2** 绑 `f73dedfe..fd0f3b85` → B0/H0/M0/**LOW 3**。两轮均**绑当轮最终 HEAD** 且 BLOCKER/HIGH = 0 ⇒ D-15 达成。存档首部各含 codex 版本行（`:2`）+ model 行（`:5`）+ reasoning 行（`:9`），逐条括注行号 |
+| 38 | 终审绑定自证（r2 之后只改 `_bmad-output`） | ✅ `git --no-pager diff --stat --no-color fd0f3b85 -- . ':(exclude)_bmad-output'` **输出为空** ⇒ 代码树仍是 r2 审查态 |
+| 39 | **不 push** 自证 | ✅ `origin/card/t3-review` 不存在（`rev-parse` fatal）；本分支**无上游**（`no upstream configured`）；23 个远端引用中含 `t3-review` 的 = **0**。⚠ 初版判据 `git log origin/… ..HEAD \| wc -l` = 0 是**管道吃 rc** 造成的假象（远端引用不存在时 `git log` 报错、`wc -l` 仍 rc=0），已换成上面三条并带验伪锚（远端引用总数 23，证 `for-each-ref` 确有输出） |
+
 
 ### 行号漂移记录（卡文 §〇 → 实测，T3-A/B/C 串行所致）
 
