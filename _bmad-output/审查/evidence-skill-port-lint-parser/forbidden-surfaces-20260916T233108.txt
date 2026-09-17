@@ -1,0 +1,18 @@
+=== 禁改面逐条（期望 diff 行数全 0）===
+backend/tests/regression/test_g3_3_cas.py                        diff行数=0
+backend/tests/regression/test_learning_events_schema_contract.py diff行数=0
+canvas-vault/.claude/skills/start-exam-board/SKILL.md            diff行数=0
+canvas-vault/.claude/scripts/fsrs_bridge.py                      diff行数=0
+canvas-vault/.claude/scripts/decay_beta.py                       diff行数=0
+backend/tests/conftest.py                                        diff行数=0
+backend/tests/unit/conftest.py                                   diff行数=0
+lefthook.yml                                                     diff行数=0
+pyrightconfig.json                                               diff行数=0
+backend/app                                                      diff行数=0
+
+=== ⛔ 同次验伪锚：这套 diff 判据能对**已改**的文件数出非 0 吗 ===
+backend/tests/skills/test_skill_portability_lint.py              diff行数=2  （期望 >0）
+backend/tests/skills/skill_portability_lint.py                   diff行数=2  （期望 >0）
+
+注：新模块此刻在暂存区（A 状态），故上面对它的 worktree diff 亦计入；
+    地盘核的正式判据在 commit 后用 $T7B_TIP..HEAD 重跑。

@@ -1,0 +1,19 @@
+=== 卡文 §三 自证 1：手册 §一「只 T7」行已列新模块（期望恰 1 命中）===
+67:- **只 T7**：`canvas-vault/.claude/skills/quiz-answer/SKILL.md`、`canvas-vault/.claude/skills/ai-linked-doc/**`、`backend/app/services/learning_event_log.py`（⚠️ 排批稿误写 `core/`；R-B14-8）、`backend/tests/skills/test_skill_portability_lint.py`、`canvas-vault/.claude/skills/start-exam-board/SKILL.md`、`scripts/verify_vault_install.py`、新文件 `backend/tests/skills/test_ai_linked_doc_writer.py`（T7-B）、`backend/tests/skills/skill_portability_lint.py`（T7-C 新模块）、`backend/tests/unit/test_vault_install_manifest.py`（T7-D）、`backend/tests/regression/test_learning_events_schema_contract.py`（T7-B，裁 (c2)）。
+命中数 = 1
+
+=== 卡文 §三 自证 2：fsrs_bridge / decay_beta 引用合计仍 = 7（只读基线键，无写/复制语句）===
+模块  = 6
+test  = 1
+--- 逐条（须全是基线键 / digest 键 / 注释，不得有写或复制）---
+backend/tests/skills/skill_portability_lint.py:2219:#: `scripts/fsrs_bridge.py` 的 `/Users/` 1 + 树名 1 是**零写者**的写死路径, 只钉不改
+backend/tests/skills/skill_portability_lint.py:2220:#: (本卡硬边界: 禁碰 `fsrs_bridge.py` / `decay_beta.py`)。
+backend/tests/skills/skill_portability_lint.py:2238:    "scripts/decay_beta.py": {"tmp": 0, "p8011_all": 0, "p8011_ns": 0, "localhost": 0, "users_path": 0, "tree_name": 0},
+backend/tests/skills/skill_portability_lint.py:2239:    "scripts/fsrs_bridge.py": {
+backend/tests/skills/skill_portability_lint.py:3215:    "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",
+backend/tests/skills/skill_portability_lint.py:3216:    "scripts/fsrs_bridge.py": "a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0",
+backend/tests/skills/test_skill_portability_lint.py:1879:                    "scripts/fsrs_bridge.py": {
+
+--- 合计 ---
+合计 = 7  （卡文 B14_BASE 实测 7）
+⚠️ 注：grep -c 数的是**行数**；卡文写的 7 也是行数口径（原文『7 命中』）。

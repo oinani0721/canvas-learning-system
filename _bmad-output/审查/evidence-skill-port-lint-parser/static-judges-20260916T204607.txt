@@ -1,0 +1,17 @@
+=== (d) in-file 旧副本删尽 ===
+test 文件 '^def check_' = 0
+模块  '^def check_' = 12
+=== (d) 模块不依赖 pytest（验伪锚：同命令对 test 文件应 =1）===
+模块 pytest import = 0
+验伪锚 test 文件 pytest import = 1
+模块内任何 pytest 字样 = 2
+=== (g) SKILL.md 未改 ===
+       0
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+=== (g) 裸 /tmp/ 仍 2 ===
+tmp_all=       6
+tmp_ns=        4
+=== 禁碰 fsrs_bridge/decay_beta（应为空）===
+--- 同次验伪锚：换 pathspec 到 backend/tests/skills/ 应列出两文件 ---
+ .../tests/skills/test_skill_portability_lint.py    | 3305 +-------------------
+ 1 file changed, 52 insertions(+), 3253 deletions(-)

@@ -1,0 +1,20 @@
+=== (j) ruff：仓根跑（不 cd backend，否则路径不匹配 = 恒假红），整块子 shell ===
+files=2
+backend/tests/skills/skill_portability_lint.py backend/tests/skills/test_skill_portability_lint.py
+All checks passed!
+ruff rc=0  （期望 files=2 / rc=0）
+
+=== ⛔ 验伪锚（正确形态）：对同一文件、同一命令 stdin 注入未定义名，F821 必红 ===
+   （F401 在 backend 面**未启用**，不能作锚——enabled 列表见 ruff-precheck 存档）
+     |
+
+Found 1 error.
+模块注入锚 rc=1  （期望 1）
+     |
+
+Found 1 error.
+test 注入锚 rc=1  （期望 1；同时证明 import 名单若漏名会被 F821 抓出）
+
+=== ruff format 一致（lefthook python-lint 的第二段）===
+2 files already formatted
+format rc=0

@@ -1,0 +1,14 @@
+⛔ 本轮输出作废 —— 判据未按 nodeid 口径归一，且验伪锚踩了管道吃 rc。结论不可采信。
+
+缺陷 A（朝假红）：基线文件自述「nodeid 口径」= 纯 nodeid；本跑的 FAILED 行带
+` - <断言消息>` 尾巴，其中 test_vault_doc_roles.py::test_live_vault_enforce_clean
+的消息还含 **ANSI 转义码**（该测试自身输出的颜色，不是 pytest 上色）。直接 diff
+把**同一条**红判成 `57c57` 差异。
+
+缺陷 B（朝假绿）：同轮验伪锚写作 `diff <(...) <(...) | head -3; echo "rc=$?"`，
+`$?` 取的是 **head** 的 rc（0），于是「判据能否发现差异」读成 rc=0 = 发现不了，
+看起来像整条 diff 判据恒绿。实为管道吃 rc。
+
+更正后的判据见同目录 `unit-diff-normalized-<ts>.txt`：
+  · 归一：`sed -E 's/\033\[[0-9;]*m//g; s/ - .*$//'` 后 `sort` → **零 diff**（64 = 64）
+  · 验伪锚：管道内不插过滤器，去掉基线首条 / 改坏基线首条 nodeid → 两条均 rc=1

@@ -1,0 +1,3 @@
+2026-09-16T20:44:48 _bmad-output/审查/evidence-skill-port-lint-parser/skills-before-20260916T204321.txt
+2026-09-16T20:44:49 backend/tests/skills/skill_portability_lint.py
+2026-09-16T20:45:10 backend/tests/skills/test_skill_portability_lint.py

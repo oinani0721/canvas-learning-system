@@ -1,0 +1,36 @@
+=== (i) 地盘核：$T7B_TIP HEAD，pathspec 用 ':(exclude)…' 不用 ':!…' ===
+T7B_TIP=17c14d2705e519d44cb7c4988c81a920b175d03f
+HEAD   =1eab9358df306838c897163142647b1ea5424e27
+ backend/tests/skills/skill_portability_lint.py     | 3311 ++++++++++++++++++++
+ .../tests/skills/test_skill_portability_lint.py    | 3304 +------------------
+ 2 files changed, 3363 insertions(+), 3252 deletions(-)
+rc=0
+
+--- ⛔ 同次验伪锚 1：确认 ':(exclude)…' 这个 pathspec 真被 git 接受（不是 rc=128 空输出读成绿）---
+pathspec rc=0  （期望 0；若 128 = Unimplemented pathspec magic）
+--- ⛔ 同次验伪锚 2：该命令确实能列出已知正例（两文件在列）---
+列出的文件数 = 2
+backend/tests/skills/skill_portability_lint.py
+backend/tests/skills/test_skill_portability_lint.py
+--- ⛔ 验伪锚 3：中文路径 quoting 会不会让判据漏看 _bmad-output（记忆 G-quotepath）---
+不带 exclude 时的文件数 = 2
+
+=== 逐条硬边界（期望全 0）===
+canvas-vault/.claude/skills/start-exam-board/SKILL.md            0
+backend/tests/regression/test_g3_3_cas.py                        0
+backend/tests/regression/test_learning_events_schema_contract.py 0
+canvas-vault/.claude/scripts/fsrs_bridge.py                      0
+canvas-vault/.claude/scripts/decay_beta.py                       0
+backend/app                                                      0
+backend/tests/conftest.py                                        0
+backend/tests/unit/conftest.py                                   0
+lefthook.yml                                                     0
+pyrightconfig.json                                               0
+canvas-vault/.claude/skills/quiz-answer                          0
+canvas-vault/.claude/skills/ai-linked-doc                        0
+backend/app/services/learning_event_log.py                       0
+scripts/verify_vault_install.py                                  0
+
+=== (g) SKILL.md digest 未变 ===
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+期望 0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce

@@ -1,0 +1,37 @@
+=== (i) 地盘核终跑（文档已入库，exclude 验伪锚此时才有效）===
+T7B_TIP = 17c14d2705e519d44cb7c4988c81a920b175d03f
+HEAD    = 3f11e672b2815071289661c20fe2cc67d81b4235
+
+--- 代码面（须只两文件）---
+ backend/tests/skills/skill_portability_lint.py     | 3314 ++++++++++++++++++++
+ .../tests/skills/test_skill_portability_lint.py    | 3304 +------------------
+ 2 files changed, 3366 insertions(+), 3252 deletions(-)
+文件数 = 2
+
+--- ⛔ 验伪锚（此前无效，现在有效）：不带 exclude 应多出 _bmad-output 文件 ---
+不带 exclude 的文件数 = 38
+  ⇒ 两者不相等 = exclude 真的在起作用（代码 commit 时点两者都是 2，该锚当时无效）
+
+--- pathspec 合法性（rc 须 0，不是 128 = Unimplemented pathspec magic）---
+rc=0
+
+=== 逐条硬边界终核（须全 0）===
+canvas-vault/.claude/skills/start-exam-board/SKILL.md            0
+backend/tests/regression/test_g3_3_cas.py                        0
+backend/tests/regression/test_learning_events_schema_contract.py 0
+canvas-vault/.claude/scripts/fsrs_bridge.py                      0
+canvas-vault/.claude/scripts/decay_beta.py                       0
+backend/app                                                      0
+backend/tests/conftest.py                                        0
+backend/tests/unit/conftest.py                                   0
+lefthook.yml                                                     0
+pyrightconfig.json                                               0
+canvas-vault/.claude/skills/quiz-answer                          0
+canvas-vault/.claude/skills/ai-linked-doc                        0
+backend/app/services/learning_event_log.py                       0
+scripts/verify_vault_install.py                                  0
+_bmad-output/implementation-artifacts                            0
+
+=== SKILL.md digest 终核 ===
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+期望 0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce
