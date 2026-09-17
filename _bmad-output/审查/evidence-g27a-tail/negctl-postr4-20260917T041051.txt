@@ -1,0 +1,22 @@
+### 负控重跑（r4 处置又改了 FIFO 门断言: 归一化空白）@ 2026-09-17T04:10:51+08:00
+### test sha256=3dda1aee677d0c1fb941bcfcac64a9a379c8ef04affafaa008000335313e5569
+### 还原/变异基准 = 值锚 09567e35（不用位置锚 HEAD）
+[正控] rc=0 :: ======================== 1 passed, 10 warnings in 1.15s ========================
+
+[NC1] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC1] 变异态计数（必须 0）= 0
+[NC1] 门 rc=1 （期望非0）
+    E           subprocess.TimeoutExpired: Command '['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/
+    ================== 1 failed, 10 warnings in 61.19s (0:01:01) ===================
+[NC1] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+
+[NC2] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC2] 变异已注入
+[NC2] 门 rc=1 （期望非0）
+    E       AssertionError: 那一行必须与生产渲染逐字相同(身份+理由一起卡, 空白归一化后比)
+    E           期望: '.obsidian/hotkeys.json — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键'
+    E           实得: '.obsidian/hotkeys.json — 不是合法 JSON, 无法核对快捷键: Expecting value: line 1 column 1 (char 0)'
+[NC2] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[还原后计数(应 4)=4]
+[trap] 已无条件还原
+rc=0

@@ -1,0 +1,138 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1 item
+
+tests/unit/test_vault_install_manifest.py F                              [100%]
+
+=================================== FAILURES ===================================
+____________ test_hotkeys_fifo_does_not_hang_and_reports_unreadable ____________
+
+vault_pair = (PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26846/test_hotkeys_fifo...ers/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26846/test_hotkeys_fifo_does_not_han0/target-vault'))
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-26846/test_hotkeys_fifo_does_not_han0')
+
+    def test_hotkeys_fifo_does_not_hang_and_reports_unreadable(vault_pair, tmp_path):
+        """MEDIUM-2 回归: hotkeys.json 是**无写端 FIFO** 时, 校验器不得挂住, 且必须归 unreadable ⇒ rc=2。
+    
+        修之前 `_check_hotkeys` 先 `_entry_state`(走 `os.lstat`, FIFO 判 present)、随后直接
+        `hotkeys_path.read_text()` —— `read_text` 内部是**阻塞** open, 无写端 FIFO 上它会一直
+        等写者, 永久停在打开阶段: 包在外面的 `except (OSError, UnicodeDecodeError)` 根本到不了,
+        `--vault` 连 rc=2 都跑不出来(改前探针实测 15s TimeoutExpired, faulthandler 自报栈停在
+        那一行的 open 系统调用)。
+    
+        ⛔ 这条门**必须**走 `subprocess` + `timeout=`, 不能进程内调 `vv.main()` / `_classify()`:
+           回归时进程内那条路会把**整套 pytest** 一起挂死, 既不会红也拿不到任何失败信息。
+        ⚠️ `--report` 落点必须在 `--vault` 树**外** —— 落在树内会被 `_check_report_location`
+           判 rc=3(用法错), 门就变成在测别的东西(本卡探针初版踩过这一脚)。
+    
+        两段输入配成对照:
+          - 对照输入: 同一个 vault, hotkeys 是**普通文件** ⇒ 不得进 unreadable(验伪锚:
+            证明下面那条断言不是「在任何输入下都成立」的空判据);
+          - 被测输入: 同一个 vault, hotkeys 换成无写端 FIFO ⇒ rc=2 + 归 unreadable + note 说清形态。
+        """
+        _source, target = vault_pair
+        hotkeys = target / vv.HOTKEYS_REL
+    
+        def _run_verifier(report_name: str) -> tuple[int, str]:
+            report = tmp_path / report_name
+            done = subprocess.run(
+                [
+                    sys.executable,
+                    str(VERIFIER),
+                    "--vault",
+                    str(target),
+                    "--manifest",
+                    str(MANIFEST),
+                    "--report",
+                    str(report),
+                ],
+                capture_output=True,
+                timeout=HOTKEYS_FIFO_TIMEOUT_S,
+            )
+            assert done.returncode != vv.EXIT_USAGE, (
+                f"落进用法错档说明这条门没跑到 hotkeys 检查: rc={done.returncode} "
+                f"stderr={done.stderr.decode('utf-8', 'replace')[:400]}"
+            )
+            text = report.read_text(encoding="utf-8") if report.exists() else ""
+            assert text, f"--report 没落盘, 无从判归桶: rc={done.returncode}"
+            return done.returncode, text
+    
+        # ── 对照输入: 普通文件 hotkeys ────────────────────────────────────────
+        assert hotkeys.is_file(), "夹具前提: 对照段的 hotkeys 必须是普通文件"
+        _control_rc, control_report = _run_verifier("control-report.txt")
+        assert vv.HOTKEYS_REL not in " ".join(_report_section(control_report, "unreadable")), (
+            f"普通文件 hotkeys 不该进 unreadable, 实得 {_report_section(control_report, 'unreadable')}"
+        )
+        assert "不是普通文件" not in control_report, "对照输入不该出现形态门的判词"
+    
+        # ── 被测输入: 无写端 FIFO ─────────────────────────────────────────────
+        hotkeys.unlink()
+        os.mkfifo(hotkeys)
+        try:
+            # 回归时这一行抛 subprocess.TimeoutExpired ⇒ 本条测试红, 且**不会**挂住整套。
+            rc, report_text = _run_verifier("fifo-report.txt")
+        finally:
+            # FIFO 必须删干净: 留着会把后面任何读它的进程一起挂住(含 pytest 自己的清理)。
+            if hotkeys.is_fifo():
+                hotkeys.unlink()
+    
+        assert rc == vv.EXIT_MISMATCH == 2, f"无写端 FIFO 必须归 mismatch 档, 实得 rc={rc}"
+        unreadable_rows = _report_section(report_text, "unreadable")
+        assert any(row.strip().startswith(vv.HOTKEYS_REL) for row in unreadable_rows), (
+            f"hotkeys 必须登记在 ## unreadable 段里, 实得 {unreadable_rows}"
+        )
+>       assert any("不是普通文件(FIFO/设备等特殊文件)" in row for row in unreadable_rows), (
+            f"unreadable 明细必须说清是形态问题而不是别的读失败, 实得 {unreadable_rows}"
+        )
+E       AssertionError: unreadable 明细必须说清是形态问题而不是别的读失败, 实得 ['  .obsidian/hotkeys.json  — 不是合法 JSON, 无法核对快捷键: Expecting value: line 1 column 1 (char 0)']
+E       assert False
+E        +  where False = any(<generator object test_hotkeys_fifo_does_not_hang_and_reports_unreadable.<locals>.<genexpr> at 0x13b93d220>)
+
+tests/unit/test_vault_install_manifest.py:3262: AssertionError
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_vault_install_manifest.py::test_hotkeys_fifo_does_not_hang_and_reports_unreadable
+======================== 1 failed, 10 warnings in 1.38s ========================

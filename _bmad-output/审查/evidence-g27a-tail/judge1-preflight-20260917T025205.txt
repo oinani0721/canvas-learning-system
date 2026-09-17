@@ -1,0 +1,56 @@
+### 裁判1 开工状态 + §〇 逐字核 @ 2026-09-17T02:52:05+08:00
+--- pwd / branch / HEAD / status ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+card/t7-skills
+PREV=09567e35bf393c34d1ab185e89e6b9effede7141
+status_lines=1
+--- 基线自证 (R-B14-2) ---
+BASE_exists=yes
+BASE_count=64
+--- BASE 文件头 :1-3 (跑法口径, R-B14-3) ---
+# 第十四批 tests/unit 既有红基线（nodeid 口径）@ B14_BASE 08100483（候选树 batch14/integ 工作树 = 08100483 代码）
+# 跑法: cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest tests/unit --ignore tests/unit/test_deploy_vault_sh.py -q -p no:cacheprovider（R-15 文件级 --ignore；T2-A 合入后主 session 撤 --ignore 重取）
+# 原始输出: unit-integ-20260911T094710.txt；对 evidence-b13-integ/unit-integ5-20260911T010612.nodeids(65) 新增 0 / 消失 1（flaky test_candidate_service::test_accept_candidate_already_accepted_returns_422）
+--- venv / env ---
+pytest=yes
+dotenv=yes
+--- §〇 锚点逐字 (sed 1166/1293/1311-1313/1332-1333/1341-1342) ---
+    _check_hotkeys(vault, report)
+    hotkeys_state = _entry_state(hotkeys_path)
+    try:
+        raw = hotkeys_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+    main_js_kind = _resolved_kind(main_js_path)
+    if main_js_kind == "unreadable":
+    if main_js_kind != "file":
+        report.hotkeys_note = f"not evaluated ({PLUGIN_MAIN_JS_REL} 不是普通文件)"
+--- 开工 S_ISFIFO/O_NONBLOCK 计数 (必须 0; -e 多模式形态) ---
+0
+--- 验伪锚: 同一 grep 形态对一个已知存在的符号必须命中 ---
+4
+--- AST 端点 ---
+_entry_state: :503-522
+_resolved_kind: :556-572
+_probe_regular_readable: :732-760
+_check_hotkeys: :1272-1374
+--- 测试文件重名核 (fifo/hang 必须各 0) ---
+fifo=0 hang=0 total_def_test=131
+--- 手册 §一 地盘核 (三分支: 应命中且归属 T7-D) ---
+67:- **只 T7**：`canvas-vault/.claude/skills/quiz-answer/SKILL.md`、`canvas-vault/.claude/skills/ai-linked-doc/**`、`backend/app/services/learning_event_log.py`（⚠️ 排批稿误写 `core/`；R-B14-8）、`backend/tests/sk
+rc=0
+
+### 裁判1 附注（如实，主 session 复核请连读）
+[注1] 上面 status_lines=1 是**存档自指**: 这份 tee 文件所在的 evidence-g27a-tail/ 目录
+      在本命令执行的同一刻被创建、尚未跟踪。第 0 分钟的「git status --porcelain 空」
+      在建该目录**之前**已证。当刻未跟踪项如下（应只有本证据目录本身）:
+      ?? "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/"
+[注1b] 另: 开工时曾有一个 0 字节残骸 _bmad-output/审查/codex-review-CARD-SKILL-PORT-LINT-PARSER-r2.md
+      （T7-C 配额耗尽那次 r2 的产物；T7-C 已由 r1 绑最终 HEAD 收官、r2 不再需要）。
+      已移入本 session scratchpad 保留（0 字节，零数据损失、可逆），未删除、未入库。
+[注2] $BASE 文件头 :2 记的跑法是 '.venv/bin/python -m pytest'，**不是** '.venv/bin/pytest'。
+      二者 sys.path[0] 不同（-m 会把 CWD 压进 sys.path）⇒ 收集面可不同。卡文 §二.7 写 "$PYTEST"，
+      但同段要求「跑法必须与 $BASE 文件头 :2 逐字同」——本卡 (h) 目录级按 :2 逐字取
+      '.venv/bin/python -m pytest'；(e)/(f) 单文件门与基线无对比关系，用哪个 runner 都不影响归因。
+[注3] 卡文口径更正（实测）: 手册地盘行卡文记 §一 :65 → 实测 :67（:65 是「只 T6」行），归属 T7-D 成立（分支①）。
+[注4] 卡文口径更正（实测）: (f)/裁判3 写「--report JSON」→ 实测 render() :1397 产出**纯文本**报告，非 JSON。
+      判据改为在文本报告上断言三处: 'unreadable  : N' 计数行 / '## unreadable' 明细含 .obsidian/hotkeys.json / 'hotkeys : ...不是普通文件'。

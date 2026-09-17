@@ -1308,8 +1308,51 @@ def _check_hotkeys(vault: Path, report: Report) -> None:
     # ⚠️ 顺序要紧: hotkeys **自身**的结构必须先独立验完, 再看 main.js 在不在。
     # 反过来写(缺 main.js 就直接 not evaluated)会让「hotkeys 顶层是数组/字符串」这类
     # 结构错误在树源部署下完全无声 —— 两层检查同时放行, rc=0(Codex round-4 MEDIUM)。
+    # ⚠️ 形态门必须在读内容**之前**, 而且这一次 open 本身不能阻塞。
+    #    `read_text()` 内部是**阻塞** open: hotkeys 被换成**无写端 FIFO** 时, open 一直
+    #    等写者、永久挂在打开阶段 —— 下面那层 `except (OSError, UnicodeDecodeError)`
+    #    根本到不了, `--vault` 连 rc=2 都跑不出来(UAT-CARD-G2-7a MEDIUM-2; 本卡改前
+    #    探针实测: 15s TimeoutExpired, faulthandler 自报栈停在本行 open 系统调用)。
+    #    `O_RDONLY | O_NONBLOCK` 对无写端 FIFO **立即**拿到 fd(不等写者), 形态才判得出来。
+    # ⚠️ 形态用**同一个 fd** 的 `os.fstat`, 不用路径上的 `os.stat` / `_resolved_kind`:
+    #    「先按路径预判形态、再裸开一次读」中间有 TOCTOU 窗口 —— 判的那个对象与读的
+    #    那个对象可以不是同一个 inode。判与读同 fd, 才是同一个 inode。
+    # ⚠️ 非普通文件(FIFO `stat.S_ISFIFO` / 设备 / 目录 / socket)一律走 `_unreadable`
+    #    ⇒ 计入退出码 rc=2 —— 「看不见」不等于「一致」。这里**不照搬**下面 main.js 侧
+    #    `main_js_kind != "file"` 那条: 它只置 `hotkeys_note`、rc 仍 0, 是
+    #    UAT-CARD-G2-7a MEDIUM-3 的既有缺口, 本卡不扩面去改它(登记移交)。
+    # 平台口径如实声明: FIFO/特殊文件这道形态门本身不依赖平台; 与它相邻的**软链残留面**
+    #    才是 **macOS/APFS** 口径(`-H` 只跟随操作数, 目录内部的链仍是链), 那一面在当前
+    #    部署形态下是**不可达**而不是**不存在**(UAT-CARD-G2-7a §十三 #13)。
     try:
-        raw = hotkeys_path.read_text(encoding="utf-8")
+        hotkeys_fd = os.open(hotkeys_path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError as exc:
+        # socket 文件在 macOS/Linux 上 open 直接报错, 也从这里归 unreadable(仍 rc=2)。
+        _unreadable(HOTKEYS_REL, f"快捷键文件读不进去: {exc}", "not evaluated (读不进去)")
+        return
+    try:
+        hotkeys_is_regular = stat.S_ISREG(os.fstat(hotkeys_fd).st_mode)
+    except OSError as exc:
+        os.close(hotkeys_fd)
+        _unreadable(HOTKEYS_REL, f"快捷键文件读不进去: {exc}", "not evaluated (读不进去)")
+        return
+    if not hotkeys_is_regular:
+        os.close(hotkeys_fd)
+        _unreadable(
+            HOTKEYS_REL,
+            "快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键",
+            "not evaluated (不是普通文件)",
+        )
+        return
+    try:
+        # fd 所有权在这一步移交: `os.fdopen` 构造成功 ⇒ 由 `with` 关闭; 构造失败 ⇒ 它
+        # 自己已把 fd 关掉。所以上面两条早退各自显式 `os.close`, 这里一次都不再关 ——
+        # 每个时刻恰好一个所有者, 不会漏关也不会双关。
+        # `"r" + encoding="utf-8"` 与原 `read_text(encoding="utf-8")` 走同一套 io 默认值
+        # (newline=None 通用换行 / errors 严格), 读到的字符串逐字等价; 普通文件上
+        # `O_NONBLOCK` 对读无影响(它只改变 FIFO/设备的 open 与 read 语义)。
+        with os.fdopen(hotkeys_fd, "r", encoding="utf-8") as hotkeys_fh:
+            raw = hotkeys_fh.read()
     except (OSError, UnicodeDecodeError) as exc:
         _unreadable(HOTKEYS_REL, f"快捷键文件读不进去: {exc}", "not evaluated (读不进去)")
         return

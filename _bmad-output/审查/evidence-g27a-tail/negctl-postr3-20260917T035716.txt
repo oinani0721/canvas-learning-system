@@ -1,0 +1,28 @@
+### 负控重跑（r3 整改又改了 FIFO 门断言）@ 2026-09-17T03:57:16+08:00
+### test sha256=90b33f55b2d86ca9b7633072f33d5cd5e35174db08ea4df238f98081ad421206
+### ⚠️ 还原/变异基准一律用**值锚** 09567e35（PREV），不用位置锚 HEAD
+
+############ 正控 ############
+[正控] rc=0 :: ======================== 1 passed, 10 warnings in 1.40s ========================
+
+############ 负控-1: 删整个形态门（源=值锚 09567e35）############
+[NC1] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC1] 变异态计数（必须 0，是 4 = 变异没生效）= 0
+[NC1] 门 rc=1 （期望非0）
+    TimeoutExpired 出现次数: 7
+    E           subprocess.TimeoutExpired: Command '['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py', '--vault', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-27017/test_hotkeys_fifo_does_not_han0/target-vault', '--manifest', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', '--report', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-27017/test_hotkeys_fifo_does_not_han0/fifo-report.txt']' timed out after 60 seconds
+    ================== 1 failed, 10 warnings in 61.68s (0:01:01) ===================
+[NC1] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+
+############ 负控-2: 形态门恒放行 ############
+[NC2] sha 跑前: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[NC2] 变异已注入
+[NC2] 门 rc=1 （期望非0）
+    E       AssertionError: 那一行必须与生产渲染逐字相同(身份+理由一起卡)
+    E           期望: '  .obsidian/hotkeys.json  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键'
+    E           实得: '  .obsidian/hotkeys.json  — 不是合法 JSON, 无法核对快捷键: Expecting value: line 1 column 1 (char 0)'
+[NC2] sha 跑后: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+[还原后计数(应 4)=4]
+[临时目录: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.qHg2uBMlW2]
+[trap] 已无条件还原
+rc=0

@@ -1,0 +1,21 @@
+### 补充判据: 新读法 vs read_text(encoding='utf-8') 逐字等价（Codex 问题①的实测答案）@ 2026-09-17T03:22:12+08:00
+### 探针 sha256: 17aae086ec88467fa0a784391987685b254dea45fff8c95454efb37ae1ceea5a
+### python: Python 3.14.4 (main, Apr  7 2026, 13:13:20) [Clang 21.0.0 (clang-2100.0.123.102)]
+
+empty                  bytes=0         read_text=ok/0 字符                   新读法=ok/0 字符                   逐字同
+lf-only                bytes=9         read_text=ok/9 字符                   新读法=ok/9 字符                   逐字同
+crlf                   bytes=16        read_text=ok/13 字符                  新读法=ok/13 字符                  逐字同
+cr-only                bytes=13        read_text=ok/13 字符                  新读法=ok/13 字符                  逐字同
+mixed-newlines         bytes=14        read_text=ok/13 字符                  新读法=ok/13 字符                  逐字同
+no-trailing-newline    bytes=8         read_text=ok/8 字符                   新读法=ok/8 字符                   逐字同
+utf8-cjk               bytes=29        read_text=ok/17 字符                  新读法=ok/17 字符                  逐字同
+utf8-bom               bytes=12        read_text=ok/10 字符                  新读法=ok/10 字符                  逐字同
+embedded-nul           bytes=11        read_text=ok/11 字符                  新读法=ok/11 字符                  逐字同
+lone-surrogate-bytes   bytes=3         read_text=raise/UnicodeDecodeError     新读法=raise/UnicodeDecodeError     逐字同
+invalid-utf8-tail      bytes=11        read_text=raise/UnicodeDecodeError     新读法=raise/UnicodeDecodeError     逐字同
+u2028-line-sep         bytes=15        read_text=ok/13 字符                  新读法=ok/13 字符                  逐字同
+large-5mib             bytes=5242890   read_text=ok/5242890 字符             新读法=ok/5242890 字符             逐字同
+many-crlf-lines        bytes=268890    read_text=ok/248890 字符              新读法=ok/248890 字符              逐字同
+----------------------------------------------------------------------------------------------------------------------
+样本 14 个: 逐字同 14 / 不同 0
+rc=0

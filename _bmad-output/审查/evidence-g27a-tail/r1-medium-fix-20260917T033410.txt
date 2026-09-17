@@ -1,0 +1,37 @@
+### Codex r1 MEDIUM 整改验证（展开形态 ⇒ 位置绑定不可知 ⇒ 一律不放行）@ 2026-09-17T03:34:10+08:00
+
+--- 修后 helper 对全部形态的判定 ---
+  OK  os.open(p, os.O_RDONLY | os.O_NONBLOCK)              期望=True   实得=True   生产实际写法, 必须放行
+  OK  os.open(p, os.O_RDONLY)                              期望=True   实得=True   单只读旗标
+  OK  p.open()                                             期望=True   实得=True   绑定方法缺省
+  OK  open(p, 'rb')                                        期望=True   实得=True   内置只读模式
+  OK  os.open(p, os.O_WRONLY | os.O_CREAT)                 期望=False  实得=False  写旗标
+  OK  os.open(p, os.O_RDONLY | os.O_TRUNC)                 期望=False  实得=False  混进写旗标
+  OK  os.open(p, flags)                                    期望=False  实得=False  算出来的旗标
+  OK  os.open(p)                                           期望=False  实得=False  缺旗标
+  OK  p.open('wb+')                                        期望=False  实得=False  绑定方法写模式(U3-A 原案)
+  OK  open(p, 'w')                                         期望=False  实得=False  内置写模式
+  OK  os.open(*[p, os.O_WRONLY | os.O_TRUNC], os.O_RDONLY) 期望=False  实得=False  ★Codex r1 MEDIUM 的输入
+  OK  os.open(p, os.O_RDONLY, **kw)                        期望=False  实得=False  ★本卡自查的同族第二例
+  OK  os.open(*args)                                       期望=False  实得=False  整串展开
+  OK  os.open(p, *flags_list)                              期望=False  实得=False  旗标位展开
+  OK  open(*args)                                          期望=False  实得=False  内置 open 展开
+  OK  p.open(*a)                                           期望=False  实得=False  绑定方法展开
+  OK  os.open(**kw)                                        期望=False  实得=False  纯 **kwargs
+
+  共 17 例, 不符 0 例
+helper_matrix_rc=0
+
+--- 生产脚本零展开写名调用（证明收紧不误伤）---
+  带展开的写名调用: 0 处
+
+--- 既有门 + 回归门全文件跑 ---
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 176 passed, 10 warnings in 3.04s =======================
+gate_rc=0
+
+--- ruff ---
+All checks passed!
+2 files already formatted
+rc=0

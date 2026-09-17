@@ -1,0 +1,32 @@
+### commit 前 ruff 预检（lefthook python-lint glob {backend,src,scripts}/*.py 会吃到这两个文件）@ 2026-09-17T03:24:04+08:00
+--- 生效配置自证（哪份 config、开了哪些规则）---
+Settings path: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/ruff.toml"
+linter.rules.enabled = []
+formatter.line_width = 120
+formatter.docstring_code_line_width = dynamic
+--- ruff check 本卡两个改动文件 ---
+All checks passed!
+ruff_rc=0
+--- 验伪锚: 同一跑法对必错语法必须变红 ---
+invalid-syntax: Expected a parameter or the end of the parameter list
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t7-skills/9f59f343-fc53-4d56-87bd-0caa772c9f7b/scratchpad/ruff-canary.py:1:7
+  |
+1 | def f(:
+  |       ^
+  |
+
+invalid-syntax: unexpected EOF while parsing
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t7-skills/9f59f343-fc53-4d56-87bd-0caa772c9f7b/scratchpad/ruff-canary.py:2:1
+  |
+1 | def f(:
+  |        ^
+  |
+
+Found 2 errors.
+canary_rc=1 (期望 非0)
+
+--- 另一侧生效配置（backend/ 下解析到 backend/ruff.toml, 规则集不同）---
+Settings path: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/backend/ruff.toml"
+linter.rules.enabled = [
+[注] 根 ruff.toml 的 linter.rules.enabled = [] ⇒ scripts/ 侧只剩解析器的 invalid-syntax;
+     所以上面的验伪锚**必须**用语法错(而不是 F401/未用变量之类), 否则锚恒不触发 = 假阴性。

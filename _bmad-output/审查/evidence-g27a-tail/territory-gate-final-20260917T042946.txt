@@ -1,0 +1,49 @@
+### 终局地盘门 + 边界核 @ 2026-09-17T04:29:46+08:00
+PREV=09567e35bf393c34d1ab185e89e6b9effede7141   HEAD=dcb8c0458032d5223236cc2e8ce46ba11aea278f   r5审SHA=dcb8c0458032d5223236cc2e8ce46ba11aea278f
+
+--- 裁判9 地盘门（应 ⊆ 两个文件）---
+ backend/tests/unit/test_vault_install_manifest.py | 285 +++++++++++++++++++++-
+ scripts/verify_vault_install.py                   |  45 +++-
+ 2 files changed, 327 insertions(+), 3 deletions(-)
+--- 验伪锚（post-commit 才有效）---
+带 exclude: 2 个
+不带 exclude: 68 个
+其中 _bmad-output/ 路径: 66
+
+--- 裁判11 Codex 后代码面必须为空: git diff <r5审SHA> HEAD -- . ':(exclude)_bmad-output' ---
+[上面为空 = 终审仍绑定最终 HEAD 的代码树]
+
+--- 裁判10 manifest / backend/app 零改 ---
+[空 = 零改]
+--- manifest-ruling.md 未改 ---
+[空 = 未改]
+
+--- 硬边界 ---
+fsrs_bridge/decay_beta 在两改动文件中的命中: scripts/verify_vault_install.py:0 backend/tests/unit/test_vault_install_manifest.py:0 
+live vault 是否被写: 0 个文件
+入库 *.stderr* / *.log: 0 / 0
+
+--- 本卡 commit 链 ---
+dcb8c045 fix(t7d): 撤回超范围的零写门修复, 做减法消掉 r3 引入的 6 条 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+2358f9e0 fix(t7d): 模块名集改由 import 推出 + 重绑定按 Store 上下文, 修 Codex r3 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+25feb21d fix(t7d): 零写门绑定到同条 finding + 拒重绑定/模块级 open, 修 Codex r2 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+3735b565 docs(t7d): r1 存档补协议 §2.1 六行首部 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+1946e40d fix(t7d): 只读豁免拒绝参数展开形态, 修 Codex r1 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+b3baf7d9 fix(t7d): hotkeys 无写端 FIFO 不再阻塞, 形态门归 unreadable [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+
+--- 各 commit header 长度（wc -m, 限 100）---
+  81  fix(t7d): 撤回超范围的零写门修复, 做减法消掉 r3 引入的 6 条 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+  97  fix(t7d): 模块名集改由 import 推出 + 重绑定按 Store 上下文, 修 Codex r3 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+  96  fix(t7d): 零写门绑定到同条 finding + 拒重绑定/模块级 open, 修 Codex r2 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+  71  docs(t7d): r1 存档补协议 §2.1 六行首部 [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+  83  fix(t7d): 只读豁免拒绝参数展开形态, 修 Codex r1 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+  90  fix(t7d): hotkeys 无写端 FIFO 不再阻塞, 形态门归 unreadable [BATCH-2026-09-11-第十四批 / CARD-G2-7a-TAIL]
+
+--- 工作树 ---
+ M "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-G2-7a-TAIL-2026-09-17.md"
+?? "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-G2-7a-TAIL-r5.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/close-final.nodeids"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/territory-gate-final-20260917T042946.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/unit-close-final-20260917T042046.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g27a-tail/unit-final-diff-20260917T042932.txt"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G2-7a-TAIL-r5.md"

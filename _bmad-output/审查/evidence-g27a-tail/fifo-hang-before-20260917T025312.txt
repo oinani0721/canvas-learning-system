@@ -1,0 +1,57 @@
+### 裁判2 先挂（改前 / HEAD=09567e35bf393c34d1ab185e89e6b9effede7141）@ 2026-09-17T02:53:12+08:00
+### 被测文件工作树 sha256:
+b8b213a8c553e1d01e8396049715a8b0f335e4686ff0a877677cae5e76eb1958  scripts/verify_vault_install.py
+### 工作树 vs HEAD (空 = 未改, 本段跑的就是 HEAD 的代码):
+### 开工 S_ISFIFO/O_NONBLOCK 计数 (本段仍应为 0):
+0
+
+[setup] repo      = /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills
+[setup] vault     = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-trnljvpw
+[setup] hotkeys   = /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-trnljvpw/.obsidian/hotkeys.json
+[setup] S_ISFIFO  = True  (无写端)
+[setup] timeout   = 15s
+[setup] argv      = ['/opt/homebrew/opt/python@3.14/bin/python3.14', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py', '--vault', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-trnljvpw', '--manifest', '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/vault-install-manifest.json', '--report', '/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-out-f3x4xb_m/report.txt']
+
+=== A 段: subprocess.run(timeout=15s) ===
+[A] TimeoutExpired  <<< 挂住了: 15s 内没有返回，阻塞 open 的直接证据
+
+=== B 段: -X faulthandler + 超时 SIGABRT 定位挂点 ===
+[B] SIGABRT 后子进程退出码 = -6
+[B] --- faulthandler 自报栈 ---
+Fatal Python error: Aborted
+
+Current thread 0x00000001f131de80 (most recent call first):
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 771 in open
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 787 in read_text
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1312 in _check_hotkeys
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1166 in verify
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1599 in main
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t7-skills/scripts/verify_vault_install.py", line 1643 in <module>
+
+Current thread's C stack trace (most recent call first):
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _Py_DumpStack+0x44 [0x1017b6bcc]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at faulthandler_dump_c_stack+0x58 [0x1017c9100]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at faulthandler_fatal_error+0x140 [0x1017c8fc4]
+  Binary file "/usr/lib/system/libsystem_platform.dylib", at _sigtramp+0x38 [0x1851a7744]
+  Binary file "/usr/lib/system/libsystem_kernel.dylib", at open+0x40 [0x1851658f0]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _io_FileIO___init__+0x330 [0x1018007c8]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at type_call+0x98 [0x10168d634]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyObject_MakeTpCall+0x78 [0x1015f36bc]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyObject_CallFunctionVa+0x18c [0x1015f499c]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at PyObject_CallFunction+0x38 [0x1015f4804]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _io_open+0x284 [0x1017fc868]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyEval_EvalFrameDefault+0x36ec [0x101725890]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at PyEval_EvalCode+0xf8 [0x101721c70]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at run_mod+0xac [0x10179a38c]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pyrun_file+0xa4 [0x101798cf0]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyRun_SimpleFileObject+0x100 [0x101798284]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at _PyRun_AnyFileObject+0x50 [0x101797ee8]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pymain_run_file_obj+0xa4 [0x1017c62e8]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pymain_run_file+0x48 [0x1017c6038]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at Py_RunMain+0x420 [0x1017c5824]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at pymain_main+0xec [0x1017c5b94]
+  Binary file "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Python", at Py_BytesMain+0x2c [0x1017c5c34]
+  Binary file "/usr/lib/dyld", at start+0x1b50 [0x184ddfe00]
+
+[cleanup] FIFO 与临时目录已删: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-fifo-trnljvpw 存在=False; 报告目录 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g27a-tail-out-f3x4xb_m 存在=False
+rc=0

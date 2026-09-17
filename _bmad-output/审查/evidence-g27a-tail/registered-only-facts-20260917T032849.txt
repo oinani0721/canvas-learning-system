@@ -1,0 +1,35 @@
+### (i) 只登记不动语义的那几条事实 —— 复测（卡文明令不得照搬本卡号）@ 2026-09-17T03:28:49+08:00
+
+--- scripts/install-vault.sh:71 SKELETON_DIRS（卡文称 8 项）---
+SKELETON_DIRS=(原白板 检验白板 节点 outputs raw templates wiki/concepts wiki/canvases)
+元素个数(逐项枚举计数): 8
+逐项:
+     1	原白板
+     2	检验白板
+     3	节点
+     4	outputs
+     5	raw
+     6	templates
+     7	wiki/concepts
+     8	wiki/canvases
+
+--- backend/app/services/vault_init_service.py:18 VAULT_DIRECTORIES（卡文称 4 项）---
+VAULT_DIRECTORIES = [
+    "raw",
+    "wiki/concepts",
+    "wiki/canvases",
+    "outputs/exam_boards",
+]
+元素个数: 4
+
+--- _bmad-output/审查/evidence-g27a/manifest-ruling.md:70（卡文称记 6 项、已过时）---
+| `install-vault.sh SKELETON_DIRS` | `原白板` / `检验白板` / `节点` / `outputs` / `raw` / `templates` |
+该行列出的项数: 6
+
+--- CLAUDE_MD_SKELETON 位置（硬边界, 只读核）---
+40:CLAUDE_MD_SKELETON = """\
+98:            claude_md.write_text(CLAUDE_MD_SKELETON)
+
+[结论] 三条卡文数字复测属实: 脚本建 8 / 后端建 4 / manifest-ruling:70 只记 6(漏 wiki/concepts 与 wiki/canvases)。
+[边界] 以上三个文件本卡**一行未改**（install-vault.sh 与 backend/app 都不在本卡地盘, manifest-ruling.md 只读）。
+rc=0

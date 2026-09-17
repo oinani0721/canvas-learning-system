@@ -1,0 +1,16 @@
+### 补充判据: 除 hotkeys 外其它读点在 FIFO 上是否阻塞（Codex 问题④的实测答案）@ 2026-09-17T03:22:58+08:00
+### verify sha256: f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d
+### 探针 sha256: 9848e733251ecd1ece6204b52d8cf67572e7639e6b313a45485dd7bf35edd767
+
+[前提] .obsidian/community-plugins.json 在清单内: True
+[前提] .obsidian/plugins/canvas-learning-system/main.js 在清单内: False
+
+场景                         rc               相关汇总行                                                unreadable 计数行
+------------------------------------------------------------------------------------------------------------------------------------------------------
+A main.js=FIFO             2                hotkeys                : not evaluated (.obsidian/plugins/canvas-learning-system/main.js 不是普通文件) unreadable             : 1
+B copy件=FIFO 无source       2                content-drift          : not evaluated (无 --source)  unreadable             : 2
+C copy件=FIFO 有source       2                content-drift          : 1                           unreadable             : 2
+D 源侧copy件=FIFO             2                content-drift          : 1                           unreadable             : 2
+
+挂住的场景: 无（四格都在超时预算内返回）
+rc=0

@@ -1,0 +1,15 @@
+### collect-only 摘录（全量 5213 行清单未入库, 体积 379K; 全量在本 session scratchpad）
+### 判据行如下, 与 collect-anchor-*.txt 的计数一一对应
+
+--- 新 FIFO 门在收集面内 (grep 'test_hotkeys_fifo') ---
+5701:        <Function test_hotkeys_fifo_does_not_hang_and_reports_unreadable>
+
+--- 被 --ignore 的文件不在收集面内 (grep 'test_deploy_vault_sh', 期望无输出) ---
+(无命中 = --ignore 生效)
+
+--- 同文件其它 hotkey 相关门(证明收集面确实展开到了这个文件) ---
+1
+
+--- 末两行 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 5213 tests collected in 4.31s =========================

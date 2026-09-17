@@ -649,11 +649,19 @@ def test_verifier_write_calls_are_confined_to_write_report():
     """(b) 只读: 所有写调用必须落在 `_write_report()` 这一个函数内。
 
     比早先那条「只允许一次 write_text」强两处：
-      ① 调用名面扩大 —— 旧版漏掉 `Path.open("w")`、文件对象 `.write`、`os.*` 全族、
-         以及 from-import 形式的 rmtree；
+      ① 调用名面扩大 —— 旧版漏掉 `Path.open("w")`、文件对象 `.write`、
+         `os` 模块里**列在 `write_names` 中的那些**、以及 from-import 形式的 rmtree；
       ② 判据从「计数 + 落在 main 的行号区间」改成「按函数边界圈定」——
          写操作只允许出现在那个专门负责落盘的函数里，别处一个都不许有。
     看的是调用节点，不是文本，所以注释/docstring 里怎么写都不影响判定。
+
+    **它不证明什么**（Codex round-2 MEDIUM-3 指出前，这里写的是「`os.*` 全族」，
+    那是过强措辞，已改）：本门按**表面调用名**筛选，因此下面这些写调用**根本不进**
+    判定，`offenders == []` 也不排除它们存在 —— 已登记移交独立卡：
+      - 别名：`_open = os.open` 之后 `_open(p, os.O_WRONLY | os.O_TRUNC)`；
+      - 动态取属性：`getattr(os, "open")(p, os.O_WRONLY | os.O_TRUNC)`；
+      - 间接调用：`functools.partial(os.open, p, os.O_WRONLY | os.O_TRUNC)()`；
+      - 名单本身的遗漏：`os.ftruncate(fd, 0)` 等不在 `write_names` 里的写 API。
     """
     import ast
 
@@ -696,6 +704,88 @@ def test_verifier_write_calls_are_confined_to_write_report():
     assert "_write_report" in funcs, "落盘应当收敛到 _write_report()"
     lo, hi = funcs["_write_report"]
 
+    # 重绑定拒绝（Codex round-2 MEDIUM-1）：本门按**实参位置**判断哪个是 mode/flags,
+    # 而这个前提只在「调用名解析到原始 API」时成立。若源码里把写 API 重新绑定过 ——
+    #   `os.open = functools.partial(os.open, p)` 之后 `os.open(os.O_WRONLY | os.O_TRUNC, ...)`
+    # —— 表面的第 2 个实参其实是 mode、真正的 flags 落在第 1 个位置上, 按位置读出来的
+    # 结论就是错的（实测: 该输入在本卡加 os.open 分支前判 False、加之后判 True）。
+    # 静态跟不了重绑定, 就明确拒绝, 而不是继续按一个已经不成立的前提去判。
+    # ⚠️ 只拦**真能改变调用解析**的两类, 不一刀切（一刀切会误伤同名局部变量, 例如
+    #    生产脚本 :899 的 `link = cur / rel`）:
+    #      - `<owner>.<写名> = ...`  例如 `os.open = ...`
+    #      - `open = ...`            遮蔽内置 open
+    # ⚠️ 判据按 **Store 上下文** 走, 不按「是不是 Assign 的 targets」——后者漏掉解包
+    #    `(os.open,) = (...)`、`for` 目标、`with ... as`、海象、推导式目标等一大片
+    #    （Codex round-3 MEDIUM-1 给的就是解包那一例）。Store 上下文一次覆盖它们全部。
+    # ⚠️ **只有类型注解、没有赋值**（`os.open: object`）不改变任何绑定, 必须排除,
+    #    否则是假红（Codex round-3 LOW-2；本文件另有 16 处无值注解, 误报面真实存在）。
+    # ⚠️ 敏感名集**只有** `os` 与 `open` —— 本门的位置判断只依赖这两个名字解析到原始 API。
+    #    曾经把 `io` / `builtins` 也放进来(为了配合模块级 open 那个特性), 代价是
+    #    `def label(io)` / `for io in []` / 函数内 `io = 1` 这类**合法只读代码**统统假红
+    #    (Codex round-4 LOW-9)。那个特性本身是**既有**缺口、不是本卡引入的,
+    #    修它超出本卡范围 —— 已连同特性一起撤回、登记移交。
+    _rebind_sensitive = {"open", "os"}
+    # ⚠️ 只跳 `AnnAssign` 的 **target 节点本身**, 不跳整棵子树: 无值注解虽然不赋值给
+    #    target, 它的**对象表达式仍会求值** —— `(open := partial(open, "log")).open: object`
+    #    里的海象绑定是真的会执行的, 跳整棵子树就把它一并漏掉了(Codex round-4 MEDIUM-3)。
+    annotation_only = {
+        id(node.target) for node in ast.walk(tree) if isinstance(node, ast.AnnAssign) and node.value is None
+    }
+    rebinds = []
+    for node in ast.walk(tree):
+        if id(node) in annotation_only:
+            continue
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id in _rebind_sensitive:
+            rebinds.append((node.id, node.lineno))
+        elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Store) and node.attr in write_names:
+            rebinds.append((ast.unparse(node), node.lineno))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for arg in node.args.posonlyargs + node.args.args + node.args.kwonlyargs:
+                if arg.arg in _rebind_sensitive:
+                    rebinds.append((arg.arg, node.lineno))
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                local = alias.asname or alias.name.split(".")[0]
+                if local in _rebind_sensitive and alias.name != "os":
+                    rebinds.append((local, node.lineno))
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if (alias.asname or alias.name) in _rebind_sensitive:
+                    rebinds.append((alias.asname or alias.name, node.lineno))
+    assert rebinds == [], f"写 API / 其 owner 被重新绑定, 按位置判 mode/flags 的前提失效: {sorted(set(rebinds))}"
+
+    # 验伪锚(CARD-G2-7a-TAIL): 只读豁免 `_is_readonly_open` 自己先得站得住 —— 否则
+    # 下面那条 `offenders == []` 可能是**因为豁免放水**而绿, 不是因为源码真的没写调用。
+    # 逐条给出「在什么输入下结论应当不同」, 而不是只证一个正例。
+    def _verdict(expr: str) -> bool:
+        return _is_readonly_open(ast.parse(expr, mode="eval").body)
+
+    assert _verdict("os.open(p, os.O_RDONLY | os.O_NONBLOCK)") is True, "只读旗标必须放行"
+    assert _verdict("os.open(p, os.O_RDONLY)") is True, "单个只读旗标必须放行"
+    assert _verdict("os.open(p, os.O_WRONLY | os.O_CREAT)") is False, "写旗标不得放行"
+    assert _verdict("os.open(p, os.O_RDONLY | os.O_TRUNC)") is False, "混进一个写旗标就不得放行"
+    assert _verdict("os.open(p, flags)") is False, "算出来的旗标证明不了只读"
+    assert _verdict("os.open(p)") is False, "缺旗标不得放行"
+    assert _verdict("p.open('wb+')") is False, "绑定方法的写模式主张不得被削弱"
+    assert _verdict("p.open()") is True, "绑定方法缺省模式仍是只读"
+    assert _verdict("open(p, 'rb')") is True, "内置 open 的只读模式仍放行"
+    assert _verdict("open(p, 'w')") is False, "内置 open 的写模式仍不放行"
+    # 参数展开: 位置绑定不可知 ⇒ 一律不放行(Codex round-1 MEDIUM + 本卡自查的同族第二例)
+    assert _verdict("os.open(*[p, os.O_WRONLY | os.O_TRUNC], os.O_RDONLY)") is False, (
+        "展开后 flags 是写+截断, 按位置读 args[1] 会读成只读 —— 不得放行"
+    )
+    assert _verdict("os.open(p, os.O_RDONLY, **kw)") is False, "**kwargs 可再塞实参, 不得放行"
+    assert _verdict("os.open(*args)") is False, "整串展开不得放行"
+    assert _verdict("os.open(p, *flags_list)") is False, "旗标位展开不得放行"
+    assert _verdict("open(*args)") is False, "内置 open 的展开形态不得放行"
+    assert _verdict("p.open(*a)") is False, "绑定方法的展开形态不得放行"
+    # ⚠️ `io.open("log", "w")` / `builtins.open(...)` 这类**模块级 open** 本门仍会误豁免
+    #    (它们形态是 Attribute, 被当成绑定方法、把 "log" 当模式读)。那是**既有**缺口,
+    #    与别名 / getattr / partial / 名单遗漏同属一族, 已登记移交独立卡 —— 本卡不扩面。
+    #    我曾在 round-2 修过它, 结果两轮里引入 6 个新缺陷(判值反转 + 合法代码假红),
+    #    round-5 连同那个特性一起撤回。见验收单 §八。
+
     offenders = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
@@ -736,6 +826,43 @@ def test_verifier_write_calls_are_confined_to_write_report():
 # ── 零写门 (钉死点 5) ─────────────────────────────────────────────────
 
 
+# `os.open()` 的旗标里, 这些是**确定不写**的; 任何不在表内的名字(O_WRONLY / O_RDWR /
+# O_CREAT / O_TRUNC / O_APPEND …)都不放行。表是白名单不是黑名单 —— 黑名单漏一个就放水。
+_OS_OPEN_READONLY_FLAGS = frozenset({"O_RDONLY", "O_NONBLOCK", "O_CLOEXEC", "O_NOFOLLOW", "O_DIRECTORY", "O_NOCTTY"})
+
+
+def _is_os_open(node) -> bool:
+    """是不是字面形态的 `os.open(...)`(而不是内置 open / 绑定方法 path.open)。"""
+    import ast
+
+    func = node.func
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr == "open"
+        and isinstance(func.value, ast.Name)
+        and func.value.id == "os"
+    )
+
+
+def _os_open_flag_names(flags):
+    """把 `os.O_A | os.O_B` 这种**纯字面**旗标表达式摊成名字集合; 形态不认得返回 None。
+
+    只认 `os.O_XXX` 与它们之间的 `|`。变量、函数调用、算术、`getattr` 一律返回 None ⇒
+    上层判不放行 —— 与模式字面量那条同一主张: **算出来的东西证明不了只读**。
+    """
+    import ast
+
+    if isinstance(flags, ast.Attribute) and isinstance(flags.value, ast.Name) and flags.value.id == "os":
+        return {flags.attr}
+    if isinstance(flags, ast.BinOp) and isinstance(flags.op, ast.BitOr):
+        left = _os_open_flag_names(flags.left)
+        right = _os_open_flag_names(flags.right)
+        if left is None or right is None:
+            return None
+        return left | right
+    return None
+
+
 def _is_readonly_open(node) -> bool:
     """`open()` 调用是否**确定**只读: 模式缺省, 或模式是不含 w/a/x/+ 的字面量。
 
@@ -743,8 +870,38 @@ def _is_readonly_open(node) -> bool:
     而绑定方法 `path.open(mode)` 是第 **1** 个。上一轮统一按第 2 个判 ⇒
     `path.open("wb+")` 被当成「没给模式」而放行 —— 我为只读探测开的豁免,
     把 U3-A 的零写门重新捅开了(Codex round-4 实测)。
+
+    ⚠️ `os.open(path, flags)` 是**第三种**形态, 且此前被这里误判: 它也是 Attribute 调用,
+    于是走了 `bound_method` 那条分支、把 **path**(args[0]) 当模式读 —— 不是字符串字面量,
+    结论恒 False。对 CARD-G2-7a-TAIL 新增的只读探测 `os.open(p, os.O_RDONLY | os.O_NONBLOCK)`
+    就会误报成「写调用」。这里给它单开一条分支, 判据仍是**只按字面量放行**:
+    旗标必须是纯 `os.O_*` 字面(可用 `|` 连), 且**全部**落在只读白名单里;
+    缺旗标 / 算出来的旗标 / 含任一写旗标, 一律不放行。
     """
     import ast
+
+    if any(isinstance(a, ast.Starred) for a in node.args) or any(kw.arg is None for kw in node.keywords):
+        # 参数被展开(`*args` / `**kwargs`)时**位置绑定不可知** —— 哪个实参最终落到 mode/flags
+        # 位上, 在静态看不出来。与「算出来的模式证明不了只读」是同一主张, 一律不放行。
+        # 未被拦下的输入(Codex round-1 MEDIUM, 已实测复现):
+        #   `os.open(*[p, os.O_WRONLY | os.O_TRUNC], os.O_RDONLY)`
+        #   —— 展开后 flags 其实是 O_WRONLY|O_TRUNC(写且截断), 而 AST 的 args[1] 是
+        #   `os.O_RDONLY`; 按位置去读就读成了只读。同族第二例(本卡自查补出):
+        #   `os.open(p, os.O_RDONLY, **kw)` —— `**kw` 可再塞进别的实参。
+        # ⚠️ 这道拒绝必须放在**所有分支之前**: 本卡加 `os.open` 分支之前, 展开形态是被
+        #   「mode 不是字符串字面量」这条**顺带**挡住的; 新分支更精确, 却把那条附带保证
+        #   删掉了 —— 精确性提高不等于强度提高, 这里显式补回来。
+        return False
+
+    if _is_os_open(node):
+        flags = node.args[1] if len(node.args) > 1 else None
+        for kw in node.keywords:
+            if kw.arg == "flags":
+                flags = kw.value
+        if flags is None:
+            return False  # os.open 缺旗标在语法上不合法, 但宁可当违规也不猜
+        names = _os_open_flag_names(flags)
+        return names is not None and names <= _OS_OPEN_READONLY_FLAGS
 
     bound_method = isinstance(node.func, ast.Attribute)  # x.open(...) ⇒ 模式在 args[0]
     mode_index = 0 if bound_method else 1
@@ -3102,6 +3259,130 @@ def test_malformed_hotkeys_is_caught_even_when_main_js_is_absent(vault_pair):
         f"hotkeys 顶层非对象必须登记 unreadable，实得 {[(f.path, f.detail) for f in result.unreadable]}"
     )
     assert result.exit_code == vv.EXIT_MISMATCH == 2
+
+
+# 无写端 FIFO 的回归门只有在**校验器不挂**时才会返回, 所以超时值既是判据也是保险丝。
+# 取 60s 的实证依据: 同一条命令的正常路径本机连跑 5 次, 最慢 0.052s(见
+# evidence-g27a-tail/ 的 (f) 取值实测) —— 60s 是 >1000× 余量, 慢机/冷启动打不穿;
+# 而一旦形态门被改回裸 read_text, 这条门会在 60s 后以 TimeoutExpired 变红, 不会静默挂住整套。
+HOTKEYS_FIFO_TIMEOUT_S = 60
+
+
+def _report_section(report_text: str, title: str) -> list[str]:
+    """从渲染报告里取出 `## <title>` 那一段的明细行(不含标题行)。
+
+    判据要的是**归桶身份**而不是「某处出现过这串字」: 同一句 detail 若只在别的段落
+    出现, 断言 `in report_text` 照样成立, 门就变成了在测字符串存在性。
+    """
+    out: list[str] = []
+    inside = False
+    for line in report_text.splitlines():
+        if line.startswith("## "):
+            inside = line.strip() == f"## {title}"
+            continue
+        if inside and line.strip():
+            out.append(line)
+    return out
+
+
+def test_hotkeys_fifo_does_not_hang_and_reports_unreadable(vault_pair, tmp_path):
+    """MEDIUM-2 回归: hotkeys.json 是**无写端 FIFO** 时, 校验器不得挂住, 且必须归 unreadable ⇒ rc=2。
+
+    修之前 `_check_hotkeys` 先 `_entry_state`(走 `os.lstat`, FIFO 判 present)、随后直接
+    `hotkeys_path.read_text()` —— `read_text` 内部是**阻塞** open, 无写端 FIFO 上它会一直
+    等写者, 永久停在打开阶段: 包在外面的 `except (OSError, UnicodeDecodeError)` 根本到不了,
+    `--vault` 连 rc=2 都跑不出来(改前探针实测 15s TimeoutExpired, faulthandler 自报栈停在
+    那一行的 open 系统调用)。
+
+    ⛔ 这条门**必须**走 `subprocess` + `timeout=`, 不能进程内调 `vv.main()` / `_classify()`:
+       回归时进程内那条路会把**整套 pytest** 一起挂死, 既不会红也拿不到任何失败信息。
+    ⚠️ `--report` 落点必须在 `--vault` 树**外** —— 落在树内会被 `_check_report_location`
+       判 rc=3(用法错), 门就变成在测别的东西(本卡探针初版踩过这一脚)。
+
+    两段输入配成对照:
+      - 对照输入: 同一个 vault, hotkeys 是**普通文件** ⇒ 不得进 unreadable(验伪锚:
+        证明下面那条断言不是「在任何输入下都成立」的空判据);
+      - 被测输入: 同一个 vault, hotkeys 换成无写端 FIFO ⇒ rc=2 + 归 unreadable + note 说清形态。
+    """
+    _source, target = vault_pair
+    hotkeys = target / vv.HOTKEYS_REL
+
+    def _run_verifier(report_name: str) -> tuple[int, str]:
+        report = tmp_path / report_name
+        done = subprocess.run(
+            [
+                sys.executable,
+                str(VERIFIER),
+                "--vault",
+                str(target),
+                "--manifest",
+                str(MANIFEST),
+                "--report",
+                str(report),
+            ],
+            capture_output=True,
+            timeout=HOTKEYS_FIFO_TIMEOUT_S,
+        )
+        assert done.returncode != vv.EXIT_USAGE, (
+            f"落进用法错档说明这条门没跑到 hotkeys 检查: rc={done.returncode} "
+            f"stderr={done.stderr.decode('utf-8', 'replace')[:400]}"
+        )
+        text = report.read_text(encoding="utf-8") if report.exists() else ""
+        assert text, f"--report 没落盘, 无从判归桶: rc={done.returncode}"
+        return done.returncode, text
+
+    # ── 对照输入: 普通文件 hotkeys ────────────────────────────────────────
+    assert hotkeys.is_file(), "夹具前提: 对照段的 hotkeys 必须是普通文件"
+    _control_rc, control_report = _run_verifier("control-report.txt")
+    assert vv.HOTKEYS_REL not in " ".join(_report_section(control_report, "unreadable")), (
+        f"普通文件 hotkeys 不该进 unreadable, 实得 {_report_section(control_report, 'unreadable')}"
+    )
+    assert "不是普通文件" not in control_report, "对照输入不该出现形态门的判词"
+
+    # ── 被测输入: 无写端 FIFO ─────────────────────────────────────────────
+    hotkeys.unlink()
+    os.mkfifo(hotkeys)
+    try:
+        # 回归时这一行抛 subprocess.TimeoutExpired ⇒ 本条测试红, 且**不会**挂住整套。
+        rc, report_text = _run_verifier("fifo-report.txt")
+    finally:
+        # FIFO 必须删干净: 留着会把后面任何读它的进程一起挂住(含 pytest 自己的清理)。
+        if hotkeys.is_fifo():
+            hotkeys.unlink()
+
+    assert rc == vv.EXIT_MISMATCH == 2, f"无写端 FIFO 必须归 mismatch 档, 实得 rc={rc}"
+    unreadable_rows = _report_section(report_text, "unreadable")
+
+    # ⚠️ 不要试图从**渲染后的文本**里把结构化身份切回来 —— 那是有损的。
+    #    上一版按 `row.split("  —", 1)[0]` 切出路径再比相等, 仍有两类未被拦下的输入
+    #    (Codex round-3 LOW-1):
+    #      · 真实路径就叫 `.obsidian/hotkeys.json  —.bak` 的 finding —— 切出来的前半段
+    #        恰好等于 HOTKEYS_REL, 于是「真实 hotkeys finding 有 0 条」却选中 1 条并通过;
+    #      · 同一路径两条(`role="-"` 与 `role="config"`) —— 实际 2 条, 却只选中第一条,
+    #        照样满足「恰好一条」。
+    #    改成两条一起卡:
+    #      ① 整个 ## unreadable 段里**提到** HOTKEYS_REL 的行必须**恰好 1 条**(卡唯一性);
+    #      ② 那一行必须与生产渲染出来的**那一行逐字相同**(卡身份 + 理由, 一次到位)。
+    #    代价如实声明: 这条判据与生产的 detail 文案、以及 role 恒为 "-" 这两件事**绑死**。
+    #    任一改动会让本门**响亮地红**(而不是静默放行) —— 方向是保守的, 但要知道它会红。
+    # 归一化空白后再比（Codex round-4 LOW-10）：上一版直接比整行原文，于是生产端
+    # 只把缩进从两格改成四格、或末尾多一个空格，这条门就红 —— 那是对**展示格式**的耦合，
+    # 不是对**行为**的判定。归一化只抹掉空白，身份与理由仍然逐字卡住。
+    def _norm(row: str) -> str:
+        return " ".join(row.split())
+
+    expected_row = _norm(f"{vv.HOTKEYS_REL}  — 快捷键文件不是普通文件(FIFO/设备等特殊文件), 无法核对快捷键")
+    mentions = [row for row in unreadable_rows if vv.HOTKEYS_REL in row]
+    assert len(mentions) == 1, (
+        f"## unreadable 段里提到 {vv.HOTKEYS_REL} 的行必须恰好 1 条, 实得 {len(mentions)} 条: {unreadable_rows}"
+    )
+    assert _norm(mentions[0]) == expected_row, (
+        f"那一行必须与生产渲染逐字相同(身份+理由一起卡, 空白归一化后比)"
+        f"\n  期望: {expected_row!r}\n  实得: {_norm(mentions[0])!r}"
+    )
+    assert "hotkeys                : not evaluated (不是普通文件)" in report_text, (
+        "汇总行的 hotkeys note 必须如实写形态, 不得说成「查过没问题」"
+    )
 
 
 def test_claude_dir_symlink_does_not_write_through_either(tmp_path):
