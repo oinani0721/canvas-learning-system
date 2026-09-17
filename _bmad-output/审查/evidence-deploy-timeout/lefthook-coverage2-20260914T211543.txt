@@ -1,0 +1,61 @@
+### lefthook 覆盖面实测（第二版：--files 在 lefthook 2.1.6 不存在，改真暂存）ts=20260914T211543
+⚠️ 第一版用 '--files' 的判据**无效**：lefthook 2.1.6 报 'flag provided but not defined: -files'，
+   两跑（目标 + 验伪锚）都因报错而无输出 —— 锚没响 ⇒ 不能从目标的沉默下任何结论。
+   （与 R-B14-1 『--no-auto-install 是 lefthook 1.x 的 flag』同族。）
+--- 驱动源码 ---
+#!/usr/bin/env bash
+set -uo pipefail
+ROOT="$1"; SP="$2"; cd "$ROOT"
+PY=backend/tests/unit/test_deploy_vault_sh.py
+SNAP="$SP/lefthook-probe-snapshot.py"
+cp "$PY" "$SNAP"
+trap 'cp "$SNAP" "$ROOT/$PY"; git -C "$ROOT" reset -q; echo "[EXIT trap] 已还原并清暂存区"' EXIT
+echo "== 跑前 shasum =="; shasum -a 256 "$PY"
+printf '\n# lefthook 覆盖面探针（临时行，跑完无条件还原）\n' >> "$PY"
+git add -- "$PY" scripts/deploy-vault.sh
+echo "== 暂存面 =="; git diff --cached --name-only -z | tr '\0' '\n' | sed 's/^/   /'
+echo "== lefthook run pre-commit（逐 job 的命中/跳过理由 = 自带锚）=="
+/opt/homebrew/bin/lefthook run pre-commit 2>&1 | grep -E -e '❯|✔️|✖|skip|summary' | sed 's/^/   /'
+cp "$SNAP" "$PY"; git reset -q
+echo "== 还原后 shasum（须逐字同）=="; shasum -a 256 "$PY"
+echo "== 还原后工作树 =="; git status --porcelain | grep -v 'lefthook-coverage' | wc -l | tr -d ' ' | sed 's/^/   非本次存档的脏项=/'
+--- 执行 ---
+== 跑前 shasum ==
+8201359b1e14d3677dfa5d14b98cd96fb04892705b93878b676658488c6b657a  backend/tests/unit/test_deploy_vault_sh.py
+== 暂存面 ==
+   backend/tests/unit/test_deploy_vault_sh.py
+== lefthook run pre-commit（逐 job 的命中/跳过理由 = 自带锚）==
+   │  cypher-vault-filter-lint (skip) no matching staged files
+   ┃  ghost-files ❯ 
+   ┃  mutant-residue-scan ❯ 
+   ┃  python-lint ❯ 
+   exit status 1│  python-typecheck (skip) no files for inspection
+   │  readme-claims-lint (skip) no matching staged files
+   │  spec-sync-flat (skip) no matching staged files
+   │  spec-sync-root (skip) no matching staged files
+   summary: (done in 0.09 seconds)       
+   ✔️ ghost-files (0.02 seconds)
+   ✔️ mutant-residue-scan (0.03 seconds)
+== 还原后 shasum（须逐字同）==
+8201359b1e14d3677dfa5d14b98cd96fb04892705b93878b676658488c6b657a  backend/tests/unit/test_deploy_vault_sh.py
+== 还原后工作树 ==
+   非本次存档的脏项=0
+[EXIT trap] 已还原并清暂存区
+
+--- 归因：python-lint 的 exit status 1 是探针行造成的，还是本卡真实内容？---
+[A] 真实内容（= HEAD 内容）:
+     All checks passed!
+     1 file already formatted
+[B] 探针内容（真实内容 + 那一行）:
+     All checks passed!
+     Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t2-deploy/31d70716-3ac4-4fe0-85d4-235144ae3754/scratchpad/probe_copy.py
+     1 file would be reformatted
+[结论] A 全绿 / B 被 format 判要重排 ⇒ 那个 exit status 1 **由探针行引入**，与本卡真实改动无关。
+[旁证] 本卡 4 条 commit 全部成功落地，而 pre-commit 非零会中止 commit（commitlint 那次即实测被拦）
+       ⇒ python-lint 在每次真实提交时都跑过且通过。
+
+=== 最终结论（回填验收单 §五.7 / §六.5）===
+  · lefthook 2.1.6 在本机**确实执行**（pre-commit / commit-msg / post-commit 三个钩子都打印）
+  · python-lint 的 glob 覆盖 backend/tests/unit/*.py —— 本卡文件**在**其覆盖面内（实测它跑了）
+  · python-typecheck 恒 skip（glob backend/app/*.py，本卡零改动）
+  · 未用过任何 LEFTHOOK_EXCLUDE

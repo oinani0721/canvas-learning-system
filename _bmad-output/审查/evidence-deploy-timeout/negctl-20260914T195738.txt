@@ -1,0 +1,91 @@
+### 负控三段 ts=20260914T195738
+--- 驱动脚本源码（negctl.sh）---
+#!/usr/bin/env bash
+# 负控三段（CARD-DEPLOY-TIMEOUT）。EXIT trap 无条件还原被变异的文件。
+set -uo pipefail
+ROOT="$1"; SP="$2"
+cd "$ROOT"
+TESTF=backend/tests/unit/test_deploy_vault_sh.py
+SNAP="$SP/negctl-snapshot.py"
+cp "$TESTF" "$SNAP"
+trap 'cp "$SNAP" "$ROOT/$TESTF"; echo "[EXIT trap] 已无条件还原 $TESTF"' EXIT
+
+echo "===== 跑前 shasum ====="
+shasum -a 256 scripts/deploy-vault.sh "$TESTF"
+
+echo
+echo "===== 负控① AST 探针不瞎（变异：删掉一处刚加的 timeout= 常量）====="
+echo "[基线] $(python3 "$SP/ast_probe.py")"
+python3 - "$TESTF" <<'PY'
+import sys
+p = sys.argv[1]
+lines = open(p, encoding="utf-8").read().splitlines(keepends=True)
+for i, ln in enumerate(lines):
+    if ln.strip() == "timeout=_SUBPROCESS_TIMEOUT,":
+        print(f"[变异] 删除 :{i+1} {ln.strip()!r}")
+        del lines[i]
+        break
+else:
+    raise SystemExit("找不到可变异的行 —— 变异体没造出来, 本段作废")
+open(p, "w", encoding="utf-8").write("".join(lines))
+PY
+echo "[变异后] $(python3 "$SP/ast_probe.py")"
+cp "$SNAP" "$TESTF"
+echo "[还原后] $(python3 "$SP/ast_probe.py")"
+echo "[还原逐字节核] $(shasum -a 256 "$TESTF")"
+
+echo
+echo "===== 负控②③ 直跑脚本：hang@1s / fast / fail 三种假 npm ====="
+backend/.venv/bin/python "$SP/negctl_driver.py" "$ROOT"
+
+echo
+echo "===== 跑后 shasum（须与跑前逐字同）====="
+shasum -a 256 scripts/deploy-vault.sh "$TESTF"
+--- 驱动源码（negctl_driver.py）---
+"""负控驱动：直接调本卡新增的假 harness/假 npm 辅助跑 DEPLOY_SH，打印字面步行。
+
+复用测试文件里的同一套辅助（不另抄一份，两份手抄清单必然漂移）。
+"""
+import pathlib, sys, tempfile, time
+
+ROOT = pathlib.Path(sys.argv[1]).resolve()
+sys.path.insert(0, str(ROOT / "backend" / "tests" / "unit"))
+import test_deploy_vault_sh as T  # noqa: E402
+
+for mode, port, cap in (("hang", "8261", 1), ("fast", "8262", 5), ("fail", "8263", 5)):
+    with tempfile.TemporaryDirectory() as d:
+        tmp = pathlib.Path(d)
+        h, pids = T._npm_cap_harness(tmp, mode)
+        t0 = time.monotonic()
+        r = T._npm_cap_run(tmp, h, pids, port, cap)
+        el = time.monotonic() - t0
+        T._reap(pids)
+        print(f"--- mode={mode} CLS_NPM_BUILD_TIMEOUT={cap}s -> rc={r.returncode} elapsed={el:.1f}s")
+        for ln in r.stdout.splitlines():
+            if ln.startswith("[") or ln.startswith("✅"):
+                print("    " + ln)
+--- 执行 ---
+===== 跑前 shasum =====
+e34d939f8f8ca589bcacf55fe59545c3e74d778d42f5939bb917ca1e2248ae50  scripts/deploy-vault.sh
+17b955a4fa7d3de15109e24ad487da15f96a9a04093c74a984cf614bf15dc495  backend/tests/unit/test_deploy_vault_sh.py
+
+===== 负控① AST 探针不瞎（变异：删掉一处刚加的 timeout= 常量）=====
+[基线] total 20 with 20 [89, 108, 474, 498, 508, 689, 898, 958, 1029, 1289, 1654, 1704, 1894, 1948, 1953, 1961, 1995, 1999, 2358, 2482] WITHOUT 0 []
+[变异] 删除 :503 'timeout=_SUBPROCESS_TIMEOUT,'
+[变异后] total 20 with 19 [89, 108, 474, 507, 688, 897, 957, 1028, 1288, 1653, 1703, 1893, 1947, 1952, 1960, 1994, 1998, 2357, 2481] WITHOUT 1 [498]
+[还原后] total 20 with 20 [89, 108, 474, 498, 508, 689, 898, 958, 1029, 1289, 1654, 1704, 1894, 1948, 1953, 1961, 1995, 1999, 2358, 2482] WITHOUT 0 []
+[还原逐字节核] 17b955a4fa7d3de15109e24ad487da15f96a9a04093c74a984cf614bf15dc495  backend/tests/unit/test_deploy_vault_sh.py
+
+===== 负控②③ 直跑脚本：hang@1s / fast / fail 三种假 npm =====
+--- mode=hang CLS_NPM_BUILD_TIMEOUT=1s -> rc=71 elapsed=3.3s
+    [1/6] preflight: FAIL npm run build 超时（墙钟上限 1s, 已杀整个进程组）: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpttjl0w7h/harness/frontend/obsidian-plugin
+--- mode=fast CLS_NPM_BUILD_TIMEOUT=5s -> rc=72 elapsed=0.7s
+    [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8262 空闲 / skills 9; main.js 已 build 并就位
+    [2/6] install: FAIL install-vault.sh rc=1, 见 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpguwjyh57/ev/install-20260914T195741.txt
+--- mode=fail CLS_NPM_BUILD_TIMEOUT=5s -> rc=71 elapsed=0.5s
+    [1/6] preflight: FAIL npm run build 失败（/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpywaco2m3/harness/frontend/obsidian-plugin）
+
+===== 跑后 shasum（须与跑前逐字同）=====
+e34d939f8f8ca589bcacf55fe59545c3e74d778d42f5939bb917ca1e2248ae50  scripts/deploy-vault.sh
+17b955a4fa7d3de15109e24ad487da15f96a9a04093c74a984cf614bf15dc495  backend/tests/unit/test_deploy_vault_sh.py
+[EXIT trap] 已无条件还原 backend/tests/unit/test_deploy_vault_sh.py

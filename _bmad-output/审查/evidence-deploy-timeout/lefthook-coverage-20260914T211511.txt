@@ -1,0 +1,26 @@
+### lefthook 命中面实测（回答验收单 §五.7 的未确认项）ts=20260914T211511
+lefthook 版本: 2.1.6
+--- 把本卡两个改动文件加入暂存区后跑 pre-commit（只读判据, 跑完 reset）---
+    ?? "_bmad-output/\345\256\241\346\237\245/evidence-deploy-timeout/lefthook-coverage-20260914T211511.txt"
+  [注] 内容与 HEAD 相同, 只是进暂存区让 glob 能看到它们
+    │  cypher-vault-filter-lint (skip) no matching staged files
+    │  ghost-files (skip) no matching staged files
+    │  mutant-residue-scan (skip) no matching staged files
+    │  python-lint (skip) no files for inspection
+    │  python-typecheck (skip) no files for inspection
+    │  readme-claims-lint (skip) no matching staged files
+    │  spec-sync-flat (skip) no matching staged files
+    │  spec-sync-root (skip) no matching staged files
+    summary: (done in 0.00 seconds)       
+--- reset 后工作树 ---
+    1 行
+--- lefthook.yml 里 python 相关 job 的 glob ---
+    117:    python-lint:
+    118-      glob: "{backend,src,scripts}/*.py"
+    205:    python-typecheck:
+    206-      glob: "backend/app/*.py"
+--- 改用 --files 强制文件列表（不依赖暂存区）---
+[A] 本卡的测试文件 backend/tests/unit/test_deploy_vault_sh.py
+[B] 验伪锚：一个**确实**匹配 backend/*.py 的既有文件（证明尺子会命中）
+backend/mutmut_config.py
+[结论] glob '{backend,src,scripts}/*.py' 的 * 不跨 '/' ⇒ backend/tests/unit/*.py 不在 python-lint 的覆盖面内

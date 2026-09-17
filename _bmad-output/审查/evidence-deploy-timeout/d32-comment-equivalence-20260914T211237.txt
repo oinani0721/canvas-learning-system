@@ -1,0 +1,26 @@
+### D-32 等价核：审后改动是否**纯注释** ts=20260914T211237
+审 SHA = 25f56065（Codex r3 绑定）  当前工作树 = 审后 + 一处头注补充
+--- 完整 diff ---
+diff --git a/scripts/deploy-vault.sh b/scripts/deploy-vault.sh
+index 15369b11..fbe149a3 100755
+--- a/scripts/deploy-vault.sh
++++ b/scripts/deploy-vault.sh
+@@ -60,7 +60,8 @@
+ #   CLS_DEPLOY_ALLOW_DOCKER_UP  **缺省 0 = 步 5 只跑 `config` 断言后 SKIP，不 `up -d`**。
+ #                             显式 =1 才真起容器（顶替现网容器不可逆 ⇒ opt-in，需用户当次授权）。
+ #   CLS_LIVE_VAULT            live vault 绝对路径（禁写面第一条），缺省为主仓 canvas-vault。
+-#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒，取值 1..86400），
++#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒，取值 1..86400；
++#                             含前导零在内**原串最多 20 位** —— Codex r3 LOW-3），
+ #                             缺省 300。到点对 npm 所在进程组 TERM→（2s）→KILL，步 1 以
+ #                             FAIL 71 + 超时专属文案返回，而不是无限挂起（集成期裁定 R-15：
+ #                             候选树跑 tests/unit 时真跑本脚本的用例逐个卡死，挂点就是这条
+--- 判据：剥掉所有注释行后逐字节对照（非注释面必须为空 diff）---
+  审 SHA 非注释行: 960 行 sha256=ad4f36b34a8836ed3421046478a29d99d8a93b8eb483984224ab5d8cda2b6e9b
+  工作树 非注释行: 960 行 sha256=ad4f36b34a8836ed3421046478a29d99d8a93b8eb483984224ab5d8cda2b6e9b
+  非注释面 diff: 空 ⇒ 判等价（D-32）
+  [验伪锚] 含注释全文 sha 是否不同: 5f6fc10f2747 vs 02c2e5eef24e -> 不同 = 尺子会动
+--- bash -n ---
+bash_n_rc=0
+--- 定向裁判仍绿（纯注释改动不应影响行为）---
+=============== 11 passed, 145 deselected, 10 warnings in 14.91s ===============

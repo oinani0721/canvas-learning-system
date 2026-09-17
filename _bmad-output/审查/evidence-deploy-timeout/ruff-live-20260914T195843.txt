@@ -1,0 +1,18 @@
+### ruff + 现网只读 ts=20260914T195843
+--- R1 ruff（zsh 数组写法，协议 §2.2）---
+files_staged_vs_HEAD=0  ← HEAD 口径（本卡尚未 commit，故为 0，改用工作树口径）
+files_worktree=1: backend/tests/unit/test_deploy_vault_sh.py
+All checks passed!
+ruff_check_rc=0
+1 file already formatted
+ruff_format_rc=0
+[R1 验伪锚] 喂一个已知含 F401 的文件必须 rc=1:
+All checks passed!
+falsifier_rc=0（期望 1）
+
+--- R2 现网只读：live vault 自第 0 分钟起零新文件 ---
+参照哨兵（第 0 分钟落盘的第一份 evidence）= /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-deploy-timeout/manual-scope-20260914T194807.txt
+    -rw-r--r--@ 1 Heishing  staff  499 Sep 14 19:48 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-deploy-timeout/manual-scope-20260914T194807.txt
+live_vault_newer_files=0（期望 0）
+[R2 验伪锚] 同一把 -newer 尺子对本卡 evidence 目录必须 ≥1:
+ev_newer_files=12

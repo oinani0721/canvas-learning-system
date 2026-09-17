@@ -1,0 +1,77 @@
+### §〇 逐字核 part B（脚本侧）ts=20260914T194837 HEAD=08100483
+--- F5 sed -n 538,560p scripts/deploy-vault.sh ---
+        #    并关掉 audit/fund 的网络与额外输出。
+        #    ⚠️ 如实声明：这只约束了 npm **配置层**能约束的部分；npm 及其依赖是否还有
+        #    别的写入路径, 本卡未读其实现, **完整写入集合未证明**（已登记）。
+        local _npmroot="$EVIDENCE_DIR/npm-$TS"
+        mkdir -p "$_npmroot/cache" "$_npmroot/logs" \
+            || { STEP_MSG="建 npm 缓存目录失败: $_npmroot"; return 1; }
+        if ! (cd "$HARNESS/frontend/obsidian-plugin" \
+            && npm_config_cache="$_npmroot/cache" \
+               npm_config_logs_dir="$_npmroot/logs" \
+               npm_config_update_notifier=false \
+               npm_config_fund=false npm_config_audit=false \
+               npm run build) > /dev/null 2>&1; then
+            STEP_MSG="npm run build 失败（$HARNESS/frontend/obsidian-plugin）"
+            return 1
+        fi
+        if [ ! -f "$HARNESS/frontend/obsidian-plugin/main.js" ]; then
+            STEP_MSG="npm run build 未产出 main.js"
+            return 1
+        fi
+        mkdir -p "$(dirname "$mainjs")" \
+            || { STEP_MSG="建插件目录失败: $(dirname "$mainjs")"; return 1; }
+        cp "$HARNESS/frontend/obsidian-plugin/main.js" "$mainjs" \
+            || { STEP_MSG="cp main.js 失败: $mainjs"; return 1; }
+--- F5b grep -nE 'npm run build'（期望 549/550/554）---
+549:               npm run build) > /dev/null 2>&1; then
+550:            STEP_MSG="npm run build 失败（$HARNESS/frontend/obsidian-plugin）"
+554:            STEP_MSG="npm run build 未产出 main.js"
+--- F5c 步1 边界：:387 分隔注释 / step1_preflight :389 / 闭合 ---
+}
+
+# ═══ 步 1 preflight ═════════════════════════════════════════════════════════
+NEED_BUILD=0
+step1_preflight() {
+    local f missing=""
+    for f in scripts/install-vault.sh scripts/verify_vault_install.py \
+        scripts/vault-install-manifest.json docker-compose.yml; do
+        return 0
+    fi
+    STEP_MSG="树完整 / 禁写面过 / 名不动点 / port $PORT 空闲 / skills $nskills / main.js 在位"
+    return 0
+}
+
+# ═══ 步 2 install ═══════════════════════════════════════════════════════════
+ENV_KEYS_WHITELIST="NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL"
+--- F6 步5 网调（期望 1122/1130/1132/1139）---
+1122:        -p "cls-$VAULT_NAME" --project-directory "$HARNESS" up -d backend \
+1130:            STEP_MSG="up -d backend rc=${up_rc}, 已回滚 down"
+1132:            STEP_MSG="up -d backend rc=${up_rc}, 且回滚 down 也失败(rc=${down_rc}) — 容器可能仍在, 需人工处置"
+1139:    cur="$(curl -sS --fail -m 10 "http://127.0.0.1:$PORT/api/v1/vault/current" 2> /dev/null)" || curl_rc=$?
+--- F7 骨架（期望 373 run_step + 六 def 389/639/684/969/1060/1159 + 六调用 1230-1235）---
+373:run_step() {
+389:step1_preflight() {
+639:step2_install() {
+684:step3_postprocess() {
+969:step4_verify() {
+1060:step5_activate() {
+1159:step6_evidence() {
+1230:run_step 1 preflight step1_preflight
+1231:run_step 2 install step2_install
+1232:run_step 3 postprocess step3_postprocess
+1233:run_step 4 verify step4_verify
+1234:run_step 5 activate step5_activate
+1235:run_step 6 evidence step6_evidence
+#    返回码撤不回已经发生的写入。改为由**通过了 preflight 的**步骤按需自建。
+
+run_step 1 preflight step1_preflight
+run_step 2 install step2_install
+run_step 3 postprocess step3_postprocess
+run_step 4 verify step4_verify
+run_step 5 activate step5_activate
+run_step 6 evidence step6_evidence
+
+printf '✅ rc=0（%s）\n' "$MODE"
+--- F8 bash -n ---
+bash_n_rc=0

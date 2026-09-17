@@ -33,6 +33,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -53,6 +54,17 @@ CONTAINER_VARS = {
     "CLS_DEV_CONTAINER": "claude-dev",
 }
 ALL_PROFILES = ["--profile", "test", "--profile", "windows", "--profile", "dev"]
+
+#: 本文件**每一处** subprocess.run 的墙钟兜底（CARD-DEPLOY-TIMEOUT，集成期裁定 R-15）。
+#: 原来 16 处裸跑一个上限都没有 —— 候选树跑 tests/unit 时，真跑 DEPLOY_SH 的用例
+#: 在步 1 的 `npm run build` 上逐个**无限挂起**，整份文件永远跑不完（挂起的那一跑
+#: 连报错都没有，只是不返回）。
+#: 取 600 的依据：① 与集成期单点补丁 `3966ddad` 给 `:1874` 打的 `timeout=600` 同值，
+#: 不在同一份文件里立两套口径；② 它是**兜底**，不是主防线 —— 主防线是脚本自己的
+#: `CLS_NPM_BUILD_TIMEOUT`（缺省 300s）。取其 2 倍 ⇒ 正常情况下先看到脚本的超时文案
+#: （能指出哪一步超时），只有脚本上限本身失效时才由这里兜住。
+#: ⚠️ 未逐跑实测最坏耗时（见验收单「本卡未证明什么」④）：这是保守上限，不是紧界。
+_SUBPROCESS_TIMEOUT = 600
 
 
 #: 必须从继承环境里剥掉的开关（Codex r2 HIGH-1）。
@@ -93,7 +105,7 @@ def _fake_live(tmp_path: Path) -> Path:
 
 # ═══ ① bash -n ══════════════════════════════════════════════════════════════
 def test_deploy_vault_sh_parses():
-    r = subprocess.run(["bash", "-n", str(DEPLOY_SH)], capture_output=True, text=True)
+    r = subprocess.run(["bash", "-n", str(DEPLOY_SH)], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
     assert r.returncode == 0, f"bash -n rc={r.returncode}: {r.stderr}"
 
 
@@ -488,6 +500,7 @@ def _pre_parameterization_compose() -> str | None:
         capture_output=True,
         text=True,
         cwd=str(REPO_ROOT),
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     if log.returncode != 0:
         return None
@@ -497,6 +510,7 @@ def _pre_parameterization_compose() -> str | None:
             capture_output=True,
             text=True,
             cwd=str(REPO_ROOT),
+            timeout=_SUBPROCESS_TIMEOUT,
         )
         if show.returncode == 0 and "CLS_BACKEND_CONTAINER" not in show.stdout:
             return show.stdout
@@ -672,7 +686,9 @@ def test_step5_skips_up_when_no_docker_up_flag_set(tmp_path: Path):
     assert m.group(1) == "SKIP", f"步 5 应 SKIP, 实为 {m.group(1)}: {m.group(2)}"
     assert "config 断言过" in m.group(2), f"步 5 未做 config 断言: {m.group(2)}"
     # 零容器 —— 三态，不把「问不出来」压成「没有」
-    ps = subprocess.run(["docker", "ps", "-a", "--format", "{{.Names}}"], capture_output=True, text=True)
+    ps = subprocess.run(
+        ["docker", "ps", "-a", "--format", "{{.Names}}"], capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT
+    )
     # Codex r1 LOW-1：不能只看 stdout —— docker 查询失败时它是空的，
     # 「空输出里没有那个名字」会被读成「容器没起来」= 假绿。
     # 但 rc≠0 也不该判 FAIL：那是**问不出来**，不是「起来了」。本机实测 daemon 未运行时
@@ -879,7 +895,9 @@ def test_run_helper_strips_host_authorization_switch(monkeypatch, tmp_path: Path
     assert r.returncode == 0, r.stderr
     assert "ALLOW=<unset>" in r.stdout, f"_run 没有剥掉 CLS_DEPLOY_ALLOW_DOCKER_UP: {r.stdout!r}"
     # 反向锚：不经 _run 时宿主值确实可见 —— 证明上面那条不是因为环境里本来就没有
-    raw = subprocess.run([str(probe)], capture_output=True, text=True, env=dict(os.environ))
+    raw = subprocess.run(
+        [str(probe)], capture_output=True, text=True, env=dict(os.environ), timeout=_SUBPROCESS_TIMEOUT
+    )
     assert "ALLOW=1" in raw.stdout, f"控制组不成立：宿主环境里本来就没有该变量，上面那条断言不承重: {raw.stdout!r}"
 
 
@@ -942,6 +960,7 @@ def test_redaction_filter_masks_secrets_but_keeps_assertion_fields(tmp_path: Pat
         input=sample,
         capture_output=True,
         text=True,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     assert r.returncode == 0, r.stderr
     out = r.stdout
@@ -1007,7 +1026,7 @@ def _forbid(live: str, *items: str, outputs: tuple[str, ...] = ()):
     argv = [sys.executable, str(FORBID_PY), live, *items]
     if outputs:
         argv += ["--outputs", *outputs]
-    return subprocess.run(argv, capture_output=True, text=True)
+    return subprocess.run(argv, capture_output=True, text=True, timeout=_SUBPROCESS_TIMEOUT)
 
 
 @pytest.fixture
@@ -1267,7 +1286,7 @@ def _forbid_home(home: Path, live: str, *items: str, outputs: tuple[str, ...] = 
         argv += ["--outputs", *outputs]
     env = dict(os.environ)
     env["HOME"] = str(home)
-    return subprocess.run(argv, capture_output=True, text=True, env=env)
+    return subprocess.run(argv, capture_output=True, text=True, env=env, timeout=_SUBPROCESS_TIMEOUT)
 
 
 @pytest.fixture
@@ -1652,6 +1671,7 @@ def test_step4_mirror_symlink_is_blocked_end_to_end(tmp_path: Path):
         capture_output=True,
         text=True,
         env=env,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     assert r.returncode == 74, f"镜像内软链未被步 4 拦下: rc={r.returncode}\n{r.stdout}{r.stderr}"
     assert "禁写面" in r.stdout and "mirror-" in r.stdout, f"消息未点名镜像对象: {r.stdout!r}"
@@ -1701,6 +1721,7 @@ def test_step4_mirror_control_group_passes_without_symlink(tmp_path: Path):
         capture_output=True,
         text=True,
         env=env,
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     assert r.returncode == 0, f"无软链的正常镜像被误拦: rc={r.returncode}\n{r.stdout}{r.stderr}"
 
@@ -1924,16 +1945,25 @@ def test_legitimate_tmpdir_symlink_is_not_rejected(tmp_path: Path):
         str(tmp_path / "ev"),
     ]
     for tmpdir in ("/tmp", ""):
-        r = subprocess.run(base, capture_output=True, text=True, env={**env, "TMPDIR": tmpdir})
+        r = subprocess.run(
+            base, capture_output=True, text=True, env={**env, "TMPDIR": tmpdir}, timeout=_SUBPROCESS_TIMEOUT
+        )
         assert r.returncode == 0, f"TMPDIR={tmpdir!r} 被误拒: rc={r.returncode} {r.stdout}"
     # 控制组：指向保护目录仍必须拦
-    r = subprocess.run(base, capture_output=True, text=True, env={**env, "TMPDIR": str(tmp_path / "protected")})
+    r = subprocess.run(
+        base,
+        capture_output=True,
+        text=True,
+        env={**env, "TMPDIR": str(tmp_path / "protected")},
+        timeout=_SUBPROCESS_TIMEOUT,
+    )
     (tmp_path / "protected").mkdir(exist_ok=True)
     r = subprocess.run(
         base,
         capture_output=True,
         text=True,
         env={**env, "CLS_LIVE_VAULT": str(tmp_path / "protected"), "TMPDIR": str(tmp_path / "protected")},
+        timeout=_SUBPROCESS_TIMEOUT,
     )
     assert r.returncode == 71, f"TMPDIR 指向保护目录未被拦: rc={r.returncode} {r.stdout}"
     assert "tmpdir" in r.stdout, f"消息未点名 tmpdir: {r.stdout!r}"
@@ -1962,9 +1992,13 @@ def test_hosts_strips_all_whitespace_like_tr(tmp_path: Path):
     ]
     for hosts in ("cl au\tde", "\vclaude\f", "\rclaude\r", "\t claude \t"):
         real = hosts.encode().decode("unicode_escape")
-        r = subprocess.run(base + ["--hosts", real], capture_output=True, text=True, env=env)
+        r = subprocess.run(
+            base + ["--hosts", real], capture_output=True, text=True, env=env, timeout=_SUBPROCESS_TIMEOUT
+        )
         assert r.returncode == 0, f"--hosts {real!r} 被误拒: rc={r.returncode} {r.stderr}"
-    r = subprocess.run(base + ["--hosts", "claude,codex"], capture_output=True, text=True, env=env)
+    r = subprocess.run(
+        base + ["--hosts", "claude,codex"], capture_output=True, text=True, env=env, timeout=_SUBPROCESS_TIMEOUT
+    )
     assert r.returncode == 64, "二线宿主必须仍被拒（判据不能因放宽空白而放宽宿主）"
 
 
@@ -2326,6 +2360,7 @@ def test_forbidden_judge_fails_closed_when_home_unenumerable(tmp_path: Path):
             capture_output=True,
             text=True,
             env=env,
+            timeout=_SUBPROCESS_TIMEOUT,
         )
         assert r.returncode == 1, f"HOME 不可枚举时仍报全 OK（应 fail-closed）: rc={r.returncode} {r.stdout}"
         assert "fail-closed" in r.stdout or "_enumerate" in r.stdout, r.stdout
@@ -2594,3 +2629,286 @@ def test_preflight_passes_when_nlink_reads_one(tmp_path: Path):
     """
     r = _preflight_with_existing_env_tmp(tmp_path, "8198", _fake_python3(tmp_path, "1"))
     assert r.returncode == 0, f"合法链接数 1 被误拦: rc={r.returncode} {r.stdout}{r.stderr}"
+
+
+# ═══ CARD-DEPLOY-TIMEOUT：步 1 npm build 的墙钟上限（集成期裁定 R-15）════════════
+#
+# 背景：候选树跑 tests/unit 时，真跑 DEPLOY_SH 的用例**逐个无限挂起** —— 挂点是
+# `deploy-vault.sh` 步 1 在缺 gitignored main.js 时触发的 `npm run build`，它原先
+# **没有任何墙钟上限**。本节的三条用例钉住修复后的三件事：
+#   ① 挂起会在上限到点时被打断，且 STEP_MSG 是**超时专属文案**（不是笼统失败）；
+#   ② 秒级 build 不被误杀（正向对照，证明上限不是「永远杀」）；
+#   ③ build 因别的原因失败时**不得**报成超时（文案必须能分辨两种失败）。
+#
+# ⚠️ 三条都用**假 npm + 自洽的假 harness**：不依赖真实前端目录、不联网、也不依赖
+#    本机树上是否有 gitignored main.js（假 harness 里恒无 main.js ⇒ 恒走 build 分支）。
+#    正因如此，本节**不加**既有那条 `main.js` skipif —— 它是给「真跑真 build」的用例用的。
+
+
+def _npm_cap_harness(tmp_path: Path, mode: str) -> tuple[Path, Path]:
+    """造一棵自洽的假 harness + 假 npm（置于 PATH 最前，手法同 :2220 的假 lsof）。
+
+    harness 只做到「够 step1_preflight 走完、走到 npm build 分支」：四个必需文件 +
+    ≥ CLS_MIN_SKILLS 个含 SKILL.md 的目录 + 一个能跑的 venv python + 两个恒等命名函数
+    （`sanitize_vault_id` / `vault_key` 的共同不动点判据）+ 一个**空的**前端插件目录。
+    `install-vault.sh` 是恒 rc=1 的桩：build 过关后整跑会停在步 2（rc 72），
+    不会把真 installer 拉进单测（本节只验步 1）。
+
+    mode:
+      hang — 永久挂起, 并 fork 一个孙子进程（验证上限杀的是整个**进程组**）
+      fast — 秒级产出 main.js（正向对照）
+      fail — 立刻 rc=1（失败 ≠ 超时的对照）
+    返回 (harness 根, 假 npm 写 pid 的目录)。
+    """
+    h = tmp_path / "harness"
+    scripts = h / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "install-vault.sh").write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    (scripts / "install-vault.sh").chmod(0o755)
+    (scripts / "verify_vault_install.py").write_text("", encoding="utf-8")
+    (scripts / "vault-install-manifest.json").write_text("{}\n", encoding="utf-8")
+    (scripts / "send_bark.py").write_text("def vault_key(name):\n    return name\n", encoding="utf-8")
+    (h / "docker-compose.yml").write_text("", encoding="utf-8")
+
+    app = h / "backend" / "app"
+    app.mkdir(parents=True)
+    (app / "__init__.py").write_text("", encoding="utf-8")
+    (app / "config.py").write_text("def sanitize_vault_id(name):\n    return name\n", encoding="utf-8")
+    venv_bin = h / "backend" / ".venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    os.symlink(sys.executable, venv_bin / "python")
+
+    skills = h / "canvas-vault" / ".claude" / "skills"
+    for i in range(9):  # 缺省 CLS_MIN_SKILLS=9，零余量
+        (skills / f"probe{i}").mkdir(parents=True)
+        (skills / f"probe{i}" / "SKILL.md").write_text("# stub\n", encoding="utf-8")
+    # 恒无 main.js ⇒ step1 必定 NEED_BUILD=1（不建 .obsidian 子树即可）
+    (h / "frontend" / "obsidian-plugin").mkdir(parents=True)
+    (h / "frontend" / "obsidian-plugin" / "package.json").write_text(
+        '{"name": "stub", "scripts": {"build": "true"}}\n', encoding="utf-8"
+    )
+
+    pids = tmp_path / "npm-pids"
+    pids.mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    body = {
+        # 先落 pid 再挂起：孙子进程用来验证「杀到整个进程组」而不只是杀壳
+        "hang": 'printf "%s\\n" "$$" > "$CLS_FAKE_NPM_PIDS/npm.pid"\n'
+        "sleep 3600 &\n"
+        'printf "%s\\n" "$!" > "$CLS_FAKE_NPM_PIDS/grandchild.pid"\n'
+        "wait\n",
+        # cwd 已被脚本 cd 进 $HARNESS/frontend/obsidian-plugin
+        "fast": 'printf "// fake build output\\n" > main.js\n',
+        "fail": "exit 1\n",
+        # ⛔ Codex r1 MEDIUM-2：build 自己立刻 rc=124 曾与「上限到点」在退出码上无法区分
+        "rc124": "exit 124\n",
+    }[mode]
+    npm = bin_dir / "npm"
+    # 每种形态都先记下**脚本真正传进来的 npm 配置**（离线开关是否真到了 npm 手里）——
+    # 没有这一笔，删掉脚本里那行 npm_config_offline 也不会有任何一条用例变红（Codex r1 LOW-1）。
+    rec = 'printf "offline=%s\\n" "${npm_config_offline-<unset>}" > "$CLS_FAKE_NPM_PIDS/npm-env.txt"\n'
+    npm.write_text("#!/usr/bin/env bash\n" + rec + body, encoding="utf-8")
+    npm.chmod(0o755)
+    return h, pids
+
+
+def _npm_cap_env(tmp_path: Path, pids: Path, cap: str | int, extra: dict[str, str] | None = None) -> dict[str, str]:
+    env = {
+        "PATH": f"{tmp_path / 'bin'}:{os.environ.get('PATH', '')}",
+        "CLS_LIVE_VAULT": str(_fake_live(tmp_path)),
+        "CLS_FAKE_NPM_PIDS": str(pids),
+        "CLS_NPM_BUILD_TIMEOUT": str(cap),
+    }
+    if extra:
+        env.update(extra)
+    return env
+
+
+def _npm_cap_run(
+    tmp_path: Path,
+    h: Path,
+    pids: Path,
+    port: str,
+    cap: str | int = 5,
+    extra_env: dict[str, str] | None = None,
+):
+    return _run(
+        "--vault",
+        str(tmp_path / "vaults" / "npmcap"),
+        "--harness",
+        str(h),
+        "--port",
+        port,
+        "--hosts",
+        "claude",
+        "--env-dir",
+        str(tmp_path / "env"),
+        "--evidence-dir",
+        str(tmp_path / "ev"),
+        "--apply",
+        env=_npm_cap_env(tmp_path, pids, cap, extra_env),
+        timeout=45,
+    )
+
+
+def _npm_was_invoked(pids: Path) -> bool:
+    """假 npm 是否真的被调到 —— 用来把「没走到 build 分支」与「上限没生效」分开诊断。"""
+    return (pids / "npm-env.txt").is_file()
+
+
+def _pid_gone(pid: int, deadline: float = 5.0) -> bool:
+    """在 deadline 内轮询 `kill(pid, 0)`，进程消失即 True。"""
+    end = time.monotonic() + deadline
+    while time.monotonic() < end:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError:  # 存在但不是我们的 —— 当作还活着
+            pass
+        time.sleep(0.1)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    return False
+
+
+def _reap(pids: Path) -> None:
+    """兜底收尸：先红那跑（脚本还没有上限）假 npm 会活到 3600s，不收会留孤儿。
+
+    ⚠️ 如实声明（Codex r2 LOW-1）：这里只认裸 PID —— 原进程退出后 PID 被同 UID 进程复用，
+    信号就会落到无关进程上。窗口极窄但不为零。这里只做两件收窄：① 先看还在不在，不在就
+    不发信号；② 直接 KILL 一次而不是 TERM→等→KILL（少一个等待窗口）。
+    """
+    for f in sorted(pids.glob("*.pid")):
+        try:
+            pid = int(f.read_text().strip())
+        except (OSError, ValueError):
+            continue
+        try:
+            os.kill(pid, 0)  # 已经没了就别再发信号（PID 复用的主要来源）
+        except (ProcessLookupError, PermissionError):
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def test_preflight_npm_build_is_walltime_capped(tmp_path: Path):
+    """⛔ R-15：步 1 的 `npm run build` 必须有墙钟上限，到点以**超时专属文案** FAIL 71。
+
+    先红（脚本无上限）：假 npm 永久挂起 ⇒ `_run` 的 timeout 触发 TimeoutExpired。
+    后绿（脚本有上限）：到点 TERM→KILL 整个进程组 ⇒ 步 1 FAIL 71 + 超时文案，秒级返回。
+    """
+    h, pids = _npm_cap_harness(tmp_path, "hang")
+    cap = 5
+    t0 = time.monotonic()
+    try:
+        r = _npm_cap_run(tmp_path, h, pids, "8251", cap)
+    except subprocess.TimeoutExpired:
+        _reap(pids)  # 先红那跑：假 npm 还在睡 3600s
+        raise
+    elapsed = time.monotonic() - t0
+    # ⛔ 顺序：先测「还活着吗」**再**收尸 —— 反过来是自己把它杀了，下面那条进程组
+    #    断言会恒真（典型的自我实现的假绿）。
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支，本条什么都没测: {r.stdout!r}"
+    gone = {name: _pid_gone(int((pids / name).read_text().strip())) for name in ("npm.pid", "grandchild.pid")}
+    _reap(pids)
+
+    assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}{r.stderr}"
+    assert "npm run build 超时" in r.stdout, f"未命中超时专属文案（分不出超时与任意失败）: {r.stdout!r}"
+    assert elapsed < 30, f"墙钟上限没把它打断: 整跑耗时 {elapsed:.1f}s（上限 {cap}s）"
+    assert all(gone.values()), f"上限只杀了壳、没杀到同组后代（它成了孤儿）: {gone}"
+
+
+def test_preflight_npm_build_cap_does_not_kill_a_fast_build(tmp_path: Path):
+    """正向对照：秒级产出 main.js 的 build 必须照常通过 —— 证明上限不是「永远杀」。
+
+    顺带钉住**离线开关真的到了 npm 手里**：假 npm 把收到的 `npm_config_offline` 落盘，
+    这里断言它是 `true`。没有这一笔，删掉脚本 env 段那行也不会有任何用例变红
+    （Codex r1 LOW-1 后半）。
+    """
+    h, pids = _npm_cap_harness(tmp_path, "fast")
+    r = _npm_cap_run(tmp_path, h, pids, "8252")
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支: {r.stdout!r}"
+    assert (pids / "npm-env.txt").read_text().strip() == "offline=true", (
+        f"npm_config_offline 没传到 npm: {(pids / 'npm-env.txt').read_text()!r}"
+    )
+    step1 = next((ln for ln in r.stdout.splitlines() if ln.startswith("[1/6]")), "")
+    assert "preflight: OK" in step1, f"秒级 build 被墙钟上限误杀: {r.stdout!r}"
+    assert "main.js 已 build 并就位" in step1, step1
+    assert "超时" not in r.stdout, f"没超时却报了超时: {r.stdout!r}"
+    # 假 harness 的 install-vault.sh 是恒 rc=1 的桩 ⇒ 整跑停在步 2，与步 1 的结论无关
+    assert r.returncode == 72, f"应停在步 2（桩 installer）: rc={r.returncode}\n{r.stdout}"
+
+
+@pytest.mark.parametrize(("mode", "port"), [("fail", "8253"), ("rc124", "8254")])
+def test_preflight_npm_build_failure_is_not_reported_as_timeout(tmp_path: Path, mode: str, port: str):
+    """对照：build 自己失败（秒级）必须报**失败**而不是超时。
+
+    没有这一条，上面那条的「命中超时文案」可能只是因为脚本把任何 build 失败都叫超时。
+    ⛔ `rc124` 那一支是 Codex r1 MEDIUM-2 的回归门：超时信号若用退出码 124 承载，
+    则「npm 自己 exit 124」与「上限到点」无法区分 —— 现在超时走带外标记，两者分得开。
+    """
+    h, pids = _npm_cap_harness(tmp_path, mode)
+    r = _npm_cap_run(tmp_path, h, pids, port)
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支: {r.stdout!r}"
+    assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}"
+    assert "npm run build 失败" in r.stdout, f"未命中失败文案: {r.stdout!r}"
+    assert "超时" not in r.stdout, f"build 失败被误报成超时 —— 文案分不出两种失败: {r.stdout!r}"
+
+
+@pytest.mark.parametrize(
+    ("cap", "port"),
+    [("0", "8255"), ("000", "8256"), ("4294967296", "8257"), ("abc", "8258")],
+)
+def test_preflight_rejects_cap_values_that_would_silently_disable_it(tmp_path: Path, cap: str, port: str):
+    """⛔ Codex r1 HIGH-1：能通过校验却让保护静默消失的取值必须被**拒**，不能放行。
+
+    Perl 的 `alarm 0` 是「取消闹钟」，超过 uint32 的值同样退化为 0（`4294967297` 则截断成
+    1 秒）。这些值若只按「非负整数」放行，脚本就悄悄退回「没有上限」——正是本卡要修的状态。
+    判据钉「步 1 FAIL 71 + 消息点名该变量」，并且**假 npm 不应被调到**（拒在 build 之前）。
+    """
+    h, pids = _npm_cap_harness(tmp_path, "hang")
+    try:
+        r = _npm_cap_run(tmp_path, h, pids, port, cap)
+    except subprocess.TimeoutExpired:
+        _reap(pids)
+        raise AssertionError(f"CLS_NPM_BUILD_TIMEOUT={cap!r} 被放行 ⇒ 假 npm 挂住了整跑（上限静默失效）")
+    _reap(pids)
+    assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}"
+    assert "CLS_NPM_BUILD_TIMEOUT" in r.stdout, f"消息未点名该变量: {r.stdout!r}"
+    assert not _npm_was_invoked(pids), "取值非法时不该已经启动 build（应拒在调 npm 之前）"
+
+
+def test_preflight_accepts_leading_zero_cap(tmp_path: Path):
+    """控制组：`005` 是合法的 5 秒 —— 上一条不能靠「凡是含 0 就拒」蒙混过关。"""
+    h, pids = _npm_cap_harness(tmp_path, "fast")
+    r = _npm_cap_run(tmp_path, h, pids, "8259", "005")
+    assert _npm_was_invoked(pids), f"005 被误拒，build 没跑: {r.stdout!r}"
+    step1 = next((ln for ln in r.stdout.splitlines() if ln.startswith("[1/6]")), "")
+    assert "preflight: OK" in step1, f"合法取值 005 被误拒: {r.stdout!r}"
+
+
+@pytest.mark.parametrize("loc", ["ar_EG.UTF-8", "C"])
+def test_preflight_rejects_non_ascii_digits_in_any_locale(tmp_path: Path, loc: str):
+    """⛔ Codex r2 HIGH-1：`[0-9]` 的**区间**由 locale 排序决定。
+
+    `LC_ALL=ar_EG.UTF-8` 下阿拉伯数字 `٠٥` 能过区间写法的数字门，随后 `[ -lt ]` 报
+    "integer expression expected"（rc=2）被 `if` 判假 ⇒ **放行**，最终 `alarm '٠٥'` = alarm 0
+    —— 上限被静默关掉。改成逐字符枚举 `[!0123456789]` 后与 locale 无关。
+    两个 locale 都跑：证明拒绝不是「碰巧这台机器的 locale 不认」。
+    """
+    h, pids = _npm_cap_harness(tmp_path, "hang")
+    try:
+        r = _npm_cap_run(tmp_path, h, pids, "8260" if loc == "C" else "8264", "٠٥", {"LC_ALL": loc})
+    except subprocess.TimeoutExpired:
+        _reap(pids)
+        raise AssertionError(f"LC_ALL={loc} 下 '٠٥' 被放行 ⇒ 假 npm 挂住了整跑（上限静默失效）")
+    _reap(pids)
+    assert r.returncode == 71, f"步 1 应 FAIL(71): rc={r.returncode}\n{r.stdout}"
+    assert "CLS_NPM_BUILD_TIMEOUT" in r.stdout, f"消息未点名该变量: {r.stdout!r}"
+    assert not _npm_was_invoked(pids), "取值非法时不该已经启动 build"

@@ -60,6 +60,36 @@
 #   CLS_DEPLOY_ALLOW_DOCKER_UP  **缺省 0 = 步 5 只跑 `config` 断言后 SKIP，不 `up -d`**。
 #                             显式 =1 才真起容器（顶替现网容器不可逆 ⇒ opt-in，需用户当次授权）。
 #   CLS_LIVE_VAULT            live vault 绝对路径（禁写面第一条），缺省为主仓 canvas-vault。
+#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒，取值 1..86400；
+#                             含前导零在内**原串最多 20 位** —— Codex r3 LOW-3），
+#                             缺省 300。到点对 npm 所在进程组 TERM→（2s）→KILL，步 1 以
+#                             FAIL 71 + 超时专属文案返回，而不是无限挂起（集成期裁定 R-15：
+#                             候选树跑 tests/unit 时真跑本脚本的用例逐个卡死，挂点就是这条
+#                             原先没有上限的 build）。
+#                             缺省 300 的依据：裁判侧兜底上限是 600（单测 _SUBPROCESS_TIMEOUT），
+#                             脚本取其一半，**通常**脚本自己的超时文案会先于裁判超时出现，
+#                             用户看到的是「哪一步超时」而不是一个无解释的挂死。
+#                             ⚠️ 这只是「通常」不是保证：alarm 只覆盖 build 本身（步 1 前面的
+#                             判据另计时），到点后还有 2s 清理宽限，且把本值调到 >600 时顺序
+#                             必然反过来（Codex r1 LOW-2）。
+#                             ⚠️ `0` 在 Perl 里就是**取消闹钟**；超 uint32 的值被**截断**
+#                             （4294967296 → 0 = 取消，4294967297 → 1 秒），都不是你写的那个数
+#                             ⇒ 一律显式拒绝（Codex r1 HIGH-1 / r2 LOW-3）。要「不设上限」
+#                             请直接调大（上限 86400），不要写 0。取值只认 ASCII 十进制数字，
+#                             逐字符枚举、与 locale 无关（`LC_ALL=ar_EG.UTF-8` 下的阿拉伯数字
+#                             曾能过区间写法的门并最终变成 alarm 0 —— Codex r2 HIGH-1）。
+#                             ⚠️ 本机无 timeout(1)/gtimeout ⇒ 用 perl 的 alarm 实现（走 PATH，
+#                             本机实测解析到 /usr/bin/perl）。
+#                             ⚠️ 若 build 的后代自己 `setsid()` 另开 session（如 Node 的
+#                             `detached: true`），它会脱离被杀的进程组而继续运行。本上限保证的是
+#                             **这条 build 不会无限等下去**，既不是「进程树一定清空」
+#                             （Codex r1 MEDIUM-1），也不是「步 1 整体一定按时返回」——
+#                             build 之后的 mkdir/cp 若卡在文件系统上，闹钟已经取消（r2 LOW-3）。
+#   CLS_NPM_BUILD_OFFLINE     步 1 build 的 npm_config_offline 值，缺省 true：让 **npm 自己的
+#                             取包路径**只用本地缓存、缓存缺失即快速失败。需要联网构建时显式 =false。
+#                             ⚠️ 它**不是**网络隔离：`npm run build` 跑的是 package.json 里的脚本，
+#                             那些脚本自己发的请求（curl / fetch / 下载 binary）不受此开关约束，
+#                             真正兜住它们的是上面的墙钟上限（Codex r1 LOW-1）。
 #
 # ⚠️ set -e 与分步返回码的交互（Codex 问题 ②）：每个 stepN 函数都在 `|| rc=$?` 的条件
 #    上下文里被调用，因此**函数体内 set -e 被抑制**——中间命令失败不会中止函数。所以函数
@@ -73,6 +103,9 @@ CLS_MIN_SKILLS="${CLS_MIN_SKILLS:-9}"
 #    只写在注释里、没有执行闸门。现在改成 opt-in：必须显式 =1 才会 up。
 CLS_DEPLOY_ALLOW_DOCKER_UP="${CLS_DEPLOY_ALLOW_DOCKER_UP:-0}"
 CLS_LIVE_VAULT="${CLS_LIVE_VAULT:-/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault}"
+# 步 1 npm build 的墙钟上限与离线开关（CARD-DEPLOY-TIMEOUT / R-15，依据见头注 环境开关）
+CLS_NPM_BUILD_TIMEOUT="${CLS_NPM_BUILD_TIMEOUT:-300}"
+CLS_NPM_BUILD_OFFLINE="${CLS_NPM_BUILD_OFFLINE:-true}"
 FEATURE_TREE="/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev"
 
 VAULT=""
@@ -541,12 +574,92 @@ if s != n or v != n:
         local _npmroot="$EVIDENCE_DIR/npm-$TS"
         mkdir -p "$_npmroot/cache" "$_npmroot/logs" \
             || { STEP_MSG="建 npm 缓存目录失败: $_npmroot"; return 1; }
-        if ! (cd "$HARNESS/frontend/obsidian-plugin" \
+        # ⛔ 墙钟上限（CARD-DEPLOY-TIMEOUT，集成期裁定 R-15）：这条 build 原先**没有任何上限**,
+        #    npm 等网/等锁时会无限挂起 —— 候选树跑 tests/unit 时用例逐个卡死就是挂在这里。
+        #    本机没有 timeout(1)/gtimeout（GNU coreutils 未装）⇒ 用 perl 的 alarm（走 PATH）:
+        #    fork 一个**自成进程组**（setpgrp）的子进程 exec npm, 到点对**整个进程组**发
+        #    TERM→KILL —— 只杀壳的话 npm fork 出来的孙子进程会变成还在跑的孤儿。
+        # ⛔ 取值必须是**有界正整数**（Codex r1 HIGH-1）：`0` / `000` 在 Perl 里是
+        #    `alarm 0` = **取消闹钟**；超 uint32 的值被截断（4294967296 → 0 = 取消,
+        #    4294967297 → 1 秒）—— 都不是调用者写的那个数。这些值都能通过「只判非负整数」
+        #    的旧校验, 于是保护被**静默关掉**, 正好退回本卡要修的那个状态。
+        # ⛔ 字符集必须**逐字符枚举**而不是写区间（Codex r2 HIGH-1）：`[!0-9]` 的区间由
+        #    locale 的排序决定 —— `LC_ALL=ar_EG.UTF-8` 下 `٠٥`（阿拉伯数字）能过这道门,
+        #    随后 `[ -lt ]` 报 "integer expression expected" rc=2、`if` 判假 ⇒ **放行**,
+        #    最终 `alarm '٠٥'` = alarm 0。写 `[!0123456789]` 与 locale 无关。
+        #    并且数值比较必须放在「已确认是 1-5 位纯 ASCII 数字」**之后**, 它才不可能出错
+        #    （比较一旦出错就是 rc=2 → if 判假 → 反而放行, 这类 fail-open 是本条的根源）。
+        local _cap="$CLS_NPM_BUILD_TIMEOUT"
+        case "$_cap" in
+            '' | *[!0123456789]*)
+                STEP_MSG="CLS_NPM_BUILD_TIMEOUT 必须是 ASCII 十进制整数秒, 实为 '${CLS_NPM_BUILD_TIMEOUT}'"
+                return 1
+                ;;
+        esac
+        # 先按原串长度拦（十万个 0 的剥零实测约 14s, 且发生在闹钟装上之前）
+        if [ "${#_cap}" -gt 20 ]; then
+            STEP_MSG="CLS_NPM_BUILD_TIMEOUT 位数过多（最多 20 位）, 实为 '${CLS_NPM_BUILD_TIMEOUT}'"
+            return 1
+        fi
+        _cap="${_cap#"${_cap%%[!0]*}"}"   # 剥前导零（005 → 5；000 → 空）
+        case "$_cap" in
+            '' | *[!0123456789]*)         # 剥零后再判一次：空串(000) 与残留非数字都在这里落地
+                STEP_MSG="CLS_NPM_BUILD_TIMEOUT 必须在 1..86400 秒内（0 会让上限静默失效）, 实为 '${CLS_NPM_BUILD_TIMEOUT}'"
+                return 1
+                ;;
+        esac
+        if [ "${#_cap}" -gt 5 ]; then     # 86400 是 5 位 ⇒ 再长必超界, 且不必做数值比较
+            STEP_MSG="CLS_NPM_BUILD_TIMEOUT 必须在 1..86400 秒内（超界会让上限静默失效）, 实为 '${CLS_NPM_BUILD_TIMEOUT}'"
+            return 1
+        fi
+        # 到这里 _cap 已确定是 1-5 位纯 ASCII 数字 ⇒ 下面的数值比较不可能 rc=2
+        if [ "$_cap" -lt 1 ] || [ "$_cap" -gt 86400 ]; then
+            STEP_MSG="CLS_NPM_BUILD_TIMEOUT 必须在 1..86400 秒内, 实为 '${CLS_NPM_BUILD_TIMEOUT}'"
+            return 1
+        fi
+        # ⛔ 超时信号走**带外标记**而不是退出码（Codex r1 MEDIUM-2）：npm 自己立刻 `exit 124`
+        #    与「上限到点」在退出码上无法区分, 会把普通失败误报成超时。标记串由 shell 生成
+        #    并作为参数传给 perl（单一来源, 不手抄两份）, 带 pid 与时间戳 ⇒ npm 不可能撞上。
+        #    子进程的 stdout/stderr 在 exec 前已改到 /dev/null, 所以捕获到的只可能是这个标记。
+        local _mark="CLS-NPM-BUILD-TIMEDOUT-$$-$TS"
+        local _build_rc=0 _build_out=""
+        _build_out="$( (cd "$HARNESS/frontend/obsidian-plugin" \
             && npm_config_cache="$_npmroot/cache" \
                npm_config_logs_dir="$_npmroot/logs" \
                npm_config_update_notifier=false \
+               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \
                npm_config_fund=false npm_config_audit=false \
-               npm run build) > /dev/null 2>&1; then
+               perl -e '
+my $mark = shift @ARGV;
+my $t = shift @ARGV;
+my $pid = fork();
+exit 125 unless defined $pid;
+if ($pid == 0) {
+    setpgrp(0, 0);
+    open(STDOUT, ">", "/dev/null"); open(STDERR, ">", "/dev/null");
+    exec { $ARGV[0] } @ARGV;
+    exit 127;
+}
+$SIG{ALRM} = sub {
+    kill(-15, $pid) or kill(15, $pid);
+    select(undef, undef, undef, 2);
+    kill(-9, $pid) or kill(9, $pid);
+    print "$mark\n";
+    exit 124;
+};
+alarm $t;
+waitpid($pid, 0);
+alarm 0;
+my $st = $?;
+exit($st & 127 ? 128 + ($st & 127) : $st >> 8);
+' "$_mark" "$_cap" npm run build) 2> /dev/null )" || _build_rc=$?
+        case "$_build_out" in
+            *"$_mark"*)
+                STEP_MSG="npm run build 超时（墙钟上限 ${_cap}s, 已杀 npm 所在进程组）: $HARNESS/frontend/obsidian-plugin"
+                return 1
+                ;;
+        esac
+        if [ "$_build_rc" != 0 ]; then
             STEP_MSG="npm run build 失败（$HARNESS/frontend/obsidian-plugin）"
             return 1
         fi

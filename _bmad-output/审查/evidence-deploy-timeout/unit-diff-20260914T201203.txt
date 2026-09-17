@@ -1,0 +1,13 @@
+### tests/unit 目录级 diff（与基线同口径 --ignore 相对路径, R-B14-3）ts=20260914T201203
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t2-deploy/_bmad-output/审查/evidence-deploy-timeout/unit-close-20260914T200536.txt
+BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+base_nodeids=64  close_nodeids=64
+--- diff base close（只允许 < 行；本卡零改其他 unit 文件 ⇒ 预期空）---
+diff_rc=0（0=完全一致）
+[验伪锚] 同一把 diff 尺子对人为少一条的集合必须出声:
+1d0
+< ERROR tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_extract_with_debug_logging_enabled
+probe_diff_rc=0（1=尺子会动）
+--- 汇总行 ---
+= 35 failed, 5077 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 346.95s (0:05:46) =
+rc=1

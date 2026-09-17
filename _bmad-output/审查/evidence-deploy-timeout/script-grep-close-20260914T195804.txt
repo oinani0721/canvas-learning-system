@@ -1,0 +1,63 @@
+### §二.3 脚本 wrapper 静态核（改后）ts=20260914T195804
+--- J0 bash -n ---
+bash_n_rc=0
+
+--- J1 npm run build 仍在, 且被超时形态包裹 ---
+63:#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒），缺省 300。
+587:' "$CLS_NPM_BUILD_TIMEOUT" npm run build) > /dev/null 2>&1 || _build_rc=$?
+589:            STEP_MSG="npm run build 超时（墙钟上限 ${CLS_NPM_BUILD_TIMEOUT}s, 已杀整个进程组）: $HARNESS/frontend/obsidian-plugin"
+593:            STEP_MSG="npm run build 失败（$HARNESS/frontend/obsidian-plugin）"
+597:            STEP_MSG="npm run build 未产出 main.js"
+
+--- J2 perl/alarm/kill/wait/CLS_NPM_BUILD_TIMEOUT（改前 0 命中, 改后 ≥1）---
+63:#   CLS_NPM_BUILD_TIMEOUT     步 1 `npm run build` 的**墙钟上限**（整数秒），缺省 300。
+70:#                             ⚠️ 本机无 timeout(1)/gtimeout ⇒ 用 /usr/bin/perl 的 alarm 实现。
+87:CLS_NPM_BUILD_TIMEOUT="${CLS_NPM_BUILD_TIMEOUT:-300}"
+559:        #    本机没有 timeout(1)/gtimeout（GNU coreutils 未装）⇒ 用 /usr/bin/perl 的 alarm:
+563:        case "$CLS_NPM_BUILD_TIMEOUT" in
+565:                STEP_MSG="CLS_NPM_BUILD_TIMEOUT 必须是非负整数秒, 实为 '${CLS_NPM_BUILD_TIMEOUT}'"
+576:               perl -e '
+581:$SIG{ALRM} = sub { kill(-15, $pid); select(undef, undef, undef, 2); kill(-9, $pid); exit 124; };
+582:alarm $t;
+584:alarm 0;
+587:' "$CLS_NPM_BUILD_TIMEOUT" npm run build) > /dev/null 2>&1 || _build_rc=$?
+589:            STEP_MSG="npm run build 超时（墙钟上限 ${CLS_NPM_BUILD_TIMEOUT}s, 已杀整个进程组）: $HARNESS/frontend/obsidian-plugin"
+J2_hits=12
+[J2 验伪锚] grep -cwE 'npm' = 20（改前同锚 14）
+
+⚠️ 卡文 §二.3 原判据「命中行全部落在步 1 :387-567 内」在正确实现下**不可能成立**：
+   完成条件 (e) 同时要求「可配置 env 变量 + 文档化默认值」⇒ 头注(--help 文档) 与
+   set -u 下的缺省赋值必然落在步 1 之外。下面按其**意图**（步 1 之外零代码改动）加固：
+--- J2b 命中分类 ---
+  :63  头注/注释（文档面）
+  :70  头注/注释（文档面）
+  :87  代码: CLS_NPM_BUILD_TIMEOUT="${CLS_NPM_BUILD_TIMEOUT:-300}"
+  :559  头注/注释（文档面）
+  :563  代码: case "$CLS_NPM_BUILD_TIMEOUT" in
+  :565  代码: STEP_MSG="CLS_NPM_BUILD_TIMEOUT 必须是非负整数秒, 实为 '${CLS_NPM_BUIL
+  :576  代码: perl -e '
+  :581  代码: $SIG{ALRM} = sub { kill(-15, $pid); select(undef, undef, und
+  :582  代码: alarm $t;
+  :584  代码: alarm 0;
+  :587  代码: ' "$CLS_NPM_BUILD_TIMEOUT" npm run build) > /dev/null 2>&1 |
+  :589  代码: STEP_MSG="npm run build 超时（墙钟上限 ${CLS_NPM_BUILD_TIMEOUT}s, 已
+
+--- J3 npm_config_offline（改前 0 行 rc=1, 改后 ≥1 且在 env 段）---
+71:#   CLS_NPM_BUILD_OFFLINE     步 1 build 的 npm_config_offline 值，缺省 true：只用本地缓存，
+574:               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \
+[J3 同段核] 与其它 npm_config_* 同段:
+71:#   CLS_NPM_BUILD_OFFLINE     步 1 build 的 npm_config_offline 值，缺省 true：只用本地缓存，
+571:            && npm_config_cache="$_npmroot/cache" \
+572:               npm_config_logs_dir="$_npmroot/logs" \
+573:               npm_config_update_notifier=false \
+574:               npm_config_offline="$CLS_NPM_BUILD_OFFLINE" \
+575:               npm_config_fund=false npm_config_audit=false \
+
+--- J4 timeout 作为**命令**调用（卡文期望改后仍 0）---
+J4_raw_count=3  ← 含注释里提到的 timeout(1)
+  raw 命中逐行:
+    70:#                             ⚠️ 本机无 timeout(1)/gtimeout ⇒ 用 /usr/bin/perl 的 alarm 实现。
+    559:        #    本机没有 timeout(1)/gtimeout（GNU coreutils 未装）⇒ 用 /usr/bin/perl 的 alarm:
+    562:        #    超时以 rc 124 回报（与 GNU timeout 同惯例）, 与「build 自己失败」分开报。
+J4_noncomment_count=0 （期望 0：没有任何**非注释行**把 timeout 当命令用）
+[J4 验伪锚] 同一把尺子在非注释行上数 'perl' = 1（>0 证明尺子会命中）
