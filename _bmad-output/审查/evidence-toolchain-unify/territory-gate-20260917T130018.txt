@@ -1,0 +1,28 @@
+=== 裁判7 地盘门(post-commit) @ 20260917T130018 ===
+PREV=7aacbc87cc0241130ddcc55c40892c4e95d8dbbe (T8-D 末 commit)
+HEAD=99e15a4e08c4749500a59584c12edbaafcff0f3e
+--- 工作树状态(须干净) ---
+?? _bmad-output/审查/evidence-toolchain-unify/territory-gate-20260917T130018.txt
+(end)
+--- 地盘门: git --no-pager diff --name-only --no-color $PREV HEAD -- . ':(exclude)_bmad-output' ---
+package-lock.json
+package.json
+ruff.toml
+diff_rc=0
+文件数 =        3
+--- 子集判定: 是否 ⊆ {package.json, package-lock.json, ruff.toml} ---
+越界文件: 无 (子集成立)
+--- 禁改面显式核(应全部 0) ---
+  lefthook.yml 改动文件数 = 0
+  pyrightconfig.json 改动文件数 = 0
+  backend/ruff.toml 改动文件数 = 0
+  任何 .py 改动数 =        0
+  backend/app 改动数 =        0
+  canvas-vault/.claude/scripts/{fsrs_bridge,decay_beta}.py 改动数 =        0
+--- 验伪锚: 去掉 ':(exclude)_bmad-output' 应多出 _bmad-output 路径 ---
+不带 exclude 的文件数 =       21
+其中 _bmad-output 前缀数 = 18
+# 验伪锚成立 <=> 两数之差 = 带 exclude 的文件数(3), 且 _bmad-output 前缀数 > 0
+--- pathspec 写法自证(':!' 在本机会 rc=128 = 假绿, 故用 ':(exclude)') ---
+  ':!_bmad-output' 写法 rc=128 (非 0 即证该写法不可用)
+rc=0
