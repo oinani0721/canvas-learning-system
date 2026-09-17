@@ -1,0 +1,4 @@
+=== 全扫描面 run_ast_gate 违规集 · 改前 @ 2026-09-17T08:46:47+08:00 ===
+563b0f3b725b7a447335c515b05d4940940a18fc421d1f04835ac3f8b313d0a3  backend/scripts/lifespan_isolation_negative_control.py
+files=401 violations=0
+rc=0

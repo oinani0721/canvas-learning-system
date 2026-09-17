@@ -1,0 +1,10 @@
+=== ruff format 归属判定 @ 2026-09-17T09:01:07+08:00 ===
+--- 改前内容（B14_BASE 版）在同一配置面下 ---
+改前 rc=0 （0 ⇒ 漂移是本卡引入，不走过渡条款）
+--- 定稿（已 ruff format）---
+1 file already formatted
+定稿 rc=0
+All checks passed!
+check rc=0
+--- 验伪锚：format --check 对一段刻意乱排版必 rc=1 ---
+anchor rc=1

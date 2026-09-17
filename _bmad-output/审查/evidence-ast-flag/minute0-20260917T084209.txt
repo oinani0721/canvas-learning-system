@@ -1,0 +1,24 @@
+=== CARD-AST-FLAG-PATCH 第0分钟 @ 2026-09-17T08:42:09+08:00 ===
+--- pwd ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools
+--- branch ---
+card/t8-tools
+--- HEAD short8 (应=T8-C 末 commit) ---
+a2dcda8f
+--- git log -1 ---
+a2dcda8f5181c439cd30913fd0874e131492ee92 docs(mut): 收 Codex r1 两条 LOW（收窄措辞 + 复现登记）[BATCH-2026-09-11-第十四批 / CARD-EXPECT-LOC-NARROW]
+--- git status --porcelain | wc -l ---
+       1
+--- venv/env ---
+venv OK
+env OK
+--- 基线 grep -vc '^#' (期望64) ---
+64
+--- patch 缺席 grep -icF ast-must-flag (期望0) ---
+0
+--- 验伪锚 grep -icE 'ast' (期望>=3) ---
+3
+--- 地盘文件行数 ---
+    3472 backend/scripts/lifespan_isolation_negative_control.py
+--- 本文件自 B14_BASE 零改动核 (期望空) ---
+       0

@@ -1,0 +1,6 @@
+=== pyright app（依 R-B14-10 cwd=backend；⚠ P 用绝对路径，相对路径 cd 后会静默归零）@ 2026-09-17T08:56:52+08:00 ===
+P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/.venv/bin/pyright
+可执行 ✓
+0 errors, 81 warnings, 0 informations
+验伪锚：同一条 grep 对一行假汇总必须命中
+3 errors, 7 warnings, 0 informations

@@ -1,0 +1,10 @@
+=== 真实消费面 + 全扫描面 · 改后（format 后定稿）@ 2026-09-17T09:00:32+08:00 ===
+5c8a52a7bdc441bd0d591d43f4ffa7e68b7d7f8e2ded0af89d7c20cbaaac82dd  backend/scripts/lifespan_isolation_negative_control.py
+--- A. 真实消费面 analyze_source ---
+[
+ [],
+ []
+]
+--- B. 全扫描面 run_ast_gate ---
+files=401 violations=0
+rc=0

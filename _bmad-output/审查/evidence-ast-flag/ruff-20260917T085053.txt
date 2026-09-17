@@ -1,0 +1,8 @@
+=== ruff check @ 2026-09-17T08:50:53+08:00 ===
+files=1
+backend/scripts/lifespan_isolation_negative_control.py
+All checks passed!
+rc=0
+--- 验伪锚：对一个已知含 F821 的临时文件必 rc=1 ---
+All checks passed!
+anchor rc=0（须 1，证明 ruff 判据非恒绿）
