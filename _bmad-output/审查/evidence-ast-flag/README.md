@@ -5,6 +5,12 @@
 > r2 后 `0930–0933` / **r3 后 `0949–0950`**）。**只有 `0949–0950` 那一代是定稿的承重件**；
 > 前四代保留作过程记录，**不得引为定稿依据**。
 
+## 收官回执
+
+**`FINAL-20260917T101000.txt`** —— 定稿 HEAD 上一次跑完的全部门：终审绑定 diff=0、地盘只本文件（验伪锚 99）、
+`AST-NEGATIVE-CONTROL: PASS (63 / 28)`、`FIXPOINT-SELFCHECK: PASS`、ruff check/format 0、
+pyright `0 errors, 81 warnings`、硬边界三项全 0、索引自检 PASS、本卡 8 个 commit 链。
+
 ## 承重（定稿一代，按裁判编号）
 
 | 裁判 | 文件 | 结论 |

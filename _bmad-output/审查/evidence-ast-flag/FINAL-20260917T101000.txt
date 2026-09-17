@@ -1,0 +1,37 @@
+=== CARD-AST-FLAG-PATCH 收官全量核验 @ 2026-09-17T10:10:00+08:00 ===
+HEAD = 931860b002cb1f11b4913e65614f133ab060bd4d
+终审绑定 = a22254ab（round-4）
+代码定稿 sha256 = 0aa1c2311d1f2436af7378be0c25a1b709fd26c88407982efcbda4927510b006
+
+--- 1. 终审绑定：a22254ab → HEAD 代码树 diff 行数（须 0）---
+       0
+--- 2. 地盘：a2dcda8f → HEAD 排除 _bmad-output ---
+backend/scripts/lifespan_isolation_negative_control.py
+    验伪锚（去 exclude 的 _bmad-output/ 路径数，须 >0）：
+99
+--- 3. AST 负控自检 ---
+AST-NEGATIVE-CONTROL: PASS (63 绕过全抓 / 28 正例全净)
+--- 4. 不动点自检 ---
+FIXPOINT-SELFCHECK: PASS (上限 8 / 承重输入 3 轮 / 负控最大 3 轮)
+--- 5. ruff check / format ---
+All checks passed!
+1 file already formatted
+--- 6. pyright（cwd=backend，R-B14-10）---
+0 errors, 81 warnings, 0 informations
+--- 7. 硬边界 ---
+  fsrs_bridge/decay_beta 命中: 0（锚 TestClient: 297）
+  backend/app 触及文件数: 0
+  以 .stderr 结尾的入库文件: 0
+--- 8. 索引自检 ---
+README-SELFCHECK: PASS
+--- 9. 工作树 ---
+       1
+--- 10. 本卡 commit 链 ---
+931860b0 docs(negctl): 补四份 Codex 存档的协议 §2.1 首部 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+2163387f docs(negctl): 收 Codex r4 四条 LOW + 登记 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+a22254ab docs(negctl): 刷新定稿 SHA 的地盘回执 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+e9b36cb3 fix(negctl): 收 Codex r3 —— 撤回 setattr 遮蔽开关 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+a03af47c docs(negctl): 补定稿 SHA 的地盘回执 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+5f9fd306 fix(negctl): 收 Codex r2 四条 HIGH 两条 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+6564fc09 fix(negctl): 收 Codex r1 两条 HIGH + 一条 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+20abe003 feat(negctl): AST 负控补三条盲区 + 不动点显式未收敛 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
