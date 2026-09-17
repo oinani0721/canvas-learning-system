@@ -1,0 +1,10 @@
+=== pyright app（依 R-B14-10 cwd=backend）@ 2026-09-17T08:56:28+08:00 ===
+--- 地盘门（工作树，未 commit）---
+ .../scripts/lifespan_isolation_negative_control.py | 310 +++++++++++++++++++--
+ 1 file changed, 289 insertions(+), 21 deletions(-)
+--- 验伪锚：去掉 exclude 应多出 _bmad-output 路径 ---
+ .../scripts/lifespan_isolation_negative_control.py | 310 +++++++++++++++++++--
+ 1 file changed, 289 insertions(+), 21 deletions(-)
+--- 未跟踪（本卡 evidence）---
+ M backend/scripts/lifespan_isolation_negative_control.py
+?? "_bmad-output/\345\256\241\346\237\245/evidence-ast-flag/"

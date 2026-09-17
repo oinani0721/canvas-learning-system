@@ -1,0 +1,27 @@
+=== _outer_evaluated_parts 完整性自查（Codex round-2 问题 1 的自答）===
+
+问题：`def` 的哪些子表达式在**外层**求值？我列了 decorator_list / args.defaults /
+args.kw_defaults —— **注解**（returns 与逐参数 annotation）同样在定义处求值，漏了吗？
+
+实测结论：**不是缺口**。Python 在语言层面禁止注解里出现 yield。
+
+1) 语法闸（本机 python 3.14，compile 阶段）
+   def unused(x: (yield a))    → SyntaxError: yield expression cannot be used within an annotation
+   def unused() -> (yield a)   → SyntaxError: 同上
+   def unused(x=(yield a))     → 合法，外层函数 YIELD_VALUE 条数 = 1   ← 这才是 HIGH-2 那条
+
+2) 当前实现在这三种形态上的判定
+   默认参数里 yield   → CAUGHT     （round-1 HIGH-2，已修）
+   参数注解里 yield   → MISSED     ← 但该源 compile 不过，现实中不存在
+   返回注解里 yield   → MISSED     ← 同上
+   装饰器里 yield     → CAUGHT     （decorator_list 已收）
+
+⚠️ 顺带记一个容易骗过静态分析的差异：上面两个 MISSED **不是** analyze_source 判错，
+   而是 `ast.parse` **接受**了这种写法（yield-in-annotation 的拒绝发生在 compile/symtable
+   阶段，不在 parse 阶段）。也就是说「`ast.parse` 通过」不蕴含「这段代码能真的运行」。
+   本门全程只用 ast.parse，故对「parse 得过但 compile 不过」的源会给出判定 —— 这些源在
+   真实仓库里无法 import，不构成危害面，但写判据时要知道这条边界。
+
+⇒ 结论：`_outer_evaluated_parts` 对当前唯一消费方（`_walk_same_scope` 的 yield 收集）
+  是完整的。若将来把它复用到**海象**记录上，注解就必须补进去（注解里可以有 `:=`）。
+  该条已登记进验收单 §五。

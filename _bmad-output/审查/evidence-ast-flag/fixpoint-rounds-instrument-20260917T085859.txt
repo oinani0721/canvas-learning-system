@@ -1,0 +1,41 @@
+=== 不动点轮数 instrument（改前 / 改后 各一跑）@ 2026-09-17T08:58:59+08:00 ===
+
+--- 改前：B14_BASE 版副本，for 在 :634，sha256 563b0f3b725b7a447335c515b05d4940940a18fc421d1f04835ac3f8b313d0a3 ---
+被测文件: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-t8-tools/b42fcc2d-3fce-4f80-8e22-bd7ab51c0fbc/scratchpad/orig.py
+不动点 for 行号: 634
+验伪锚 OK：观测到的 range 调用行 = [634, 1129]（含 634）
+
+A. 负控输入 48+27 条 · 轮数直方图: {1: 51, 2: 22, 3: 2}
+    轮数=3  验伪锚 d2：转调工厂返回 tuple 后解包，被调者定义在**后**
+    轮数=3  验伪锚 d3：转调工厂返回 tuple 后解包，被调者定义在**前**（换顺序结论须相同）
+
+B. 门的真实扫描面 0 文件 · 轮数直方图: {}
+   达改前上限(4)的文件数 = 0
+rc=0
+
+--- 改后：定稿，for 在 :687，sha256 69544fedd632715b7eeb2dc25e594f327f7868f6ceec943c6abefd0c2acf84bb ---
+被测文件: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/backend/scripts/lifespan_isolation_negative_control.py
+不动点 for 行号: 687
+验伪锚 OK：观测到的 range 调用行 = [687, 1213]（含 687）
+
+A. 负控输入 51+27 条 · 轮数直方图: {1: 54, 2: 22, 3: 2}
+    轮数=3  验伪锚 d2：转调工厂返回 tuple 后解包，被调者定义在**后**
+    轮数=3  验伪锚 d3：转调工厂返回 tuple 后解包，被调者定义在**前**（换顺序结论须相同）
+
+B. 门的真实扫描面 401 文件 · 轮数直方图: {1: 106, 2: 295}
+   达改前上限(4)的文件数 = 0
+rc=0
+
+--- 验伪锚的验伪：故意给错行号，assert 必须炸（rc!=0）---
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 验伪锚失败: 观测到的 range 调用行 [687, 1213] 不含 999999 —— 锚已漂移，本次计数全是 0，不是真数据
+rc=1
+
+--- 如实注记（两处，避免被误读）---
+1) 「改前」那一跑的 B 段是 **0 文件**，不是「扫描面空了」：orig.py 放在 scratchpad，
+   它的 BACKEND_DIR 由 __file__ 推出来，指向一个没有 backend 树的位置 ⇒ ast_scope_files()
+   自然空手。401 文件那一档只有「改后」跑（模块在真实位置）才成立，本卡代码注释里
+   引用的正是它。改前/改后两跑的 B 段直方图在同一份被测内容上实测相同（{1:106, 2:295}），
+   该数字在本卡改动前后都成立。
+2) 「改后」A 段是 51+27（本卡新增三条已在表内），改前是 48+27；两跑的 >=3 轮清单
+   逐字相同（验伪锚 d2 / d3），即本卡新增的三条输入都不需要额外轮数。

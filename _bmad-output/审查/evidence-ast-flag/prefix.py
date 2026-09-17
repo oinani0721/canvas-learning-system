@@ -802,8 +802,6 @@ class _ModuleIndex:
             ) == before:
                 converged = True
                 break
-        if not converged:
-            raise FixpointNotConverged(f"知识迭代 {max_rounds} 轮仍未收敛 —— 判定依据还在变，不出结论")
         self._rebuild(tree)
 
     def _rebuild(self, tree: ast.Module) -> None:

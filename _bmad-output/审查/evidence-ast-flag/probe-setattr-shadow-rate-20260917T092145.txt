@@ -1,0 +1,15 @@
+=== _module_binds_name('setattr') 在真实扫描面上的触发率 @ 2026-09-17T09:21:45+08:00 ===
+扫描面文件数 = 401
+判为遮蔽了 setattr 的文件数 = 0   ← 这些文件上新分支整条不收
+真的调用了 setattr(...) 的文件数 = 5
+    tests/api/v1/endpoints/test_agents_learning_event.py
+    tests/support/lifespan.py
+    tests/support/live_port_guard.py
+    tests/unit/test_story_31a2_helpers.py
+    tests/unit/test_vault_lint.py
+既遮蔽又调用（= 新分支因遮蔽而不收的真实损失面）= 0
+
+验伪锚：该判据对一个明确遮蔽的源必须判 True，对一个干净源必须判 False
+  遮蔽源 -> True
+  干净源 -> False
+rc=0

@@ -1,0 +1,19 @@
+=== round-1 整改后 · 定向负控（六处修复各自的锚）@ 2026-09-17T09:17:14+08:00 ===
+61d83473d4c877790961372d574f7fd24595c62eda16c900f3786c2cbc6c9c22  backend/scripts/lifespan_isolation_negative_control.py
+=== 控制组：未变异的定稿 ===
+  红项 = []   （须为空，否则后面全部结论不可比）
+  ✓  撤 (b)：_own_exprs 不再下潜 lambda 默认参数
+        指定判据 [MISSED] R2-5b-B-lambda-defaults → 红   （连带红 0 条: []）
+  ✓  撤 (c)：collect_setattr 整条失效
+        指定判据 [MISSED] R2-7-B-setattr-write → 红   （连带红 0 条: []）
+  ✓  撤 (d)：不再要求每一条 yield 都被覆盖
+        指定判据 [MISSED] R2-5a-ii-branch-split-isolation → 红   （连带红 3 条: ['L1-d：包装器在 with 之外 yield（隔离没盖住让出控制权', 'R2-5a 包装器：隔离块内的 yield 其实在**嵌套函数**里', 'R1-HIGH2-nested-def-default-yield：']）
+  ✓  撤 HIGH-2：_outer_evaluated_parts 不产出任何东西
+        指定判据 [MISSED] R1-HIGH2-nested-def-default-yield → 红   （连带红 0 条: []）
+  ✓  撤 MEDIUM-3：setattr 遮蔽判据恒真（内建）
+        指定判据 [FALSE POSITIVE] 验伪锚 R1-M3 → 红   （连带红 0 条: []）
+  ✓  回装 HIGH-1 那次被撤回的改动（根位置 lambda 也只走默认参数）
+        指定判据 [MISSED] R1-HIGH1-regress-lambda-body-walrus → 红   （连带红 1 条: ['验伪锚 R1-HIGH1b：lambda 体内海象绑的是**局部**']）
+
+未按预期变红的变异数 = 0
+rc=0

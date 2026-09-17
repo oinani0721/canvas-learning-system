@@ -1,0 +1,7 @@
+=== ruff @ 2026-09-17T09:49:54+08:00 ===
+files=1 backend/scripts/lifespan_isolation_negative_control.py
+All checks passed!
+check rc=0
+1 file already formatted
+format rc=0
+F821 锚 rc=1（须1）

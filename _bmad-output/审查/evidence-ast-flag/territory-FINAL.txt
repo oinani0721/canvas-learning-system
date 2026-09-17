@@ -1,0 +1,19 @@
+=== 地盘门（绑 r3 整改后 e9b36cb3）@ 2026-09-17T09:55:50+08:00 ===
+T8-C 末 commit = a2dcda8f  →  本卡 HEAD = e9b36cb3
+e9b36cb3 fix(negctl): 收 Codex r3 —— 撤回 setattr 遮蔽开关 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+a03af47c docs(negctl): 补定稿 SHA 的地盘回执 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+5f9fd306 fix(negctl): 收 Codex r2 四条 HIGH 两条 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+6564fc09 fix(negctl): 收 Codex r1 两条 HIGH + 一条 MEDIUM [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+20abe003 feat(negctl): AST 负控补三条盲区 + 不动点显式未收敛 [BATCH-2026-09-11-第十四批 / CARD-AST-FLAG-PATCH]
+--- 正判 ---
+backend/scripts/lifespan_isolation_negative_control.py
+--- --stat ---
+ .../scripts/lifespan_isolation_negative_control.py | 601 +++++++++++++++++++--
+ 1 file changed, 567 insertions(+), 34 deletions(-)
+--- 验伪锚 ---
+93
+--- fsrs_bridge/decay_beta 零命中（锚 TestClient）---
+0
+297
+--- backend/app 零触及 ---
+       0

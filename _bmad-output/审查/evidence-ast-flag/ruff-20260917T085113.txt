@@ -1,0 +1,34 @@
+=== ruff check（正判）@ 2026-09-17T08:51:13+08:00 ===
+files=1  backend/scripts/lifespan_isolation_negative_control.py
+All checks passed!
+rc=0
+
+--- 有效规则集（证明 F821 在册）---
+linter.rules.enabled = [
+	io-error (E902),
+	assert-tuple (F631),
+	is-literal (F632),
+	invalid-print-syntax (F633),
+	if-tuple (F634),
+	break-outside-loop (F701),
+	continue-outside-loop (F702),
+	yield-outside-function (F704),
+	return-outside-function (F706),
+	default-except-not-last (F707),
+	forward-annotation-syntax-error (F722),
+	undefined-name (F821),
+	undefined-export (F822),
+	undefined-local (F823),
+]
+
+--- 验伪锚：同一配置面（--stdin-filename 指向本卡文件所在目录）注入 F821 ---
+F821 Undefined name `undefined_name_xyz`
+ --> backend/scripts/lifespan_isolation_negative_control.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_xyz
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor rc=1（须 1）

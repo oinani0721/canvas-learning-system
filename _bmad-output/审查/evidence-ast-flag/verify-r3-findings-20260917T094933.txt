@@ -1,0 +1,24 @@
+=== r3 findings 四版对照 @ 2026-09-17T09:49:33+08:00 ===
+0aa1c2311d1f2436af7378be0c25a1b709fd26c88407982efcbda4927510b006  backend/scripts/lifespan_isolation_negative_control.py
+  期望 CAUGHT
+      base=CLEAN  r1=CLEAN  r2=CLEAN  现=CAUGHT
+      r3-HIGH1 顶层 if 块里嵌套函数的局部赋值（不遮蔽模块级调用）
+  期望 CAUGHT
+      base=CLEAN  r1=CAUGHT  r2=CLEAN  现=CAUGHT
+      r3-HIGH2 except as setattr（退出即删名）
+  期望 CAUGHT
+      base=CLEAN  r1=CLEAN  r2=CLEAN  现=CAUGHT
+      r3-HIGH2b if TYPE_CHECKING: setattr = None（运行时不执行）
+  期望 CAUGHT
+      base=CLEAN  r1=CAUGHT  r2=CLEAN  现=CAUGHT
+      r3-HIGH2c 遮蔽写在危险调用**之后**
+  期望 CLEAN（已知 fail-closed 误判，登记）
+      base=CLEAN  r1=CLEAN  r2=CAUGHT  现=CAUGHT
+      r3-MEDIUM3 顶层 if 块里真 def setattr（只读锁）
+  期望 CAUGHT
+      base=CLEAN  r1=CAUGHT  r2=CAUGHT  现=CAUGHT
+      对照 原 R2-7-B（本卡三条之一）
+  期望 CAUGHT
+      base=CLEAN  r1=CLEAN  r2=CAUGHT  现=CAUGHT
+      对照 r2-HIGH4 global setattr
+rc=0
