@@ -1,0 +1,12 @@
+# grep -c '^\s*def test_'
+base=1
+head=1
+# also 'async def test_' (in case)
+base_async=29
+head_async=29
+# falsification anchor: grep -c on a known-absent pattern must be 0 and rc=1
+0
+anchor_rc=1
+# names diff (sorted set of test_ names)
+names_diff_rc=0
+rc=0

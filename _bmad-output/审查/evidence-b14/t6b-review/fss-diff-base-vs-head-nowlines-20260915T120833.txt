@@ -1,0 +1,7 @@
+=== git diff 08100483..HEAD fallback_sync_service.py: lines containing now( or timestamp (+/- only) ===
+504:+        ⚠️ 不能用「位置」或「长度」代替：本链在重放前 ``sort(key=timestamp)``，
+grep_rc=0
+=== diff --stat ===
+ backend/app/services/fallback_sync_service.py | 496 ++++++++++++++++++++++----
+ 1 file changed, 432 insertions(+), 64 deletions(-)
+rc=0

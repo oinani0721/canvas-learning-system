@@ -1,0 +1,52 @@
+# git -C /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j --no-pager log --no-color --oneline 08100483..26bf4a2e
+26bf4a2e docs(t6-b): 最终 unit 目录级 diff 落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+430bdd4b docs(t6-b): Codex 十轮终审「本卡 HIGH=0 可交付」落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+881c4941 docs(t6-b): r9 判定本卡 HIGH 归零 + 两条修复落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+8e3c3fa2 fix(t6-b): 按 Codex round-9 收口状态口径与端点语义 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+acc11c05 docs(t6-b): r8 分类结论 + 两条修复落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+97bf3672 fix(t6-b): 按 Codex round-8 修游标作废与 pending 口径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+a66316df fix(t6-b): 按 Codex round-7 修 canvas 链与评分历史确认 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+1d01e240 docs(t6-b): 最终合规自检存档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+36f48e10 docs(t6-b): Codex 七轮收口, 停车交裁定 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+1028bea7 fix(t6-b): 按 Codex round-6 修三条数据丢失路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+c667b1eb fix(t6-b): 另两条链的游标同型缺陷一并修 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+962d86c6 fix(t6-b): 按 Codex round-5 整改游标语义与回填解耦 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+415b0376 docs(t6-b): 收尾合规核存档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+be8e8beb docs(t6-b): 验收单 + 证据 + Codex 五轮, 按 D-15 停车 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+ccb1d101 fix(t6-b): 按 Codex round-4 整改 checkpoint 口径等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+7bcbfc1a fix(t6-b): 按 Codex round-3 整改清理身份与 U+2028 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+d90f5a67 fix(t6-b): 按 Codex round-2 整改 HIGH-1 等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+d9fa0774 fix(t6-b): 按 Codex round-1 整改四处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+cd1b5ae9 feat(t6-b): 孤儿重放器接进真实路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+310eef31 docs(t6-a): Neo4j 离线暂存链零代码普查 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-CENSUS]
+rc=0
+
+# full SHAs with topo-order + parents
+26bf4a2e26c0a7e1e80ba1cf599959f0e9564632 430bdd4bb284eb1383b363cda80ffc603e109b55 docs(t6-b): 最终 unit 目录级 diff 落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+430bdd4bb284eb1383b363cda80ffc603e109b55 881c49412edacd46d9a4a4711f5bcbc20cb7d9ac docs(t6-b): Codex 十轮终审「本卡 HIGH=0 可交付」落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+881c49412edacd46d9a4a4711f5bcbc20cb7d9ac 8e3c3fa2a8a4d2063eb9fa8bc65725d4ce2941e4 docs(t6-b): r9 判定本卡 HIGH 归零 + 两条修复落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+8e3c3fa2a8a4d2063eb9fa8bc65725d4ce2941e4 acc11c051dffc7652df3dbb68536b8881119fb33 fix(t6-b): 按 Codex round-9 收口状态口径与端点语义 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+acc11c051dffc7652df3dbb68536b8881119fb33 97bf36725073956999c8fddd5915e09c2ae68a18 docs(t6-b): r8 分类结论 + 两条修复落档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+97bf36725073956999c8fddd5915e09c2ae68a18 a66316dffd70779645842ebd68f2e2ce761537d7 fix(t6-b): 按 Codex round-8 修游标作废与 pending 口径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+a66316dffd70779645842ebd68f2e2ce761537d7 1d01e240b8b6683c606430f9fe787e453c5e43ae fix(t6-b): 按 Codex round-7 修 canvas 链与评分历史确认 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+1d01e240b8b6683c606430f9fe787e453c5e43ae 36f48e104be4d93cc239fe568ceec5b1d4af6442 docs(t6-b): 最终合规自检存档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+36f48e104be4d93cc239fe568ceec5b1d4af6442 1028bea72c66d873f98cc34038ec2ab285ae9b21 docs(t6-b): Codex 七轮收口, 停车交裁定 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+1028bea72c66d873f98cc34038ec2ab285ae9b21 c667b1eb495c98c07c8301167e5a1fe0d4664744 fix(t6-b): 按 Codex round-6 修三条数据丢失路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+c667b1eb495c98c07c8301167e5a1fe0d4664744 962d86c698e21950cb1df3e81d94150b3322ae0a fix(t6-b): 另两条链的游标同型缺陷一并修 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+962d86c698e21950cb1df3e81d94150b3322ae0a 415b0376a29913caa04c78117c28312373be83c6 fix(t6-b): 按 Codex round-5 整改游标语义与回填解耦 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+415b0376a29913caa04c78117c28312373be83c6 be8e8beb42a764ec519650e5432c7a857b6ca854 docs(t6-b): 收尾合规核存档 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+be8e8beb42a764ec519650e5432c7a857b6ca854 ccb1d1015c8430914498ad633afc0081b7c33011 docs(t6-b): 验收单 + 证据 + Codex 五轮, 按 D-15 停车 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+ccb1d1015c8430914498ad633afc0081b7c33011 7bcbfc1aded2ca3ea5aa44b7711163b9a8c77af4 fix(t6-b): 按 Codex round-4 整改 checkpoint 口径等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+7bcbfc1aded2ca3ea5aa44b7711163b9a8c77af4 d90f5a6723c91709c864cf42ab0c317ada217c46 fix(t6-b): 按 Codex round-3 整改清理身份与 U+2028 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+d90f5a6723c91709c864cf42ab0c317ada217c46 d9fa07742177b506312bea2874591ed31b38946b fix(t6-b): 按 Codex round-2 整改 HIGH-1 等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+d9fa07742177b506312bea2874591ed31b38946b cd1b5ae91519f86ea1ce83f813d4f8a64fd11f59 fix(t6-b): 按 Codex round-1 整改四处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+cd1b5ae91519f86ea1ce83f813d4f8a64fd11f59 310eef318c38d1e076cce10318fd9a920214442d feat(t6-b): 孤儿重放器接进真实路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+310eef318c38d1e076cce10318fd9a920214442d 081004834e37b1b0253cf81dc7b44e784646c934 docs(t6-a): Neo4j 离线暂存链零代码普查 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-CENSUS]
+rc=0
+
+# HEAD of card-t6-neo4j
+26bf4a2e26c0a7e1e80ba1cf599959f0e9564632
+card/t6-neo4j
+# is 26bf4a2e reachable / exists
+commit
+rc=0

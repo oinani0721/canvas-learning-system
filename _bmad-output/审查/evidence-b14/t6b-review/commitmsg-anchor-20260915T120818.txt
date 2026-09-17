@@ -1,0 +1,15 @@
+LANG=en_US.UTF-8 LC_ALL= LC_CTYPE=
+wc_m_of_3_cjk_chars=3
+wc_c_of_3_cjk_chars=9
+cd1b5ae9 body_lines=26 max_body_chars=74
+d9fa0774 body_lines=24 max_body_chars=71
+d90f5a67 body_lines=31 max_body_chars=71
+7bcbfc1a body_lines=32 max_body_chars=71
+ccb1d101 body_lines=37 max_body_chars=71
+962d86c6 body_lines=32 max_body_chars=77
+c667b1eb body_lines=20 max_body_chars=71
+1028bea7 body_lines=31 max_body_chars=71
+a66316df body_lines=32 max_body_chars=71
+97bf3672 body_lines=31 max_body_chars=71
+8e3c3fa2 body_lines=31 max_body_chars=77
+rc=0

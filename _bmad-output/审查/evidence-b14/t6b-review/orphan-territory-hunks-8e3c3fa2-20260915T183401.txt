@@ -1,0 +1,25 @@
+### 主 session 复核 @ 8e3c3fa2
+--- (f) 孤儿门（滤 Replaced by）---
+backend/app/api/v1/endpoints/traces.py:150:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:423:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+count=2 anchor_unfiltered=3
+--- (l) 地盘 stat 08100483..HEAD 排除 _bmad-output ---
+ backend/app/api/v1/endpoints/traces.py             |  83 +++-
+ backend/app/main.py                                |  98 +++-
+ backend/app/services/fallback_sync_service.py      | 496 ++++++++++++++++---
+ .../integration/test_neo4j_replay_wire_t6b.py      | 539 +++++++++++++++++++++
+ .../tests/unit/test_story_38_8_fallback_sync.py    |  67 ++-
+ 5 files changed, 1165 insertions(+), 118 deletions(-)
+anchor_including_bmad= 175 files changed, 15705 insertions(+), 118 deletions(-)
+--- main.py -U0 hunk 头 ---
+@@ -388,15 +388,66 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -404,0 +456,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- 禁改文件 diff 行数 ---
+backend/app/security.py 0 exists_at_base=y
+backend/app/api/v1/system.py 0 exists_at_base=y
+backend/openapi.json 0 exists_at_base=y
+backend/tests/conftest.py 0 exists_at_base=y
+backend/tests/unit/conftest.py 0 exists_at_base=y
+--- import 块 :381-384 base vs head ---
+identical
+rc=0

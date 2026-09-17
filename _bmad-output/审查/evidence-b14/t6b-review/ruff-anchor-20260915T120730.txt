@@ -1,0 +1,11 @@
+print(undefined_name_xyz)
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/backend/ruff.toml
+F821 Undefined name `undefined_name_xyz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/anchor_f821.py:1:7
+  |
+1 | print(undefined_name_xyz)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1

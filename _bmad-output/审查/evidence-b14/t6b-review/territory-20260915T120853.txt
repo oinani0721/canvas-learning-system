@@ -1,0 +1,25 @@
+--- diff --stat 08100483..HEAD excl _bmad-output ---
+ backend/app/api/v1/endpoints/traces.py             |  83 +++-
+ backend/app/main.py                                |  98 +++-
+ backend/app/services/fallback_sync_service.py      | 496 ++++++++++++++++---
+ .../integration/test_neo4j_replay_wire_t6b.py      | 539 +++++++++++++++++++++
+ .../tests/unit/test_story_38_8_fallback_sync.py    |  67 ++-
+ 5 files changed, 1165 insertions(+), 118 deletions(-)
+--- name-only ---
+backend/app/api/v1/endpoints/traces.py
+backend/app/main.py
+backend/app/services/fallback_sync_service.py
+backend/tests/integration/test_neo4j_replay_wire_t6b.py
+backend/tests/unit/test_story_38_8_fallback_sync.py
+--- main.py hunk headers -U0 ---
+@@ -388,15 +388,66 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+@@ -404,0 +456,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+--- forbidden files diff (each) ---
+backend/app/security.py diff_lines=0 exists_at_base
+backend/app/api/v1/system.py diff_lines=0 exists_at_base
+backend/openapi.json diff_lines=0 exists_at_base
+backend/tests/conftest.py diff_lines=0 exists_at_base
+backend/tests/unit/conftest.py diff_lines=0 exists_at_base
+--- _worker_online in HEAD main.py ---
+HEAD:backend/app/main.py:392:            # ⚠️ 之前试过「把回灌整段移出外层 try + 用 _worker_online 传状态」,
+grep_rc=0

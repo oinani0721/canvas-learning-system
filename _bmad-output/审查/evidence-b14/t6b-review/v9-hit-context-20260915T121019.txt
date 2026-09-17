@@ -1,0 +1,39 @@
+### forbidden-phrase hit contexts (prompts)
+--- codex-prompt-CARD-NEO4J-REPLAY-WIRE-r3.md
+26:- **HIGH-1 现网端口保护可被绕过** → 已改。字符串判据 `":7691" not in uri` 换成 `live_port_guard.canonical_target_ports()` + **正向白名单** `ALLOWED_TEST_PORTS`；解析失败 fail-closed；routing scheme 的多地址逐个校验。可执行契约 `test_gate_never_targets_live_7691` 同步升级，并在用例内嵌了针对 `bolt://127.0.0.1:07691`
+--- codex-prompt-CARD-NEO4J-REPLAY-WIRE-r5.md
+28:- **LOW-5（`exists()` 绕过 warning）** → 已改：直接 `read_text`，`FileNotFoundError` 静默 0、其余读取异常记 warning。
+
+### forbidden-phrase hit contexts (archives)
+--- codex-review-CARD-NEO4J-REPLAY-WIRE.md
+31:  计数方法本身没有调用 Neo4j；生产运行时**确实会读取部署树的真实暂存文件**。已核实两条路径为 `backend/app/data/canvas_events_fallback.json`、`backend/data/learning_memories.json`；`FAILED_WRITES_FILE` 的定义及客户端构造器仍未获准追加读取。
+--- codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md
+12:1. **HIGH — 测试的现网端口保护可绕过。**  
+--- codex-review-CARD-NEO4J-REPLAY-WIRE-r3.md
+10:**旧 HIGH-1 的初始目标端口绕过已关闭；本轮发现 MEDIUM 2、LOW 2。** 满足所引 D-15 的 B/H 数量条件，但启动接线的验收缺口仍未关闭。
+24:   **对照输入／复现思路：**按题述 Python 3.14 行为，父目录权限错误使 `exists()` 返回 `False`，函数直接返回零，绕过 warning。这与代码承诺的“读取失败可通过日志区别于真空”冲突。登记准确，但仍是 LOW 缺陷；本轮未制造权限目录，仅核对该控制流。
+--- codex-review-CARD-NEO4J-REPLAY-WIRE-r4.md
+34:5. **LOW — `exists()` 仍绕过读取失败 warning。**  
+41:- **⓪ 清理整改部分有效。** `t6bgate2_*` 和不同 group 的 `other_t6bgate_canvas` 孤立 Episode 已排除，参数化成立。`gid=None` 时跳过兜底的取舍合理：普通孤立 Episode 不进入当前关联计数，不能断言它必然污染幂等；以后同 group 能解析时仍可清理，也不能无条件称其永久滞留。另需区分返回 `None` 与抛异常：`:160` 的调用若抛异常，整套查询都无法
+--- codex-review-CARD-NEO4J-REPLAY-WIRE-r5.md
+24:   最小改法是在确认 `_worker_graphiti is not None` 后、构造回填参数和执行回填之前设置状态。取到 worker 之前失败时保留默认 `False`，可作为保守策略。现门不运行 lifespan，故这仍是**门未覆盖的路径**。
+--- codex-review-CARD-NEO4J-REPLAY-WIRE-r6.md
+40:   可以作为**开放 MEDIUM**交主 session 裁定，但不能当作正确 vault 归属已验收。若要证明该性质，最小修改仅涉及本测试及配置夹具：明确测试 vault，独立构造预期 group，作精确相等断言；不要复用被测 `_build_group_id_from_canvas()` 计算期望值。
+46:- **② 普通回填异常已解耦。** [main.py:396](/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/app/main.py:396) 的内层 try 覆盖参数构造、回填调用和结果日志；异常处理正常返回后继续到 `:423` 回灌。`CancelledError`、`SystemE
+--- codex-review-CARD-NEO4J-REPLAY-WIRE-r7.md
+49:   **负控输入：**vault A 留下暂存条目，切到 B 后触发回灌；归属从当前 ContextVar／active vault 构造，未读取条目来源，因而会写入 B。源码已经明确承认并移交此风险。
+74:   **最小改法：**夹具明确来源 vault，独立构造预期物理组并精确比较；不能调用被测归属函数计算期望值。
+--- codex-review-CARD-NEO4J-REPLAY-WIRE-r8.md
+35:   **负控输入：**A 留下暂存条目后切到 B，再触发回灌；归属由当前 ContextVar／active vault 构造，条目来源不参与判断，因而可能写入 B。
+
+### stderr self-attestation (model / reasoning effort / codex version lines, with line numbers)
+codex-review-CARD-NEO4J-REPLAY-WIRE.stderr       2:OpenAI Codex v0.153.3 5:model: gpt-6-astra 9:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r2.stderr    2:OpenAI Codex v0.153.3 5:model: gpt-6-astra 9:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r3.stderr    4:OpenAI Codex v0.153.3 7:model: gpt-6-astra 11:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r4.stderr    2:OpenAI Codex v0.153.3 5:model: gpt-6-astra 9:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r5.stderr    4:OpenAI Codex v0.153.3 7:model: gpt-6-astra 11:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r6.stderr    2:OpenAI Codex v0.153.3 5:model: gpt-6-astra 9:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r7.stderr    4:OpenAI Codex v0.153.3 7:model: gpt-6-astra 11:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r8.stderr    2:OpenAI Codex v0.153.3 5:model: gpt-6-astra 9:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r9.stderr    2:OpenAI Codex v0.153.3 5:model: gpt-6-astra 9:reasoning effort: ultra 
+codex-review-CARD-NEO4J-REPLAY-WIRE-r10.stderr   2:OpenAI Codex v0.153.3 5:model: gpt-6-astra 9:reasoning effort: ultra 

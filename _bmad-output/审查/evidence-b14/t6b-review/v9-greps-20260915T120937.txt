@@ -1,0 +1,71 @@
+### 1. forbidden phrases (grep -c per file; 4 phrases)
+file                                                     构造      可复现片段     打穿     绕过
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r10.md                0          0      0      0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r2.md                 0          0      0      0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r3.md                 0          0      0      1
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r4.md                 0          0      0      0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r5.md                 0          0      0      1
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r6.md                 0          0      0      0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r7.md                 0          0      0      0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r8.md                 0          0      0      0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r9.md                 0          0      0      0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE.md                    0          0      0      0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r10.md                0          0      0      0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md                 0          0      0      1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r3.md                 0          0      0      2
+codex-review-CARD-NEO4J-REPLAY-WIRE-r4.md                 1          0      0      1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r5.md                 1          0      0      0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r6.md                 2          0      0      0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r7.md                 2          0      0      0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r8.md                 1          0      0      0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r9.md                 0          0      0      0
+codex-review-CARD-NEO4J-REPLAY-WIRE.md                    1          0      0      0
+(20 files listed: 20
+
+### 2. gpt-5.6 grep -c
+UAT-CARD-NEO4J-REPLAY-BOUND-2026-09-15.md
+UAT-CARD-NEO4J-REPLAY-CENSUS-2026-09-14.md
+UAT-CARD-NEO4J-REPLAY-WIRE-2026-09-14.md
+codex-review-CARD-NEO4J-REPLAY-WIRE-r10.md                   gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r3.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r4.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r5.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r6.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r7.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r8.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE-r9.md                    gpt-5.6=0
+codex-review-CARD-NEO4J-REPLAY-WIRE.md                       gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r10.md                   gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r2.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r3.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r4.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r5.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r6.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r7.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r8.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE-r9.md                    gpt-5.6=0
+codex-prompt-CARD-NEO4J-REPLAY-WIRE.md                       gpt-5.6=0
+UAT-CARD-NEO4J-REPLAY-WIRE-2026-09-14.md                     gpt-5.6=0
+T6-B.md                                                      gpt-5.6=0
+
+### 3. header fields (line 2 of each archive) + presence of 模型/reasoning_effort/codex
+codex-review-CARD-NEO4J-REPLAY-WIRE-r10.md       模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r2.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r3.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r4.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r5.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r6.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r7.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r8.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE-r9.md        模型=1 reasoning_effort=1 codex=1
+codex-review-CARD-NEO4J-REPLAY-WIRE.md           模型=1 reasoning_effort=1 codex=1
+
+### 4. code-tree binding of r10 SHA to lane tip: git diff --stat 8e3c3fa2 26bf4a2e -- . ':(exclude)_bmad-output'
+rc=0
+(verification anchor: same pathspec but WITHOUT exclude must be non-empty)
+ 13 files changed, 1549 insertions(+), 28 deletions(-)
+
+### 5. r10 HIGH snippets: baseline vs final byte-identical?
+HIGH-1 snippets identical (base L317,344-347,436,460-464 == final L609,636-639,746,770-774)
+HIGH-2 _build_group_id_from_canvas identical (base L609-645 == final L977-1013)

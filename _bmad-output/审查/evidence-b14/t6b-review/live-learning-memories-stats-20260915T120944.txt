@@ -1,0 +1,15 @@
+##### /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/learning_memories.json
+bytes= 9025
+top_type= dict top_keys= ['memories', 'metadata']
+entries= 25 missing_timestamp_key= 0 empty_timestamp= 0
+   25 ('agent_feedback', 'canvas_name', 'concept', 'key', 'node_id', 'score', 'timestamp', 'user_understanding')
+sample_ts= ['2026-04-04T03:01:50.411201', '2026-04-04T03:03:01.345981', '2026-04-04T03:04:12.366833']
+##### /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/learning_memories.json
+bytes= 110
+top_type= dict top_keys= ['memories', 'metadata']
+entries= 0 missing_timestamp_key= 0 empty_timestamp= 0
+##### /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/learning_memories.json
+bytes= 110
+top_type= dict top_keys= ['memories', 'metadata']
+entries= 0 missing_timestamp_key= 0 empty_timestamp= 0
+rc=0

@@ -1,0 +1,13 @@
+--- raw (no filters) ---
+backend/app/api/v1/endpoints/traces.py:150:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:423:                replay = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/services/memory_service.py:2690:            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+--- count no filter ---
+3
+--- count -v /tests/ ---
+3
+--- count -v /tests/ -vF 'Replaced by' ---
+2
+--- survivors ---
+backend/app/api/v1/endpoints/traces.py:150:    stats = await get_fallback_sync_service().sync_all_fallbacks()
+backend/app/main.py:423:                replay = await get_fallback_sync_service().sync_all_fallbacks()

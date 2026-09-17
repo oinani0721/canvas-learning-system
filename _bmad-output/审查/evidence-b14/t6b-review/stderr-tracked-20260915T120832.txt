@@ -1,0 +1,4 @@
+ls_files_total=10359
+stderr_tracked=0
+grep_rc=1
+anchor_ls_files_grep_md=1966

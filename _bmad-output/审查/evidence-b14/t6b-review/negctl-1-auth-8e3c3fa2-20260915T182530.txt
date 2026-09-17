@@ -1,0 +1,33 @@
+### negctl seg1 @ 8e3c3fa2 拆端点鉴权依赖
+sha_before=1f832dc4f8427d4267d1a01e318a7533eaae3ac32200163c30f1c95f51e31f60
+mutated: occurrences_before=1 occurrences_after=0
+sha_mutated=5eb0aac45f7684f44d7298ac476ccd56e1a2b4333a2e136015be81484264729f
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-negctl/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-negctl/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-negctl/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_missing_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_rejects_wrong_key_403
+FAILED tests/integration/test_neo4j_replay_wire_t6b.py::test_admin_endpoint_unconfigured_key_503
+=================== 3 failed, 3 passed, 10 warnings in 0.63s ===================
+pytest_rc=1
+sha_after_restore=1f832dc4f8427d4267d1a01e318a7533eaae3ac32200163c30f1c95f51e31f60
+porcelain_lines=0
+rc=0

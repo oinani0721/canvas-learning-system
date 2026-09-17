@@ -1,0 +1,10 @@
+lrwxr-xr-x@ 1 Heishing  wheel  99 Sep 15 11:59 backend/.venv -> /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv
+ruff_present=1
+files=5
+backend/app/api/v1/endpoints/traces.py
+backend/app/main.py
+backend/app/services/fallback_sync_service.py
+backend/tests/integration/test_neo4j_replay_wire_t6b.py
+backend/tests/unit/test_story_38_8_fallback_sync.py
+All checks passed!
+rc=0

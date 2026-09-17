@@ -1,0 +1,12 @@
+== cd1b5ae9 header_chars=72 ok :: feat(t6-b): 孤儿重放器接进真实路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== d9fa0774 header_chars=80 ok :: fix(t6-b): 按 Codex round-1 整改四处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== d90f5a67 header_chars=89 ok :: fix(t6-b): 按 Codex round-2 整改 HIGH-1 等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== 7bcbfc1a header_chars=90 ok :: fix(t6-b): 按 Codex round-3 整改清理身份与 U+2028 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== ccb1d101 header_chars=95 ok :: fix(t6-b): 按 Codex round-4 整改 checkpoint 口径等五处 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== 962d86c6 header_chars=87 ok :: fix(t6-b): 按 Codex round-5 整改游标语义与回填解耦 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== c667b1eb header_chars=74 ok :: fix(t6-b): 另两条链的游标同型缺陷一并修 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== 1028bea7 header_chars=85 ok :: fix(t6-b): 按 Codex round-6 修三条数据丢失路径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== a66316df header_chars=93 ok :: fix(t6-b): 按 Codex round-7 修 canvas 链与评分历史确认 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== 97bf3672 header_chars=93 ok :: fix(t6-b): 按 Codex round-8 修游标作废与 pending 口径 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+== 8e3c3fa2 header_chars=87 ok :: fix(t6-b): 按 Codex round-9 收口状态口径与端点语义 [BATCH-2026-09-11-第十四批 / CARD-NEO4J-REPLAY-WIRE]
+rc=0

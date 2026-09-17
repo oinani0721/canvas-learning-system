@@ -1,0 +1,49 @@
+# step3: ruff format base_fmt.py (config=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/backend/ruff.toml, ruff 0.15.9)
+# pre-format sha:
+f3c30855097df853589b73432b1654f2b754f50cb78698da7677bfb938455b42  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/base_fmt.py
+1 file reformatted
+format_rc=0
+# post-format sha:
+2aa75ef764b340c6f52fa2a8eb935b341422bbc68c2e99e4b38fc0224cc3542e  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/base_fmt.py
+# re-check base_fmt is now clean:
+1 file already formatted
+recheck_rc=0
+# --- diff -u base_fmt.py head.py ---
+--- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/base_fmt.py	2026-09-15 12:07:57
++++ /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/head.py	2026-09-15 12:06:36
+@@ -488,9 +488,25 @@
+         write_jsonl(tmp_failed_writes, entries)
+ 
+         # Pre-set checkpoint at index 3 (first 3 already synced)
++        # ⚠️ 必须带 progress_version（CARD-NEO4J-REPLAY-WIRE / Codex round-5 HIGH）:
++        # checkpoint 的下标含义依赖「分行切法 + 游标推进规则」, 两者本卡都改了
++        # (splitlines→split("\n"); 游标从「已尝试」改为「连续成功前缀」)。
++        # 不带标记 = 历史 checkpoint = 无法证明其前缀全部成功 ⇒ 实现会回退到 0
++        # 重放, 本用例要测的「从 checkpoint 续跑」就无从谈起。
++        # 从被测模块取常量而不是硬编码字面量, 避免版本再变时这里静默失配。
++        from app.services.fallback_sync_service import _PROGRESS_VERSION
++
+         checkpoint_path = tmp_path / "sync_checkpoint.json"
+         checkpoint_path.write_text(
+-            json.dumps({"failed_writes": {"index": 3, "updated_at": "2026-02-07"}}),
++            json.dumps(
++                {
++                    "failed_writes": {
++                        "index": 3,
++                        "progress_version": _PROGRESS_VERSION,
++                        "updated_at": "2026-02-07",
++                    }
++                }
++            ),
+             encoding="utf-8",
+         )
+ 
+diff_rc=1
+# hunk count (^@@): 1
+# +lines (excl header): 16
+# -lines (excl header): 1
+# wc -l base_fmt head:
+    1059 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/base_fmt.py
+    1075 /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/head.py
+    2134 total
+rc=

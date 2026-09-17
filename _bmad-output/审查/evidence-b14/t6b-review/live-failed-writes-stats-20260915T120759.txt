@@ -1,0 +1,94 @@
+===== ls -la /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data =====
+total 28672
+drwxr-xr-x@ 17 Heishing  staff       544 Jul 12 03:46 .
+drwxr-xr-x@ 46 Heishing  staff      1472 Apr 18 11:57 ..
+-rw-r--r--@  1 Heishing  staff       300 Mar 31 16:14 .gitignore
+drwxr-xr-x@  3 Heishing  staff        96 Jul 12 03:47 backups
+-rw-r--r--@  1 Heishing  staff  13552219 Apr 18 11:19 bug_log.jsonl
+-rw-r--r--@  1 Heishing  staff    483796 Apr  7 19:47 dead_letter_episodes.jsonl
+-rw-r--r--@  1 Heishing  staff     25137 Jun  3 15:52 failed_edge_syncs.jsonl
+-rw-r--r--@  1 Heishing  staff     25078 Jun 10 04:46 failed_writes.jsonl
+-rw-r--r--@  1 Heishing  staff       220 Apr  7 19:51 fsrs_card_states.json
+drwxr-xr-x@  4 Heishing  staff       128 Apr  5 17:52 lancedb
+-rw-r--r--@  1 Heishing  staff      9025 Apr  7 19:51 learning_memories.json
+-rw-r--r--@  1 Heishing  staff    417792 Apr 10 09:57 llm_call_logs.db
+-rw-r--r--@  1 Heishing  staff     19539 Apr  7 19:48 neo4j_memory.json
+drwxr-xr-x@  2 Heishing  staff        64 Apr  8 03:51 outbox
+-rw-r--r--@  1 Heishing  staff     49152 Apr  5 17:43 qa_metrics.db
+-rw-r--r--@  1 Heishing  staff      1727 Aug 18 08:40 reference_priority.json
+-rw-r--r--@  1 Heishing  staff     28672 Apr  3 12:26 review_data.db
+--- wc -l /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/failed_writes.jsonl ---
+      90 /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/failed_writes.jsonl
+--- wc -c ---
+   25078 /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/failed_writes.jsonl
+--- shasum ---
+6240b35f41790c2a826da646171001278e8b65a006d295a3c7f218988ec2fbad  /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/failed_writes.jsonl
+===== ls -la /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data =====
+total 88
+drwxr-xr-x@ 11 Heishing  staff    352 Sep 14 19:58 .
+drwxr-xr-x@ 41 Heishing  staff   1312 Sep 15 12:06 ..
+-rw-r--r--@  1 Heishing  staff    300 Sep 11 10:46 .gitignore
+-rw-r--r--@  1 Heishing  staff  12136 Sep 15 12:05 failed_edge_syncs.jsonl
+-rw-r--r--@  1 Heishing  staff  12854 Sep 15 11:55 failed_writes.jsonl
+drwxr-xr-x@  2 Heishing  staff     64 Sep 14 19:57 lancedb
+-rw-------@  1 Heishing  staff    110 Sep 14 19:58 learning_memories.json
+-rw-------@  1 Heishing  staff    148 Sep 14 19:57 neo4j_memory.json
+drwxr-xr-x@  3 Heishing  staff     96 Sep 14 19:57 outbox
+drwxr-xr-x@  6 Heishing  staff    192 Sep 11 10:46 presets
+-rw-r--r--@  1 Heishing  staff   1727 Sep 11 10:46 reference_priority.json
+--- wc -l /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/failed_writes.jsonl ---
+      34 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/failed_writes.jsonl
+--- wc -c ---
+   12854 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/failed_writes.jsonl
+--- shasum ---
+8ebb7b02a820e519718144df388d431a53108a785c55d29aebbf9dbe7ba36ada  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/failed_writes.jsonl
+===== ls -la /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data =====
+total 1512
+drwxr-xr-x@ 15 Heishing  staff     480 Aug 16 09:31 .
+drwxr-xr-x@ 45 Heishing  staff    1440 Sep 11 10:34 ..
+-rw-r--r--@  1 Heishing  staff     300 May  3 11:56 .gitignore
+-rw-r--r--@  1 Heishing  staff  497031 Aug 20 02:34 bug_log.jsonl
+-rw-r--r--   1 Heishing  staff   99915 Aug 11 22:01 dead_letter_episodes.jsonl
+-rw-r--r--@  1 Heishing  staff    3806 Sep  5 10:56 failed_edge_syncs.jsonl
+-rw-r--r--@  1 Heishing  staff    2780 Sep  5 10:57 failed_writes.jsonl
+drwxr-xr-x   6 Heishing  staff     192 Aug 29 06:21 lancedb
+-rw-------@  1 Heishing  staff     110 May 13 11:57 learning_memories.json
+-rw-r--r--@  1 Heishing  staff  106496 Aug 15 05:57 llm_call_logs.db
+-rw-r--r--   1 Heishing  staff     148 May  3 20:31 neo4j_memory.json
+drwxr-xr-x   2 Heishing  staff      64 May  3 20:31 outbox
+drwxr-xr-x@  6 Heishing  staff     192 May 10 22:44 presets
+-rw-r--r--   1 Heishing  staff   16384 Aug 15 09:55 qa_metrics.db
+-rw-r--r--@  1 Heishing  staff    1727 Aug  9 21:43 reference_priority.json
+--- wc -l /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/failed_writes.jsonl ---
+      10 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/failed_writes.jsonl
+--- wc -c ---
+    2780 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/failed_writes.jsonl
+--- shasum ---
+6b54d11bb233232cea2ec5e871013803365f054e0dea4213eaa20be6f6053e45  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/failed_writes.jsonl
+===== python stats =====
+##### /Users/Heishing/Desktop/canvas/canvas-learning-system/backend/data/failed_writes.jsonl
+raw_len_bytes= 25078 split_n_lines= 91 nonblank_lines= 90
+total_json_ok= 90 bad_json= 0 missing_timestamp_key= 0 empty_or_null_timestamp= 0
+kind_distribution= {'<no kind key>': 90}
+event_type_distribution= {'scoring-agent': 31, 'four-level-explanation': 2, 'deep-decomposition': 28, 'basic-decomposition': 29}
+keysets=
+    90 ('agent_feedback', 'canvas_name', 'concept', 'concept_id', 'error_reason', 'event_type', 'score', 'timestamp', 'user_understanding')
+timestamp_samples= ['2026-04-04T10:04:12.603227+00:00', '2026-04-04T10:04:12.603492+00:00', '2026-04-04T10:04:12.603752+00:00']
+##### /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t6-neo4j/backend/data/failed_writes.jsonl
+raw_len_bytes= 12854 split_n_lines= 35 nonblank_lines= 34
+total_json_ok= 34 bad_json= 0 missing_timestamp_key= 0 empty_or_null_timestamp= 0
+kind_distribution= {'<no kind key>': 24, 'knowledge_entity': 10}
+event_type_distribution= {'scoring-agent': 8, 'basic-decomposition': 8, 'deep-decomposition': 8, 'misconception': 10}
+keysets=
+    24 ('agent_feedback', 'canvas_name', 'concept', 'concept_id', 'error_reason', 'event_type', 'score', 'timestamp', 'user_understanding')
+    10 ('content', 'event_type', 'group_id', 'kind', 'metadata', 'timestamp')
+timestamp_samples= ['2026-09-14T11:56:53.136988+00:00', '2026-09-14T11:59:00.591698+00:00', '2026-09-14T11:59:00.648662+00:00']
+##### /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend/data/failed_writes.jsonl
+raw_len_bytes= 2780 split_n_lines= 11 nonblank_lines= 10
+total_json_ok= 10 bad_json= 0 missing_timestamp_key= 0 empty_or_null_timestamp= 0
+kind_distribution= {'<no kind key>': 10}
+event_type_distribution= {'scoring-agent': 4, 'basic-decomposition': 4, 'deep-decomposition': 2}
+keysets=
+    10 ('agent_feedback', 'canvas_name', 'concept', 'concept_id', 'error_reason', 'event_type', 'score', 'timestamp', 'user_understanding')
+timestamp_samples= ['2026-05-12T06:30:49.014645+00:00', '2026-05-26T05:00:15.053819+00:00', '2026-05-26T05:06:04.136098+00:00']
+rc=0

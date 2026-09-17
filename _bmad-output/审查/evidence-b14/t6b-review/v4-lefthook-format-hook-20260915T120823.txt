@@ -1,0 +1,70 @@
+# lefthook.yml sha:
+940dfdadab9c862eea57ac622f7b93168ea73389a23fbfa94936d9e4af8b69cc  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/lefthook.yml
+# lines mentioning ruff / format / stage_fixed / python-lint (with line numbers):
+8:#   pre-commit  → parallel checks (spec-sync, python-lint, python-typecheck, ghost-files)
+94:    # --- Python lint: ruff lint + format check on staged files ---
+101:    #      从未过过 ruff 门。
+108:    # 覆盖面诚实声明(别把本门当 lint 门读): scripts/ 的 ruff 配置解析到**根**
+109:    # ruff.toml 而非 backend/ruff.toml, 其 `[lint] select = []` 让 lint 面成为
+110:    # 空集。所以对 scripts/ 而言 `ruff check` 只拦解析器级 invalid-syntax,
+113:    # 现行配置**不报**。(不写死行号: 它已被本卡 commit-2 的 ruff format
+115:    # 真正拦住 scripts/ 的是下面的 `ruff format --check`。开 scripts/ 必错级
+116:    # 规则集(对齐 backend/ruff.toml 的 E9,F63,F7,F82) = 另一张卡, 已登台账。
+117:    python-lint:
+120:        # Activate backend venv for ruff
+122:        echo "[Python] Running ruff lint..."
+123:        ruff check {staged_files} 2>&1 || exit 1
+125:        echo "[Python] Checking format..."
+126:        ruff format --check {staged_files} 2>&1 || {
+127:          echo "[Python] Format check FAILED! Fix: ruff format {staged_files}"
+138:    # (rc=127) was reported by lefthook as `✔️ python-typecheck`. Worse, 127
+205:    python-typecheck:
+321:    # m 开头的本块 → python-lint → p 开头的 pyright 门 → r 开头的 README 门
+# --- full python-lint block (context) ---
+117:     python-lint:
+118:       glob: "{backend,src,scripts}/*.py"
+119:       run: |
+120:         # Activate backend venv for ruff
+121:         if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+122:         echo "[Python] Running ruff lint..."
+123:         ruff check {staged_files} 2>&1 || exit 1
+124:         echo "[Python] Lint OK."
+125:         echo "[Python] Checking format..."
+126:         ruff format --check {staged_files} 2>&1 || {
+127:           echo "[Python] Format check FAILED! Fix: ruff format {staged_files}"
+128:           exit 1
+129:         }
+130:         echo "[Python] Format OK."
+131: 
+132:     # --- Python typecheck: pyright on staged files ---
+133:     # HONESTY CONTRACT (CARD-DEBT-hook-pyright, BATCH-2026-09-04-第十批):
+134:     # pyright is NOT a declared dependency of this repo (absent from
+135:     # backend/requirements*.txt, backend/pyproject.toml and backend/.venv);
+136:     # only pyrightconfig.json exists. Before this card the block ended in a bare
+137:     # `echo`, so the shell block's exit code was that echo's 0 -- a missing binary
+138:     # (rc=127) was reported by lefthook as `✔️ python-typecheck`. Worse, 127
+139:     # ("tool absent") and 1 ("real type errors") were funnelled into the same
+140:     # "Type errors found!" line, so the gate could not tell "did not run" from
+141:     # "ran and failed". Now: absent -> explicit SKIP lines + rc 0, with no claim of
+142:     # having checked anything; present -> real run + explicit `exit` of pyright's
+143:     # own rc, so type errors actually block the commit.
+144:     # Installing pyright is deliberately OUT of scope (separate card): this block
+145:     # only stops lying about whether it ran.
+146:     #
+147:     # SCOPE (CARD-TOOL-typecheck-glob, BATCH-2026-09-05-第十二批, 用户裁定 D-1 丙):
+148:     # glob 由 `{backend,src}/**/*.py` 收窄为单条 `backend/app/*.py`。
+149:     # 起因是**位置实参覆盖 include**: 下面 run 块把 {staged_files} 当**位置实参**
+150:     # 传给 pyright, 而位置实参**取代** pyrightconfig.json 的 include(不是与它取
+151:     # 交集) —— 于是旧 glob 的可达面是 **844** 个 .py(backend 目录共 846 个 .py,
+152:     # 减去一级的 2 个 —— 旧 glob 的 `**` 要求至少跨一级, 见下面的死枝登记;
+153:     # 844 里 backend/tests 占 493), 远大于 include 面。测试目录的存量类型债因此
+154:     # 拦下了绝大多数提交(第十一批 CARD-TOOL-pyright 台账逐字记 "18/19 = 94%",
+155:     # 精确值 94.7%; 别把它渲染成 95% 再说成"台账记的"), 而那些报错与被提交的改动
+156:     # 无关 —— 一个恒红的门等于没有门, 只会训练人去绕过它。
+# --- any other lefthook files / local overrides ---
+(eval):2: no matches found: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/.lefthook*
+# --- scripts referenced by hooks that could run ruff format ---
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/.claude/hooks/post-tool-router.sh:30:    ruff format "$FILE_PATH" 2>/dev/null || true
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/.claude/hooks/post-tool-router.sh:31:    ruff check --fix "$FILE_PATH" 2>/dev/null || true
+grep_scripts_rc=0
+rc=0

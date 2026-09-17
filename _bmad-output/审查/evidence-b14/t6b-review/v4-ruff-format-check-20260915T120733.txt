@@ -1,0 +1,79 @@
+# ruff version: ruff 0.15.9
+# config: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/backend/ruff.toml
+# --- effective config discovery for in-tree file (settings_path line) ---
+Resolved settings for: "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/backend/tests/unit/test_story_38_8_fallback_sync.py"
+Settings path: "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/t6b-verify/backend/ruff.toml"
+# --- base.py ---
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/base.py
+1 file would be reformatted
+base_rc=1
+# --- base.py --diff (first 60 lines) ---
+--- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/base.py
++++ /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-feature-obsidian-hybrid-dev--bmad-output/deec8ae1-3f61-41c3-b4d0-61ef90bed005/scratchpad/ast/base.py
+@@ -70,9 +70,7 @@
+     return tmp_path / "sync_checkpoint.json"
+ 
+ 
+-def _patch_paths(
+-    tmp_failed_writes, tmp_canvas_events, tmp_learning_memories, tmp_checkpoint
+-):
++def _patch_paths(tmp_failed_writes, tmp_canvas_events, tmp_learning_memories, tmp_checkpoint):
+     """Return dict of patches for all file paths (attribute names only)."""
+     return {
+         "FAILED_WRITES_FILE": tmp_failed_writes,
+@@ -187,9 +185,7 @@
+                 "session_id": "s2",
+             },
+         ]
+-        tmp_canvas_events.write_text(
+-            json.dumps(events, ensure_ascii=False), encoding="utf-8"
+-        )
++        tmp_canvas_events.write_text(json.dumps(events, ensure_ascii=False), encoding="utf-8")
+ 
+         patches = _patch_paths(
+             tmp_failed_writes,
+@@ -226,9 +222,7 @@
+                 "to_node_id": "n2",
+             },
+         ]
+-        tmp_canvas_events.write_text(
+-            json.dumps(events, ensure_ascii=False), encoding="utf-8"
+-        )
++        tmp_canvas_events.write_text(json.dumps(events, ensure_ascii=False), encoding="utf-8")
+ 
+         patches = _patch_paths(
+             tmp_failed_writes,
+@@ -274,9 +268,7 @@
+             ],
+             "metadata": {},
+         }
+-        tmp_learning_memories.write_text(
+-            json.dumps(data, ensure_ascii=False), encoding="utf-8"
+-        )
++        tmp_learning_memories.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+ 
+         patches = _patch_paths(
+             tmp_failed_writes,
+@@ -291,9 +283,7 @@
+         # Now uses run_query with last-write-wins MERGE (not create_learning_relationship)
+         # run_query called: 2 for learning_memories (may also have failed_writes calls)
+         learning_calls = [
+-            c
+-            for c in mock_neo4j.run_query.call_args_list
+-            if "LEARNED" in str(c) and "concept" in str(c).lower()
++            c for c in mock_neo4j.run_query.call_args_list if "LEARNED" in str(c) and "concept" in str(c).lower()
+         ]
+         assert len(learning_calls) >= 2
+ 
+@@ -326,9 +316,7 @@
+                 "session_id": "s1",
+             },
+# --- head.py ---
+1 file already formatted
+head_rc=0
+# --- in-tree HEAD file with auto-discovered config (cross-check) ---
+1 file already formatted
+intree_head_rc=0
+# --- in-tree BASE-content check via git show piped to stdin with --stdin-filename (auto-discovered config) ---
+intree_base_stdin_rc=1
+rc=0

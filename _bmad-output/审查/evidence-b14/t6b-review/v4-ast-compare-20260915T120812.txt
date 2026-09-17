@@ -1,0 +1,13 @@
+# python: Python 3.14.4
+whole-module AST equal: False
+defs base=44 head=44
+only_in_base=[]
+only_in_head=[]
+AST-different shared defs (count=2):
+  DIFF: TestAC3Checkpoint
+  DIFF: TestAC3Checkpoint.test_resumes_from_checkpoint
+leaf-level AST-different defs (count=1): ['TestAC3Checkpoint.test_resumes_from_checkpoint']
+module-level non-def stmts: base=6 head=6 equal=True
+AST test_ defs: base=30 head=30 same_set=True
+py_rc=0
+rc=0

@@ -1,0 +1,27 @@
+--- (m) fsrs_bridge/decay_beta per changed file (grep -E -e ... -e ...) ---
+backend/app/api/v1/endpoints/traces.py fsrs_hits=0
+backend/app/main.py fsrs_hits=0
+backend/app/services/fallback_sync_service.py fsrs_hits=0
+backend/tests/integration/test_neo4j_replay_wire_t6b.py fsrs_hits=0
+backend/tests/unit/test_story_38_8_fallback_sync.py fsrs_hits=0
+--- anchor: grep -E -e on known file canvas-vault scripts dir listing ---
+decay_beta.py
+fsrs_bridge.py
+anchor_rc=0
+--- 7691/7687 in test_neo4j_replay_wire_t6b.py at HEAD ---
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:24:- 只连 **7692** 测试容器 (``NEO4J_TEST_URI``); 探针指向现网 7691 一律拒绝,
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:56:# 模块级可达性探针 (决定整文件 skip; 7691 现网一律拒绝)
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:64:    ⚠️ 这里**不能**用 `":7691" in uri` 这类字符串判据 (Codex round-2 HIGH-1):
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:65:    未被拦下的输入 `bolt://127.0.0.1:07691` —— 子串检查放行, 而驱动
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:66:    `Address.parse` 解析后端口是 **7691**, 即现网。字符串面与驱动面是两个
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:86:        # 禁碰 live: 端口不在测试白名单内 (含 :07691 这类绕过写法) 一律拒绝运行
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:112:            "7691 — refused). Start: docker compose --profile test up -d neo4j-test"
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:369:def test_gate_never_targets_live_7691() -> None:
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:372:    Codex round-2 HIGH-1: 原断言是 `":7691" not in NEO4J_TEST_URI`,
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:373:    未被拦下的输入 `bolt://127.0.0.1:07691` 能通过它而驱动解析后连的是 7691。
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:384:    bypass_ports, _ = canonical_target_ports("bolt://127.0.0.1:07691")
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:385:    assert bypass_ports == (7691,), f"前导零 URI 的驱动解析结果意外: {bypass_ports}"
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:387:        "判据放行了 bolt://127.0.0.1:07691 —— 这正是 round-2 HIGH-1 的那条输入"
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:389:    assert ":7691" not in "bolt://127.0.0.1:07691", (
+HEAD:backend/tests/integration/test_neo4j_replay_wire_t6b.py:506:# 进程默认单例, 它按 ``backend/.env`` 的 ``NEO4J_URI=bolt://localhost:7691``
+grep_rc=0
