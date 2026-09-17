@@ -1,0 +1,47 @@
+# 最终收工判据（h/i + ruff）  2026-09-14T22:01:51+0800
+PREREQ=46e7bf77  HEAD=a008882e
+⚠️ 目录级那跑绑的是 6e4fedc5（代码末态）；其后只有 D-32 纯 docstring commit a008882e，
+   剥 docstring 后 AST 逐字节相同 ⇒ 运行语义不变，该跑仍代表最终代码。
+
+=== (h) tests/unit 目录级 ===
+= 35 failed, 5078 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 264.82s (0:04:24) =
+rc=1
+base=64  open=65  close=64
+--- 收工 vs 开工（本卡只对 > 负责）---
+33d32
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff_rc=1
+  > 行数（必须 0）= 0
+--- 收工 vs 基线 ---
+diff_rc=0
+--- W4 哨兵判据（绑 blocked= 与失败正文，不绑 nodeid）---
+  unit-open-20260914T203839.txt: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)  正文锚去重=1
+  unit-close-r5-20260914T215108.txt: NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)  正文锚去重=0
+--- 验伪锚：diff 会说话 ---
+  open↔close 差异行数 = 1
+
+=== (i) 地盘门 ===
+backend/tests/support/live_port_guard.py
+backend/tests/unit/test_live_port_guard_contract.py
+条数 = 2
+ backend/tests/support/live_port_guard.py           |  34 +-
+ .../tests/unit/test_live_port_guard_contract.py    | 424 ++++++++++++++++++++-
+ 2 files changed, 437 insertions(+), 21 deletions(-)
+--- 验伪锚（跨 T9-A 文档 commit，关 quotePath）---
+  不带 exclude 的 _bmad-output 条数 = 4
+  带   exclude 的 _bmad-output 条数 = 0
+--- 越界自证（各期望 0）---
+  backend/app = 0
+  backend/tests/support/guard_plugin.py = 0
+  backend/tests/conftest.py = 0
+  backend/tests/unit/conftest.py = 0
+  backend/scripts/lifespan_isolation_runtime_sha.sh = 0
+  canvas-vault = 0
+
+=== ruff（zsh 数组）===
+files=2
+backend/tests/support/live_port_guard.py backend/tests/unit/test_live_port_guard_contract.py
+All checks passed!
+ruff_rc=0
+2 files already formatted
+format_rc=0

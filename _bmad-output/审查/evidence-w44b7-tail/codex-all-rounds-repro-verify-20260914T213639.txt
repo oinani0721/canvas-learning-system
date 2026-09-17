@@ -1,0 +1,23 @@
+# 三轮 Codex 复现输入的总验证（顺序门改为「遇局部函数即拒绝猜」）  2026-09-14T21:36:39+0800
+OK   期望门红  实测门红(拒绝猜)    | r1 MEDIUM-2  @eager 装饰器
+OK   期望门红  实测门红         | r1 LOW-3     顶层 return 之后
+OK   期望门红  实测门红         | r1 (d) 负控  死 else 诱饵
+OK   期望门红  实测门红(拒绝猜)    | r2 MEDIUM-2  hook/注册各包一层 helper
+OK   期望门红  实测门红(拒绝猜)    | r2 MEDIUM-3  outer 内定义并调 inner
+OK   期望门红  实测门红(拒绝猜)    | r2 MEDIUM-3  first() 调 second()
+OK   期望门红  实测门红(拒绝猜)    | r3 MEDIUM-1  恒假分支里的同名诱饵定义
+OK   期望门红  实测门红(拒绝猜)    | r3 MEDIUM-1' 同名死定义藏提前预检（反方向）
+OK   期望门红  实测门红(拒绝猜)    | r3 MEDIUM-2  g = helper; g()
+OK   期望门红  实测门红(拒绝猜)    | r3 MEDIUM-3  局部装饰器函数自身跑预检
+OK   期望门红  实测门红(拒绝猜)    | r3 历史边界 hook/注册/预检全在同一 helper
+OK   期望门红  实测门红(拒绝猜)    | r3 历史边界 生成器 helper 只创建不迭代
+OK   期望门绿  实测门绿         | ⚠️ 干净形态：无局部函数、顺序正确 ⇒ 必须绿
+OK   期望门红  实测门红         | ⚠️ 干净形态：顺序错（预检在前）⇒ 必须红
+
+=== 真实 install() 回归：必须绿，且前置断言必须不触发 ===
+  局部函数表 = {}  (期望 {})
+  前置断言：未触发 ✅
+  下标 = {'_install_audit_hook': 4, 'register_final_accounting': 5, 'assert_neo4j_target_blocked': 6}  (期望 4/5/6)
+
+BAD 计数 = 0
+rc=0

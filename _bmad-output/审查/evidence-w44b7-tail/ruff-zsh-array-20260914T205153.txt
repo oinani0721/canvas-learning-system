@@ -1,0 +1,18 @@
+# 裁判 5（ruff zsh 数组，复跑：首版验伪锚放在 /tmp 解析到另一套 ruff 配置、不选 F821 ⇒ 锚哑火，改树内锚）
+# 2026-09-14T20:51:53+0800   PREREQ=46e7bf77  HEAD=45b8e0b4
+files=2
+backend/tests/support/live_port_guard.py backend/tests/unit/test_live_port_guard_contract.py
+All checks passed!
+ruff_rc=0
+--- 验伪锚（树内，同 backend/ruff.toml；F401 未被选中是假锚，必须用 F821）---
+F821 Undefined name `undefined_name_for_anchor`
+ --> backend/tests/support/_ruff_anchor_tmp.py:2:12
+  |
+1 | def boom():
+2 |     return undefined_name_for_anchor
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1  # 期望 1
+锚已移出树外，backend/ 未跟踪残留 = 0

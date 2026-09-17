@@ -1,0 +1,29 @@
+# (b) 间接持锁调用识别面 直接探针  2026-09-14T20:45:53+0800
+# 注：首轮探针抓到内联海象 (_f := self.ledger)() 漏检（Call.func 是 NamedExpr 不是 Name），已补识别后本轮复跑。
+已知 _GuardState 方法名（源码导出）= ['__init__', '_ledger_locked', '_unaccounted_locked', 'finalize_and_snapshot', 'late_snapshot', 'ledger', 'record', 'summary_line', 'take', 'unaccounted_blocked']
+已持锁白名单（源码导出）= ['_ledger_locked', '_unaccounted_locked']
+
+OK   期望=['ledger']  实测=['ledger']  | ① 别名赋值后调用
+OK   期望=['ledger']  实测=['ledger']  | ② 字面 getattr 直接调用
+OK   期望=['ledger']  实测=['ledger']  | ①+② 组合
+OK   期望=['ledger']  实测=['ledger']  | 内联海象
+OK   期望=['ledger']  实测=['ledger']  | 分离海象
+OK   期望=['ledger']  实测=['ledger']  | 带注解赋值
+OK   期望=['_ledger_locked']  实测=['_ledger_locked']  | 白名单内的间接调用（应放行）
+OK   期望=[]  实测=[]  | 绑数据属性——不该误判
+OK   期望=[]  实测=[]  | 动态名 getattr——已登记的漏面
+OK   期望=[]  实测=[]  | 赋值但从不调用——不算命中
+
+验伪锚：同一批喂给 _direct_self_calls（旧识别面）必须一条都数不到——那正是 MEDIUM-1 的漏面
+  OK   _direct_self_calls → []  | ① 别名赋值后调用
+  OK   _direct_self_calls → []  | ② 字面 getattr 直接调用
+  OK   _direct_self_calls → []  | ①+② 组合
+  OK   _direct_self_calls → []  | 内联海象
+  OK   _direct_self_calls → []  | 分离海象
+  OK   _direct_self_calls → []  | 带注解赋值
+  OK   _direct_self_calls → []  | 白名单内的间接调用（应放行）
+
+干净源全部 with self._lock 临界区实测（必须零命中，否则门自伤）：
+  命中 = []  (期望 [])
+BAD 计数 = 0
+rc=0

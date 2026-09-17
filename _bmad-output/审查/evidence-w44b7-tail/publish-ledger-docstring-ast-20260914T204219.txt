@@ -1,0 +1,16 @@
+# (e) _publish_ledger 纯 docstring 核（复跑，修正新文案连续性）  2026-09-14T20:42:35+0800
+PREREQ=46e7bf77
+剥 docstring 后 ast.dump 长度 before/after = 1437 1437
+逐字节相同 = True
+docstring 确实变了 = True  (验伪锚：False 说明本卡 (e) 根本没改)
+[OK] (e) 纯 docstring 成立
+--- grep 新旧文案（工作树）---
+新文案『文件可能缺失、无效或保留旧内容』命中数(期望 1) = 1
+旧文案『文件停留在截断/无效态』命中数(期望 0) = 0
+--- 验伪锚：同两条 grep 打在 PREREQ 版上应反过来 ---
+PREREQ 新文案命中数(期望 0) = 0
+PREREQ 旧文案命中数(期望 1) = 1
+--- 全文件 diff hunk 数（期望 1）---
+ backend/tests/support/live_port_guard.py | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+1

@@ -1,0 +1,33 @@
+# (d) 剪枝三类 + 保守方向 + 根节点语义 直接探针  2026-09-14T20:44:16+0800
+# 注：首轮探针（同名文件早前一版）有 3 条 BAD，全部因用例把根节点包成 def f():——
+#     那恰好命中『根是 FunctionDef 则 body 不展开』这条真语义，已补进 docstring 并改正用例。
+OK   期望=  被剪  实测=  被剪  | 1 恒假 body 被剪（既有）
+OK   期望=  可达  实测=  可达  | 1 恒假 orelse 仍算（既有）
+OK   期望=  被剪  实测=  被剪  | 2 恒真 orelse 被剪（新）
+OK   期望=  可达  实测=  可达  | 2 恒真 body 仍算（新）
+OK   期望=  被剪  实测=  被剪  | 3 return 之后被剪（新）
+OK   期望=  被剪  实测=  被剪  | 3 break 之后被剪（新）
+OK   期望=  被剪  实测=  被剪  | 3 continue 之后被剪（新）
+OK   期望=  可达  实测=  可达  | 3 终结语句自己仍算（新）
+OK   期望=  被剪  实测=  被剪  | 3 raise 之后被剪，handler 不受影响
+OK   期望=  可达  实测=  可达  | 3 raise 之后剪掉但 handler 仍算
+OK   期望=  被剪  实测=  被剪  | 4 未被提名的局部函数体被剪（新）
+OK   期望=  可达  实测=  可达  | 4 被调用的局部函数体仍算（新）
+OK   期望=  可达  实测=  可达  | 4 别名引用也算被提名（保守）
+OK   期望=  被剪  实测=  被剪  | 4 根节点即 FunctionDef ⇒ body 不展开
+OK   期望=  可达  实测=  可达  | 保守：变量条件分支一律可达
+OK   期望=  可达  实测=  可达  | 保守：while True 的 loop-else 不剪
+OK   期望=  可达  实测=  可达  | 保守：lambda 体不剪
+
+验伪锚：被剪的那些在未剪枝的 _called_names 下必须全是『可达』（差异确实来自剪枝，不是用例写错）
+  OK   _called_names → decoy 可达=True  | 1 恒假 body 被剪（既有）
+  OK   _called_names → decoy 可达=True  | 2 恒真 orelse 被剪（新）
+  OK   _called_names → decoy 可达=True  | 3 return 之后被剪（新）
+  OK   _called_names → decoy 可达=True  | 3 break 之后被剪（新）
+  OK   _called_names → decoy 可达=True  | 3 continue 之后被剪（新）
+  OK   _called_names → decoy 可达=True  | 3 raise 之后被剪，handler 不受影响
+  OK   _called_names → decoy 可达=True  | 4 未被提名的局部函数体被剪（新）
+  OK   _called_names → decoy 可达=True  | 4 根节点即 FunctionDef ⇒ body 不展开
+
+BAD 计数 = 0
+rc=0

@@ -1,0 +1,49 @@
+# 裁判 6/10 地盘门（代码 commit 态）  2026-09-14T20:56:37+0800
+PREREQ=46e7bf77  HEAD=45b8e0b4
+--- 判据：diff 名单必须 ⊆ {test_live_port_guard_contract.py, live_port_guard.py} ---
+backend/tests/support/live_port_guard.py
+backend/tests/unit/test_live_port_guard_contract.py
+条数 = 2
+
+--- --stat 形态（卡文 §一(i)）---
+ backend/tests/support/live_port_guard.py           |   9 +-
+ .../tests/unit/test_live_port_guard_contract.py    | 302 ++++++++++++++++++++-
+ 2 files changed, 298 insertions(+), 13 deletions(-)
+
+--- 验伪锚：pathspec 真的在起作用吗？用跨越 T9-A 文档 commit 的区间 5e4d10cf..HEAD 对照 ---
+带 exclude（期望：只剩代码文件）:
+    backend/tests/support/live_port_guard.py
+    backend/tests/unit/test_live_port_guard_contract.py
+不带 exclude（期望：多出 _bmad-output/ 路径，证明 exclude 确实滤掉了东西）:
+    "_bmad-output/\345\256\241\346\237\245/codex-review-CARD-W4-FINAL-ACCOUNTING.md"
+    "_bmad-output/\345\256\241\346\237\245/evidence-w4final/gate-scope-ruff-20260914T201503.txt"
+    "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-W4-FINAL-ACCOUNTING.md"
+    "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-W4-FINAL-ACCOUNTING-2026-09-14.md"
+    backend/tests/support/live_port_guard.py
+    backend/tests/unit/test_live_port_guard_contract.py
+多出的 _bmad-output 条数 = 0
+
+--- ⛔ 写法自证：':(exclude)…' 而非 ':!…'（协议 §1：后者在 zsh + git 2.50 下 rc=128、stdout 空 = 假绿）---
+fatal: Unimplemented pathspec magic '_' in ':!_bmad-output'
+  ':!…' 写法 rc=0
+
+--- 越界自证 ---
+  backend/app 改动数 = 0  (期望 0)
+  backend/tests/support/guard_plugin.py 改动数 = 0  (期望 0)
+  backend/tests/conftest.py 改动数 = 0  (期望 0)
+  backend/tests/unit/conftest.py 改动数 = 0  (期望 0)
+  backend/scripts/lifespan_isolation_runtime_sha.sh 改动数 = 0  (期望 0)
+  canvas-vault 改动数 = 0  (期望 0)
+
+--- ⚠️ 补正：上面「多出的 _bmad-output 条数 = 0」是本判据自己的假零 ---
+根因：git 默认 core.quotePath=true，非 ASCII 路径被整行加引号输出成 "_bmad-output/\345..."，
+      grep -c '^_bmad-output/' 锚在行首因而 0 命中 —— 而肉眼可见清单里明明有 4 条。
+正确写法（关掉 quotePath 再数）：
+  多出的 _bmad-output 条数 = 4
+  验伪锚的验伪锚：同一条命令在带 exclude 时应为 0 = 
+0
+
+--- ':!…' 写法那行的 rc 也要补正 ---
+上面打印的 'rc=0' 是管道末端 head 的 rc，不是 git 的（协议里 tail/head 吃 rc 的同型坑）。
+  git 真实 rc = 128
+  ⇒ 128，stdout 空。若判据写成「为空即绑定」就会把没跑成读成绿（协议 §1 第十一批实测）。

@@ -1051,29 +1051,234 @@ def _direct_self_calls(node: ast.AST) -> list[str]:
     return names
 
 
+def _guard_state_method_names() -> set[str]:
+    """``_GuardState`` 的**全部**方法名，从源码 AST 导出（CARD-W4-4b7-TAIL）。
+
+    只用来给「间接持锁调用」的识别划一个可信的属性名面：``_f = self.records`` 这类
+    绑到**数据**属性上的赋值不该被当成一次方法调用。和 :func:`_locked_helper_names`
+    一样**不写死字面量** —— 写死了，源码新增方法时识别面会悄悄落后。
+    """
+    return {n.name for n in _guard_state_ast().body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+
+
+def _getattr_self_literal(node: ast.AST, known: set[str]) -> str | None:
+    """``getattr(self, "<attr>")`` 里的 ``<attr>``（只认**字面**字符串实参）。
+
+    动态名（``getattr(self, name)``）识别不了，如实登记为门未覆盖的路径：那需要常量
+    传播，而判据越聪明越容易在重构时假红。这里只收「一眼可判」的那一类。
+    """
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr"):
+        return None
+    if len(node.args) < 2:
+        return None
+    target, name = node.args[0], node.args[1]
+    if not (isinstance(target, ast.Name) and target.id == "self"):
+        return None
+    if not (isinstance(name, ast.Constant) and isinstance(name.value, str)):
+        return None
+    return name.value if name.value in known else None
+
+
+def _indirect_self_method_calls(node: ast.AST, known: set[str]) -> list[str]:
+    """子树里**间接**调到 ``self.<method>()`` 的那些 ``<method>``（CARD-W4-4b7-TAIL）。
+
+    :func:`_direct_self_calls` 只认字面的 ``self.<name>(...)``，于是临界区里这两种写法
+    从白名单门底下溜过去（UAT-CARD-W4-4b MEDIUM-1）：
+
+    * ① **别名赋值**：``f = self.ledger`` 之后 ``f()``（``:=`` 海象、带注解赋值同理）；
+    * ② **字面 getattr**：``getattr(self, "ledger")()``，以及两者的组合
+      ``f = getattr(self, "ledger")`` 之后 ``f()``。
+
+    两种都真的会再取一次 ``self._lock``，而那把锁不可重入。
+
+    识别面**限定在 ``known``（``_GuardState`` 的方法名集）之内**：临界区里
+    ``rec = self.records`` / ``self.pending.setdefault(...)`` 这类绑数据属性的写法不该
+    被误判成持锁调用。收窄的代价是**动态属性名与更深的包装仍然漏**，那是本判据
+    未覆盖的路径，不是本判据声称已封死的面。
+
+    ⚠️ 别名表按 ``ast.walk`` 收集，**不跟语句先后**，且每个别名保留它曾绑过的
+    **全部**方法（``dict[str, set[str]]``）。
+
+    ⛔ 初版把它写成「一个别名 → 一个方法」并在 docstring 里声称「过近似只会假红」——
+    **那句话是错的，Codex round-1 MEDIUM-1 当场证伪**：
+
+    .. code-block:: python
+
+        with self._lock:
+            f = self.ledger          # 非白名单
+            f()                      # 真正被调用的是这一个
+            f = self._ledger_locked  # 白名单；后写的覆盖了别名表
+
+    覆盖式别名表只剩 ``_ledger_locked``，于是这次**真实的非白名单持锁调用被判成合规** ——
+    那是**假绿**，不是假红。改成集合后 ``f()`` 会同时报出两个绑定，非白名单那个照样顶红。
+    同理支持一层以上的别名传递（``f = self.ledger; g = f; g()``）：别名→别名的赋值做闭包传播。
+
+    ⚠️ **由此换来一种有意的假红**（Codex round-2 LOW-1）：``f = self.ledger; f = self._ledger_locked;
+    f()`` 实际只调了白名单那个，本函数仍会报出 ``ledger``。判「哪个绑定在调用时活着」需要真正的
+    流分析，本判据不做 —— 两个方向只能选一个，选**假红**（吵一次，人来确认）而不是**假绿**
+    （漏一次真的嵌套取锁，表现为 atexit 期进程挂住，比翻红难查得多）。同族：
+    ``f = self.ledger; f = <普通值>; f()``、``g = f; g = lambda: 7; g()`` 也会报 ``ledger``。
+
+    识别面**仍然有限**（动态属性名、容器/参数/包装器里的绑定方法、元组解包 / ``for`` 目标 /
+    ``with ... as f`` 这三类绑定根本没收、临界区外绑定后在区内调用……）。本函数证明的是
+    「这几类写法进不来」，**不**主张「临界区一定不嵌套取锁」。
+    """
+    alias_methods: dict[str, set[str]] = {}
+    alias_links: dict[str, set[str]] = {}
+
+    def _bound_method(value: ast.AST | None) -> str | None:
+        if value is None:
+            return None
+        if (
+            isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id == "self"
+            and value.attr in known
+        ):
+            return value.attr
+        return _getattr_self_literal(value, known)
+
+    for child in ast.walk(node):
+        targets: list[ast.AST] = []
+        if isinstance(child, ast.Assign):
+            targets = list(child.targets)
+        elif isinstance(child, (ast.AnnAssign, ast.NamedExpr)):
+            targets = [child.target]
+        else:
+            continue
+        attr = _bound_method(child.value)
+        for target in targets:
+            if not isinstance(target, ast.Name):
+                continue
+            if attr is not None:
+                alias_methods.setdefault(target.id, set()).add(attr)
+            elif isinstance(child.value, ast.Name):
+                # ``g = f``：f 若是（或将是）别名，g 也得算 —— 下面做闭包传播。
+                alias_links.setdefault(target.id, set()).add(child.value.id)
+
+    # 别名→别名的传播，直到不动点（``f = self.ledger; g = f; h = g; h()`` 都算）
+    while True:
+        grew = False
+        for target, sources in alias_links.items():
+            merged = set().union(*(alias_methods.get(src, set()) for src in sources))
+            if not merged <= alias_methods.get(target, set()):
+                alias_methods.setdefault(target, set()).update(merged)
+                grew = True
+        if not grew:
+            break
+
+    names: list[str] = []
+    for child in ast.walk(node):
+        if not isinstance(child, ast.Call):
+            continue
+        attr = _getattr_self_literal(child.func, known)
+        if attr is not None:
+            names.append(attr)
+            continue
+        # 内联海象 ``(_f := self.ledger)()``：被调用的是 NamedExpr 本身，不是 Name，
+        # 别名表帮不上忙（它记的是 ``_f``）。直接看海象的右值。
+        if isinstance(child.func, ast.NamedExpr):
+            attr = _bound_method(child.func.value)
+            if attr is not None:
+                names.append(attr)
+                continue
+        if isinstance(child.func, ast.Name):
+            names.extend(sorted(alias_methods.get(child.func.id, set())))
+    return names
+
+
 def _is_dead_branch(node: ast.AST) -> bool:
     """``if False:`` / ``while 0:`` 这类**恒假**分支（Codex round-1 MEDIUM-7）。
 
     只认字面常量：``if False`` / ``if 0`` / ``if None`` / ``if ""``。变量条件一律当
     可达（保守方向 —— 判据宁可多数一条，也不能把真调用当死代码放过）。
+
+    ⛔ 语义**不得扩写**：``test_seam_is_called_unconditionally_not_inside_a_condition``
+    的子规则 (iii) 也在用它逐个判祖先链。想加新的剪枝形态请另写函数
+    （见 :func:`_is_always_taken_branch`），别在这里改口径。
     """
     return isinstance(node, (ast.If, ast.While)) and isinstance(node.test, ast.Constant) and not node.test.value
 
 
+def _is_always_taken_branch(node: ast.AST) -> bool:
+    """``if <字面恒真>:`` —— 它的 ``orelse``（**死 else**）永远不执行。
+
+    只对 ``ast.If`` 成立，**刻意不覆盖 ``ast.While``**：``while True:`` 的 loop-else
+    虽然也进不去，但循环体之后语句的可达性还牵着 ``break``，多剪一类就多一分把真
+    可达读成死码的风险。清单按卡文定死三类，不外扩。
+    """
+    return isinstance(node, ast.If) and isinstance(node.test, ast.Constant) and bool(node.test.value)
+
+
+#: 执行到它就**一定**离开当前语句块 ⇒ 同一块里排在它后面的语句不可达。
+_BLOCK_TERMINATORS = (ast.Return, ast.Raise, ast.Break, ast.Continue)
+
+
+def _reachable_prefix(stmts: list) -> list:
+    """语句列表里可达的那一段：到第一条终结语句为止（**含它自己**）。
+
+    终结语句本身必须留下 —— ``return _install_audit_hook()`` 里那是一次真调用。
+    按字段各自截断是安全的：``Try.body`` 里 ``return`` 之后不可达，但 ``handlers`` /
+    ``finalbody`` 不受影响，它们是另外的字段、各自独立截断。
+    """
+    out: list = []
+    for stmt in stmts:
+        out.append(stmt)
+        if isinstance(stmt, _BLOCK_TERMINATORS):
+            break
+    return out
+
+
 def _live_called_names(node: ast.AST) -> list[str]:
-    """同 :func:`_called_names`，但**跳过恒假分支的 body**（Codex round-1 MEDIUM-7）。
+    """同 :func:`_called_names`，但**只数可达语句里的调用**。
 
     ``_called_names`` 走 ``ast.walk``，于是 ``if False: _install_audit_hook()`` 这条
     死代码也会被数进去 —— 顺序类断言（谁排在谁前面）因此可以被一个**诱饵**骗过：
-    把恒假分支里的假调用摆在前面，真调用挪到后面，旧门照样绿。这里按控制流剪枝：
-    恒假分支的 ``body`` 不算数，``test`` 与 ``orelse`` 仍算（``if False: A`` 的
-    ``else`` 支是会跑的）。
+    把死代码里的假调用摆在前面，真调用挪到后面，旧门照样绿。
+
+    **剪掉的是下面四类**（CARD-W4-4b7-TAIL 把清单从「只剪 ``if False``」扩到这里；
+    描述与实现同步收窄，别再写「跳过恒假分支」那种过宽的说法）。⚠️ 「四类」说的是**剪掉**
+    什么，**不是**「其余一律计入」的全称保证：实现走 ``ast.iter_fields``，``FunctionDef`` 的
+    ``returns``（返回注解）与 ``type_params`` 在第 4 类的分支里**根本没被访问**，所以
+    ``def f() -> annotation_call(): ...`` 里的调用不计入，而**参数注解**里的会计入
+    （Codex round-5 LOW-1 实测）。要精确描述实现请直接读下面的 ``visit``。
+
+    1. **恒假分支的 body**（``if False:`` / ``while 0:``，见 :func:`_is_dead_branch`）——
+       ``test`` 与 ``orelse`` 仍算数（``if False: A`` 的 ``else`` 支是会跑的）；
+    2. **恒真 ``if`` 的 orelse**（死 else，见 :func:`_is_always_taken_branch`）——
+       ``test`` 与 ``body`` 仍算数；
+    3. **同一语句块里终结语句之后的语句**（``return`` / ``raise`` / ``break`` /
+       ``continue`` 之后，见 :func:`_reachable_prefix`）—— 终结语句自己仍算数；
+    4. **不带装饰器的局部 ``FunctionDef`` 的 body** —— 「定义一个函数」这条语句不执行它的体。
+       ⚠️ 只剪 **body**：同一条 ``def`` 语句上的装饰器表达式、**默认参数**、参数注解里的调用
+       照常计入（``def f(x=early()): ...`` 会数到 ``early``，Codex round-5 LOW-1 实测）。
+       带装饰器的**函数体也照常计入**，但那是**保守计入**而不是「定义时确实执行」：
+       ``@identity`` 这类装饰器**根本不会**调用被装饰函数，此时计入属于偏红那一侧的选择。
+
+    ⛔ **第 4 类只在「没有跨语句调用」的前提下才是对的**，而本函数**看不到**那个前提 ——
+    它是被逐条语句调用的。谁在什么时候真的执行了某个局部函数的 body，需要解析调用绑定才答
+    得出；本卡三轮外审逐一证明：任何在 AST 层面替它作答的近似都会开出假绿口子（三种失败写法
+    的原文见 :func:`_refuse_to_guess_on_deferred_execution`）。
+
+    所以顺序类判据**不靠本函数处理这些**，而是先调
+    :func:`_refuse_to_guess_on_deferred_execution` 把「作用域里有延迟执行体」这件事**判红**。
+    本函数的第 4 类因此只在那条前置条件成立时被使用 —— 即「压根没有局部定义」，剪与不剪等价。
+
+    ⚠️ 独立探针若不走那条前置条件而直接喂含局部函数的片段，得到的**不是**调用图分析。
+    准确说法是：函数体在**不带装饰器**时不计入；带装饰器时**保守计入**（装饰器**可能**当场
+    调用它，也**可能**像 ``identity`` 那样根本不调 —— 计入是偏红那一侧的选择，不是「定义时
+    确实执行」的断言，Codex round-4 LOW-1 更正）。装饰器表达式本身、默认参数里的调用一律计入。
+
+    其余一律当可达：变量条件的分支、``while True`` 的 loop-else、``match`` 的各 case、
+    ``lambda`` 体、以及任何要靠常量传播才判得出的不可达 —— 判据宁可多数一条，也不能
+    把真调用当死代码放过。
 
     ⛔ 剪枝判定必须发生在**进入每个节点时**，包括传进来的那个根节点。初版只在
     ``iter_child_nodes`` 的子节点上判，于是 ``_live_called_names(<if False 语句>)``
     ——顺序门正是这么逐条调它的——从该 ``If`` 的子节点开始遍历，恒假分支的 body 原样
     被数进去，诱饵照样生效。负控 case 4 当场抓到（2026-09-08 实测：新门在变异体上
-    仍 passed）。
+    仍 passed）。第 2/3 类同理：``_live_called_names(<if True 语句>)`` 必须在根节点上
+    就把 orelse 剪掉。
     """
     names: list[str] = []
 
@@ -1081,8 +1286,29 @@ def _live_called_names(node: ast.AST) -> list[str]:
         if _is_dead_branch(current):
             assert isinstance(current, (ast.If, ast.While))
             visit(current.test)
-            for stmt in current.orelse:
+            for stmt in _reachable_prefix(current.orelse):
                 visit(stmt)
+            return
+        if _is_always_taken_branch(current):
+            assert isinstance(current, ast.If)
+            visit(current.test)
+            for stmt in _reachable_prefix(current.body):
+                visit(stmt)
+            return
+        if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for decorator in current.decorator_list:
+                visit(decorator)
+            visit(current.args)
+            if current.decorator_list:
+                # ⛔ 装饰器在 def 执行时就拿到函数对象、**可能**当场调用它，源码此后不必再
+                #    出现函数名（Codex round-1 MEDIUM-2）⇒ 带装饰器的 body 在定义点**保守计入**。
+                #    （不是「确实执行」：@identity 这类装饰器根本不调；计入是偏红那一侧的选择，
+                #     Codex round-5 LOW-1 更正。）
+                for stmt in _reachable_prefix(current.body):
+                    visit(stmt)
+            # 不带装饰器的 def **其 body 不贡献调用**：「定义一个函数」这条语句不执行它的体。
+            #  ⚠️ 但上面已经访问过 decorator_list 与 args，所以默认参数 / 参数注解里的调用
+            #     照常计入 —— 别把这句读成「整条 def 语句不贡献任何调用」（round-5 LOW-1）。
             return
         if isinstance(current, ast.Call):
             func = current.func
@@ -1090,11 +1316,96 @@ def _live_called_names(node: ast.AST) -> list[str]:
                 names.append(func.id)
             elif isinstance(func, ast.Attribute):
                 names.append(func.attr)
-        for child in ast.iter_child_nodes(current):
-            visit(child)
+        for _field, value in ast.iter_fields(current):
+            if isinstance(value, list):
+                items = value
+                if items and isinstance(items[0], ast.stmt):
+                    items = _reachable_prefix(items)
+                for item in items:
+                    if isinstance(item, ast.AST):
+                        visit(item)
+            elif isinstance(value, ast.AST):
+                visit(value)
 
     visit(node)
     return names
+
+
+def _refuse_to_guess_on_deferred_execution(scope: ast.FunctionDef) -> None:
+    """顺序类判据的**前置条件**：``scope`` 体内不得出现**延迟执行体** —— 有就当场报红。
+
+    ⛔ 这条断言是 CARD-W4-4b7-TAIL 走了三轮外审之后的结论，写在这里以免后人重蹈：
+
+    顺序门要回答的是「``_install_audit_hook()`` 是不是排在 ``assert_neo4j_target_blocked()``
+    之前」。一旦 ``install()`` 里出现局部函数，这个问题就需要**解析调用绑定**才答得出，而纯
+    AST 做不到。本卡先后试过三种静态近似，每一种都被独立复核用可复现输入打出**假绿**：
+
+    1. 「名字在本子树里没被提名 ⇒ 剪掉 body」—— 跨语句「stmt i 定义、stmt j 调用」丢关联，
+       真实的第一次预检整个消失；
+    2. 「名字在整个作用域被提名过 ⇒ 在**定义处**展开」—— 把将来才执行的 body 记到 ``def``
+       的下标上，于是「helper 包着 hook、在预检之后才调用」被读成 hook 在前；
+    3. 「在**调用点**展开，同名定义全收」—— 恒假分支里的同名诱饵定义被算到活的调用上；
+       ``g = helper; g()`` 这种别名调用又漏掉；局部装饰器函数**自身**的 body 也漏掉。
+
+    每修一次就开一个新口子，因为问题本身不是 AST 层面能判的。所以改成：**判据拒绝猜**。
+
+    **拒绝面 = 本作用域里一切「写在这里、执行在别处」的体**：``def`` / ``async def`` /
+    ``lambda`` / ``class`` 体 / 列表-集合-字典推导式与生成器表达式（Codex round-4 MEDIUM-1
+    实测：两个 ``lambda`` 分别包住 hook 与注册、在首次预检之后才调用，旧断言看不到 ``def``
+    因而放行，两个顺序门双双变绿，而真实事件是 ``precheck → hook → register``）。
+
+    ⛔ **这条前置条件封的是「本作用域内可见的延迟执行体」，不是「顺序判断从此可靠」。**
+    AST 看不穿一次**调用**背后的函数体，所以下面这些仍是**门未覆盖的路径**，如实登记而不是
+    假装封死（Codex round-4 MEDIUM-1 / round-5 逐条实测）：调用一个**模块级** helper 而它体内
+    做了提前预检；``functools.partial(...)()``；``exec`` / ``eval`` 字符串；
+    ``type("X", (), {...})()`` 这类**内置 type() 动态建类**（⚠️ 它**没有** ``ClassDef`` 节点，
+    因此**不在**上面的拒绝面内 —— 本卡 round-4 自述曾说它「已因 class 体翻红」，那是把用例换成了
+    ``class Early: ...`` 之后得出的结论，**对原例不成立**，Codex round-5 LOW-2 更正）；
+    把模块级函数直接绑成类属性。
+
+    ⛔ **已知但本卡未修的一条（MEDIUM，移交下一张 W4 卡）**：PEP 695 的 ``type X = <expr>``
+    （``ast.TypeAlias``，CPython 3.12 起**惰性求值**，读 ``__value__`` 才跑）是**本作用域内
+    AST 可见**的延迟执行体，按本函数自己的口径**应当**进拒绝面，但当前实现漏了它。
+    Codex round-5 MEDIUM-1 在本机 Python 3.14.4 实测：
+
+    .. code-block:: python
+
+        type H = _install_audit_hook()
+        type R = register_final_accounting()
+        assert_neo4j_target_blocked()
+        H.__value__; R.__value__          # 真实求值序：precheck → hook → register
+
+    下标读成 ``0/1/2`` ⇒ 两个顺序门**双双假绿**。修法是一行：把 ``ast.TypeAlias`` 加进下面的
+    收集分支。**本卡不改**——D-15 轮次上限 5 已用尽（末轮绑最终 HEAD 且 BLOCKER/HIGH = 0），
+    审后再改代码须再送一轮，故按 MEDIUM「登记不阻断」移交，见验收单 §四。
+    ⚠️ 特别更正一句我曾写下、已被证伪的话：「挪到模块级函数里顺序门就数得对」——**不成立**，
+    模块级 helper 正是上面第一条反例。顺序门证明的是 ``install()`` **字面语句序列**里那几个
+    **直接具名调用**的先后，行为面的证明在子进程探针
+    ``guard-install-order-precheck-is-guarded``，不在本门。
+
+    真实的 ``install()`` 里这些一个都没有（本断言即其常驻证明），所以这条前置条件对现状零影响；
+    哪天真要往里加，本门会当场红，请**人工**确认 hook/结算器/预检的真实顺序。
+
+    方向上这是**收紧**不是放宽：更多输入判红，没有任何输入因此变绿。
+    """
+    deferred: list[str] = []
+    for node in ast.walk(scope):
+        if node is scope:
+            continue
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            deferred.append(f"def {node.name}")
+        elif isinstance(node, ast.ClassDef):
+            deferred.append(f"class {node.name}")
+        elif isinstance(node, ast.Lambda):
+            deferred.append("lambda")
+        elif isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+            deferred.append(type(node).__name__)
+    assert not deferred, (
+        f"{scope.name}() 里出现了延迟执行体 {sorted(set(deferred))} —— 顺序类判据**拒绝猜**："
+        "谁在什么时候真的执行了它，需要解析调用绑定才答得出，纯 AST 判不了（本卡四轮外审逐一"
+        "打出过假绿，见本函数 docstring）。请人工确认 hook/结算器/预检的真实顺序；"
+        "行为面的证明在子进程探针 guard-install-order-precheck-is-guarded。"
+    )
 
 
 class TestSettlementAtomicity:
@@ -1198,8 +1509,16 @@ class TestSettlementAtomicity:
         确实不再取锁，而不是让白名单悄悄变宽。
 
         受检方法也从源码导出（凡是有 ``with self._lock:`` 的都算），不写死名单。
+
+        ⚠️ 再收紧（CARD-W4-4b7-TAIL / UAT-CARD-W4-4b MEDIUM-1）：只认字面
+        ``self.<name>(...)`` 时，``f = self.ledger`` 之后 ``f()``、以及
+        ``getattr(self, "ledger")()`` 这两种**间接**形态从门底下溜过去 —— 它们同样会
+        再取一次不可重入的 ``self._lock``。现在 :func:`_indirect_self_method_calls`
+        与直接调用一起过白名单。识别面仍是**有限**的（动态属性名、更深的包装没覆盖），
+        所以本门证明的是「这几类写法进不来」，不是「临界区一定不嵌套取锁」。
         """
         allowed = _locked_helper_names()
+        known_methods = _guard_state_method_names()
         assert allowed == {"_unaccounted_locked", "_ledger_locked"}, (
             f"_GuardState 的 _locked 方法集漂移了：{sorted(allowed)} —— "
             "新增的『已持锁』helper 会自动进白名单，先确认它体内确实不再取 self._lock"
@@ -1216,10 +1535,18 @@ class TestSettlementAtomicity:
                 ):
                     continue
                 checked.append(method.name)
-                for name in _direct_self_calls(critical):
+                seen: list[tuple[str, str]] = [(name, "直接") for name in _direct_self_calls(critical)]
+                seen += [
+                    (name, "间接（别名赋值 / 字面 getattr）")
+                    for name in _indirect_self_method_calls(critical, known_methods)
+                ]
+                for name, form in seen:
                     assert name in allowed, (
-                        f"{method.name} 的临界区里调了 self.{name}() —— 不在已持锁 helper "
-                        f"白名单 {sorted(allowed)} 内；_lock 不可重入，调了就是死锁"
+                        f"{method.name} 的临界区里{form}调了 self.{name}() —— 不在已持锁 "
+                        f"helper 白名单 {sorted(allowed)} 内，这是一次未经确认的持锁调用。"
+                        "_lock 不可重入，须确认它体内不再取 self._lock：真取就是死锁（atexit "
+                        "期表现为进程挂住）；确认不取的，请改成 _locked 结尾让白名单导出得到它，"
+                        "别让判据靠猜"
                     )
         assert checked, "一个 with self._lock 都没找到 —— 判据失去锚点，先核 _GuardState"
 
@@ -1523,10 +1850,17 @@ class TestInstallOrder:
         ⚠️ 下标只数**可达**语句（``_live_called_names``，Codex round-1 MEDIUM-7）：旧写法
         用 ``_called_names`` 走 ``ast.walk``，于是 ``if False: _install_audit_hook()``
         这条死代码也算数 —— 把诱饵摆在前面、真调用挪到预检之后，旧门照样绿。
+
+        ⚠️ 剪枝清单已扩（CARD-W4-4b7-TAIL / UAT-CARD-W4-4b MEDIUM-3）：只认字面恒假时，
+        ``if True: pass`` 的 **死 else**、``return`` / ``raise`` / ``break`` / ``continue``
+        **之后**的语句、以及**从未被提名的局部函数体**里的诱饵照样算「可达」，顺序还是能
+        被读反。四类剪枝的确切边界与保守方向见 :func:`_live_called_names` 的 docstring
+        —— 那里是清单本身，这里不复写，免得两份手抄清单各自漂移。
         """
         node = _fn_ast(guard.install)
+        _refuse_to_guess_on_deferred_execution(node)
         hook_at = precheck_at = None
-        for index, stmt in enumerate(node.body):
+        for index, stmt in enumerate(_reachable_prefix(node.body)):
             names = _live_called_names(stmt)
             if hook_at is None and "_install_audit_hook" in names:
                 hook_at = index
@@ -1560,8 +1894,9 @@ class TestInstallOrder:
         ``guard-partial-install-settles-late-connection``。
         """
         node = _fn_ast(guard.install)
+        _refuse_to_guess_on_deferred_execution(node)
         precheck_at = register_at = hook_at = None
-        for index, stmt in enumerate(node.body):
+        for index, stmt in enumerate(_reachable_prefix(node.body)):
             names = _live_called_names(stmt)
             if precheck_at is None and "assert_neo4j_target_blocked" in names:
                 precheck_at = index
@@ -1781,6 +2116,69 @@ class TestFinalizeRaceSeam:
         assert any(any(_contains(stmt, seam_call) for stmt in branch.body) for branch in guarded), (
             "注入点不在受拦分支内 —— 它会对每一次 socket.connect 触发，而它存在的理由只是在『即将记账』那一点制造交错"
         )
+
+    def test_seam_runs_exactly_once_on_a_blocked_attempt(self, isolated_state, monkeypatch):
+        """**行为面**：合成一次受拦事件，注入点必须恰好跑 1 次；非受拦时 0 次。
+
+        ⚠️ 为什么结构门不够（CARD-W4-4b7-TAIL / UAT-CARD-W4-4b MEDIUM-2）：
+        ``test_seam_is_called_unconditionally_not_inside_a_condition`` 的四条子规则**全是
+        结构性**的 —— 它们问「这条调用语句摆在哪儿」，问不出「它到底跑没跑」。于是
+
+        .. code-block:: python
+
+            while True:
+                break
+                _finalize_race_seam_hook()   # 死语句：break 之后
+
+        这种写法结构上样样合格（独立 ``Expr`` / 在受拦分支 body 里 / 祖先链无恒假分支 /
+        不进任何判据），注入点却**永远不执行** —— 等于被静悄悄摘掉，而 W4 的交错复现
+        全靠它。把注入点塞进一个从不被调用的局部函数体里是同一类骗法。
+
+        本门不猜结构，直接数：把注入点换成计数包装器（包装器仍调原函数，保持惰性语义），
+        用 ``isolated_state`` 隔离账本后合成 ``sys.audit`` 事件 —— 不建立任何真实连接。
+
+        两个方向缺一不可：受拦时**恰好 1 次**（不是 ≥1：多跑一次说明它被挪到了会重复
+        执行的位置），非受拦时**0 次**（它存在的理由只是在「即将记账」那一点制造交错，
+        不是给每一次 ``socket.connect`` 加钩子）。
+
+        与 ``test_throwing_seam_cannot_skip_accounting`` 同一条合成路径、互补：那条证
+        「注入点抛异常不影响记账」，这条证「注入点确实在那条路径上、且只在那条路径上」。
+        """
+        import sys as _sys
+
+        unblocked_port = 5432
+        assert unblocked_port not in guard.BLOCKED_PORTS, (
+            f"{unblocked_port} 落进了受拦集合 {sorted(guard.BLOCKED_PORTS)} —— "
+            "本门的『非受拦』那一半失去对照，换一个不在集合里的端口"
+        )
+
+        calls: list[str] = []
+        original = guard._finalize_race_seam_hook
+
+        def counting() -> None:
+            calls.append("seam")
+            original()
+
+        monkeypatch.setattr(guard, "_finalize_race_seam_hook", counting)
+
+        # ① 非受拦端口：连拦都不拦，注入点更不该被碰
+        _sys.audit("socket.connect", None, ("127.0.0.1", unblocked_port))
+        assert calls == [], (
+            f"到非受拦端口 {unblocked_port} 的一次尝试也触发了注入点（{len(calls)} 次）—— "
+            "它被挪出了受拦分支，会对每一次 socket.connect 触发"
+        )
+        assert isolated_state.total == 0, "非受拦端口被记了账 —— 受拦判据的范围变宽了"
+
+        # ② 受拦端口：恰好一次，且记账照做
+        with pytest.raises(RuntimeError, match=guard.BLOCK_REASON):
+            _sys.audit("socket.connect", None, ("127.0.0.1", 7691))
+
+        assert len(calls) == 1, (
+            f"受拦路径上注入点被执行了 {len(calls)} 次，应为 1 —— 0 次说明它虽然写在受拦"
+            "分支里却跑不到（死语句 / 未被调用的局部函数体 / 提前 return），结构门看不见"
+            "这种摘除；>1 次说明它被挪到了会重复执行的位置"
+        )
+        assert isolated_state.blocked == 1, "受拦记账没做 —— 先核 _audit_hook 的 record() 路径"
 
     def test_seam_replacement_is_detected_as_drift(self, monkeypatch):
         """有人拿注入点当旁路 ⇒ 下一个用例边界就 GuardDrift。"""

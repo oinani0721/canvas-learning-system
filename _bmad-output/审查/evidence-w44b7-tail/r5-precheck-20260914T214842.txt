@@ -1,0 +1,35 @@
+# r5 前复检  2026-09-14T21:48:42+0800
+--- 跑器参数纪律（含 Codex r4 LOW-2 的空串取值）---
+--nonsense-arg                     → rc=2  | unknown arg: --nonsense-arg  (accepted: --gate --phase --prereq -h/--help)
+--phase bogus                      → rc=2  | unknown arg: --phase bogus  (accepted values: before after clean all)
+--help --phase bogus               → rc=2  | unknown arg: --phase bogus  (accepted values: before after clean all)
+--phase --nonsense-arg --help      → rc=2  | unknown arg: --nonsense-arg  (它出现在 --phase 的取值位置；取值不得以 - 开头)
+--phase                            → rc=2  | missing value for --phase
+--prereq '' (r4 LOW-2)             → rc=2  | unknown arg: <empty>  (--prereq 的取值不得为空串 —— 空 PREREQ 会让 git show ':path' 读 index  而不是指定的前提提交，Codex round-4 LOW-2)
+--help（验伪锚，期望 0）                   → rc=0
+
+--- (g) -k live_port_guard ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============== 152 passed, 5206 deselected, 10 warnings in 3.78s ===============
+--- 反向锚 + 三个硬化门 ---
+collecting ... collected 7 items
+tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_seam_untouched_passes_liveness PASSED [ 14%]
+tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_seam_replacement_is_detected_as_drift PASSED [ 28%]
+tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_throwing_seam_cannot_skip_accounting PASSED [ 42%]
+tests/unit/test_live_port_guard_contract.py::TestFinalizeRaceSeam::test_seam_runs_exactly_once_on_a_blocked_attempt PASSED [ 57%]
+tests/unit/test_live_port_guard_contract.py::TestInstallOrder::test_audit_hook_is_installed_before_the_target_precheck PASSED [ 71%]
+tests/unit/test_live_port_guard_contract.py::TestInstallOrder::test_final_accounting_is_registered_before_the_precheck PASSED [ 85%]
+tests/unit/test_live_port_guard_contract.py::TestSettlementAtomicity::test_settlement_path_never_nests_the_lock PASSED [100%]
+======================== 7 passed, 10 warnings in 0.77s ========================
+--- (e) docstring 纯注释核 ---
+ast.dump 长度 = 1437 1437  逐字节相同 = True  docstring 变了 = True
+[OK]
+新文案(期望1) = 1  旧文案(期望0) = 0
+--- 残留已删机制的文案（期望 0）---
+local_funcs/expand_call/在途集合 命中 = 0
+被证伪的『模块级…数得对』命中 = 0
+--- ruff ---
+All checks passed!
+lint_rc=0
+2 files already formatted
+format_rc=0

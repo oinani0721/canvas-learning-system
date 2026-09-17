@@ -1,0 +1,32 @@
+# 验收单存档引用复核（复跑：排除已登记移出的残档 + 本文件自身）  2026-09-14T22:03:11+0800
+已登记主动移出树外的残档（§四.11 / §四.12）：ruff-and-territory-20260914T205124.txt whitelist-negctl-r3-20260914T212035.txt seam-negctl-r3-20260914T212035.txt order-negctl-r3-20260914T212035.txt
+缺  -ruff-and-territory-20260914T205124.txt
+OK  codex-all-rounds-repro-verify-20260914T213639.txt
+OK  codex-all-rounds-repro-verify-r5-20260914T214830.txt
+OK  final-gates-20260914T220151.txt
+OK  guard-import-and-ruff-20260914T204302.txt
+OK  guard-selftest-20260914T204935.txt
+OK  indirect-self-calls-probe-20260914T204553.txt
+OK  live-called-names-pruning-probe-20260914T204350.txt
+OK  minute-zero-20260914T203810.txt
+OK  negctl-unknown-arg-20260914T204207.txt
+OK  order-negctl-20260914T204828.txt
+跳过（已登记移出）: order-negctl-r3-20260914T212035.txt
+OK  order-negctl-r5-20260914T214915.txt
+OK  publish-ledger-docstring-ast-20260914T204219.txt
+跳过（已登记移出）: ruff-and-territory-20260914T205124.txt
+OK  ruff-zsh-array-20260914T205153.txt
+OK  seam-negctl-20260914T204736.txt
+OK  seam-negctl-r5-20260914T214915.txt
+OK  territory-gate-20260914T205637.txt
+OK  unit-close-20260914T205114.txt
+OK  unit-close-diff-20260914T205753.txt
+OK  unit-close-diff-r3-20260914T213110.txt
+OK  unit-close-r3-20260914T212532.txt
+OK  unit-open-20260914T203839.txt
+OK  unit-open-diff-20260914T204610.txt
+OK  whitelist-negctl-20260914T204641.txt
+OK  whitelist-negctl-r5-20260914T214915.txt
+miss=1（0 = 引用全部在位）
+--- 0 字节存档（排除正在写的本文件）---
+（无输出 = 干净）
