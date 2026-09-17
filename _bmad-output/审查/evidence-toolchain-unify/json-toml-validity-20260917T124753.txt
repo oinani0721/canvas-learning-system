@@ -1,0 +1,9 @@
+=== 裁判5 (g) JSON / TOML 合法性 @ 20260917T124753 ===
+json ok
+json_rc=0
+toml ok
+toml_rc=0
+parsed root ruff.toml lint.select = ["E9", "F63", "F7", "F82"]
+parsed line-length = 120
+has target-version: False
+rc=0

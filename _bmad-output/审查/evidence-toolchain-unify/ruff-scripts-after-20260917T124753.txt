@@ -1,0 +1,4 @@
+24	    	invalid-syntax
+ 1	F821	undefined-name
+Found 25 errors.
+rc=1

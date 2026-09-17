@@ -1,0 +1,24 @@
+=== 裁判4 (f) lefthook 版本三处核(改后) @ 20260917T124753 ===
+--- (1) 残留 range 判据: grep -rnF '"lefthook": "^1.6.0"' 两文件 -> 期望 0 命中 ---
+grep_rc=1 (1=无命中,符合期望)
+--- (2) package.json exact ---
+19:    "lefthook": "1.13.6"
+--- (3) package-lock 声明 range ---
+14:        "lefthook": "1.13.6"
+--- (4) package-lock resolved 未动 ---
+1491:      "resolved": "https://registry.npmjs.org/lefthook/-/lefthook-1.13.6.tgz",
+--- (5) package-lock node_modules/lefthook version 字段 ---
+    "node_modules/lefthook": {
+      "version": "1.13.6",
+      "resolved": "https://registry.npmjs.org/lefthook/-/lefthook-1.13.6.tgz",
+      "integrity": "sha512-ojj4/4IJ29Xn4drd5emqVgilegAPN3Kf0FQM2p/9+lwSTpU+SZ1v4Ig++NF+9MOa99UKY8bElmVrLhnUUNFh5g==",
+--- (6) runner-of-record: 裸 lefthook version (R-B14-1) ---
+2.1.6
+lefthook_rc=0
+--- (7) which lefthook ---
+/opt/homebrew/bin/lefthook
+--- (8) select 行与 backend/ruff.toml 逐字同? ---
+root   : 40:select = ["E9", "F63", "F7", "F82"]
+backend: 10:select = ["E9", "F63", "F7", "F82"]
+逐字相同: YES
+rc=0

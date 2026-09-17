@@ -1,0 +1,21 @@
+=== (e) before/after 唯一差断言 @ 20260917T124809 ===
+BEFORE_FILE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-toolchain-unify/ruff-scripts-before-20260917T124705.txt
+AFTER_FILE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-toolchain-unify/ruff-scripts-after-20260917T124753.txt
+--- diff before after (只允许 F821 一行由无到有 + Found 24->25) ---
+1,2c1,3
+< 24		invalid-syntax
+< Found 24 errors.
+---
+> 24	    	invalid-syntax
+>  1	F821	undefined-name
+> Found 25 errors.
+diff_rc=1 (1=有差异,预期)
+--- 逐条计数对照 ---
+before invalid-syntax 计数行 : 24		invalid-syntax
+after  invalid-syntax 计数行 : 24	    	invalid-syntax
+before grep -cF F821 (期望0) = 0
+after  grep -cF F821 (期望1) = 1
+before grep -cF 'Found 24 errors' = 1
+after  grep -cF 'Found 25 errors' = 1
+# 判读: invalid-syntax 两边都是 24(解析器层, 与 select 无关); 唯一差 = F821 由不报变报
+rc=0

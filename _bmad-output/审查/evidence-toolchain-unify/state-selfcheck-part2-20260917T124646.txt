@@ -1,0 +1,40 @@
+=== 裁判1b: status 拆证 + §〇 两条措辞复核 @ 20260917T124646 ===
+--- git status --porcelain (raw) ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-toolchain-unify/"
+(end raw)
+--- tracked-file dirt (--untracked-files=no, expect empty) ---
+(end tracked)
+--- untracked paths outside this card's evidence dir (expect empty) ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-toolchain-unify/state-selfcheck-20260917T124628.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-toolchain-unify/state-selfcheck-part2-20260917T124646.txt"
+(end outside)
+# 判读: 唯一脏项 = 本卡自己的 evidence 目录(裁判1 的 tee 产物); 跟踪文件零改动 => T8-D 收工态干净
+--- §〇 复核: python-lint 是否含 ruff format --check ---
+    # 真正拦住 scripts/ 的是下面的 `ruff format --check`。开 scripts/ 必错级
+    # 规则集(对齐 backend/ruff.toml 的 E9,F63,F7,F82) = 另一张卡, 已登台账。
+    python-lint:
+      glob: "{backend,src,scripts}/*.py"
+      run: |
+        # Activate backend venv for ruff
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+        echo "[Python] Running ruff lint..."
+        ruff check {staged_files} 2>&1 || exit 1
+        echo "[Python] Lint OK."
+        echo "[Python] Checking format..."
+        ruff format --check {staged_files} 2>&1 || {
+          echo "[Python] Format check FAILED! Fix: ruff format {staged_files}"
+          exit 1
+        }
+        echo "[Python] Format OK."
+
+    # --- Python typecheck: pyright on staged files ---
+    # HONESTY CONTRACT (CARD-DEBT-hook-pyright, BATCH-2026-09-04-第十批):
+    # pyright is NOT a declared dependency of this repo (absent from
+    # backend/requirements*.txt, backend/pyproject.toml and backend/.venv);
+--- grep -n 'ruff format' lefthook.yml ---
+113:    # 现行配置**不报**。(不写死行号: 它已被本卡 commit-2 的 ruff format
+115:    # 真正拦住 scripts/ 的是下面的 `ruff format --check`。开 scripts/ 必错级
+126:        ruff format --check {staged_files} 2>&1 || {
+127:          echo "[Python] Format check FAILED! Fix: ruff format {staged_files}"
+grep_rc=0
+rc=0

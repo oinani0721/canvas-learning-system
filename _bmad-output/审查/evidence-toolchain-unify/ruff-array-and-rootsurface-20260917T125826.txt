@@ -1,0 +1,32 @@
+=== 裁判6 ruff zsh 数组判据 (协议 §2.2) @ 20260917T125826 ===
+files=0
+# 期望 files=0: 本卡零 backend py 改动, 该判据对本卡不适用(落档说明), 故不跑 ruff check -- ${F[@]}
+--- 验伪锚(证判据形状可用, 只读不入库): 对已知必红文件显式 --select ---
+[anchor-1] F821 on scripts/validate-source-citations.py (已知含 F821):
+1	F821	undefined-name
+Found 1 error.
+anchor1_rc=1
+[anchor-2] 同一文件 --select F401 (对照: 该文件无 F401 时 rc=0, 证锚点不是恒红):
+anchor2_rc=0
+# 教训对齐: F401 锚在 backend/ 恒不触发(只开 4 条必错级); 故这里用显式 --select 且给出正/负两侧
+
+=== 附加普查(回答 Codex 问题③): root ruff.toml 治理面 = 全部非 backend tracked .py ===
+root_surface_files=288
+--- 按顶层目录分布 ---
+ 129 "_bmad-output
+  94 scripts
+  41 tests
+  10 _bmad-archive
+   8 canvas-vault
+   3 .gdr
+   2 docs
+   1 tools
+--- 新配置下对该面跑 --statistics (invalid-syntax = 改前就可见; 其余规则码 = 本卡新揭出) ---
+129	E902	io-error
+ 24	    	invalid-syntax
+  1	F821	undefined-name
+Found 154 errors.
+surface_rc=1
+--- lefthook python-lint glob 实际覆盖面 {backend,src,scripts}/*.py 中的 src/ ---
+src/ 顶层 .py 计数 =        0
+rc=0

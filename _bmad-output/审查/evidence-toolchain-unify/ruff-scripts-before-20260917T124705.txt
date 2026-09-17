@@ -1,0 +1,3 @@
+24		invalid-syntax
+Found 24 errors.
+rc=1

@@ -1,0 +1,17 @@
+=== (i) tests/unit 目录级 nodeid diff @ 20260917T125806 ===
+RUN=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools/_bmad-output/审查/evidence-toolchain-unify/unit-close-20260917T124820.txt
+BASE=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b14/unit-red-baseline-08100483.txt
+--- 汇总行 ---
+= 35 failed, 5161 passed, 48 skipped, 23 xfailed, 171 warnings, 29 errors in 539.59s (0:08:59) =
+--- 末行 rc ---
+rc=1
+base.nodeids 行数 =       64
+close.nodeids 行数 =       64
+--- diff base close (只允许 '<' 行; 预期空) ---
+diff_rc=0 (0=完全相同)
+新增(>)行数 = 0
+消失(<)行数 = 0
+--- 验伪锚: 证 grep -E '^(FAILED|ERROR) tests/' 能从 RUN 命中已知正例 ---
+FAILED tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception
+FAILED tests/unit/test_agent_service_extraction.py::TestDebugAgentResponseLogging::test_config_has_debug_agent_response_field
+rc=0
