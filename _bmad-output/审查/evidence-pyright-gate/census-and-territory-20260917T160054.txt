@@ -1,0 +1,53 @@
+=== (e) PYRIGHT-TAIL 清单指向 T8-F census ===
+census 文件 = _bmad-output/审查/2026-09-13-PYRIGHT-TAIL-census.md
+文件在否: yes
+确是 TAIL census（grep -c -e PYRIGHT-TAIL -e TAIL，期望 >=1）: 3
+--- 验伪锚（独立于被测词的已知不存在项，期望 0）---
+grep -c 'ZZZ-NOT-A-REAL-TOKEN': 0
+
+--- census 里的 D-35「只 census 不改」三条（供验收单登记）---
+54:## 四 第十五批立卡（行为变化项，D-35：本卡只登记不改）
+61:| T-new-2 | `backend/app/services/error_classifier.py:202`（`created_at=` 的 `# pyright: ignore[reportCallIssue]`，注释 `:197-201`） | `Misconception` 在 P0-4 已把字段改名 `misconception_created_at`，本处仍传旧名；pydantic `extra='ignore'` ⇒ 传入值被**静默丢弃**、回落 `default_factory` `混合命中` **1** | `定性`：有 | **第十五批立卡**（改参数名 = 行为变化，D-35） |
+67:| T14 | `backend/app/clients/provider_factory.py:260` / `:265`（注释 `:256-259`） | `config.py` 无 `OPENAI_API_KEY` 字段 + `extra="ignore"` ⇒ `hasattr` 恒 False、**openai 分支恒不激活** `混合命中` **7**（含 `:210` 的 `getattr` 默认空串路径） | **3** | **第十五批立卡**（加字段 = 行为变化，D-35） |
+
+--- census 条目数概览 ---
+31:| F-1 | `pyrightconfig.json:4`（`include` 的 `"src"` 条目）+ `:48` 旧注释 | 死配置：`git ls-files src` = **0**，该 include 项匹配 0 文件 | — | — | **本批改(T8-F)** ✅ 已删 `include` 里的 src 条目 + `:48` 注释改为「已清除」。移除后 pyright 分析文件数**实测不变**（受控两跑 `filesAnalyzed` 均 **305**，含控制组，见 §十.2）⇒ `app` 仍 0 errors |
+32:| F-2 | `backend/app/dependencies.py:1035`（行尾 `# pyright: ignore[reportArgumentType]`）+ `:1031-1033` 陈旧注释块 | 冗余 ignore：U1 已把 `canvas_service.py:69` 改成 `canvas_base_path: Optional[str] = None`，该 ignore 随即被 pyright 自曝 | — | — | **本批改(T8-F)** ✅ 先红自证 `:1035:63 - warning: Unnecessary "# pyright: ignore" rule: "reportArgumentType" (reportUnnecessaryTypeIgnoreComment)` = 1 → 删后 = 0，`app` warnings 81→80 |
+33:| F-3 | `backend/app/services/review_service.py:1240` 与 `:2135-2136` | 注释过宽断言（U1 §二十.2 M-2）：原写「生产零调用方」「传递性零曝光」 `调用式` **0** —— `.generate_verification_canvas(` 在 `backend/app` 的唯二命中是 `dependencies.py:301` 的 docstring 示例块 + 本条注释自身 | `backend/tests` 命中 **15**（全为 mock 用例） | **本批改(T8-F)** ✅ 改为「未发现直接生产调用(grep + AST 口径), 动态可达性未证」/「传递性曝光面同样未证(不等于零曝光)」 |
+34:| F-4 | `backend/app/services/canvas_service.py:341` | 注释断言不成立（U1 §二十.2 L-1）：原写「落地路径逐字不变」 | `_trigger_memory_event(:264)` 在 `_memory_client is None` 时提前 return ⇒ `:342` 的 assert 生产不可达 | — | **本批改(T8-F)** ✅ 改为「走同一 fallback 分支; 但 assert 无消息 ⇒ `f"...: {e}"` 的原因文本会变空, 非逐字不变(生产不可达, 仅影响日志文本)」 |
+35:| F-5 | `backend/app/services/exam_service.py:80-82`（改后 `:80-85`） | 注释挂载点不精确（U2 r3 L1）：原写「由 exam_service_ext.py **模块顶层的猴子补丁挂载**」 | 实测赋值在 `exam_service_ext.py` 的 `attach_to_exam_service()` **函数体内**（`:956-966`，def `:932`），由该模块顶层 `:970` 的调用执行 | — | **本批改(T8-F)** ✅ 改为函数体内 + 顶层调用的准确表述，并附一句 D-29 crossover 说明 |
+36:| F-6 | `backend/app/services/multimodal_service.py:310` `img.thumbnail((100, 100), Image.Resampling.LANCZOS)` | L-3：commit message 里「Pillow 9.1 起弃用」的说法应更正（Pillow 9.4 已**撤销** `Image.LANCZOS` 的弃用，本次替换是为对齐 type stub 的等值替换） `混合命中` **1**（该行本身） | **0** | **只登记（本卡零代码改动）**：该行**无代码注释可改**（`:318-319` 只是 "Pillow not installed" 日志串），commit message 是不可变历史 ⇒ 仅在本 census 更正事实，**不改任何代码行** |
+47:| T-new-4 | `backend/app/core/background_task_manager.py`（`TASK_CLEANUP`） | 行为面 | **本批其他卡 → T5-A** |
+48:| T-EDGES | `backend/app/api/v1/endpoints/edges.py` | 行为面 | **本批其他卡 → T5-B** |
+49:| T-SWITCHVAULT | `backend/app/mcp/infra_tools.py` | 行为面 | **本批其他卡 → T5-C** |
+50:| T-UNREACH | `backend/app/api/v1/endpoints/boards.py` / `board_manifest_tools.py` | 死分支 | **本批其他卡 → T5-E**（已于 2026-09-17 收官，终审 `802f05ca`） |
+60:| T-new-1 | `backend/app/services/wikilink_graph_service.py:325`（注释 `:321-322`） | `self._vault.get_source_path(...)` 恒 `AttributeError`，被 `except Exception` 静默降级 `混合命中` **2**（1 调用 + 1 注释） | **1** | **第十五批立卡**（行为变化：补真实取路径 = 改降级行为） |
+61:| T-new-2 | `backend/app/services/error_classifier.py:202`（`created_at=` 的 `# pyright: ignore[reportCallIssue]`，注释 `:197-201`） | `Misconception` 在 P0-4 已把字段改名 `misconception_created_at`，本处仍传旧名；pydantic `extra='ignore'` ⇒ 传入值被**静默丢弃**、回落 `default_factory` `混合命中` **1** | `定性`：有 | **第十五批立卡**（改参数名 = 行为变化，D-35） |
+62:| T-new-3 | `backend/app/services/agent_routing_engine.py:559`（注释 `:555-556`） | `from app.core.litellm_config import get_litellm_config` 恒 `ImportError` ⇒ 降级写死模型 `混合命中` **3**（import + 调用 + 注释，无定义处） | **0** | **第十五批立卡**（补实现 = 改选模型行为） |
+63:| T-new-5 | `backend/app/services/batch_orchestrator.py:506` 与 `:569`（两处 `# pyright: ignore[reportArgumentType]`） | `CancelledError` 被当业务结果追加进结果列表 `混合命中` **2** | `定性`：有 | **第十五批立卡**（改 = 改失败语义） |
+64:| T-new-6 | `backend/app/services/intelligent_parallel_service.py:652`（注释 `:647`；同族 `:659`） | `agent_type=` 传 str 未转换 `混合命中` **1** | `定性`：有 | **第十五批立卡**（加转换 = 行为变化） |
+65:| T-new-7 | `backend/app/services/learning_context_service.py:205`（`# pyright: ignore[reportCallIssue]`，注释 `:199`） | ⛔ **活路径**：`search_memories(node_id=..., limit=...)` 缺必填 `query` ⇒ 恒 `TypeError`，被 `except` 接住只记 debug ⇒ **该数据源从未供过数据** `定性`：**活路径** —— `exam_quick.py:116` → `_fetch_tips_and_errors(:121)` → 本行；另 `learning_context_service.py:320` 亦入 | **2** | **第十五批立卡（优先级最高）**：补 `query=` = 改出题输入 ⇒ 须产品裁定 |
+66:| T-new-8 | `backend/app/services/multimodal_service.py:1427`（`# pyright: ignore[reportMissingImports]`，注释 `:1424`） | `from agentic_rag.embedding.embedding_service import ...`；`backend/lib/agentic_rag/` 下无 `embedding` 子包（`extraPaths` 也解不了）⇒ 运行期恒走 `except ImportError`、**向量搜索永久关闭恒降级文本搜索** `混合命中` **1**（死 import 本身） | **0** | **第十五批立卡**（退役该分支或补实现；G-PIPE 同族） |
+79:| T-GATE-GAP | 方法论（U2 §五） | 「绑定位置改变语义不在任何自动门覆盖面」= 门设计面 | **只登记** → 归协议 / T8-G / 第十五批 |
+表行数: 18
+
+=== (g) 地盘核：本卡车道树只动 _bmad-output ===
+# T8F(本卡 HEAD，Codex 前) = e45c55c74b1f56db9810a3c75befd29278b6f45d
+--- 注：本卡尚未 commit，故此刻与 HEAD 比的是「已提交面」；工作树改动见 status ---
+--- git status --porcelain（应只有 _bmad-output/审查/evidence-pyright-gate/ 下的新文件）---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-pyright-gate/"
+[status 结束]
+
+--- 地盘判据（⛔ ':(exclude)…' 不用 ':!…'）：工作树 vs HEAD，排除 _bmad-output，期望空 ---
+[diff 结束，上方应无输出]
+
+--- 地盘判据（含未跟踪文件）：ls-files --others --exclude-standard，排除 _bmad-output ---
+[未跟踪 结束，上方应无输出]
+
+--- 点名面：lefthook.yml / backend / pyrightconfig.json / .claude 期望空 ---
+[diff 结束，上方应无输出]
+
+--- 地盘判据验伪锚：':(exclude)…' 真的生效吗（不排除时应能看到 _bmad-output 的改动）---
+不加 exclude 的改动文件数（期望 >=1）:        0
+未跟踪文件数（不加 exclude，期望 >=1）:        6
+（两者 >=1 而上面带 exclude 的两条为空 => exclude 生效且本卡确实只动 _bmad-output）

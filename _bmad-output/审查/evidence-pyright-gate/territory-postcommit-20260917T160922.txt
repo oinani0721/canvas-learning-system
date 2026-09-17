@@ -1,0 +1,25 @@
+=== (g) 地盘 commit 后复核 + 空洞验伪锚补跑 ===
+# commit#1 = 96dc3c496dddfcc603e692e27492a3248f8ab655 ；T8-F 末 commit = e45c55c74b1f56db9810a3c75befd29278b6f45d
+
+--- 承重：T8-F末commit..HEAD 排除 _bmad-output 后为空（期望无输出）---
+[结束，上方应无输出]
+
+--- 点名面（lefthook.yml / backend / pyrightconfig.json / .claude）期望空 ---
+[结束，上方应无输出]
+
+--- 验伪锚补跑（commit 前此锚结构上恒空，现已有效）---
+不加 exclude 的改动文件数（期望 >=1，证明 diff 本身看得见本卡改动）:       10
+加 exclude 后的改动文件数（期望 0）:        0
+（前者 >=1 而后者 0 => exclude 真的生效，且本卡改动全在 _bmad-output）
+
+--- 改动文件清单（应全在 _bmad-output）---
+_bmad-output/审查/evidence-pyright-gate/census-and-territory-20260917T160054.txt
+_bmad-output/审查/evidence-pyright-gate/gate-pyright-20260917T155555.txt
+_bmad-output/审查/evidence-pyright-gate/gate-warn-attribution-20260917T155740.txt
+_bmad-output/审查/evidence-pyright-gate/lefthook-typecheck-block-20260917T160033.txt
+_bmad-output/审查/evidence-pyright-gate/protocol-2.3-close.patch
+_bmad-output/审查/evidence-pyright-gate/protocol-23-close-judges-20260917T155925.txt
+_bmad-output/审查/evidence-pyright-gate/unit-20260917T160110.txt
+_bmad-output/审查/evidence-pyright-gate/unit-diff-20260917T160613.txt
+_bmad-output/审查/prompts/codex-prompt-CARD-PYRIGHT-GATE.md
+_bmad-output/验收单/UAT-CARD-PYRIGHT-GATE-2026-09-17.md

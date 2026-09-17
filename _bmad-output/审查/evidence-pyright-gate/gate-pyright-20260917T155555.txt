@@ -1,0 +1,20 @@
+=== GATE: pyright app (绝对路径 + test -x 自证 + cwd=backend, R-B14-10) ===
+# P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+# pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-t8-tools
+# HEAD=e45c55c74b1f56db9810a3c75befd29278b6f45d
+# pyright version: pyright 1.1.411
+--- test -x 自证 ---
+pyright ok
+testx_rc=0
+0 errors, 80 warnings, 0 informations
+rc=0
+--- 验伪锚 probe: 坏文件（期望 error 数 >=1, rc=1）---
+1
+rc=1
+--- 对照输入 probe: 零错文件（期望 error 数 =0, rc=0；证明判据能翻转、不是恒真）---
+0
+rc=0
+--- 反例记录: grep -c 在坏文件上 ---
+1
+--- 反例记录: grep -c 在零错文件上（同样给 1 = 分不出报红与没报）---
+1
