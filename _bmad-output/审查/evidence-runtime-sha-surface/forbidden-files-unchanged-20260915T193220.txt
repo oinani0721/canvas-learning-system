@@ -1,0 +1,12 @@
+=== 禁改文件工作树 vs HEAD blob 逐字节核（应全 SAME） ===
+scripts/lifespan_isolation_guard_probes.py                 SAME
+scripts/lifespan_isolation_negative_control.py             SAME
+tests/unit/test_live_port_guard_contract.py                SAME
+tests/support/live_port_guard.py                           SAME
+tests/support/guard_plugin.py                              SAME
+tests/conftest.py                                          SAME
+tests/unit/conftest.py                                     SAME
+=== 验伪锚：本卡真改过的门应显示 SAME（已 commit），而一个临时改动会 DIFF ===
+门 SAME（已提交，工作树干净）
+=== git status --porcelain backend/（应空） ===
+(上面无输出 = 空)

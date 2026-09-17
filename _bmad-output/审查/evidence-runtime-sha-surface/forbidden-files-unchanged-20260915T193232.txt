@@ -1,0 +1,22 @@
+# 本份取代 forbidden-files-unchanged-20260915T193220.txt：那份的验伪锚太弱
+# （只又比了一次 SAME，没证明该判据能报出 DIFF）。旧存档保留不删。
+=== 禁改文件 工作树 vs HEAD blob 逐字节核（应全 SAME） ===
+scripts/lifespan_isolation_guard_probes.py                 SAME
+scripts/lifespan_isolation_negative_control.py             SAME
+tests/unit/test_live_port_guard_contract.py                SAME
+tests/support/live_port_guard.py                           SAME
+tests/support/guard_plugin.py                              SAME
+tests/conftest.py                                          SAME
+tests/unit/conftest.py                                     SAME
+=== 同上，但比 PREV(5fa2d401) blob —— 禁改文件仍应全 SAME（证明本卡没提交过它们的改动） ===
+scripts/lifespan_isolation_guard_probes.py                 SAME
+scripts/lifespan_isolation_negative_control.py             SAME
+tests/unit/test_live_port_guard_contract.py                SAME
+tests/support/live_port_guard.py                           SAME
+tests/support/guard_plugin.py                              SAME
+tests/conftest.py                                          SAME
+tests/unit/conftest.py                                     SAME
+=== ⛔ 验伪锚：同一判据对「本卡真改过的门」比 PREV blob 必须报 DIFF ===
+门 vs PREV = DIFF ✅（判据确实能分辨）
+=== git status --porcelain backend/（应空） ===
+(上面无输出 = 空)

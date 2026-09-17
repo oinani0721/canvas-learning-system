@@ -1,0 +1,6 @@
+tag=F1 rel=data/bug_log.jsonl exp=CHANGED exp_rc=1 got='RUNTIME-FILES: CHANGED' hits=1 rc=1
+tag=F2 rel=data/outbox/events.jsonl exp=CHANGED exp_rc=1 got='RUNTIME-FILES: CHANGED' hits=1 rc=1
+tag=F3 rel=app/data/vault_index_pending.jsonl exp=CHANGED exp_rc=1 got='RUNTIME-FILES: CHANGED' hits=1 rc=1
+tag=G1 rel=app/data/vault_index_pending__probe.jsonl exp=CHANGED exp_rc=1 got='RUNTIME-FILES: CHANGED' hits=1 rc=1
+POSCTL-SUMMARY bad=0
+rc=0

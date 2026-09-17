@@ -1,0 +1,8 @@
+[单下划线人手旁文件] rel=app/data/lancedb_pending_index_backup.jsonl exp=unchanged got='RUNTIME-FILES: unchanged' hits=1 rc=0
+[无分隔符的裸名] rel=app/data/lancedb_pending_index.jsonl exp=unchanged got='RUNTIME-FILES: unchanged' hits=1 rc=0
+[后缀不是.jsonl] rel=app/data/lancedb_pending_index__x.jsonl.old exp=unchanged got='RUNTIME-FILES: unchanged' hits=1 rc=0
+[备份后缀] rel=data/neo4j_memory.json.bak exp=unchanged got='RUNTIME-FILES: unchanged' hits=1 rc=0
+[SQLite-WAL边车] rel=data/llm_call_logs.db-wal exp=unchanged got='RUNTIME-FILES: unchanged' hits=1 rc=0
+[正锚-真命名空间形态] rel=app/data/lancedb_pending_index__probe.jsonl exp=CHANGED got='RUNTIME-FILES: CHANGED' hits=1 rc=1
+NARROWNESS bad=0
+rc=0

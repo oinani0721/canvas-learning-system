@@ -1,0 +1,8 @@
+[建库后] sha=e790ac54d502cfda… size=12288
+[①默认连接·只 SELECT] rows=1 sha=e790ac54d502cfda… 相同=True
+[②默认连接·再 SELECT] sha=e790ac54d502cfda… 相同=True
+[③只读 URI·SELECT] sha=e790ac54d502cfda… 相同=True
+[④验伪锚·真写入] sha=b0302d701f1d2cdb… 相同=False (期望 False)
+[⑤验伪锚·shasum==hashlib] True (期望 True)
+SQLITE-SHA-STABILITY: STABLE（只读不写 ⇒ 逐字节不变）
+rc=0

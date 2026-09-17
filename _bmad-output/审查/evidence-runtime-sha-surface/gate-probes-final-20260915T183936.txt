@@ -1,0 +1,6 @@
+绑定门 sha=f0858a154cb03c2899284b27060be6eecc0ca6f3493cf1620f451e4a5437e995
+  [ok ] runtime-glob-sidecar-excluded  rc=0  旁文件不在监视面（M14 收窄生效）
+  [ok ] runtime-glob-expansion-sorted  rc=0  glob 展开按字节序排好（且原始展开确实乱序 ⇒ 排序承重）
+  [ok ] runtime-legacy-journal-watched  rc=1  旧固定名仍在监视面（收窄没让它漏网）
+GATE-PROBES total=27 failed=0
+rc=0

@@ -1,0 +1,62 @@
+32:  ``vault_index_pending__<vault_key>.jsonl``，见 ``RUNTIME_FILE_GLOBS``。
+125:#: 与 tests/support/live_port_guard.py 的 BLOCK_REASON 保持一致。
+128:#: 与 backend/scripts/lifespan_isolation_runtime_sha.sh 的监视清单保持一致。
+133:RUNTIME_FILE_RELPATHS = [
+160:#:   * ``legacy_state_path()`` 的旧固定名 —— 进 :data:`RUNTIME_FILE_RELPATHS` 精确项；
+167:RUNTIME_FILE_GLOBS = [
+179:    fixed = [backend_dir / rel for rel in RUNTIME_FILE_RELPATHS]
+181:    for pattern in RUNTIME_FILE_GLOBS:
+196:    2. **旧固定名仍在监视面** —— M14 收窄之后它由 :data:`RUNTIME_FILE_RELPATHS`
+230:                "（它应由 RUNTIME_FILE_RELPATHS 的精确项承接，与文件是否存在无关）"
+271:        f"({len(RUNTIME_FILE_RELPATHS)} 固定项 + {len(RUNTIME_FILE_GLOBS)} glob；"
+--- 镜像清单内容 ---
+EXPECTED_REASON = "live Neo4j port connect attempted"
+
+#: 与 backend/scripts/lifespan_isolation_runtime_sha.sh 的监视清单保持一致。
+#:
+#: 第三项是 orchestrator journal 的**旧固定名**（``legacy_state_path``，G2-5 之前的
+#: 形态）。它以前靠 ``vault_index_pending*.jsonl`` 这条过宽 glob 顺带收进来；
+#: M14 收窄之后 glob 只认命名空间形态，旧名必须显式列成固定项，否则监视面变窄。
+RUNTIME_FILE_RELPATHS = [
+    "data/bug_log.jsonl",
+    "data/outbox/events.jsonl",
+    "app/data/vault_index_pending.jsonl",
+]
+
+#: ⛔ 不能写成固定文件名（2026-09-04 主干合并后当场抓到的假门）：CARD-G2-5
+#: （第七批）把 orchestrator 的 durable journal 从 ``app/data/vault_index_pending.jsonl``
+#: 改成了 vault 命名空间下的 ``vault_index_pending__<vault_key>.jsonl``
+#: （``app/core/vault_state_paths.py::namespaced_state_path``），而且 vault_key 还会
+#: 因 ``NAME_MAX`` 的**字节**预算被 hash 截断 —— 文件名根本不可预先硬编码。
+#: 后果分两个方向，都很难看：
+#:   * 本脚本这一侧：「变异态必须写至少一个运行时文件」的正证据锚点落空 → 负控
+#:     报 FAIL（fail-closed，还算诚实）；
+#:   * ``runtime_sha.sh`` 那一侧：断言的是 ``unchanged``，锚点落空直接变**假绿**。
+#: 所以按 stem 前缀 glob，新旧两种文件名一并收（旧的固定名也匹配）。
+#:
+#: 覆盖面刻意与合并前**等价**：只跟随这一个 journal 的改名，不新增监视项。
+#: 同族的 ``lancedb_pending_index__<key>.jsonl``（``lancedb_index_service.py:76``）
+#: 合并前就不在清单里，本卡只登记移交，不在此扩面（扩面会让 runtime_sha 变严，
+#: 属于另一张卡的范围决策）。
+#:
+#: ⛔ M14 收窄（CARD-W4-3b，2026-09-05）：上一版写成 ``vault_index_pending*.jsonl``，
+#: 比生产写侧**实际能产出的形态更宽** —— ``vault_index_pending_backup.jsonl``、
+#: ``vault_index_pending.jsonl.old.jsonl`` 这类**人手放的旁文件**也会被收进监视面，
+#: 于是「谁在 backend/app/data 里放了个同前缀备份」会让本门判 CHANGED（假红），
+#: 而门一旦以「会误报」出名，下一个人就会去放宽它。收窄成两条**可由写侧证明**的形态：
+#:   * ``legacy_state_path()`` 的旧固定名 —— 进 :data:`RUNTIME_FILE_RELPATHS` 精确项；
+#:   * ``namespaced_state_path()`` 的 ``<stem>__<safe_key>.jsonl`` —— 本 glob，
+#:     ``NAMESPACE_SEP`` 是双下划线（``vault_state_paths.py:36``），而
+#:     ``sanitize_vault_id`` 保证 key 只含 ``\\w``、压缩形态是 ``<前缀>-<sha12>``，
+#:     两者都不含 ``/``，所以 ``__*`` 恰好覆盖全部可能的 key。
+#: ⚠️ 收窄是**放松**方向，证据在验收单 §M14：全仓 20 个同前缀文件逐个列出，
+#: 收窄前后被收的集合**完全相同**（旧 glob 多收的那一类在真实树上一个都没有）。
+RUNTIME_FILE_GLOBS = [
+    "app/data/vault_index_pending__*.jsonl",
+]
+
+
+def runtime_files(backend_dir: Path) -> list[Path]:
+--- :271 计数文案 ---
+173:    """固定项 + glob 项。
+271:        f"({len(RUNTIME_FILE_RELPATHS)} 固定项 + {len(RUNTIME_FILE_GLOBS)} glob；"
