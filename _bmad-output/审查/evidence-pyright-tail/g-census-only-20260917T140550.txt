@@ -1,0 +1,24 @@
+### (g) census-only 零改动自证 —— pathspec 'backend/app/*.py'（⛔ 非 '**/'）
+backend/app/dependencies.py
+backend/app/services/canvas_service.py
+backend/app/services/exam_service.py
+backend/app/services/review_service.py
+  行数(期望 4) =        4
+  验伪锚 git ls-files -- 'backend/app/*.py' 命中顶层 dependencies.py (期望 1) = 1
+  反面对照 '**/' 写法对顶层文件的覆盖 (期望 0) = 0
+
+### (g) census 只登记的 12 个文件一个都不在 diff 里（期望全部 0）
+  multimodal_service.py              = 0
+  learning_context_service.py        = 0
+  rollback_service.py                = 0
+  exception_handlers.py              = 0
+  provider_factory.py                = 0
+  error_classifier.py                = 0
+  agent_routing_engine.py            = 0
+  batch_orchestrator.py              = 0
+  intelligent_parallel_service.py    = 0
+  wikilink_graph_service.py          = 0
+  exam_service_ext.py                = 0
+  neo4j_client.py                    = 0
+  endpoints/review.py = 0
+  验伪锚: 同管道查 canvas_service.py (本卡确改, 期望 >=1) = 1

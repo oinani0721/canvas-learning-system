@@ -1,0 +1,44 @@
+diff --git a/backend/app/dependencies.py b/backend/app/dependencies.py
+index 898e97c9..9ddeca80 100644
+--- a/backend/app/dependencies.py
++++ b/backend/app/dependencies.py
+@@ -1031,3 +1030,0 @@ async def build_batch_processing_deps():
+-    # 根因在 services/canvas_service.py 的 `canvas_base_path: str = None`(隐式
+-    # Optional) —— services/** 归 U1, 本卡不改。U1 修好后本行 ignore 会被
+-    # reportUnnecessaryTypeIgnoreComment 自曝, 阶段 2 复核时清理。
+@@ -1035 +1032 @@ async def build_batch_processing_deps():
+-        canvas_base_path=canvas_base_path,  # pyright: ignore[reportArgumentType]
++        canvas_base_path=canvas_base_path,
+diff --git a/backend/app/services/canvas_service.py b/backend/app/services/canvas_service.py
+index cd5eba11..4a2a009f 100644
+--- a/backend/app/services/canvas_service.py
++++ b/backend/app/services/canvas_service.py
+@@ -341 +341 @@ class CanvasService:
+-            # `except Exception` 同样接住 AssertionError → 落地路径逐字不变。
++            # `except Exception` 同样接住 AssertionError → 走同一 fallback 分支; 但 assert 无消息 ⇒ f"...: {e}" 的原因文本会变空, 非逐字不变(生产不可达, 仅影响日志文本)。
+diff --git a/backend/app/services/exam_service.py b/backend/app/services/exam_service.py
+index 7bef58be..4b7067c9 100644
+--- a/backend/app/services/exam_service.py
++++ b/backend/app/services/exam_service.py
+@@ -80,3 +80,6 @@ class ExamService:
+-        # ⛔ 这 11 个方法在运行期由 exam_service_ext.py 模块顶层的猴子补丁挂载
+-        # (`ExamService.<name> = <fn>`, 由本文件末尾的 `import app.services.exam_service_ext`
+-        # 触发)。此处只做类型声明: `if TYPE_CHECKING` 块在运行期不执行, 零行为变化;
++        # ⛔ 这 11 个方法的赋值(`ExamService.<name> = <fn>`)在 exam_service_ext.py 的
++        # `attach_to_exam_service()` 函数体内(:956-966, def 在 :932), 由该模块顶层 :970 的
++        # `attach_to_exam_service()` 调用执行; 入口是本文件末尾的 `import app.services.exam_service_ext`。
++        # (该 ext 文件是 D-29 crossover: 模块命名空间较原版少 `logging` 属性、多 `TYPE_CHECKING=False`,
++        # 但文件内无读 logging 的代码(用 structlog) ⇒ 无业务回归。)
++        # 此处只做类型声明: `if TYPE_CHECKING` 块在运行期不执行, 零行为变化;
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index 645cdfc0..4fb52763 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -1240 +1240 @@ class ReviewService:
+-        # 生产零调用方 —— 全仓唯一 `.generate_verification_canvas(` 在 dependencies.py:301
++        # 未发现直接生产调用(grep + AST 口径), 动态可达性未证 —— 全仓唯一 `.generate_verification_canvas(` 在 dependencies.py:301
+@@ -2135,2 +2135,2 @@ class ReviewService:
+-            # generate_verification_canvas(:1371), 后者生产零调用方(见 :1237 注释) ⇒
+-            # 传递性零曝光。改 kwarg 名 = 行为变化, 须主 session/U9 裁 ⇒ 本卡只做类型层标注。
++            # generate_verification_canvas(), 后者同样只是未发现直接生产调用(见 :1237 起的注释) ⇒
++            # 传递性曝光面同样未证(不等于零曝光)。改 kwarg 名 = 行为变化, 须主 session/U9 裁 ⇒ 本卡只做类型层标注。
