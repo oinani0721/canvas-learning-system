@@ -1,0 +1,12 @@
+### 第十五批车道切树 @ 9c4e7e82 20260918T094829
+p1-storage     HEAD=9c4e7e82 branch=card/p1-storage dirty=0 pytest=ok pyright=ok env=ok
+p2-outbox      HEAD=9c4e7e82 branch=card/p2-outbox dirty=0 pytest=ok pyright=ok env=ok
+p3-deploy      HEAD=9c4e7e82 branch=card/p3-deploy dirty=0 pytest=ok pyright=ok env=ok
+p4-fsrs        HEAD=9c4e7e82 branch=card/p4-fsrs dirty=0 pytest=ok pyright=ok env=ok
+p5-review      HEAD=9c4e7e82 branch=card/p5-review dirty=0 pytest=ok pyright=ok env=ok
+p6-skills-w    HEAD=9c4e7e82 branch=card/p6-skills-w dirty=0 pytest=ok pyright=ok env=ok
+p7-skills-x    HEAD=9c4e7e82 branch=card/p7-skills-x dirty=0 pytest=ok pyright=ok env=ok
+p8-backend     HEAD=9c4e7e82 branch=card/p8-backend dirty=0 pytest=ok pyright=ok env=ok
+p9-testinfra   HEAD=9c4e7e82 branch=card/p9-testinfra dirty=0 pytest=ok pyright=ok env=ok
+p10-docs       HEAD=9c4e7e82 branch=card/p10-docs dirty=0 pytest=ok pyright=ok env=ok
+rc=0

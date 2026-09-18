@@ -1,0 +1,5 @@
+### 第十五批开跑前容器状态 20260918T094806
+canvas-learning-system-backend	Up 8 hours (healthy)	127.0.0.1:8011->8001/tcp
+canvas-learning-system-neo4j-test	Up 8 hours (healthy)	127.0.0.1:7479->7474/tcp, 127.0.0.1:7692->7687/tcp
+canvas-learning-system-neo4j	Up 5 hours (healthy)	127.0.0.1:7478->7474/tcp, 127.0.0.1:7691->7687/tcp
+rc=0
