@@ -78,19 +78,10 @@
 | CARD-DEBT-1 | P9 | `…-r3.stderr` | 补审（接 `-r4`） |
 | CARD-G4-13 | P9 | rev=0（人审替代） | 若需绑 HEAD → 补审 |
 
-**补审 goal 模板（zcode 通道；每卡一条，`<CARD>` / `<车道>` / `<rN>` / `<SHA>` / `<PREV>` 按上表与实测替换后粘贴）**：
-
-```
-/goal 完成第十五批复核补审（zcode 通道）：CARD-<CARD>（车道 card-<车道>，绑当前 HEAD <SHA>）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 只读复核，存档接 <rN>，直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（有代码改动多轮上限 5；本轮只审不改判）[BATCH-2026-09-18-第十五批 / CARD-<CARD>]（补审-zcode）
-第 0 分钟：核 pwd/分支/`git rev-parse --short=8 HEAD`（= <SHA>，不符停下报主 session）/`git status --porcelain` 空；`zcode --version`（zcode-app-cli 3.12.3-26 / runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 记录。
-⛔ 只做复核、不为过审写代码：① 车道先跑 `git --no-pager diff --no-color <PREV> <审SHA> -- . ':(exclude)_bmad-output'`，把输出**内嵌**进 `_bmad-output/审查/prompts/zcode-review-prompt-<CARD>-<rN>.md`（五分节 + 最小读取面 = 内嵌 diff + 待读文件行段清单）；② 送审：`zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-<CARD>-<rN>.md 2> _bmad-output/审查/zcode-review-<CARD>-<rN>.stderr`；③ 存档首部按协议 §2.4.2（模型/工具/命令/绑定/自证=JSON `sessionId`+`traceId` 原文）。
-完成条件：首部五字段齐 + `--json` 落档且 `sessionId` 非空；绑定声明（`git --no-pager diff --stat --no-color <审SHA> HEAD -- . ':(exclude)_bmad-output'` 为空）；B/H/M/L 计数抄进验收单补审节；若报 BLOCKER/HIGH 且据此改代码 ⇒ 必再送一轮（zcode 或 codex 通道任一）并在当前 HEAD 重跑该卡全套承重裁判。
-硬边界：只读（`--mode build` 已强制）；不连 7691/7687（该卡原有门照跑）；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节或 sessionId 缺失重发一次、再失败交主 session。
-收尾：存档 tee 进该卡既有 evidence 目录；验收单追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并**收工重算**终态字段；commit header ≤100 含卡号与批次标记；跑完说「复核第十五批 <车道号>」。
-```
+**补审 goal 块（逐卡已生成，见 §三 `补审-*` 十条）**：SHA/文件集/轮次已按 2026-09-19 实测填死；取块 `python3 …/show_goal_b15b.py 补审-<CARD> | pbcopy`。校验见 `gate_goal_length_b15b.py`。
 ```
 
-## 三、goal 块（10 张未开卡；唯一真相源 = 本节，由 show_goal_b15b.py 读取）
+## 三、goal 块（10 张未开卡 + 10 条补审；唯一真相源 = 本节，由 show_goal_b15b.py 读取）
 
 ### P1-D（CARD-DEBT-11）
 
@@ -232,6 +223,147 @@
 收尾：Codex glm-5.3 max 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（零代码 1 轮仍须绑最终 HEAD；锁版 commit C 后再送 -r2；触及 .py 转多轮上限 5；首部按协议 §2.4；prompt 五分节最小读取面 = 本卡 diff + yaml 全文 + README 新增段 + schema :475-530 + 校验器 :76-77/:430-475 + evidence-rslo 存档 + 验收单；禁用四措辞改说负控输入/对照输入/未被拦下的输入/门未覆盖的路径；0 字节存档不入 commit）；裁判输出 tee 进 evidence-rslo/（.txt 末行 rc=$pipestatus[1]）；验收单 UAT-CARD-R-SLO-<日期>.md DoD-3 双段 + 锁版签字位 +「本卡未证明什么」「台账待登记条目」各 ≥4；commit header ≤100 含批次标记且含卡号 CARD-R-SLO；*.stderr* 不入库；不 push；跑完说「复核第十五批 P10」。
 ```
 
+
+
+### 补审-CARD-G4-5（CARD-G4-5 · 接 -r1· 补审）
+
+> 📋 复制下面代码块粘进 `P1` 标签页的 /goal；卡文 `第十五批-goals/P1-C.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-G4-5（车道 card-p1-storage，接 -r1）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（写读组族收敛到单一 builder），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-G4-5]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage、分支、`git rev-parse --short=8 HEAD`=c33240fa（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-G4-5-r1.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P1-C.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color d4c19c06 bbd2a9fb -- backend/app/graphiti/group_id_compat.py backend/app/services/episode_worker.py backend/app/services/memory_service.py backend/tests/unit/test_group_family_builder.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G4-5-r1.md 2> _bmad-output/审查/zcode-review-CARD-G4-5-r1.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 bbd2a9fb / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color bbd2a9fb HEAD -- backend/app/graphiti/group_id_compat.py backend/app/services/episode_worker.py backend/app/services/memory_service.py backend/tests/unit/test_group_family_builder.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-G4-5-2026-09-19.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=d4c19c06 · 审SHA=bbd2a9fb · 文件集 = backend/app/graphiti/group_id_compat.py backend/app/services/episode_worker.py backend/app/services/memory_service.py backend/tests/unit/test_group_family_builder.py；存档 `zcode-review-CARD-G4-5-r1.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-g4-5` 新建）；单 commit（message 含 CARD-G4-5）；跑完说「复核第十五批 P1」。
+```
+
+### 补审-CARD-STAGING-WRITERS-BOUNDED（CARD-STAGING-WRITERS-BOUNDED · 接 -r6· 补审）
+
+> 📋 复制下面代码块粘进 `P2` 标签页的 /goal；卡文 `第十五批-goals/P2-B.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-STAGING-WRITERS-BOUNDED（车道 card-p2-outbox，接 -r6）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（暂存 JSONL 写侧有界化），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-STAGING-WRITERS-BOUNDED]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox、分支、`git rev-parse --short=8 HEAD`=d2ebf694（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-STAGING-WRITERS-BOUNDED-r6.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P2-B.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color ac0993b4 d2ebf694 -- backend/app/core/failed_writes_constants.py backend/app/core/failure_counters.py backend/app/services/agent_service.py backend/app/services/episode_worker.py backend/app/services/fallback_sync_service.py backend/app/services/memory_service.py backend/tests/unit/test_staging_writers_bounded.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md 2> _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 d2ebf694 / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color d2ebf694 HEAD -- backend/app/core/failed_writes_constants.py backend/app/core/failure_counters.py backend/app/services/agent_service.py backend/app/services/episode_worker.py backend/app/services/fallback_sync_service.py backend/app/services/memory_service.py backend/tests/unit/test_staging_writers_bounded.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-STAGING-WRITERS-BOUNDED-2026-09-18.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=ac0993b4 · 审SHA=d2ebf694 · 文件集 = backend/app/core/failed_writes_constants.py backend/app/core/failure_counters.py backend/app/services/agent_service.py backend/app/services/episode_worker.py backend/app/services/fallback_sync_service.py backend/app/services/memory_service.py backend/tests/unit/test_staging_writers_bounded.py；存档 `zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-staging-writers-bounded` 新建）；单 commit（message 含 CARD-STAGING-WRITERS-BOUNDED）；跑完说「复核第十五批 P2」。
+```
+
+### 补审-CARD-G3-8（CARD-G3-8 · 接 -r4· 补审）
+
+> 📋 复制下面代码块粘进 `P4` 标签页的 /goal；卡文 `第十五批-goals/P4-B.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-G3-8（车道 card-p4-fsrs，接 -r4）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（next_review 对账迁移器），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-G3-8]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs、分支、`git rev-parse --short=8 HEAD`=858582d3（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-G3-8-r4.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P4-B.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color 49e42626 ce81e5fa -- backend/scripts/migrate_next_review_g38.py backend/tests/unit/test_migrate_next_review_g38.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G3-8-r4.md 2> _bmad-output/审查/zcode-review-CARD-G3-8-r4.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 ce81e5fa / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color ce81e5fa HEAD -- backend/scripts/migrate_next_review_g38.py backend/tests/unit/test_migrate_next_review_g38.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-G3-8-2026-09-19.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=49e42626 · 审SHA=ce81e5fa · 文件集 = backend/scripts/migrate_next_review_g38.py backend/tests/unit/test_migrate_next_review_g38.py；存档 `zcode-review-CARD-G3-8-r4.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-g3-8` 新建）；单 commit（message 含 CARD-G3-8）；跑完说「复核第十五批 P4」。
+```
+
+### 补审-CARD-G8-4（CARD-G8-4 · 接 -r2· 补审）
+
+> 📋 复制下面代码块粘进 `P4` 标签页的 /goal；卡文 `第十五批-goals/P4-C.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-G8-4（车道 card-p4-fsrs，接 -r2）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（复习完成率周汇总（只读）），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-G8-4]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs、分支、`git rev-parse --short=8 HEAD`=858582d3（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-G8-4-r2.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P4-C.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color f05f7a58 9f852a76 -- backend/tests/unit/test_review_weekly_report.py scripts/review_weekly_report.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G8-4-r2.md 2> _bmad-output/审查/zcode-review-CARD-G8-4-r2.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 9f852a76 / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color 9f852a76 HEAD -- backend/tests/unit/test_review_weekly_report.py scripts/review_weekly_report.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-G8-4-2026-09-19.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=f05f7a58 · 审SHA=9f852a76 · 文件集 = backend/tests/unit/test_review_weekly_report.py scripts/review_weekly_report.py；存档 `zcode-review-CARD-G8-4-r2.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-g8-4` 新建）；单 commit（message 含 CARD-G8-4）；跑完说「复核第十五批 P4」。
+```
+
+### 补审-CARD-G6-9c-R3（CARD-G6-9c-R3 · 接 -r3· 补审）
+
+> 📋 复制下面代码块粘进 `P5` 标签页的 /goal；卡文 `第十五批-goals/P5-A.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-G6-9c-R3（车道 card-p5-review，接 -r3）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（local_tz 解析器 R3 重写），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review、分支、`git rev-parse --short=8 HEAD`=57d29464（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-G6-9c-R3-r3.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P5-A.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color 9c4e7e82 d062e2b1 -- backend/app/api/v1/endpoints/review_overview.py backend/app/core/display_tz.py backend/openapi.json backend/tests/regression/test_daily_review_pick.py backend/tests/regression/test_daily_review_run.py backend/tests/regression/test_g6_9_boundary_matrix.py backend/tests/regression/test_g6_9c_single_tz_source.py backend/tests/regression/test_local_tz_negctl_r3.py backend/tests/unit/test_review_overview.py scripts/daily_review_pick.py scripts/local_tz.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G6-9c-R3-r3.md 2> _bmad-output/审查/zcode-review-CARD-G6-9c-R3-r3.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 d062e2b1 / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color d062e2b1 HEAD -- backend/app/api/v1/endpoints/review_overview.py backend/app/core/display_tz.py backend/openapi.json backend/tests/regression/test_daily_review_pick.py backend/tests/regression/test_daily_review_run.py backend/tests/regression/test_g6_9_boundary_matrix.py backend/tests/regression/test_g6_9c_single_tz_source.py backend/tests/regression/test_local_tz_negctl_r3.py backend/tests/unit/test_review_overview.py scripts/daily_review_pick.py scripts/local_tz.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-G6-9c-R3-2026-09-18.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=9c4e7e82 · 审SHA=d062e2b1 · 文件集 = backend/app/api/v1/endpoints/review_overview.py backend/app/core/display_tz.py backend/openapi.json backend/tests/regression/test_daily_review_pick.py backend/tests/regression/test_daily_review_run.py backend/tests/regression/test_g6_9_boundary_matrix.py backend/tests/regression/test_g6_9c_single_tz_source.py backend/tests/regression/test_local_tz_negctl_r3.py backend/tests/unit/test_review_overview.py scripts/daily_review_pick.py scripts/local_tz.py；存档 `zcode-review-CARD-G6-9c-R3-r3.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-g6-9c-r3` 新建）；单 commit（message 含 CARD-G6-9c-R3）；跑完说「复核第十五批 P5」。
+```
+
+### 补审-CARD-HARNESS-TREE-PARSE-R2（CARD-HARNESS-TREE-PARSE-R2 · 接 -r6· 补审）
+
+> 📋 复制下面代码块粘进 `P6` 标签页的 /goal；卡文 `第十五批-goals/P6-B.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-HARNESS-TREE-PARSE-R2（车道 card-p6-skills-w，接 -r6）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（harness 树解析 R2 收口），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-HARNESS-TREE-PARSE-R2]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w、分支、`git rev-parse --short=8 HEAD`=5e305b28（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-HARNESS-TREE-PARSE-R2-r6.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P6-B.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color a05732c9 43bea775 -- backend/tests/regression/test_g3_2_review_ledger.py backend/tests/skills/skill_portability_lint.py backend/tests/skills/test_harness_tree_parse_r2.py canvas-vault/.claude/skills/quiz-answer/SKILL.md` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-HARNESS-TREE-PARSE-R2-r6.md 2> _bmad-output/审查/zcode-review-CARD-HARNESS-TREE-PARSE-R2-r6.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 43bea775 / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color 43bea775 HEAD -- backend/tests/regression/test_g3_2_review_ledger.py backend/tests/skills/skill_portability_lint.py backend/tests/skills/test_harness_tree_parse_r2.py canvas-vault/.claude/skills/quiz-answer/SKILL.md` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-HARNESS-TREE-PARSE-R2-2026-09-18.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=a05732c9 · 审SHA=43bea775 · 文件集 = backend/tests/regression/test_g3_2_review_ledger.py backend/tests/skills/skill_portability_lint.py backend/tests/skills/test_harness_tree_parse_r2.py canvas-vault/.claude/skills/quiz-answer/SKILL.md；存档 `zcode-review-CARD-HARNESS-TREE-PARSE-R2-r6.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-harness-tree-parse-r2` 新建）；单 commit（message 含 CARD-HARNESS-TREE-PARSE-R2）；跑完说「复核第十五批 P6」。
+```
+
+### 补审-CARD-G5-7（CARD-G5-7 · 接 -r7· 补审）
+
+> 📋 复制下面代码块粘进 `P7` 标签页的 /goal；卡文 `第十五批-goals/P7-A.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-G5-7（车道 card-p7-skills-x，接 -r7）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（clear-inbox 执行侧 + undo journal），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-G5-7]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x、分支、`git rev-parse --short=8 HEAD`=df05f9f8（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-G5-7-r7.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P7-A.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color 9c4e7e82 10a2799e -- backend/tests/skills/test_g5_7_inbox_apply.py canvas-vault/.claude/scripts/undo_journal.py canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G5-7-r7.md 2> _bmad-output/审查/zcode-review-CARD-G5-7-r7.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 10a2799e / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color 10a2799e HEAD -- backend/tests/skills/test_g5_7_inbox_apply.py canvas-vault/.claude/scripts/undo_journal.py canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-G5-7-2026-09-18.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=9c4e7e82 · 审SHA=10a2799e · 文件集 = backend/tests/skills/test_g5_7_inbox_apply.py canvas-vault/.claude/scripts/undo_journal.py canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py；存档 `zcode-review-CARD-G5-7-r7.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-g5-7` 新建）；单 commit（message 含 CARD-G5-7）；跑完说「复核第十五批 P7」。
+```
+
+### 补审-CARD-G1-1（CARD-G1-1 · 接 -r2· 补审）
+
+> 📋 复制下面代码块粘进 `P8` 标签页的 /goal；卡文 `第十五批-goals/P8-C.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-G1-1（车道 card-p8-backend，接 -r2）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（批注只读检索脚本），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-G1-1]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend、分支、`git rev-parse --short=8 HEAD`=16fd1e4e（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-G1-1-r2.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P8-C.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color 86dc726c 4a6524aa -- backend/tests/unit/test_annotation_search.py scripts/annotation_search.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G1-1-r2.md 2> _bmad-output/审查/zcode-review-CARD-G1-1-r2.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 4a6524aa / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color 4a6524aa HEAD -- backend/tests/unit/test_annotation_search.py scripts/annotation_search.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=86dc726c · 审SHA=4a6524aa · 文件集 = backend/tests/unit/test_annotation_search.py scripts/annotation_search.py；存档 `zcode-review-CARD-G1-1-r2.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-g1-1` 新建）；单 commit（message 含 CARD-G1-1）；跑完说「复核第十五批 P8」。
+```
+
+### 补审-CARD-DEBT-1（CARD-DEBT-1 · 接 -r4· 补审）
+
+> 📋 复制下面代码块粘进 `P9` 标签页的 /goal；卡文 `第十五批-goals/P9-B.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-DEBT-1（车道 card-p9-testinfra，接 -r4）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（pytest-timeout + 路径自动 marker），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-DEBT-1]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra、分支、`git rev-parse --short=8 HEAD`=96da70c6（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-DEBT-1-r4.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P9-B.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color a7341ca4 9d270cdf -- backend/pytest.ini backend/tests/conftest.py backend/tests/unit/test_debt1_default_gate.py` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-DEBT-1-r4.md 2> _bmad-output/审查/zcode-review-CARD-DEBT-1-r4.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 9d270cdf / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color 9d270cdf HEAD -- backend/pytest.ini backend/tests/conftest.py backend/tests/unit/test_debt1_default_gate.py` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-DEBT-1-2026-09-18.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=a7341ca4 · 审SHA=9d270cdf · 文件集 = backend/pytest.ini backend/tests/conftest.py backend/tests/unit/test_debt1_default_gate.py；存档 `zcode-review-CARD-DEBT-1-r4.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-debt-1` 新建）；单 commit（message 含 CARD-DEBT-1）；跑完说「复核第十五批 P9」。
+```
+
+### 补审-CARD-G4-13（CARD-G4-13 · 接 -r1· 补审）
+
+> 📋 复制下面代码块粘进 `P9` 标签页的 /goal；卡文 `第十五批-goals/P9-C.md`。
+
+```
+/goal 完成第十五批复核补审（zcode 通道 · 只读）：CARD-G4-13（车道 card-p9-testinfra，接 -r1）——按协议 §2.4.2 用 ZCode CLI + GLM-5.3 复核本卡最终态（金集 103 条 + manifest 冻结），直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0（本轮只审不改判；报 B/H 停下交主 session）[BATCH-2026-09-18-第十五批 / CARD-G4-13]（补审）
+第 0 分钟：核 pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra、分支、`git rev-parse --short=8 HEAD`=96da70c6（不符停下报主 session）、`git status --porcelain` 空；`zcode --version`（应含 zcode-app-cli 3.12.3-26 + zcode-runtime 0.16.5）与 `test -f ~/.zcode/v2/provider_config.json && echo cfg-ok` 落档。
+⛔ 只审不改判、不写任何代码：① 生成 `_bmad-output/审查/prompts/zcode-review-prompt-CARD-G4-13-r1.md`——五分节从卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/P9-C.md 的 §一(n) 与 §四 逐条转写（最小读取面写死），并把 `git --no-pager diff --no-color 47c94bab d06f7127 -- backend/scripts/gold_set_manifest_tool.py backend/scripts/run_memory_retrieval_regression.py backend/scripts/run_vault_retrieval_regression.py backend/tests/regression/gold_set_manifest.yaml backend/tests/regression/memory_gold_set.yaml backend/tests/regression/test_gold_set_manifest_g413.py backend/tests/regression/vault_gold_set.yaml backend/tests/regression/vault_gold_set_shadow.yaml` 输出**内嵌**（build 模式无 Bash，评审者读不了 git）；② 送审 `zcode --prompt "$(cat …prompt…)" --cwd $(pwd) --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G4-13-r1.md 2> _bmad-output/审查/zcode-review-CARD-G4-13-r1.stderr`；③ 首部 blockquote 按协议 §2.4.2（模型 glm-5.3 / 工具 zcode-app-cli 3.12.3-26 + runtime 0.16.5 / 命令全文 / 审查绑定 d06f7127 / 自证 = JSON sessionId+traceId 原文）。
+完成条件（AND）：首部五字段齐 + JSON `sessionId` 非空；绑定声明 `git --no-pager diff --stat --no-color d06f7127 HEAD -- backend/scripts/gold_set_manifest_tool.py backend/scripts/run_memory_retrieval_regression.py backend/scripts/run_vault_retrieval_regression.py backend/tests/regression/gold_set_manifest.yaml backend/tests/regression/memory_gold_set.yaml backend/tests/regression/test_gold_set_manifest_g413.py backend/tests/regression/vault_gold_set.yaml backend/tests/regression/vault_gold_set_shadow.yaml` 为空（串行车道口径：本卡文件自本卡末 commit 后零改动）；B/H/M/L 全文与计数落档；结论写进 `_bmad-output/验收单/UAT-CARD-G4-13-2026-09-19-裁定清单.md` 追加「补审（GLM-5.3 × ZCode，协议 §2.4.2）」节并收工重算终态字段；**报 BLOCKER/HIGH ⇒ 不改代码，停下报主 session**。
+关键输入（写死）：PREV=47c94bab · 审SHA=d06f7127 · 文件集 = backend/scripts/gold_set_manifest_tool.py backend/scripts/run_memory_retrieval_regression.py backend/scripts/run_vault_retrieval_regression.py backend/tests/regression/gold_set_manifest.yaml backend/tests/regression/memory_gold_set.yaml backend/tests/regression/test_gold_set_manifest_g413.py backend/tests/regression/vault_gold_set.yaml backend/tests/regression/vault_gold_set_shadow.yaml；存档 `zcode-review-CARD-G4-13-r1.md`（与既有轮次同目录）。
+硬边界：只读（zcode --mode build 天然禁 Bash/Write）；不连 7691/7687；不 push；`*.stderr*` 不入库；存档逐文件 `git add`；JSON 0 字节 / sessionId 缺失重发一次、再失败交主 session；不改台账/手册/协议/卡文/他卡文件。
+收尾：tee 进 `_bmad-output/审查/` 该卡既有 evidence 目录（找不到用 `evidence-g4-13` 新建）；单 commit（message 含 CARD-G4-13）；跑完说「复核第十五批 P9」。
+```
 
 ## 四、开跑步骤（逐车道）
 

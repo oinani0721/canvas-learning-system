@@ -5,7 +5,7 @@
 用法：
     python3 show_goal_b15b.py P1-D            # 打印到屏幕
     python3 show_goal_b15b.py P1-D | pbcopy   # macOS：直接进剪贴板，然后 Cmd+V 粘进 /goal
-    python3 show_goal_b15b.py                 # 列出全部 10 个块名与字符数
+    python3 show_goal_b15b.py                 # 列出全部 20 个块名与字符数
 """
 import re
 import sys
@@ -21,7 +21,7 @@ def blocks():
     out, key = {}, None
     fence, buf = False, []
     for l in lines[i3:i4]:
-        m = re.match(r"^### (P\d+b?-[A-G])（(.+)）\s*$", l)
+        m = re.match(r"^### (P\d+b?-[A-G]|补审-[A-Za-z0-9-]+)（(.+)）\s*$", l)
         if m:
             key = m.group(1)
             out[key] = {"card": m.group(2), "text": None}
