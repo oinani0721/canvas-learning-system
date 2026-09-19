@@ -67,6 +67,49 @@ codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" 
 - **过渡条款状态（第十四批波 0，2026-09-11）**：U1-A / U2-A 阶段 2 已合入（`622f3a5d` / `b4705dde`），候选树 `pyright app` = 0 errors / 81 warnings。自第十四批起 `python-typecheck` **恢复硬禁**（见 §1 合入门）；`python-lint` 里 `ruff format --check` 的主干既有 **462 文件漂移**条款已于第十四批 T8-G GATE 合入时**关闭**（CARD-PYRIGHT-GATE 2026-09-17 回写）：`python-lint` 的 `ruff format --check` 自此**恢复硬禁**，改动行的格式漂移不再允许带存档跳过；462 文件整仓 format 由第十五批末位主 session 单独一 commit（D-40）。上文「U1 PYRIGHT-DEBT-services / U2 PYRIGHT-DEBT-rest 两条并行车道清」已完成，历史保留。
 - **通告撤回登记**：`dcaaaef9`「Codex 配额耗尽至 09-15」批级通告被 `f8dd5903` 实测推翻（24 分钟后即恢复）→ 撤回（R-05）。教训：**外部服务的「重置时间」是一次观测不是不变量**——接手因限流停下的卡先花几千 token 复测，别继承结论。
 
+### 2.4 GLM-5.3 复核（ZAI profile；2026-09-19 起，D-43）
+
+> **背景（批级事件登记）**：2026-09-18/19 第十五批运行中 Codex `gpt-6-astra` 复核中断——P5 存档 `ABORTED-401-codex-review-CARD-G6-9c-R3-r2-*.empty`、P4 提交记「Codex 四模型交叉探针 — 账号形态整体不可用」、多卡末轮停在 `-retry/-retry2.stderr`、P1 G4-5 / P9 G4-13 走「人审替代」。用户 2026-09-19 裁定（D-43）：**复核改用 z.ai GLM Coding Plan 的 `glm-5.3`，仍走 Codex CLI**（z.ai 原生 Responses 端点），`--profile zai`。
+
+**命令**（替换 §2 的 gpt-6-astra 命令；工具仍是 Codex CLI，故 `codex-review-*` / `codex-prompt-*` 文件前缀不变）：
+
+```bash
+source "$HOME/.codex/zai.env" && codex exec --profile zai --sandbox read-only -m glm-5.3 \
+  -c model_reasoning_effort="max" \
+  "$(cat <树>/_bmad-output/审查/prompts/codex-prompt-<CARD>.md)" \
+  > <树>/_bmad-output/审查/codex-review-<CARD>.md 2> <树>/_bmad-output/审查/codex-review-<CARD>.stderr </dev/null
+```
+
+- 前置（一次性，机器级）：`~/.codex/zai.config.toml`（`[model_providers.ZAI]`：`base_url=https://api.z.ai/api/v1`、`env_key=ZAI_API_KEY`、`wire_api="responses"`）+ `~/.codex/models.json`（glm-5.3 catalog）+ `~/.codex/zai.env`（600，`ZAI_API_KEY`）。
+- **端点必须是 `/api/v1`**：`/coding/paas/v4` 是 chat 线，codex 0.153.3 已硬移除 chat 协议（2026-02，openai/codex#7782 / PR#10157）。错端点 = 起不来，不是模型问题。
+- 档位：GLM-5.3 只有 `low/high/max`，用 **`max`**（旧 `ultra` 停用）。
+- 实测（2026-09-19）：rc=0；stderr 会话头 `OpenAI Codex v0.153.3` / `model: glm-5.3` / `reasoning effort: max`；工具调用（读文件并回报）正常。
+- 配额：GLM Coding Plan 为点数制、非高峰 50%（无固定 5 小时窗）；多卡多轮送审前先核余量。
+
+**§2.4.1 存档首部（GLM 版）**——字段与齿牙同 §2.1，取值改为：
+
+```
+> 批次: BATCH-<日期>-第N批 · 车道 <Yx> · 卡 <CARD-ID> round-<N>[ prompt-<M>]
+> 模型: `glm-5.3` · reasoning_effort: `max` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --profile zai --sandbox read-only -m glm-5.3 -c model_reasoning_effort="max" "$(cat <prompt 路径>)"`
+> 审查绑定: `<审SHA 或 A..B>`（HEAD 若不同须如实写「不绑合并态 / 审工作区」）
+> 会话头自证（抄 .stderr 中含 codex 版本行 + `model:` 行 + `reasoning effort` 行的三行，行号括注；codex 0.153.3 实测 `model:` 在第 5 行、`reasoning effort:` 在第 9 行；stderr 本身不入库）:
+> `<line1>` / `<line2>` / `<line3>`
+```
+
+- **牙齿**：首部缺 `模型` / `reasoning_effort` / `codex` 任一字段 ⇒ 该轮**不计入**轮次配额（同 §2.1）。
+- **§2.4.2 补审通道（ZCode CLI；2026-09-19 起，D-43 附款）**——用户裁定「补审用 zcode」：
+
+- 前置（已落地）：`npm i -g zcode-app-cli@latest`（非官方终端客户端；实测 `zcode-app-cli 3.12.3-26` + `zcode-runtime 0.16.5`）+ `~/.zcode/v2/provider_config.json`（600；`providerId=zai-coding-plan` / `templateId=zai-api` / `access.type=zhipu-coding-plan-api-key` / `defaultModelSelection=glm-5.3+max`）。
+- 命令：`zcode --prompt "$(cat <prompt 路径>)" --cwd <车道树> --mode build --no-color --json > <树>/_bmad-output/审查/zcode-review-<CARD>[-rN].md 2> <树>/_bmad-output/审查/zcode-review-<CARD>[-rN].stderr`
+- **实测（2026-09-19）**：`--prompt` rc=0；工具读文件正常（`FOUND=ZCODE_TOOL_OK_7777`）；`--json` 输出 `sessionId/traceId/turnId/usage`；**`--mode build` 下 Bash 与 Write 全被「No permission client configured」阻断 = 强制只读**（yolo 可跑 git——补审不用）。
+- ⚠️ build 模式无 Bash ⇒ prompt 内**必须内嵌** `git --no-pager diff --no-color <PREV> <审SHA> -- . ':(exclude)_bmad-output'` 输出（车道先跑 git 再送审）。
+- 存档首部（zcode 版）：`模型: glm-5.3（provider_config.defaultModelSelection）` · `工具: zcode-app-cli 3.12.3-26 / runtime 0.16.5` · `命令:` 全文 · `审查绑定: <审SHA 或 A..B>` · `自证: --json 的 sessionId/traceId 原文（抄）`。
+- **牙齿**：缺 `sessionId`（或 JSON 解析失败）该轮**不计入**轮次配额；其余轮次/绑定规则同 §2.1 / §2.2。
+- **通道分工**：开发复核默认 codex+zai（§2.4）；补审走本通道；同一卡同一轮只走一条通道，轮次编号沿用 `-rN`（接既有最大轮次之后）。
+
+**历史保留**：§2 / §2.1 的 `gpt-6-astra + ultra` 记录**不改写**（第十五批前半段史实）；自本条生效起新送审一律走 GLM。启用属批级事件 ⇒ 已记手册 §零。
+
 ## 3. 车道裁判的最低覆盖
 
 - 卡自己点名的裁判（显式文件）之外，**改了什么面就必须跑那个面的目录级套件**：改 `canvas-vault/.claude/skills/**` 脚本 → `tests/skills` 目录级；改 `backend/app/**` → 对应 `tests/api` / `tests/unit` 子集 **+ `tests/regression` 目录级**（第十四批 T3-C 漏跑，G6-9 边界矩阵登记门按设计翻红，主 session 集成修复 `9c4e7e82`）；改 `tests/support` / conftest → 全部门下目录级。
