@@ -77,8 +77,8 @@ def main():
             fail(f"④: {key} 缺批次标记 {BATCH}")
         if "不 push" not in blk:
             fail(f"④: {key} 缺「不 push」")
-        if not blk.startswith("/goal"):
-            fail(f"⑤: {key} 不以 /goal 开头")
+        if blk.startswith("/goal"):
+            fail(f"⑤: {key} 不得以 /goal 开头（改用普通消息版，避免多行参数被截）")
         for bad in ("gpt-6-astra", "gpt-5.6"):
             if bad in blk:
                 fail(f"⑥: {key} 块内出现旧模型串 {bad!r}")

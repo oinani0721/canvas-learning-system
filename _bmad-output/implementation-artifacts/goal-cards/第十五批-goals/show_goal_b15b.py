@@ -4,7 +4,7 @@
 
 用法：
     python3 show_goal_b15b.py P1-D            # 打印到屏幕
-    python3 show_goal_b15b.py P1-D | pbcopy   # macOS：直接进剪贴板，然后 Cmd+V 粘进 /goal
+    python3 show_goal_b15b.py P1-D | pbcopy   # macOS：直接进剪贴板，然后 Cmd+V 粘成普通消息（无 /goal 前缀）
     python3 show_goal_b15b.py                 # 列出全部 20 个块名与字符数
 """
 import re
