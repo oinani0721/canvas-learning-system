@@ -22,7 +22,10 @@
 ### 零.2 开发侧：OpenCode + DeepSeek V4.1 Flash + `/goal`
 
 - **模型**：`opencode-go/deepseek-v4.1-flash`（车道启动 `opencode -m opencode-go/deepseek-v4.1-flash`）；硬卡可临时换 `opencode-go/deepseek-v4-pro`（同命令改 `-m`）。
-- **goal 机制（已落地）**：`~/.omo/omo.jsonc` 的 `[opencode]` 段内 `"goal": { "enabled": true, "auto_start": false, "default_max_iterations": 100 }`（备份 `~/.omo/omo.jsonc.pre-goal.<ts>`）。**实测（2026-09-19）**：开启后**任何普通用户消息都会被自动设为 goal**（objective=整条消息全文，含多行；2.7KB 实测 OK）并注入 idle 续跑；⛔ **`/goal <多行>` 命令的参数会被截到只剩第 1 行**（另有粘贴后立即回车时的静默丢失面）——因此本批改用**无前缀普通消息**粘贴。
+- **goal 机制（已落地）**：`~/.omo/omo.jsonc` 的 `[opencode]` 段内 `"goal": { "enabled": true, "auto_start": false, "default_max_iterations": 100 }`（备份 `~/.omo/omo.jsonc.pre-goal.<ts>`）。**实测（2026-09-19）**：开启后**任何用户消息都会被自动设为 goal** 并注入 idle 续跑。
+- ⛔ **投递方式（实测三连坑后的定论）**：① `/goal <多行>` 参数被截到只剩第 1 行；② **整块多行粘贴（≈2-4KB）会静默丢弃**（chip 出现→回车→输入清空但什么都没提交，10 车道多轮复现）；③ 唯一 100% 可靠 = **文件指针短消息**：
+  `执行任务「<块名>」：请先用 Read 工具读取 ~/.b15b-drive/blocks/<块名>.txt 的全文——那是你的完整任务指令，逐条严格执行，不得凭摘要行动。`（≈150 字符；块文件由 `show_goal_b15b.py <块名> > ~/.b15b-drive/blocks/<块名>.txt` 生成）
+  首次读取弹「外部目录权限」→ 选 **Allow always**（或已在 `~/.config/opencode/opencode.jsonc` 预放行 `~/.b15b-drive/**`）。
 - **实测（2026-09-19，本 session）**：多行粘贴 → `[Pasted ~4 lines]` → 7 行块完整进 `<user-task>`；`create_goal` 落 `.omo/goal/<ses>.json`；`update_goal[status=complete]` 生效；idle 续跑 prompt 已由插件注册。
 - **工作树免脏**：`.omo/`（goal 状态 / run-continuation / ulw-loop）会落在车道工作树 → 已写入 `<common git dir>/info/exclude` 的 `.omo/`（全 worktree 生效，实测 `git check-ignore --no-index .omo/x` 命中）。**⛔ 不要**把 `.omo/` 写进 tracked `.gitignore`。
 
@@ -375,7 +378,7 @@
    > 首次在该树启动若提示 `external_directory`（跨树只读主干手册/协议/基线），选 `always` 放行 feature 主干树路径；`.omo/` 已 exclude，不脏树。
 3. **长度门（复制前必跑）**：
    `python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/gate_goal_length_b15b.py` → `GATE: PASS`
-4. **取块粘贴**：`python3 …/show_goal_b15b.py P1-D | pbcopy` → 在对应车道会话**作为普通消息**粘贴（7 行整块，⛔ 不加 `/goal`）。粘贴后**等 3~5 秒**、确认输入框出现 `[Pasted ~7 lines]` 再回车；若回车后对话区没有任何新消息出现（静默丢失），**重发一次**。
+4. **发任务**：用**文件指针短消息**（见 §零.2；⛔ 不要直接粘贴整块——会静默丢弃）。块文件：`python3 …/show_goal_b15b.py <块名> > ~/.b15b-drive/blocks/<块名>.txt`。
 5. **串行纪律**：前一卡独立 commit（message 含卡号）且 `git status --porcelain` 空后才粘下一块；顺序照 §一「剩余卡」列箭头（P5-B→P5-C、P6-C→P6-D、P7-B→P7-C）。
 6. **先处置 §一 的「开跑前置处置」两条未跟踪文件**（否则第 0 分钟门红）。
 
