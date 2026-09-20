@@ -1,0 +1,15 @@
+Ref:    2e52f551 (2e52f551e2c4)
+Commit: docs(evidence): CARD-G8-10 r12 产物审计 v2 + 文案校正 [BATCH-2026-09-18-第十五批 / CARD-G8-10]
+Files:  1 个含代码改动（分诊前 1 个，按 churn 降序）
+
+FILE                                                             CHURN    URG  REVIEW   TEST  RISK             VERDICT
+------------------------------------------------------------------------------------------------------------
+t/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py"     +3/-2   2.32    0.64   0.59  test_or_docs     REVIEW
+------------------------------------------------------------------------------------------------------------
+Model: jev-1.13.0 | calls: 1 | input_tokens: 1641 | output_tokens: 158
+Latency ms: min 335 / median 335 / max 335
+标记人工审查: 1/1
+  - "a/_bmad-output/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py" "b/_bmad-output/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py"  (urgency 2.32, P(review)=0.64, risk=test_or_docs)
+
+报告已保存: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/jev-triage-2e52f551.json
+rc=0

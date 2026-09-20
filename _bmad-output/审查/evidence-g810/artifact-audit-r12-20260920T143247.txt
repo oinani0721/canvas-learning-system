@@ -1,0 +1,72 @@
+# CARD-G8-10 r12 产物审计 v2（REF=2e52f551；UAT blob=a57c13e1，从 REF 树读出）
+# 审计面 = UAT（§九 r8 起）引用的全部产物名 64 条；判定 = basename 在 REF 树内至少一处
+# 状态 命中路径 名称
+MISS  -  ...141639.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r10-v48-20260920T135852.txt  anchor-battery-r10-v48-20260920T135852.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r11-v49-20260920T141543.txt  anchor-battery-r11-v49-20260920T141543.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r11-v49-20260920T143154.txt  anchor-battery-r11-v49-20260920T143154.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r8-v46-20260920T131707.txt  anchor-battery-r8-v46-20260920T131707.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r9-v47-20260920T134307.txt  anchor-battery-r9-v47-20260920T134307.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r11-20260920T141152.txt  artifact-audit-r11-20260920T141152.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r11-20260920T141637.txt  artifact-audit-r11-20260920T141637.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r12-20260920T143035.txt  artifact-audit-r12-20260920T143035.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r12-20260920T143207.txt  artifact-audit-r12-20260920T143207.txt
+OK    .claude/rules/card-batch-protocol.md  card-batch-protocol.md
+OK    _bmad-output/审查/evidence-g810/check_g810_refs.py  check_g810_refs.py
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r10.md  codex-review-CARD-G8-10-r10.md
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r11.md  codex-review-CARD-G8-10-r11.md
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r8.md  codex-review-CARD-G8-10-r8.md
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r9.md  codex-review-CARD-G8-10-r9.md
+OK    _bmad-output/审查/evidence-g810/g810-green-r10-20260920T135904.txt  g810-green-r10-20260920T135904.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r10-20260920T140018.txt  g810-green-r10-20260920T140018.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r11-20260920T141554.txt  g810-green-r11-20260920T141554.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r11-20260920T141637.txt  g810-green-r11-20260920T141637.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r11-20260920T143206.txt  g810-green-r11-20260920T143206.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r6-post-20260920T103139.txt  g810-green-r6-post-20260920T103139.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r8-20260920T131722.txt  g810-green-r8-20260920T131722.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r8-20260920T132049.txt  g810-green-r8-20260920T132049.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r9-20260920T134329.txt  g810-green-r9-20260920T134329.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r9-20260920T134413.txt  g810-green-r9-20260920T134413.txt
+OK    _bmad-output/审查/evidence-g810/g810-r10-sidecar-negctl.zsh  g810-r10-sidecar-negctl.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r11-artifact-audit.zsh  g810-r11-artifact-audit.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r11-green.zsh  g810-r11-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r12-artifact-audit.zsh  g810-r12-artifact-audit.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-anchor-battery.zsh  g810-r8-anchor-battery.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-green.zsh  g810-r8-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-negctl-runner.zsh  g810-r8-negctl-runner.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-regress.zsh  g810-r8-regress.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-sidecar.py  g810-r8-sidecar.py
+OK    _bmad-output/审查/evidence-g810/g810-r8-yamlgate-branches.zsh  g810-r8-yamlgate-branches.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-anchor-battery.zsh  g810-r9-anchor-battery.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-green.zsh  g810-r9-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-negctl-runner.zsh  g810-r9-negctl-runner.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-yamlgate-branches.zsh  g810-r9-yamlgate-branches.zsh
+OK    _bmad-output/审查/evidence-g810/ghost-ref-check-r8-20260920T131742.txt  ghost-ref-check-r8-20260920T131742.txt
+OK    canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py  inbox_preview.py
+MISS  -  jev-triage-1db667ba-run-20260920T141638.txt
+OK    _bmad-output/审查/evidence-g810/jev-triage-1db667ba.json  jev-triage-1db667ba.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-3457f70b.json  jev-triage-3457f70b.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-6816ff71-run-20260920T112121.txt  jev-triage-6816ff71-run-20260920T112121.txt
+OK    _bmad-output/审查/evidence-g810/jev-triage-6816ff71.json  jev-triage-6816ff71.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-74d58d14.json  jev-triage-74d58d14.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-9a22c33b.json  jev-triage-9a22c33b.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-9e058c5d.json  jev-triage-9e058c5d.json
+MISS  -  negctl-r11-post-20260920T141449.txt
+OK    _bmad-output/审查/evidence-g810/negctl-r11-post-20260920T143114.txt  negctl-r11-post-20260920T143114.txt
+OK    _bmad-output/审查/evidence-g810/r8-startup-selfcheck-20260920T131816.txt  r8-startup-selfcheck-20260920T131816.txt
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r10-74d58d14.json  sidecar-g810-r10-74d58d14.json
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r11-1db667ba.json  sidecar-g810-r11-1db667ba.json
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r7-retro-6816ff71.json  sidecar-g810-r7-retro-6816ff71.json
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r8-3457f70b.json  sidecar-g810-r8-3457f70b.json
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r9-9a22c33b.json  sidecar-g810-r9-9a22c33b.json
+OK    _bmad-output/审查/evidence-g810/sidecar-negctl-r10-20260920T135940.txt  sidecar-negctl-r10-20260920T135940.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r10-v48-20260920T135900.txt  yamlgate-branches-r10-v48-20260920T135900.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r11-v49-20260920T141549.txt  yamlgate-branches-r11-v49-20260920T141549.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r11-v49-20260920T143201.txt  yamlgate-branches-r11-v49-20260920T143201.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r8-v46-20260920T131716.txt  yamlgate-branches-r8-v46-20260920T131716.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r9-v47-20260920T134314.txt  yamlgate-branches-r9-v47-20260920T134314.txt
+# names=64 tracked=61 missing=3
+# ref=2e52f551e2c417dbf4a9a40a587bcb8b1a593853
+# uat_blob=a57c13e1657cffb561b3ea7b259f6f03ba3a9f91
+# missing_list=...141639.txt,jev-triage-1db667ba-run-20260920T141638.txt,negctl-r11-post-20260920T141449.txt
+rc=1

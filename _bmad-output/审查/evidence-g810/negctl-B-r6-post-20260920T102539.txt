@@ -1,0 +1,16 @@
+# CARD-G8-10 r6 负控 B（相位 post）
+# checker=_bmad-output/审查/evidence-g810/check_g810_refs.py
+# checker_sha256=69d9e281d7f24ec4917cefd7aeba6e3a82df4b2ea229865e007dcdaf0027ff2f
+# ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+# mutation: 检索链 owner cell: `G4-3`（总账 v2 …  →  `张三` / `G4-3`（总账 v2 …
+# re-anchored_expect_digest(mutated)=fb07942faf9e48121137f940a4697e25
+--- negctl run（变异底账 + 重锚 digest）---
+owner-invalid: row1 (检索链) 非白名单描述词 '张三'
+chains=6 obj07=5 failures=1 source_digest=fb07942faf9e48121137f940a4697e25 expect_digest=fb07942faf9e48121137f940a4697e25 head=c35eb6d013068858ec9b71de67cbef2ccc71037d dirty=7
+neg_rc=1
+--- control run（git show HEAD: 还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=b4291854fee3d7c1b5ee74a5e67c6cbf expect_digest=b4291854fee3d7c1b5ee74a5e67c6cbf head=c35eb6d013068858ec9b71de67cbef2ccc71037d dirty=6
+control_rc=0
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+sha_equal=yes
+restore_method=git show HEAD:<ledger> > <ledger>; trap on EXIT; no stash/no checkout

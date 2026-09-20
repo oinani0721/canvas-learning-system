@@ -1,0 +1,10 @@
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/check_g810_refs.py:6: SyntaxWarning: "\`" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\`"? A raw string is also an option.
+  `（\`path:line\`）` 所指的**行区间内**」；④ 六链名称集 / OBJ-07 五项名称集 / owner
+chains<6: 1
+obj07!=5: 0
+chain-missing: ['检索链', '复习链', '部署链', 'skill 链', '投影 freshness', 'DLQ 链']
+obj-set: []
+quote-miss: row1
+yaml-mismatch: yaml=not_yet summary=None
+yaml-note-reserved: dim: observability 行仍含「预留行」
+chains=1 obj07=0 failures=7 source_digest=e3b0c44298fc1c14

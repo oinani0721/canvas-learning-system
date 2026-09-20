@@ -1,0 +1,8 @@
+sha_before=1d3fda04aa67d22711e817a1f85dd2778ad3d8bd8c5e6ca9a8c7de9b632221f5
+mutation: quote fake (hit 1)
+quote-miss: row2
+chains=6 obj07=5 failures=1 source_digest=e7508892b932e2ea
+neg_rc=1
+chains=6 obj07=5 failures=0 source_digest=3a37757b6ddabe27
+control_rc=0
+sha_after=1d3fda04aa67d22711e817a1f85dd2778ad3d8bd8c5e6ca9a8c7de9b632221f5

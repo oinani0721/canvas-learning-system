@@ -1,0 +1,9 @@
+sha_before=c0028a4e631d29d54612b2403d83f30e0834a89e0bb4958be3e2b644cdbafdd6
+mutation: yaml outcome -> pass (hit 1)
+yaml-mismatch: yaml=pass summary=not_yet
+chains=6 obj07=5 failures=1
+neg_rc=1
+--- 对照(还原后) ---
+chains=6 obj07=5 failures=0
+control_rc=0
+sha_after=c0028a4e631d29d54612b2403d83f30e0834a89e0bb4958be3e2b644cdbafdd6

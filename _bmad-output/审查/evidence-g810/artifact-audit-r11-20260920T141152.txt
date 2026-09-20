@@ -1,0 +1,38 @@
+# CARD-G8-10 r11 UAT 产物审计（REF=74d58d14 @ 74d58d14）
+# 口径：UAT r8/r9/r10/r11 段引用的 evidence-g810 产物名 = 32 条；逐条 `git cat-file -e 74d58d14:_bmad-output/审查/evidence-g810/<name>`
+# 状态 名称
+OK   anchor-battery-r10-v48-20260920T135852.txt
+OK   anchor-battery-r8-v46-20260920T131707.txt
+OK   anchor-battery-r9-v47-20260920T134307.txt
+OK   g810-green-r10-20260920T135904.txt
+OK   g810-green-r6-post-20260920T103139.txt
+OK   g810-green-r8-20260920T131722.txt
+OK   g810-green-r8-20260920T132049.txt
+OK   g810-green-r9-20260920T134329.txt
+OK   g810-r10-sidecar-negctl.zsh
+OK   g810-r8-anchor-battery.zsh
+OK   g810-r8-green.zsh
+OK   g810-r8-negctl-runner.zsh
+OK   g810-r8-regress.zsh
+OK   g810-r8-sidecar.py
+OK   g810-r8-yamlgate-branches.zsh
+OK   g810-r9-anchor-battery.zsh
+OK   g810-r9-green.zsh
+OK   g810-r9-negctl-runner.zsh
+OK   g810-r9-yamlgate-branches.zsh
+OK   ghost-ref-check-r8-20260920T131742.txt
+OK   jev-triage-3457f70b.json
+OK   jev-triage-6816ff71-run-20260920T112121.txt
+OK   jev-triage-6816ff71.json
+OK   jev-triage-9e058c5d.json
+OK   r8-startup-selfcheck-20260920T131816.txt
+OK   sidecar-g810-r7-retro-6816ff71.json
+OK   sidecar-g810-r8-3457f70b.json
+MISS sidecar-g810-r9-9a22c33b.json
+OK   sidecar-negctl-r10-20260920T135940.txt
+OK   yamlgate-branches-r10-v48-20260920T135900.txt
+OK   yamlgate-branches-r8-v46-20260920T131716.txt
+OK   yamlgate-branches-r9-v47-20260920T134314.txt
+# tracked=31 missing=1
+# missing_list=sidecar-g810-r9-9a22c33b.json
+rc=1

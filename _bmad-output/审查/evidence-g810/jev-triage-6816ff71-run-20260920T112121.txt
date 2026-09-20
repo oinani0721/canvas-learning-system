@@ -1,0 +1,14 @@
+Ref:    6816ff711bda23f3e71314f83f440bd7852b15ca (6816ff711bda)
+Commit: docs(evidence): CARD-G8-10 r7 checker v4.5 真 YAML 解析修 r6-H1 [BATCH-2026-09-18-第十五批 / CARD-G8-10]
+Files:  1 个含代码改动（分诊前 1 个，按 churn 降序）
+
+FILE                                                             CHURN    URG  REVIEW   TEST  RISK             VERDICT
+------------------------------------------------------------------------------------------------------------
+t/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py"    +76/-1   2.90    0.81   0.56  logic            REVIEW
+------------------------------------------------------------------------------------------------------------
+Model: jev-1.13.0 | calls: 1 | input_tokens: 2914 | output_tokens: 156
+Latency ms: min 408 / median 408 / max 408
+标记人工审查: 1/1
+  - "a/_bmad-output/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py" "b/_bmad-output/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py"  (urgency 2.90, P(review)=0.81, risk=logic)
+
+报告已保存: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/jev-triage-6816ff71.json

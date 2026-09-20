@@ -1,0 +1,20 @@
+# CARD-G8-10 r10 sidecar 生成器路径校验负控（r9-M4）
+# generator=_bmad-output/审查/evidence-g810/g810-r8-sidecar.py
+# generator_sha256=f7bae0dc65be4383de21afb8a7b65701a26e6444e2e89bc7b85276550459ef3a
+# 口径：生成器 rc!=0 且 sidecar.path_decoded==false 且 path_validation_failures 非空 = 负控生效
+--- N1-abs（期望 rc=1 / path_decoded=false）---
+sidecar=/tmp/g810-r10sc.3nKG2h/N1-abs.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=[] path_decoded=False path_validation_failures={'/tmp/x.py': '绝对路径'}
+rc=1
+path_decoded=False failures={'/tmp/x.py': '绝对路径'}
+--- N2-dotdot（期望 rc=1 / path_decoded=false）---
+sidecar=/tmp/g810-r10sc.3nKG2h/N2-dotdot.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=[] path_decoded=False path_validation_failures={'../x.py': '含 .. 段'}
+rc=1
+path_decoded=False failures={'../x.py': '含 .. 段'}
+--- N3-badutf8（期望 rc=1 / path_decoded=false）---
+sidecar=/tmp/g810-r10sc.3nKG2h/N3-badutf8.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=[] path_decoded=False path_validation_failures={'a/�x.py': '含 U+FFFD（UTF-8 解码失败残留）'}
+rc=1
+path_decoded=False failures={'a/�x.py': '含 U+FFFD（UTF-8 解码失败残留）'}
+--- P-positive（真实 r9 JEV 产物；期望 rc=0 / path_decoded=True）---
+sidecar=/tmp/g810-r10sc.3nKG2h/P-sidecar.json calls=2 verdict=REVIEW urgency=2.87 risk=logic sha=9a22c33b87b87e3ded707ac3be712c0e7fe1632a field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+verdict_bad=0

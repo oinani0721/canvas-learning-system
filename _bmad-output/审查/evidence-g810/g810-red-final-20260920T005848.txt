@@ -1,0 +1,8 @@
+chains<6: 1
+obj07!=5: 0
+chain-missing: ['检索链', '复习链', '部署链', 'skill 链', '投影 freshness', 'DLQ 链']
+obj-set: []
+quote-miss: row1
+yaml-mismatch: yaml=not_yet summary=None
+yaml-note-reserved: dim: observability 行仍含「预留行」
+chains=1 obj07=0 failures=7 source_digest=e3b0c44298fc1c14

@@ -1,0 +1,2 @@
+yaml-overclaim: outcome=pass 但汇总行无 candidate SHA
+chains=6 obj07=5 failures=1 source_digest=ee045b4872d4bb0f

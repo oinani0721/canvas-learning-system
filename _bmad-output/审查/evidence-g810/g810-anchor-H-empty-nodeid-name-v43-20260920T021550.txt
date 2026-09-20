@@ -1,0 +1,3 @@
+nodeid-missing: row5 空/非法测试名 'backend/tests/unit/test_vault_lint.py::'
+digest-drift: expect=ae6514682c1064c75534f212269ccc1c actual=0aa411a59ac6ff51fded896b02757141
+chains=6 obj07=5 failures=2 source_digest=0aa411a59ac6ff51fded896b02757141 expect_digest=ae6514682c1064c75534f212269ccc1c head=c53069d3e87baae286b8e63c8e9e8af860c2d22f dirty=10

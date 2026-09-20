@@ -1,0 +1,35 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r6 checker v4.4 修 r5-H1/H2/L1 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "9e058c5d",
+  "sha": "9e058c5dcf8fe5fa332c60d1d6869a21e9dd2298",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T10:31:25-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/check_g810_refs.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/check_g810_refs.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/check_g810_refs.py\"",
+      "added": 25,
+      "removed": 6,
+      "runtime": 0.65,
+      "risk": "logic",
+      "risk_conf": 0.89,
+      "urgency": 2.43,
+      "urgency_conf": 0.52,
+      "review": 0.64,
+      "test": 0.48,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 2584,
+    "output_tokens": 156
+  },
+  "latency_ms": {
+    "min": 373,
+    "median": 373,
+    "max": 373
+  }
+}

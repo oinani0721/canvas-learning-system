@@ -1,0 +1,12 @@
+chains<6: 1
+obj07!=5: 0
+chain-missing: ['检索链', '复习链', '部署链', 'skill 链', '投影 freshness', 'DLQ 链']
+obj-set: []
+nodeid-missing: row1 机械判据缺 nodeid（.py::）
+owner-missing: row1 (逐链归属表) 非空 ID 缺失
+quote-miss: row1
+yaml-mismatch: yaml=not_yet summary=None
+coverage-mismatch: yaml=none summary=None
+yaml-note-reserved: dim: observability 行仍含「预留行」
+digest-drift: expect=e721c707e8e2efe8 actual=9fd3ec9f927d2b34
+chains=1 obj07=0 failures=11 source_digest=9fd3ec9f927d2b34 expect_digest=e721c707e8e2efe8 head=4120e0b6

@@ -1,0 +1,3 @@
+owner-invalid: row1 (检索链) 实见=['G8-2'] 允许=['G4-3']
+digest-drift: expect=638713e44b9047dc actual=88624ab63d3a7f64
+chains=6 obj07=5 failures=2 source_digest=88624ab63d3a7f64 expect_digest=638713e44b9047dc head=4120e0b6

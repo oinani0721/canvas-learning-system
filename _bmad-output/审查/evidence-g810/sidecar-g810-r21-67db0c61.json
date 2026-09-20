@@ -1,0 +1,50 @@
+{
+  "card": "CARD-G8-10",
+  "round": "r21",
+  "generated_at": "2026-09-20T16:38:07-07:00",
+  "generator": "g810-r8-sidecar.py（解析上游 JSON + 运行 stdout；不改 scripts/jev_review_triage.py）",
+  "tool": "jev-latest",
+  "tool_stdout_model": "jev-latest",
+  "source_json": "jev-triage-67db0c61.json",
+  "source_stdout": "jev-triage-67db0c61-run-20260920T163807.txt",
+  "commit_subject": "docs(evidence): CARD-G8-10 r21 UAT §十 编号重排 (71-75) [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "sha": "67db0c6198a6f0b91c116da5136a65cf857b7f0e",
+  "bound_head": "67db0c6198a6f0b91c116da5136a65cf857b7f0e",
+  "ref": "67db0c61",
+  "calls": 0,
+  "verdict": null,
+  "urgency": null,
+  "urgency_conf": null,
+  "risk": null,
+  "risk_conf": null,
+  "review": null,
+  "test": null,
+  "flagged": "0/0",
+  "code_files": [],
+  "code_files_raw": [],
+  "path_decoded": true,
+  "path_validation_failures": {},
+  "path_exists_in_worktree": {},
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  },
+  "field_provenance": {
+    "calls": "stdout 机器可读行 'Model: … | calls: N'（jev-triage-67db0c61-run-20260920T163807.txt）",
+    "verdict": "stdout 分诊表 VERDICT 列（jev-triage-67db0c61-run-20260920T163807.txt）",
+    "urgency/risk/review/test": "上游 JSON files[0]（jev-triage-67db0c61.json）",
+    "sha/bound_head": "上游 JSON .sha（jev-triage-67db0c61.json）",
+    "code_files": "上游 JSON .code_files（jev-triage-67db0c61.json）→ git quoted/octal 就地解码为真实 UTF-8 路径（raw 存 code_files_raw；结构校验见 path_validation_failures）"
+  },
+  "field_missing": [],
+  "partial": true,
+  "partial_inconsistent": false,
+  "partial_reason": "JEV 分诊 0 code files（本 commit 只改 .zsh/UAT 等非 triaged 文件）⇒ 按卡文口径记 PARTIAL，不得写「已审」",
+  "note": "r6-L1 闭合证据：本 sidecar 是**字段级机器可读**的（calls / verdict / urgency / risk / review / test / code_files / sha / bound HEAD）；上游 JSON 缺 calls/verdict，故由 stdout 解析补足并在 field_provenance 注明来源；r8-L2/r9-M4 后 code_files 为解码 + 结构校验过的相对路径（校验失败 ⇒ path_decoded=false 且非 0 退出）。"
+}

@@ -1,0 +1,12 @@
+# ⚠️ 作废件: 本批 --expect-digest 传参因调用侧 sed 解析失误被填成 'chains=6'（非 digest），
+# 全部运行额外触发 digest-drift；正确批次见同名 -post2b-*.txt。其余判据（ref-missing/yaml/pass-unsupported/
+# quote-miss/control rc）与本件一致。
+# ---------------------------------------------------------------------------
+
+sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+mutation: quote
+quote-miss: row2
+neg_rc=1
+chains=6 obj07=5 failures=1 source_digest=d2cc9c44d64542def65e3c9b73ec7add expect_digest=chains=6 head=5ae6d75fc99e6301943b9f431bba853ce3243c5a dirty=4
+control_rc=1
+sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9

@@ -1,0 +1,14 @@
+Ref:    74746264 (74746264410f)
+Commit: docs(evidence): CARD-G8-10 r20 row-file 真后缀 + 复跑补证 [BATCH-2026-09-18-第十五批 / CARD-G8-10]
+Files:  1 个含代码改动（分诊前 1 个，按 churn 降序）
+
+FILE                                                             CHURN    URG  REVIEW   TEST  RISK             VERDICT
+------------------------------------------------------------------------------------------------------------
+t/\345\256\241\346\237\245/evidence-g810/g810-r8-sidecar.py"     +8/-4   2.24    0.50   0.56  logic            pass
+------------------------------------------------------------------------------------------------------------
+Model: jev-1.13.0 | calls: 1 | input_tokens: 1655 | output_tokens: 156
+Latency ms: min 281 / median 281 / max 281
+标记人工审查: 0/1
+
+报告已保存: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/jev-triage-74746264.json
+rc=0

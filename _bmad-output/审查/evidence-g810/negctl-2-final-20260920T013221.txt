@@ -1,0 +1,10 @@
+sha_before=63d3b4b6df965f6b161677639bae5cdec1047a7042b2e5a0c19d3c8d0cff12f3
+mutation: yaml pass (hit 1)
+yaml-mismatch: yaml=pass summary=not_yet
+yaml-overclaim: outcome=pass 但缺口行 [1, 4] 未闭环
+yaml-overclaim: outcome=pass 但汇总行无 candidate SHA
+chains=6 obj07=5 failures=3 source_digest=20cb8a57a9ca0e36
+neg_rc=1
+chains=6 obj07=5 failures=0 source_digest=ee045b4872d4bb0f
+control_rc=0
+sha_after=63d3b4b6df965f6b161677639bae5cdec1047a7042b2e5a0c19d3c8d0cff12f3

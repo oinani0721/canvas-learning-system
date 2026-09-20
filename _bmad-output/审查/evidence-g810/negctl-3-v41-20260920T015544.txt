@@ -1,0 +1,8 @@
+sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+mutation: quote
+quote-miss: row2
+digest-drift: expect=e721c707e8e2efe8 actual=0f28d6538712d22a
+neg_rc=1
+chains=6 obj07=5 failures=0 source_digest=e721c707e8e2efe8 expect_digest=e721c707e8e2efe8 head=4120e0b6
+control_rc=0
+sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9

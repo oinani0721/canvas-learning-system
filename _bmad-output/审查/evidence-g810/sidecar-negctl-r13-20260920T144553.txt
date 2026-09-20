@@ -1,0 +1,26 @@
+# CARD-G8-10 r13 sidecar 生成器负控（r9-M4 路径 + r12-M3 PARTIAL 三方一致）
+# generator=_bmad-output/审查/evidence-g810/g810-r8-sidecar.py
+# generator_sha256=44b5adfb0fc7d759ab34fde6cfacb0f5202da97bead369bc9507c0e68e295258
+# 口径：负例 = rc=1 且（path_decoded=false 或 partial-inconsistent 记录）；正控 = rc=0
+--- N1-abs（期望 rc=1）---
+sidecar=/tmp/g810-r13sc.8P7U7L/N1-abs.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls=0 ∧ code_files=[]；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'/tmp/x.py': '绝对路径'}
+rc=1
+--- N2-dotdot（期望 rc=1）---
+sidecar=/tmp/g810-r13sc.8P7U7L/N2-dotdot.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls=0 ∧ code_files=[]；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'../x.py': '含 .. 段'}
+rc=1
+--- N3-badutf8（期望 rc=1）---
+sidecar=/tmp/g810-r13sc.8P7U7L/N3-badutf8.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls=0 ∧ code_files=[]；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'a/�x.py': '含 U+FFFD（UTF-8 解码失败残留）'}
+rc=1
+--- N4-calls5（期望 rc=1）---
+sidecar=/tmp/g810-r13sc.8P7U7L/N4-calls5.sidecar.json calls=5 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', '<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls=0 ∧ code_files=[]；实见 files=0 calls=5 code_files=1>'] path_decoded=False path_validation_failures={'': '空路径'}
+rc=1
+--- N5-codefiles（期望 rc=1）---
+sidecar=/tmp/g810-r13sc.8P7U7L/N5-codefiles.sidecar.json calls=1 verdict=REVIEW urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['urgency', 'risk', 'review', 'test', '<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls=0 ∧ code_files=[]；实见 files=0 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'': '空路径'}
+rc=1
+--- P1（真实 r12，期望 rc=0）---
+sidecar=/tmp/g810-r13sc.8P7U7L/P1.json calls=1 verdict=REVIEW urgency=2.32 risk=test_or_docs sha=2e52f551e2c417dbf4a9a40a587bcb8b1a593853 field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+--- P2（真实 r12b 0 文件 + --allow-empty，期望 rc=0 且 partial）---
+sidecar=/tmp/g810-r13sc.8P7U7L/P2.json calls=0 verdict=None urgency=None risk=None sha=4c5777d065bc947814497f5a96fc7a53113c93c6 field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+verdict_bad=0

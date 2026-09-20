@@ -1,0 +1,64 @@
+# CARD-G8-10 r8 回归负控（相位 post）
+# checker=_bmad-output/审查/evidence-g810/check_g810_refs.py
+# checker_sha256=3fd001741b7c80106684e36c8244ed2bbd9a8c7daf9802062c11419738793faf
+# canonical_ledger_sha256=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+--- case: r6-A（相位 post）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: "pass", coverage: partial}（r6-H1 引号字面标量）
+# re-anchored_expect_digest(mutated)=4fe4c3cba879dd57c885034bb50ae213
+pass-unsupported: 本脚本只做记录一致性核对；§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证（全底账 any-line 扫描）
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=3 source_digest=4fe4c3cba879dd57c885034bb50ae213 expect_digest=4fe4c3cba879dd57c885034bb50ae213 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=11 dirty_tracked=2 dirty_untracked=9
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10 dirty_tracked=1 dirty_untracked=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r6-B（相位 post）---
+# mutation: 检索链 owner cell：`G4-3` → `张三` / `G4-3`（r6-H2 反引号内伪 owner）
+# re-anchored_expect_digest(mutated)=1c20c5689c790c130d1dc77b4ff38e47
+owner-invalid: row1 (检索链) 非白名单描述词 '张三'
+chains=6 obj07=5 failures=1 source_digest=1c20c5689c790c130d1dc77b4ff38e47 expect_digest=1c20c5689c790c130d1dc77b4ff38e47 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=11 dirty_tracked=2 dirty_untracked=9
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10 dirty_tracked=1 dirty_untracked=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r7-A（相位 post）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: "pa\u0073s", coverage: partial}（r7 转义双引号标量）
+# re-anchored_expect_digest(mutated)=f4ddf64dd176dbae66b919f10200d9da
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=f4ddf64dd176dbae66b919f10200d9da expect_digest=f4ddf64dd176dbae66b919f10200d9da head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=11 dirty_tracked=2 dirty_untracked=9
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10 dirty_tracked=1 dirty_untracked=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r7-B（相位 post）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: &not_yet pass, coverage: partial}（r7 anchor 标量）
+# re-anchored_expect_digest(mutated)=0e860f67fb7b02accb0fb9539b54f380
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=0e860f67fb7b02accb0fb9539b54f380 expect_digest=0e860f67fb7b02accb0fb9539b54f380 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=11 dirty_tracked=2 dirty_untracked=9
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10 dirty_tracked=1 dirty_untracked=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r7-H1（相位 post）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: "pa\u0073s", outcome: not_yet, coverage: partial}（r7-H1 复核原形：重复 key）
+# re-anchored_expect_digest(mutated)=be6161e22560b0eff16d024c0677987c
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+yaml-duplicate-key: block@182 found duplicate key 'outcome'
+chains=6 obj07=5 failures=2 source_digest=be6161e22560b0eff16d024c0677987c expect_digest=be6161e22560b0eff16d024c0677987c head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=11 dirty_tracked=2 dirty_untracked=9
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10 dirty_tracked=1 dirty_untracked=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# --- 收尾（还原后 canonical 复跑）---
+expect_digest=a0269b1df5a3b38ceed5f5e07a87e523
+chains=6 obj07=5 failures=0 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10 dirty_tracked=1 dirty_untracked=9
+rc=0
+phase=post verdict_bad=0

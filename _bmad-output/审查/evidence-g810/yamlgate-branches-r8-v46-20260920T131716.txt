@@ -1,0 +1,29 @@
+# CARD-G8-10 r7 YAML 门分支控制（checker v4.6）  checker_sha256=3fd001741b7c80106684e36c8244ed2bbd9a8c7daf9802062c11419738793faf
+# 口径：每条控制只改一层；改后重锚 --expect-digest；跑完 git show HEAD:<底账> 还原（不留改动）
+# ledger_sha(canonical)=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+--- branch: C1-no-yaml-block（mutated_digest=c731aa732f1ac7e2854735cffd7c3061; sha_equal=yes）---
+yaml-blocks: 底账内 0 个 ```yaml fenced block（结构缺失 ⇒ 红）
+chains=6 obj07=5 failures=1 source_digest=c731aa732f1ac7e2854735cffd7c3061 expect_digest=c731aa732f1ac7e2854735cffd7c3061 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=13 dirty_tracked=2 dirty_untracked=11
+rc=1
+--- branch: C2-yaml-parse-error（mutated_digest=e0c2389c1430f9f2db7b00acdef200c9; sha_equal=yes）---
+yaml-parse-error: block@182 ParserError
+yaml-parse-error: block@182 ParserError: expected ',' or '}', but got '<stream end>'
+chains=6 obj07=5 failures=2 source_digest=e0c2389c1430f9f2db7b00acdef200c9 expect_digest=e0c2389c1430f9f2db7b00acdef200c9 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=13 dirty_tracked=2 dirty_untracked=11
+rc=1
+--- branch: C4-blockscalar-pass（mutated_digest=ded4f6706400ca3f4ab572aaa16a6b41; sha_equal=yes）---
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=ded4f6706400ca3f4ab572aaa16a6b41 expect_digest=ded4f6706400ca3f4ab572aaa16a6b41 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=13 dirty_tracked=2 dirty_untracked=11
+rc=1
+--- branch: C5-tag-pass（mutated_digest=86171b876c0c10fd7995a7ef68ab1377; sha_equal=yes）---
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=86171b876c0c10fd7995a7ef68ab1377 expect_digest=86171b876c0c10fd7995a7ef68ab1377 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=13 dirty_tracked=2 dirty_untracked=11
+rc=1
+--- branch: C3-yaml-missing（PYTHONPATH=/tmp/g810-r7br.l8iAut/blockyaml，假 yaml.py=raise ImportError; mutated_digest=a0269b1df5a3b38ceed5f5e07a87e523）---
+yaml-missing: PyYAML 不可用（真解析要求 import yaml 成功；禁静默回退正则）
+chains=6 obj07=5 failures=1 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=12 dirty_tracked=1 dirty_untracked=11
+rc=1
+--- control（canonical 还原后）---
+chains=6 obj07=5 failures=0 source_digest=a0269b1df5a3b38ceed5f5e07a87e523 expect_digest=a0269b1df5a3b38ceed5f5e07a87e523 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=12 dirty_tracked=1 dirty_untracked=11
+rc=0

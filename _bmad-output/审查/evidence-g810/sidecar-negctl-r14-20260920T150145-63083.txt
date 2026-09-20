@@ -1,0 +1,31 @@
+# CARD-G8-10 r14 sidecar 生成器负控 v2（tag 断言）
+# generator=_bmad-output/审查/evidence-g810/g810-r8-sidecar.py
+# generator_sha256=5ac85be7eea24d5373313577246242cebfcb2a89001fcabe3203188ef82eefac
+--- N1-abs（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r14sc.GaM0RY/N1-abs.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'/tmp/x.py': '绝对路径'}
+rc=1 assert=yes
+--- N2-dotdot（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r14sc.GaM0RY/N2-dotdot.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'../x.py': '含 .. 段'}
+rc=1 assert=yes
+--- N3-badutf8（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r14sc.GaM0RY/N3-badutf8.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'a/�x.py': '含 U+FFFD（UTF-8 解码失败残留）'}
+rc=1 assert=yes
+--- N4-calls5（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r14sc.GaM0RY/N4-calls5.sidecar.json calls=5 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', '<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=5 code_files=1>'] path_decoded=False path_validation_failures={'': '空路径'}
+rc=1 assert=yes
+--- N5-codefiles（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r14sc.GaM0RY/N5-codefiles.sidecar.json calls=1 verdict=REVIEW urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['urgency', 'risk', 'review', 'test', '<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'': '空路径'}
+rc=1 assert=yes
+--- N6-spoof（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r14sc.GaM0RY/N6-spoof.sidecar.json calls=5 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', '<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=5 code_files=1>'] path_decoded=False path_validation_failures={'': '空路径'}
+rc=1 assert=yes
+--- N7-flag11（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r14sc.GaM0RY/N7-flag11.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', '<partial-inconsistent: --allow-empty 要求 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=0 code_files=1>'] path_decoded=False path_validation_failures={'': '空路径'}
+rc=1 assert=yes
+--- P1（真实 r13，期望 rc=0）---
+sidecar=/tmp/g810-r14sc.GaM0RY/P1.json calls=1 verdict=REVIEW urgency=2.69 risk=logic sha=c84a0cc489eafb087cc107342bde12a86222a7b8 field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+--- P2（真实 r12b 0 文件，期望 rc=0 + partial=true）---
+sidecar=/tmp/g810-r14sc.GaM0RY/P2.json calls=0 verdict=None urgency=None risk=None sha=4c5777d065bc947814497f5a96fc7a53113c93c6 field_missing=[] path_decoded=True path_validation_failures={}
+rc=0 assert=yes
+verdict_bad=0

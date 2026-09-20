@@ -1,0 +1,67 @@
+# CARD-G8-10 r15 审计 v2.6.1 控制组（逐条断言 rc=1 + 目标标签；输出件按本次 invocation 的 file= 解析）
+--- C1-section-anchor（期望 rc=1 且输出件含 'section-anchor'）---
+section-anchor
+artifact_audit_v2 ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8 uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546 rc=1 file=artifact-audit-r12-20260920T154941-88117.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154941-88117.txt
+rc=1 assert=yes
+--- C2-marker-count（期望 rc=1 且输出件含 'marker-count'）---
+marker-count
+artifact_audit_v2 ref=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 uat_blob=807327c7d56f864c13339a562010f65b0c9141e8 rc=1 file=artifact-audit-r12-20260920T154941-88137.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154941-88137.txt
+rc=1 assert=yes
+--- C3-marker-context（期望 rc=1 且输出件含 'marker-context'）---
+marker-context
+artifact_audit_v2 ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8 uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546 rc=1 file=artifact-audit-r12-20260920T154941-88158.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154941-88158.txt
+rc=1 assert=yes
+--- C4-excl-dead（期望 rc=1 且输出件含 'excl-dead'）---
+# ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8
+# uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546
+# runner_sha256=ae8ae103ff6e9a46783bbec035fdc3f8eea192dee03965c74276383866f409de
+# runner_blob_used=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+# runner_blob_in_ref=0224341ab9e4331dc8455212d9b2f5308da67781
+excl-dead: ghost-never-mentioned-r15.txt（§十三 名单项在整个 §九 内 0 命中）
+artifact_audit_v2 ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8 uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546 rc=1 file=artifact-audit-r12-20260920T154941-88179.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154941-88179.txt
+rc=1 assert=yes
+--- C5-excl-empty-reason（期望 rc=1 且输出件含 'excl-empty-reason'）---
+# uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546
+# runner_sha256=ae8ae103ff6e9a46783bbec035fdc3f8eea192dee03965c74276383866f409de
+# runner_blob_used=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+# runner_blob_in_ref=0224341ab9e4331dc8455212d9b2f5308da67781
+excl-empty-reason: scripts/jev_review_triage.py（§十三 名单项缺理由）
+excl-duplicate: scripts/jev_review_triage.py 在 §十三 出现 2 次（同名逐条并列会掩盖空理由/死项）
+artifact_audit_v2 ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8 uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546 rc=1 file=artifact-audit-r12-20260920T154941-88199.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154941-88199.txt
+rc=1 assert=yes
+--- C6-excl-duplicate（期望 rc=1 且输出件含 'excl-duplicate'）---
+# ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8
+# uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546
+# runner_sha256=ae8ae103ff6e9a46783bbec035fdc3f8eea192dee03965c74276383866f409de
+# runner_blob_used=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+# runner_blob_in_ref=0224341ab9e4331dc8455212d9b2f5308da67781
+excl-duplicate: scripts/jev_review_triage.py 在 §十三 出现 2 次（同名逐条并列会掩盖空理由/死项）
+artifact_audit_v2 ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8 uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546 rc=1 file=artifact-audit-r12-20260920T154941-88220.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154941-88220.txt
+rc=1 assert=yes
+--- C7-excl-malformed（期望 rc=1 且输出件含 'excl-malformed'）---
+# ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8
+# uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546
+# runner_sha256=ae8ae103ff6e9a46783bbec035fdc3f8eea192dee03965c74276383866f409de
+# runner_blob_used=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+# runner_blob_in_ref=0224341ab9e4331dc8455212d9b2f5308da67781
+excl-malformed: <malformed:- `scripts/jev_review_triage.py`（缺破折号理由）>（§十三 行格式须为 `- \`名\` — 理由`）
+artifact_audit_v2 ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8 uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546 rc=1 file=artifact-audit-r12-20260920T154941-88240.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154941-88240.txt
+rc=1 assert=yes
+--- C8-gap-name-in-face（期望 rc=1 且输出件含 'ghost-gap-r16.txt'）---
+# ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8
+# uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546
+# runner_sha256=ae8ae103ff6e9a46783bbec035fdc3f8eea192dee03965c74276383866f409de
+# runner_blob_used=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+# runner_blob_in_ref=0224341ab9e4331dc8455212d9b2f5308da67781
+# missing_list=ghost-gap-r16.txt
+artifact_audit_v2 ref=150ff22b3bcdfc3639fcb3571c76e5d1578452d8 uat_blob=7a0c905f39b8761ae3a6f89d93773933531ed546 rc=1 file=artifact-audit-r12-20260920T154942-88260.txt
+# file=/tmp/g810-r15ctl.XCo2yn/artifact-audit-r12-20260920T154942-88260.txt
+rc=1 assert=yes
+verdict_bad=0

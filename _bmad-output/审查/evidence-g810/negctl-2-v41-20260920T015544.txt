@@ -1,0 +1,10 @@
+sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+mutation: yaml pass
+yaml-mismatch: yaml=pass summary=not_yet
+pass-unsupported: 本脚本只做记录一致性核对；§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+digest-drift: expect=e721c707e8e2efe8 actual=e2d3bb869b70efe4
+chains=6 obj07=5 failures=3 source_digest=e2d3bb869b70efe4 expect_digest=e721c707e8e2efe8 head=4120e0b6
+neg_rc=1
+chains=6 obj07=5 failures=0 source_digest=e721c707e8e2efe8 expect_digest=e721c707e8e2efe8 head=4120e0b6
+control_rc=0
+sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9

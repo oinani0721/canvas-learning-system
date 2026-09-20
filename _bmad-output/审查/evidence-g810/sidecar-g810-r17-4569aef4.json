@@ -1,0 +1,71 @@
+{
+  "card": "CARD-G8-10",
+  "round": "r17",
+  "generated_at": "2026-09-20T16:04:00-07:00",
+  "generator": "g810-r8-sidecar.py（解析上游 JSON + 运行 stdout；不改 scripts/jev_review_triage.py）",
+  "tool": "jev-1.13.0",
+  "tool_stdout_model": "jev-1.13.0",
+  "source_json": "jev-triage-4569aef4.json",
+  "source_stdout": "jev-triage-4569aef4-run-20260920T160350.txt",
+  "commit_subject": "docs(evidence): CARD-G8-10 r17 审计 v2.6.3 行互核/锚唯一 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "sha": "4569aef4d30c65c279f65ebe39d01b06cf6d784b",
+  "bound_head": "4569aef4d30c65c279f65ebe39d01b06cf6d784b",
+  "ref": "4569aef4",
+  "calls": 1,
+  "verdict": "REVIEW",
+  "urgency": 2.79,
+  "urgency_conf": 0.81,
+  "risk": "logic",
+  "risk_conf": 0.94,
+  "review": 0.73,
+  "test": 0.65,
+  "flagged": "1/1",
+  "code_files": [
+    "_bmad-output/审查/evidence-g810/g810-r8-sidecar.py"
+  ],
+  "code_files_raw": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\""
+  ],
+  "path_decoded": true,
+  "path_validation_failures": {},
+  "path_exists_in_worktree": {
+    "_bmad-output/审查/evidence-g810/g810-r8-sidecar.py": true
+  },
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\"",
+      "added": 37,
+      "removed": 11,
+      "runtime": 0.63,
+      "risk": "logic",
+      "risk_conf": 0.94,
+      "urgency": 2.79,
+      "urgency_conf": 0.81,
+      "review": 0.73,
+      "test": 0.65,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 2971,
+    "output_tokens": 156
+  },
+  "latency_ms": {
+    "min": 396,
+    "median": 396,
+    "max": 396
+  },
+  "field_provenance": {
+    "calls": "stdout 机器可读行 'Model: … | calls: N'（jev-triage-4569aef4-run-20260920T160350.txt）",
+    "verdict": "stdout 分诊表 VERDICT 列（jev-triage-4569aef4-run-20260920T160350.txt）",
+    "urgency/risk/review/test": "上游 JSON files[0]（jev-triage-4569aef4.json）",
+    "sha/bound_head": "上游 JSON .sha（jev-triage-4569aef4.json）",
+    "code_files": "上游 JSON .code_files（jev-triage-4569aef4.json）→ git quoted/octal 就地解码为真实 UTF-8 路径（raw 存 code_files_raw；结构校验见 path_validation_failures）"
+  },
+  "field_missing": [],
+  "partial": false,
+  "partial_inconsistent": false,
+  "partial_reason": null,
+  "note": "r6-L1 闭合证据：本 sidecar 是**字段级机器可读**的（calls / verdict / urgency / risk / review / test / code_files / sha / bound HEAD）；上游 JSON 缺 calls/verdict，故由 stdout 解析补足并在 field_provenance 注明来源；r8-L2/r9-M4 后 code_files 为解码 + 结构校验过的相对路径（校验失败 ⇒ path_decoded=false 且非 0 退出）。"
+}

@@ -1,0 +1,8 @@
+# CARD-G8-10 r6 正常底账基线（相位 post，还原后）
+# checker=_bmad-output/审查/evidence-g810/check_g810_refs.py
+# checker_sha256=69d9e281d7f24ec4917cefd7aeba6e3a82df4b2ea229865e007dcdaf0027ff2f
+# ledger_status=0 行脏
+# ledger_sha=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+expect_digest=a89b276840b99159d19400ffa2ffe365
+chains=6 obj07=5 failures=0 source_digest=a89b276840b99159d19400ffa2ffe365 expect_digest=a89b276840b99159d19400ffa2ffe365 head=9e058c5dcf8fe5fa332c60d1d6869a21e9dd2298 dirty=3
+rc=0

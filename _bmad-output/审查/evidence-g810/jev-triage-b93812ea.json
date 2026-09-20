@@ -1,0 +1,35 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r14 审计 v2.5.1 + 控制件标签断言 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "b93812ea",
+  "sha": "b93812eac6685d36bd45c9ea34cc4eab3e2986bd",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T15:03:12-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\"",
+      "added": 6,
+      "removed": 3,
+      "runtime": 0.69,
+      "risk": "logic",
+      "risk_conf": 0.91,
+      "urgency": 2.36,
+      "urgency_conf": 0.57,
+      "review": 0.6,
+      "test": 0.66,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 1648,
+    "output_tokens": 156
+  },
+  "latency_ms": {
+    "min": 287,
+    "median": 287,
+    "max": 287
+  }
+}

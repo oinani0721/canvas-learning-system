@@ -1,0 +1,72 @@
+# CARD-G8-10 r12 产物审计 v2.6（REF=4c5777d0；UAT blob=2441b2ec，从 REF 树读出；名字面锚 = §九 章节）
+# runner= g810-r12-artifact-audit.zsh sha256=33fba64dc52af8c360e11999ab1e771b1d097df73ee99eaa021036e7791fc3f6 blob_used=0224341ab9e4331dc8455212d9b2f5308da67781 blob_in_ref=2e47e338ba719cd66dc6275754635536a8e3e34a
+# 审计面 = §九 章节引用的全部产物名 61 条；判定 = basename 在 REF 树内至少一处
+# 状态 命中路径 名称
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r10-v48-20260920T135852.txt  anchor-battery-r10-v48-20260920T135852.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r11-v49-20260920T141543.txt  anchor-battery-r11-v49-20260920T141543.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r11-v49-20260920T143154.txt  anchor-battery-r11-v49-20260920T143154.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r8-v46-20260920T131707.txt  anchor-battery-r8-v46-20260920T131707.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r9-v47-20260920T134307.txt  anchor-battery-r9-v47-20260920T134307.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r11-20260920T141152.txt  artifact-audit-r11-20260920T141152.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r11-20260920T141637.txt  artifact-audit-r11-20260920T141637.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r12-20260920T143035.txt  artifact-audit-r12-20260920T143035.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r12-20260920T143207.txt  artifact-audit-r12-20260920T143207.txt
+OK    _bmad-output/审查/evidence-g810/artifact-audit-r12-20260920T143247.txt  artifact-audit-r12-20260920T143247.txt
+OK    _bmad-output/审查/evidence-g810/check_g810_refs.py  check_g810_refs.py
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r10.md  codex-review-CARD-G8-10-r10.md
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r11.md  codex-review-CARD-G8-10-r11.md
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r8.md  codex-review-CARD-G8-10-r8.md
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r9.md  codex-review-CARD-G8-10-r9.md
+OK    _bmad-output/审查/evidence-g810/g810-green-r10-20260920T135904.txt  g810-green-r10-20260920T135904.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r10-20260920T140018.txt  g810-green-r10-20260920T140018.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r11-20260920T141554.txt  g810-green-r11-20260920T141554.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r11-20260920T141637.txt  g810-green-r11-20260920T141637.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r11-20260920T143206.txt  g810-green-r11-20260920T143206.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r8-20260920T131722.txt  g810-green-r8-20260920T131722.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r8-20260920T132049.txt  g810-green-r8-20260920T132049.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r9-20260920T134329.txt  g810-green-r9-20260920T134329.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r9-20260920T134413.txt  g810-green-r9-20260920T134413.txt
+OK    _bmad-output/审查/evidence-g810/g810-r10-sidecar-negctl.zsh  g810-r10-sidecar-negctl.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r11-artifact-audit.zsh  g810-r11-artifact-audit.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r11-green.zsh  g810-r11-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r12-artifact-audit.zsh  g810-r12-artifact-audit.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-anchor-battery.zsh  g810-r8-anchor-battery.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-green.zsh  g810-r8-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-negctl-runner.zsh  g810-r8-negctl-runner.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-regress.zsh  g810-r8-regress.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-sidecar.py  g810-r8-sidecar.py
+OK    _bmad-output/审查/evidence-g810/g810-r8-yamlgate-branches.zsh  g810-r8-yamlgate-branches.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-anchor-battery.zsh  g810-r9-anchor-battery.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-green.zsh  g810-r9-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-negctl-runner.zsh  g810-r9-negctl-runner.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-yamlgate-branches.zsh  g810-r9-yamlgate-branches.zsh
+OK    _bmad-output/审查/evidence-g810/ghost-ref-check-r8-20260920T131742.txt  ghost-ref-check-r8-20260920T131742.txt
+SKIP  -  jev-triage-1db667ba-run-20260920T141638.txt（§十三 理由：r11 prompt 的**误写**名；实存件 = `jev-triage-1db667ba-run-20260920T141639.txt`（§九.48④ 已校正））
+OK    _bmad-output/审查/evidence-g810/jev-triage-1db667ba-run-20260920T141639.txt  jev-triage-1db667ba-run-20260920T141639.txt
+OK    _bmad-output/审查/evidence-g810/jev-triage-1db667ba.json  jev-triage-1db667ba.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-74d58d14.json  jev-triage-74d58d14.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-9a22c33b.json  jev-triage-9a22c33b.json
+SKIP  -  negctl-r11-post-20260920T141449.txt（§十三 理由：r12 删除的 5/27 不完整负控件（未入库；r11 复核 L-4 的复现依据即其「只含 5 case、无收尾 verdict_bad」事实））
+OK    _bmad-output/审查/evidence-g810/negctl-r11-post-20260920T143114.txt  negctl-r11-post-20260920T143114.txt
+OK    _bmad-output/审查/prompts/codex-prompt-CARD-G8-10-r10.md  prompts/codex-prompt-CARD-G8-10-r10.md
+OK    _bmad-output/审查/prompts/codex-prompt-CARD-G8-10-r11.md  prompts/codex-prompt-CARD-G8-10-r11.md
+OK    _bmad-output/审查/prompts/codex-prompt-CARD-G8-10-r9.md  prompts/codex-prompt-CARD-G8-10-r9.md
+OK    _bmad-output/审查/evidence-g810/r8-startup-selfcheck-20260920T131816.txt  r8-startup-selfcheck-20260920T131816.txt
+MISS  -  scripts/jev_review_triage.py
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r10-74d58d14.json  sidecar-g810-r10-74d58d14.json
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r11-1db667ba.json  sidecar-g810-r11-1db667ba.json
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r9-9a22c33b.json  sidecar-g810-r9-9a22c33b.json
+OK    _bmad-output/审查/evidence-g810/sidecar-negctl-r10-20260920T135940.txt  sidecar-negctl-r10-20260920T135940.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r10-v48-20260920T135900.txt  yamlgate-branches-r10-v48-20260920T135900.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r11-v49-20260920T141549.txt  yamlgate-branches-r11-v49-20260920T141549.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r11-v49-20260920T143201.txt  yamlgate-branches-r11-v49-20260920T143201.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r8-v46-20260920T131716.txt  yamlgate-branches-r8-v46-20260920T131716.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r9-v47-20260920T134314.txt  yamlgate-branches-r9-v47-20260920T134314.txt
+MISS  -  第十五批-goals/收敛-CARD-G8-10-checker.md
+# names=61 excluded=2 (excluded_unique=2) tracked=57 missing=2
+# ref=4c5777d065bc947814497f5a96fc7a53113c93c6
+# uat_blob=2441b2ecb9bc5b52760d8dd1dd4ab08832664840
+# runner_sha256=33fba64dc52af8c360e11999ab1e771b1d097df73ee99eaa021036e7791fc3f6
+# runner_blob_used=0224341ab9e4331dc8455212d9b2f5308da67781
+# runner_blob_in_ref=2e47e338ba719cd66dc6275754635536a8e3e34a
+# missing_list=scripts/jev_review_triage.py,第十五批-goals/收敛-CARD-G8-10-checker.md

@@ -1,0 +1,18 @@
+{
+  "commit": "docs(ledger): G8-9 底账 §2.13 六链归属表 + OBJ-07 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "7538275c",
+  "sha": "7538275c0054cdc1f8143ba4a807be0d9d49c979",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T00:42:10-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

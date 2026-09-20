@@ -1,0 +1,35 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r18 行-文件互核 + 词级边界 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "5b581b0c",
+  "sha": "5b581b0c6da2d57c491b2cb72c5d86885bf4ab37",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T16:13:19-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\"",
+      "added": 13,
+      "removed": 0,
+      "runtime": 0.69,
+      "risk": "logic",
+      "risk_conf": 0.88,
+      "urgency": 2.41,
+      "urgency_conf": 0.57,
+      "review": 0.63,
+      "test": 0.58,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 1665,
+    "output_tokens": 156
+  },
+  "latency_ms": {
+    "min": 381,
+    "median": 381,
+    "max": 381
+  }
+}

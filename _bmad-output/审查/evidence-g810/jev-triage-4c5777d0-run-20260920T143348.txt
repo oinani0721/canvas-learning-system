@@ -1,0 +1,13 @@
+Ref:    4c5777d0 (4c5777d065bc)
+Commit: docs(evidence): CARD-G8-10 r12 补 audit v2.1 排除名单 [BATCH-2026-09-18-第十五批 / CARD-G8-10]
+Files:  0 个含代码改动（分诊前 0 个，按 churn 降序）
+
+FILE                                                             CHURN    URG  REVIEW   TEST  RISK             VERDICT
+------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+Model: jev-latest | calls: 0 | input_tokens: 0 | output_tokens: 0
+Latency ms: min 0 / median 0 / max 0
+标记人工审查: 0/0
+
+报告已保存: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/jev-triage-4c5777d0.json
+rc=0

@@ -1,0 +1,7 @@
+# CARD-G8-10 r7 正常底账（相位 post④，commit ④ 入库后；树净）
+# checker=_bmad-output/审查/evidence-g810/check_g810_refs.py
+# checker_sha256=6e44e1437638fced14321dc239f4cc84cb0940f44fc7f0abd9fe2129a22590ae
+# ledger_sha=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+expect_digest=80839c8cb75876c1be261411675540c7
+chains=6 obj07=5 failures=0 source_digest=80839c8cb75876c1be261411675540c7 expect_digest=80839c8cb75876c1be261411675540c7 head=6816ff711bda23f3e71314f83f440bd7852b15ca dirty=1
+rc=0

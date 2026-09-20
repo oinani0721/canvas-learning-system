@@ -1,0 +1,15 @@
+# CARD-G8-10 r6 负控 A（相位 pre）
+# checker=/tmp/g810-r6.Qbf70t/check_g810_refs_v43.py
+# checker_sha256=6841bddf023de9ce439d5610bdc4fe711401a9c958f95f4302742e60ca5f1066
+# ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+# mutation: criteria 数组追加一行: - {dim: observability-extra, outcome: "pass", coverage: partial}
+# re-anchored_expect_digest(mutated)=57f284363f041c2c0d9bb2c7a138d75b
+--- negctl run（变异底账 + 重锚 digest）---
+chains=6 obj07=5 failures=0 source_digest=57f284363f041c2c0d9bb2c7a138d75b expect_digest=57f284363f041c2c0d9bb2c7a138d75b head=c35eb6d013068858ec9b71de67cbef2ccc71037d dirty=2
+neg_rc=0
+--- control run（git show HEAD: 还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=52ffaaee421ea4c55e013a90f53bdb19 expect_digest=52ffaaee421ea4c55e013a90f53bdb19 head=c35eb6d013068858ec9b71de67cbef2ccc71037d dirty=1
+control_rc=0
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+sha_equal=yes
+restore_method=git show HEAD:<ledger> > <ledger>; trap on EXIT; no stash/no checkout

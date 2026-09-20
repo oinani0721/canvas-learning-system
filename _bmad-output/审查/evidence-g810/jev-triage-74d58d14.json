@@ -1,0 +1,50 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r10 checker v4.8 修 r9-M1/M2/M3 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "74d58d14",
+  "sha": "74d58d147cc5a51537fd65cca2f10ab069ea600f",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T14:00:20-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/check_g810_refs.py\"",
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/check_g810_refs.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/check_g810_refs.py\"",
+      "added": 27,
+      "removed": 14,
+      "runtime": 0.74,
+      "risk": "logic",
+      "risk_conf": 0.92,
+      "urgency": 2.82,
+      "urgency_conf": 0.82,
+      "review": 0.78,
+      "test": 0.6,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\"",
+      "added": 36,
+      "removed": 6,
+      "runtime": 0.72,
+      "risk": "error_handling",
+      "risk_conf": 0.46,
+      "urgency": 2.52,
+      "urgency_conf": 0.59,
+      "review": 0.63,
+      "test": 0.61,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 5463,
+    "output_tokens": 315
+  },
+  "latency_ms": {
+    "min": 274,
+    "median": 347,
+    "max": 347
+  }
+}

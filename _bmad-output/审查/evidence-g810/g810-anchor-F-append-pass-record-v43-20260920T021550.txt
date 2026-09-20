@@ -1,0 +1,3 @@
+pass-unsupported: 本脚本只做记录一致性核对；§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证（全底账 any-line 扫描）
+digest-drift: expect=ae6514682c1064c75534f212269ccc1c actual=2ed5ef521fabb6b466cdc3bd72d59057
+chains=6 obj07=5 failures=2 source_digest=2ed5ef521fabb6b466cdc3bd72d59057 expect_digest=ae6514682c1064c75534f212269ccc1c head=c53069d3e87baae286b8e63c8e9e8af860c2d22f dirty=10

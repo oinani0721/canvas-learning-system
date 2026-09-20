@@ -1,0 +1,4 @@
+owner-missing: row1 (检索链) 非空 ID 缺失
+owner-invalid: row1 (检索链) 实见=[] 允许=['G4-3']
+digest-drift: expect=e721c707e8e2efe8 actual=44428d26acc20b96
+chains=6 obj07=5 failures=3 source_digest=44428d26acc20b96 expect_digest=e721c707e8e2efe8 head=4120e0b6

@@ -1,0 +1,18 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r12 补 audit v2.1 排除名单 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "4c5777d0",
+  "sha": "4c5777d065bc947814497f5a96fc7a53113c93c6",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T14:33:48-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r19 row-file 路径边界 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "e8aec46f",
+  "sha": "e8aec46f0b3b76db432acb18119ad3511e7d4e45",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T16:20:08-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\"",
+      "added": 10,
+      "removed": 2,
+      "runtime": 0.68,
+      "risk": "logic",
+      "risk_conf": 0.71,
+      "urgency": 2.65,
+      "urgency_conf": 0.69,
+      "review": 0.69,
+      "test": 0.62,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 1561,
+    "output_tokens": 156
+  },
+  "latency_ms": {
+    "min": 338,
+    "median": 338,
+    "max": 338
+  }
+}

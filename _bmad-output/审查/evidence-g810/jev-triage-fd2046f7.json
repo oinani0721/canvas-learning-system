@@ -1,0 +1,35 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r20补 verdict 大小写/列取值 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "fd2046f7",
+  "sha": "fd2046f7fcb87b489ae805f26c987e2343cd34c7",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T16:31:29-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\"",
+      "added": 6,
+      "removed": 4,
+      "runtime": 0.76,
+      "risk": "logic",
+      "risk_conf": 0.95,
+      "urgency": 2.14,
+      "urgency_conf": 0.63,
+      "review": 0.58,
+      "test": 0.56,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 1822,
+    "output_tokens": 156
+  },
+  "latency_ms": {
+    "min": 279,
+    "median": 279,
+    "max": 279
+  }
+}

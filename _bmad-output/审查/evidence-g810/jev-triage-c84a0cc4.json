@@ -1,0 +1,35 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r13 审计 v2.4.2 同绑修复 + PARTIAL 约束 [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "c84a0cc4",
+  "sha": "c84a0cc489eafb087cc107342bde12a86222a7b8",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T14:50:10-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g810/g810-r8-sidecar.py\"",
+      "added": 20,
+      "removed": 1,
+      "runtime": 0.6,
+      "risk": "logic",
+      "risk_conf": 0.61,
+      "urgency": 2.69,
+      "urgency_conf": 0.74,
+      "review": 0.73,
+      "test": 0.56,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 1864,
+    "output_tokens": 156
+  },
+  "latency_ms": {
+    "min": 316,
+    "median": 316,
+    "max": 316
+  }
+}

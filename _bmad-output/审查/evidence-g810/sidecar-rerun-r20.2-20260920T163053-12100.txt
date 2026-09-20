@@ -1,0 +1,10 @@
+# CARD-G8-10 r20 sidecar 干净复跑（两轮真实 JEV 输入 × 当前生成器）
+# generator=_bmad-output/审查/evidence-g810/g810-r8-sidecar.py
+# generator_sha256=9301a3590cebd263135f2d572fa1fa7de683195f0e7186bf13b299ce0ab9850b
+--- r17（4569aef4）---
+sidecar=_bmad-output/审查/evidence-g810/sidecar-rerun-r17-4569aef4-v49202.json calls=1 verdict=REVIEW urgency=2.79 risk=logic sha=4569aef4d30c65c279f65ebe39d01b06cf6d784b field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+--- r18（5b581b0c）---
+sidecar=_bmad-output/审查/evidence-g810/sidecar-rerun-r18-5b581b0c-v49202.json calls=1 verdict=REVIEW urgency=2.41 risk=logic sha=5b581b0c6da2d57c491b2cb72c5d86885bf4ab37 field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+verdict_bad=0

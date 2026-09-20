@@ -1,0 +1,16 @@
+# CARD-G8-10 r11 正常底账基线（canonical 底账；树内 checker 见 checker_here_sha256）
+# checker=_bmad-output/审查/evidence-g810/check_g810_refs.py
+# checker_here_sha256=f7c63b3c7be635bca7909a5be9e771f8d19fff6dfb76ace79634a827fc0f887f
+# checker_prev_sha256(from 74d58d14)=7dcfd39493586ab09555945b8de97ce4180fbe83ba640cc778b1e0afda6a4098
+# ledger_sha=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+# ledger_sha_vs_HEAD=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+# --- digest 重锚链 ---
+# prev@74d58d14=1705ab075d0bdf9097d306f58e60bf84（改前，旧口径）
+# here@0aa87523=2291e43027dc6df927e7962a830c8efc（树内 checker 新口径：+evidence 目录内容 +commit tree OID）
+# --- 旧 checker 对 canonical 底账复跑 ---
+chains=6 obj07=5 failures=0 source_digest=1705ab075d0bdf9097d306f58e60bf84 expect_digest=1705ab075d0bdf9097d306f58e60bf84 head=0aa875239de78e5226be4102fc162abc6fac08bb dirty=1 dirty_tracked=0 dirty_untracked=1
+rc_prev=0
+# --- 树内 checker 口径复跑（canonical 底账 + 重锚 digest）---
+expect_digest=2291e43027dc6df927e7962a830c8efc
+chains=6 obj07=5 failures=0 source_digest=2291e43027dc6df927e7962a830c8efc expect_digest=2291e43027dc6df927e7962a830c8efc head=0aa875239de78e5226be4102fc162abc6fac08bb dirty=1 dirty_tracked=0 dirty_untracked=1
+rc=0

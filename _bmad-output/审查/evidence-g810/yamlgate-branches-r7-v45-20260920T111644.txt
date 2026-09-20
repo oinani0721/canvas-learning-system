@@ -1,0 +1,26 @@
+# CARD-G8-10 r7 YAML 门分支控制（checker v4.5）  checker_sha256=6e44e1437638fced14321dc239f4cc84cb0940f44fc7f0abd9fe2129a22590ae
+# 口径：每条控制只改一层；改后重锚 --expect-digest；跑完 git show HEAD:<底账> 还原（不留改动）
+# ledger_sha(canonical)=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+--- branch: C1-no-yaml-block（mutated_digest=262fa5205669483dbd7a676bb3d95ffd; sha_equal=yes）---
+yaml-blocks: 底账内 0 个 ```yaml fenced block（结构缺失 ⇒ 红）
+chains=6 obj07=5 failures=1 source_digest=262fa5205669483dbd7a676bb3d95ffd expect_digest=262fa5205669483dbd7a676bb3d95ffd head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=16
+rc=1
+--- branch: C2-yaml-parse-error（mutated_digest=bf9edfdcbf9d9f5b14f0be8c0c161070; sha_equal=yes）---
+yaml-parse-error: block@182 ParserError
+chains=6 obj07=5 failures=1 source_digest=bf9edfdcbf9d9f5b14f0be8c0c161070 expect_digest=bf9edfdcbf9d9f5b14f0be8c0c161070 head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=16
+rc=1
+--- branch: C4-blockscalar-pass（mutated_digest=ffcf31e5c92fdaee2e34613180549aef; sha_equal=yes）---
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=1 source_digest=ffcf31e5c92fdaee2e34613180549aef expect_digest=ffcf31e5c92fdaee2e34613180549aef head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=16
+rc=1
+--- branch: C5-tag-pass（mutated_digest=52c75dc58c08552ec34eddf71c8d18eb; sha_equal=yes）---
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=1 source_digest=52c75dc58c08552ec34eddf71c8d18eb expect_digest=52c75dc58c08552ec34eddf71c8d18eb head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=16
+rc=1
+--- branch: C3-yaml-missing（PYTHONPATH=/tmp/g810-r7br.cwHdcr/blockyaml，假 yaml.py=raise ImportError; mutated_digest=54e576a8bc9094ea1e031d38acd58d4a）---
+yaml-missing: PyYAML 不可用（真解析要求 import yaml 成功；禁静默回退正则）
+chains=6 obj07=5 failures=1 source_digest=54e576a8bc9094ea1e031d38acd58d4a expect_digest=54e576a8bc9094ea1e031d38acd58d4a head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=15
+rc=1
+--- control（canonical 还原后）---
+chains=6 obj07=5 failures=0 source_digest=54e576a8bc9094ea1e031d38acd58d4a expect_digest=54e576a8bc9094ea1e031d38acd58d4a head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=15
+rc=0

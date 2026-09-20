@@ -1,0 +1,5 @@
+owner-invalid: row1 (检索链) 实见=['G99'] 允许=['G4-3']
+owner-invalid: row1 (检索链) 非白名单描述词 'G99'
+owner-invalid: G99 无 #### 档案节
+digest-drift: expect=ae6514682c1064c75534f212269ccc1c actual=4cc63686d2d2e545f3cb8b4f2ba37327
+chains=6 obj07=5 failures=4 source_digest=4cc63686d2d2e545f3cb8b4f2ba37327 expect_digest=ae6514682c1064c75534f212269ccc1c head=c53069d3e87baae286b8e63c8e9e8af860c2d22f dirty=10

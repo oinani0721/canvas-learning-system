@@ -1,0 +1,345 @@
+# CARD-G8-10 r11 负控运行器（相位 pre；r10-M1/L1 定向 + r10/r9/r8/r6/r7 回归）
+# checker=/tmp/g810-r8.sg68IS/check_g810_refs_v48.py
+# checker_sha256=7dcfd39493586ab09555945b8de97ce4180fbe83ba640cc778b1e0afda6a4098
+# canonical_ledger_sha256=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+# 恢复方式：git show HEAD:<底账> > <底账>（不用 stash / 不用 checkout）；E2 另把目录 mv 回原位
+# canonical_digest=eb60d83e2ed96b675bdbe87025923f9b
+--- case: R11-M1-longsha（相位 pre）---
+# mutation: 平文 SHA `6337e320` → 41×"a"（超长畸形 token）——r10-M1
+# re-anchored_expect_digest(mutated)=4379766515e8526fd20f3e1e82ee0119
+chains=6 obj07=5 failures=0 source_digest=4379766515e8526fd20f3e1e82ee0119 expect_digest=4379766515e8526fd20f3e1e82ee0119 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=0 expected_rc=0 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R11-L1-binkey（相位 pre）---
+# mutation: criteria 追加 - {!!binary b3V0Y29tZQ==: pass}（binary 编码键名 = outcome）——r10-L1
+# re-anchored_expect_digest(mutated)=019abfac64446b71bd20600bfcd852a6
+chains=6 obj07=5 failures=0 source_digest=019abfac64446b71bd20600bfcd852a6 expect_digest=019abfac64446b71bd20600bfcd852a6 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=0 expected_rc=0 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R10-M1a-enumbin（相位 pre）---
+# mutation: criteria 追加 <<: {outcome: !!binary Ym9ndXM=}（merge 源内非法枚举被显式 not_yet 覆盖）——r9-M1
+# re-anchored_expect_digest(mutated)=5e65e74c973167c3433ef16ce36c51b5
+outcome-enum: $.criteria[50].<<.outcome@182 node 层值不在 ['pass', 'fail', 'not_yet']（fail-closed 红）
+chains=6 obj07=5 failures=1 source_digest=5e65e74c973167c3433ef16ce36c51b5 expect_digest=5e65e74c973167c3433ef16ce36c51b5 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R10-M1b-enumint（相位 pre）---
+# mutation: criteria 追加 <<: {outcome: !!int 123}（同上，int 标量）——r9-M1
+# re-anchored_expect_digest(mutated)=80fb99b0ff3afe28e593b6cdc8b57e5f
+outcome-enum: $.criteria[50].<<.outcome@182 node 层值不在 ['pass', 'fail', 'not_yet']（fail-closed 红）
+chains=6 obj07=5 failures=1 source_digest=80fb99b0ff3afe28e593b6cdc8b57e5f expect_digest=80fb99b0ff3afe28e593b6cdc8b57e5f head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R10-M2-dblslash（相位 pre）---
+# mutation: evidence 引用 → `.//_bmad-output/审查/evidence-g2-8-nope-r10/`（.// 归一化）——r9-M2
+# re-anchored_expect_digest(mutated)=67f934538d2daa3c5349675ab762e0ad
+ref-missing: evidence 引用不可解 _bmad-output/审查/evidence-g2-8-nope-r10
+chains=6 obj07=5 failures=1 source_digest=67f934538d2daa3c5349675ab762e0ad expect_digest=67f934538d2daa3c5349675ab762e0ad head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R10-M3-abc（相位 pre）---
+# mutation: 平文 SHA `6337e320` → `abc`（1–3 位畸形 token）——r9-M3
+# re-anchored_expect_digest(mutated)=7926b363434c113f60c54e87844c662e
+sha-missing: abc (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+sha-missing: abc (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+chains=6 obj07=5 failures=2 source_digest=7926b363434c113f60c54e87844c662e expect_digest=7926b363434c113f60c54e87844c662e head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-B1-bin（相位 pre）---
+# mutation: r9 B1：`outcome: !!binary cGFzcw==`
+# re-anchored_expect_digest(mutated)=e7a7442eef8af471d12aee863eedc4ef
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=e7a7442eef8af471d12aee863eedc4ef expect_digest=e7a7442eef8af471d12aee863eedc4ef head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-B3-seq（相位 pre）---
+# mutation: r9 B3：非标量 `outcome: [pass]`
+# re-anchored_expect_digest(mutated)=9cfa7d4b7c2a3e01bac3ecd12d20fc74
+outcome-type: $.criteria[50].outcome@182 node 层非标量 outcome 值（fail-closed 红）
+outcome-type: $.criteria[50].outcome@182 值类型 list（非字符串标量 ⇒ fail-closed 红）
+chains=6 obj07=5 failures=2 source_digest=9cfa7d4b7c2a3e01bac3ecd12d20fc74 expect_digest=9cfa7d4b7c2a3e01bac3ecd12d20fc74 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-M1-head（相位 pre）---
+# mutation: r9 M1a：`6337e320` → `HEAD`
+# re-anchored_expect_digest(mutated)=a2cc3247b7b18f3c69ff3ade0c3d41cb
+sha-missing: HEAD (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+sha-missing: HEAD (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+chains=6 obj07=5 failures=2 source_digest=a2cc3247b7b18f3c69ff3ade0c3d41cb expect_digest=a2cc3247b7b18f3c69ff3ade0c3d41cb head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-M2-dotpath（相位 pre）---
+# mutation: r9 M2a：`./_bmad-output/…-nope-r9/`
+# re-anchored_expect_digest(mutated)=39a4c397e408b0f63058155087ddfe5e
+ref-missing: evidence 引用不可解 _bmad-output/审查/evidence-g2-8-nope-r9
+chains=6 obj07=5 failures=1 source_digest=39a4c397e408b0f63058155087ddfe5e expect_digest=39a4c397e408b0f63058155087ddfe5e head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-B2-binalias（相位 pre）---
+# mutation: r9 B2：binary + anchor + merge 源 alias
+# re-anchored_expect_digest(mutated)=9485775dddbb453df93a47b2d02967f5
+pass-unsupported: $.criteria[50].<<.outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=1 source_digest=9485775dddbb453df93a47b2d02967f5 expect_digest=9485775dddbb453df93a47b2d02967f5 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-M1-main（相位 pre）---
+# mutation: r9 M1b：`6337e320` → `main`
+# re-anchored_expect_digest(mutated)=4a8f45d28ebc12425a5f3bfb248cb59f
+sha-missing: main (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+sha-missing: main (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+chains=6 obj07=5 failures=2 source_digest=4a8f45d28ebc12425a5f3bfb248cb59f expect_digest=4a8f45d28ebc12425a5f3bfb248cb59f head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-M2-dotdot（相位 pre）---
+# mutation: r9 M2b：`../_bmad-output/…`
+# re-anchored_expect_digest(mutated)=2d051e3596e7b7f76ea634f3db0597ea
+ref-missing: 引用路径含 .. 段 ../_bmad-output/审查/evidence-g2-8/（越出树根）
+chains=6 obj07=5 failures=1 source_digest=2d051e3596e7b7f76ea634f3db0597ea expect_digest=2d051e3596e7b7f76ea634f3db0597ea head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: R9-M2-abs（相位 pre）---
+# mutation: r9 M2c：`/tmp/_bmad-output/…`
+# re-anchored_expect_digest(mutated)=25e815b64e3e310915a3318c982d14ca
+ref-missing: 引用路径为绝对路径 /tmp/_bmad-output/审查/evidence-g2-8/（越出树根）
+chains=6 obj07=5 failures=1 source_digest=25e815b64e3e310915a3318c982d14ca expect_digest=25e815b64e3e310915a3318c982d14ca head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: A-dup（相位 pre）---
+# mutation: r8 A：重复显式 outcome key
+# re-anchored_expect_digest(mutated)=d4eb63d28f0be7ab255f3752d83dfe64
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+yaml-duplicate-key: block@182 found duplicate key 'outcome'
+chains=6 obj07=5 failures=2 source_digest=d4eb63d28f0be7ab255f3752d83dfe64 expect_digest=d4eb63d28f0be7ab255f3752d83dfe64 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: B-merge（相位 pre）---
+# mutation: r8 B：merge 源内 `!!str pass`
+# re-anchored_expect_digest(mutated)=f2e60f7dcd2121c98cc362609fa42b8f
+pass-unsupported: $.criteria[50].<<.outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=1 source_digest=f2e60f7dcd2121c98cc362609fa42b8f expect_digest=f2e60f7dcd2121c98cc362609fa42b8f head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: C-alias（相位 pre）---
+# mutation: r8 C：scalar alias 经 merge 源
+# re-anchored_expect_digest(mutated)=ff3abb1004492f6db2f6a3fa49191495
+pass-unsupported: $.criteria[50].<<.outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=1 source_digest=ff3abb1004492f6db2f6a3fa49191495 expect_digest=ff3abb1004492f6db2f6a3fa49191495 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: D-dotdot（相位 pre）---
+# mutation: r8 D：nodeid `backend/tests/../app/…`
+# re-anchored_expect_digest(mutated)=7b2651282182a50aea00acd121282ce9
+nodeid-missing: row1 路径越界 backend/tests/../app/models/service_status.py（含 .. 段）
+chains=6 obj07=5 failures=1 source_digest=7b2651282182a50aea00acd121282ce9 expect_digest=7b2651282182a50aea00acd121282ce9 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: E1-evdir（相位 pre）---
+# mutation: r8 E1：evidence 引用不存在
+# re-anchored_expect_digest(mutated)=4b38bbfe7cc34b40de79218eb2d1105c
+ref-missing: evidence 引用不可解 _bmad-output/审查/evidence-g2-8-nope-r8
+chains=6 obj07=5 failures=1 source_digest=4b38bbfe7cc34b40de79218eb2d1105c expect_digest=4b38bbfe7cc34b40de79218eb2d1105c head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: E2-evdirmv（相位 pre）---
+# mutation: r8 E2：物理移走 `evidence-g2-8/`（跑后 mv 回）
+# re-anchored_expect_digest(mutated)=3fcb152768eb4874823c1884fa3434d9
+ref-missing: evidence 引用不可解 _bmad-output/审查/evidence-g2-8
+chains=6 obj07=5 failures=1 source_digest=3fcb152768eb4874823c1884fa3434d9 expect_digest=3fcb152768eb4874823c1884fa3434d9 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=46 dirty_tracked=25 dirty_untracked=21
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: F1-badsha（相位 pre）---
+# mutation: r8 F1：`6337e320` → `6337e32z8`
+# re-anchored_expect_digest(mutated)=14ca23ecb2abc00b0d72dfa9df931ac1
+sha-missing: 6337e32z8 (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+sha-missing: 6337e32z8 (非 8–40 位小写 hex：平文 SHA provenance 只接受不可变 commit OID；可变 ref（HEAD/main 等分支名）、短 token 或畸形值一律红)
+chains=6 obj07=5 failures=2 source_digest=14ca23ecb2abc00b0d72dfa9df931ac1 expect_digest=14ca23ecb2abc00b0d72dfa9df931ac1 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: F2-substsha（相位 pre）---
+# mutation: r8 F2：`6337e320` → `c53069d3`（有效 commit）⇒ rc=0 + digest 变（绑定）
+# re-anchored_expect_digest(mutated)=cd6e33caaaec57c5eb9e55fea054e350
+chains=6 obj07=5 failures=0 source_digest=cd6e33caaaec57c5eb9e55fea054e350 expect_digest=cd6e33caaaec57c5eb9e55fea054e350 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=0 expected_rc=0 verdict=ok
+# digest_changed_vs_canonical=yes（eb60d83e2ed96b675bdbe87025923f9b → cd6e33caaaec57c5eb9e55fea054e350）
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: G-ownerpath（相位 pre）---
+# mutation: r8 G：owner cell 含 G4-3 的 path:line
+# re-anchored_expect_digest(mutated)=a7f3a2f65e6c5b93cf8285d5062be522
+owner-missing: row1 (检索链) 非空 ID 缺失
+owner-invalid: row1 (检索链) 实见=[] 允许=['G4-3']
+chains=6 obj07=5 failures=2 source_digest=a7f3a2f65e6c5b93cf8285d5062be522 expect_digest=a7f3a2f65e6c5b93cf8285d5062be522 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: r6-A（相位 pre）---
+# mutation: r6-A：`outcome: "pass"`
+# re-anchored_expect_digest(mutated)=d5fafff98918ac7e83f4877231bd924b
+pass-unsupported: 本脚本只做记录一致性核对；§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证（全底账 any-line 扫描）
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=3 source_digest=d5fafff98918ac7e83f4877231bd924b expect_digest=d5fafff98918ac7e83f4877231bd924b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: r7-A（相位 pre）---
+# mutation: r7-A：`outcome: "pa\u0073s"`
+# re-anchored_expect_digest(mutated)=42429a242d84e2272708e4dc6c2842b4
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=42429a242d84e2272708e4dc6c2842b4 expect_digest=42429a242d84e2272708e4dc6c2842b4 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: r7-B（相位 pre）---
+# mutation: r7-B：`outcome: &not_yet pass`
+# re-anchored_expect_digest(mutated)=ba0923991b0f08c08455c8fe1b789c8a
+pass-unsupported: $.criteria[50].outcome@182 node 层（anchor/merge 源扫描）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=ba0923991b0f08c08455c8fe1b789c8a expect_digest=ba0923991b0f08c08455c8fe1b789c8a head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+--- case: r6-B（相位 pre）---
+# mutation: r6-B：伪 owner `张三`
+# re-anchored_expect_digest(mutated)=cb259a8fd296c4bac5710d9bb8389c41
+owner-invalid: row1 (检索链) 非白名单描述词 '张三'
+chains=6 obj07=5 failures=1 source_digest=cb259a8fd296c4bac5710d9bb8389c41 expect_digest=cb259a8fd296c4bac5710d9bb8389c41 head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=23 dirty_tracked=3 dirty_untracked=20
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# evidence_dir_restored=yes moved_leftover=no
+# --- 收尾（还原后 canonical 复跑）---
+expect_digest=eb60d83e2ed96b675bdbe87025923f9b
+chains=6 obj07=5 failures=0 source_digest=eb60d83e2ed96b675bdbe87025923f9b expect_digest=eb60d83e2ed96b675bdbe87025923f9b head=74d58d147cc5a51537fd65cca2f10ab069ea600f dirty=22 dirty_tracked=2 dirty_untracked=20
+rc=0
+phase=pre verdict_bad=0 f2_binding_bad=0

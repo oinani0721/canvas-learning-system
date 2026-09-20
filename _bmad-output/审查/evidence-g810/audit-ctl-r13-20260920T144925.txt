@@ -1,0 +1,25 @@
+# CARD-G8-10 r13 审计 v2.4 控制组（_bmad-output/审查/evidence-g810/g810-r12-artifact-audit.zsh）
+# C1 marker-missing / C2 excl-dead / C3 excl-empty-reason；各只改一层；期望全 rc=1
+--- C1 marker-missing（REF=dce85102）---
+marker-missing
+artifact_audit_v2 ref=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 uat_blob=807327c7d56f864c13339a562010f65b0c9141e8 rc=1 file=artifact-audit-r12-20260920T144925.txt
+rc=1
+--- C2 excl-dead（UAT 覆盖：追加死排除项）---
+# ref=4c5777d065bc947814497f5a96fc7a53113c93c6
+# uat_blob=2441b2ecb9bc5b52760d8dd1dd4ab08832664840
+# runner_sha256=ce412a3566ec33b2aff7c7291a32aa246cc81cd4cfa26bc7c962b49604865d6b
+# runner_blob=91e432d36109a8c8bc46fb91ef1a0427a1aafa5f
+# missing_list=artifact-audit-r12-20260920T143334.txt,sidecar-negctl-r13-20260920T144553.txt
+excl-dead: ghost-never-mentioned-r13.txt（§十三 名单项在审计名字面内 0 命中）
+artifact_audit_v2 ref=4c5777d065bc947814497f5a96fc7a53113c93c6 uat_blob=2441b2ecb9bc5b52760d8dd1dd4ab08832664840 rc=1 file=artifact-audit-r12-20260920T144925.txt
+rc=1
+--- C3 excl-empty-reason（UAT 覆盖：空理由）---
+# ref=4c5777d065bc947814497f5a96fc7a53113c93c6
+# uat_blob=2441b2ecb9bc5b52760d8dd1dd4ab08832664840
+# runner_sha256=ce412a3566ec33b2aff7c7291a32aa246cc81cd4cfa26bc7c962b49604865d6b
+# runner_blob=91e432d36109a8c8bc46fb91ef1a0427a1aafa5f
+# missing_list=artifact-audit-r12-20260920T143334.txt,sidecar-negctl-r13-20260920T144553.txt
+excl-empty-reason: sidecar-g810-r9-9a22c33b.json（§十三 名单项缺理由）
+artifact_audit_v2 ref=4c5777d065bc947814497f5a96fc7a53113c93c6 uat_blob=2441b2ecb9bc5b52760d8dd1dd4ab08832664840 rc=1 file=artifact-audit-r12-20260920T144926.txt
+rc=1
+verdict_bad=0

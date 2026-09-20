@@ -1,0 +1,9 @@
+sha_before=1d3fda04aa67d22711e817a1f85dd2778ad3d8bd8c5e6ca9a8c7de9b632221f5
+mutation: yaml pass (hit 1)
+yaml-mismatch: yaml=pass summary=not_yet
+yaml-overclaim: outcome=pass 但缺口行 [1, 4] 未闭环
+chains=6 obj07=5 failures=2 source_digest=c2ed5fc875116b07
+neg_rc=1
+chains=6 obj07=5 failures=0 source_digest=3a37757b6ddabe27
+control_rc=0
+sha_after=1d3fda04aa67d22711e817a1f85dd2778ad3d8bd8c5e6ca9a8c7de9b632221f5

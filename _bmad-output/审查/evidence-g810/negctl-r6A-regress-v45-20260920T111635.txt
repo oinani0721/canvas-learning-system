@@ -1,0 +1,17 @@
+# CARD-G8-10 r7 回归负控 A（checker v4.5）
+# checker=_bmad-output/审查/evidence-g810/check_g810_refs.py
+# checker_sha256=6e44e1437638fced14321dc239f4cc84cb0940f44fc7f0abd9fe2129a22590ae
+# ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+# mutation: criteria 数组追加一行: - {dim: observability-extra, outcome: "pass", coverage: partial}（r6-H1 原形）
+# re-anchored_expect_digest(mutated)=32756838b9ecb9026a5a278895023035
+--- negctl run（变异底账 + 重锚 digest）---
+pass-unsupported: 本脚本只做记录一致性核对；§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证（全底账 any-line 扫描）
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=32756838b9ecb9026a5a278895023035 expect_digest=32756838b9ecb9026a5a278895023035 head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=12
+neg_rc=1
+--- control run（git show HEAD: 还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=54e576a8bc9094ea1e031d38acd58d4a expect_digest=54e576a8bc9094ea1e031d38acd58d4a head=9457ba436f2fde41e607d75b3f4afb0b37b07235 dirty=11
+control_rc=0
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+sha_equal=yes
+restore_method=git show HEAD:<ledger> > <ledger>; trap on EXIT; no stash/no checkout

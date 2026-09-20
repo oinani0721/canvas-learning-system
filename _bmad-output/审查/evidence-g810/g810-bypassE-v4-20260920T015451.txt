@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/check_g810_refs.py", line 304, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/check_g810_refs.py", line 291, in main
+    used.add((str(ledger_path.relative_to(root)), hashlib.sha256(ledger_path.read_bytes()).hexdigest()))
+                  ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 490, in relative_to
+    raise ValueError(f"{str(self)!r} is not in the subpath of {str(other)!r}")
+ValueError: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/opencode/be.md' is not in the subpath of '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w'

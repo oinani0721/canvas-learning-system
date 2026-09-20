@@ -1,0 +1,45 @@
+# CARD-G8-10 r7 锚群复跑（checker v4.8）  checker_sha256=7dcfd39493586ab09555945b8de97ce4180fbe83ba640cc778b1e0afda6a4098
+# 口径：每条锚只改一层；改后重锚 --expect-digest；跑完 git show HEAD:<底账> 还原（不留改动）
+# ledger_sha(canonical)=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+--- anchor: B-g99-plain（mutated_digest=c217cdaadc8861dd3303b9497b9d5d28）---
+owner-invalid: row1 (检索链) 实见=['G99'] 允许=['G4-3']
+owner-invalid: row1 (检索链) 非白名单描述词 'G99'
+owner-invalid: G99 无 #### 档案节
+chains=6 obj07=5 failures=3 source_digest=c217cdaadc8861dd3303b9497b9d5d28 expect_digest=c217cdaadc8861dd3303b9497b9d5d28 head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- anchor: D-plain-name（mutated_digest=18c9b3eeb6b2332abbf6b703be54771f）---
+owner-missing: row1 (检索链) 非空 ID 缺失
+owner-invalid: row1 (检索链) 实见=[] 允许=['G4-3']
+owner-invalid: row1 (检索链) 非白名单描述词 '张三'
+chains=6 obj07=5 failures=3 source_digest=18c9b3eeb6b2332abbf6b703be54771f expect_digest=18c9b3eeb6b2332abbf6b703be54771f head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- anchor: G-mixed-owner（mutated_digest=d30ffcffa28a725eff7aaac2c59db622）---
+owner-invalid: row1 (检索链) 非白名单描述词 '张三'
+chains=6 obj07=5 failures=1 source_digest=d30ffcffa28a725eff7aaac2c59db622 expect_digest=d30ffcffa28a725eff7aaac2c59db622 head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- anchor: ref-missing（mutated_digest=ec48084963247fe2dcfa15594b6607eb）---
+ref-missing: row1 backend/app/models/no_such_file_g810r6.py:39
+ref-missing: row1 backend/app/models/no_such_file_g810r6.py:108
+chains=6 obj07=5 failures=2 source_digest=ec48084963247fe2dcfa15594b6607eb expect_digest=ec48084963247fe2dcfa15594b6607eb head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- anchor: quote-short（mutated_digest=c578e5a575a29d5ad9222f0e58d309a7）---
+quote-miss: row2 (文句过短)
+chains=6 obj07=5 failures=1 source_digest=c578e5a575a29d5ad9222f0e58d309a7 expect_digest=c578e5a575a29d5ad9222f0e58d309a7 head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- anchor: nodeid-empty（mutated_digest=e9dddabc71daf92e8af0374fac8c34da）---
+nodeid-missing: row5 空/非法测试名 'backend/tests/unit/test_vault_lint.py::'
+chains=6 obj07=5 failures=1 source_digest=e9dddabc71daf92e8af0374fac8c34da expect_digest=e9dddabc71daf92e8af0374fac8c34da head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- anchor: dotdot-escape（mutated_digest=fd0f4b5c390ff1eaa006f0000fa64fd6）---
+ref-missing: row1 越出树根 ../service_status_r6.py:39（含 .. 段）
+ref-missing: row1 越出树根 ../service_status_r6.py:108（含 .. 段）
+chains=6 obj07=5 failures=2 source_digest=fd0f4b5c390ff1eaa006f0000fa64fd6 expect_digest=fd0f4b5c390ff1eaa006f0000fa64fd6 head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- anchor: abs-path（mutated_digest=a9de4ded8b6983cc08eb90eec4fb5465）---
+ref-missing: row1 越出树根 /tmp/service_status_r6.py:39（绝对路径）
+ref-missing: row1 越出树根 /tmp/service_status_r6.py:108（绝对路径）
+chains=6 obj07=5 failures=2 source_digest=a9de4ded8b6983cc08eb90eec4fb5465 expect_digest=a9de4ded8b6983cc08eb90eec4fb5465 head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=17 dirty_tracked=4 dirty_untracked=13
+rc=1
+--- control（canonical 还原后）---
+chains=6 obj07=5 failures=0 source_digest=2b89c64a626a4149df8419d6b3ebf008 expect_digest=2b89c64a626a4149df8419d6b3ebf008 head=9a22c33b87b87e3ded707ac3be712c0e7fe1632a dirty=16 dirty_tracked=3 dirty_untracked=13
+rc=0

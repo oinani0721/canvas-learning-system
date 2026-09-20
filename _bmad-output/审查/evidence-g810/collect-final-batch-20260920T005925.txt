@@ -1,0 +1,9 @@
+tests/regression/test_g6_9_boundary_matrix.py [test_push_failure_visibility_in_backend_app_is_exactly_review_overview] 1/24 tests collected
+tests/unit/test_deploy_vault_sh.py [test_g2_8_activate_tx_logs_each_stage_with_rc] 1/300 tests collected
+tests/unit/test_vault_lint.py [freshness]                  20/112 tests collected
+tests/unit/test_vault_lint.py [test_dlq_backlog_counterexample_is_caught or test_dlq_paths_match_traces_backlog_files] 2/112 tests collected
+tests/unit/test_service_status_contract.py [test_unavailable_rejects_payload] 1/28 tests collected
+tests/unit/test_four_state_injection.py [test_all_remote_tiers_dead_and_no_cache_is_unavailable] 1/41 tests collected
+tests/unit/test_traces_backlog_t6c.py [test_overflow_scan_failure_is_flagged_not_zeroed or test_backlog_covers_every_staging_chain] 2/35 tests collected
+tests/skills/test_g5_6_clear_inbox.py [test_c1_source_url_positive_and_negative] 1/101 tests collected
+tests/unit/test_review_overview.py [test_g67_runner_script_missing_fails_closed_503] 1/117 tests collected

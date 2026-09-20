@@ -1,0 +1,46 @@
+# CARD-G8-10 r15 sidecar 生成器负控 v3（靶向 + 孪生正控）
+# generator=_bmad-output/审查/evidence-g810/g810-r8-sidecar.py
+# generator_sha256=d4f7192c466c93563631a1c0fec72d6b11a91eaf600c5f3fc64a1cfff1d6c3ec
+--- N1-abs（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N1-abs.sidecar.json calls=1 verdict=None urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'row-count: 数据行 0 ≠ files 1', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'/tmp/x.py': '绝对路径'}
+rc=1 assert=yes
+--- N2-dotdot（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N2-dotdot.sidecar.json calls=1 verdict=None urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'row-count: 数据行 0 ≠ files 1', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'../x.py': '含 .. 段'}
+rc=1 assert=yes
+--- N3-badutf8（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N3-badutf8.sidecar.json calls=1 verdict=None urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'row-count: 数据行 0 ≠ files 1', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'a/�x.py': '含 U+FFFD（UTF-8 解码失败残留）'}
+rc=1 assert=yes
+--- N4-calls5（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N4-calls5.sidecar.json calls=5 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', 'code_files', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=5 code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N5-codefiles（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N5-codefiles.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=0 code_files=1>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N6-model2（期望 rc=1 且含 'model-line-count'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N6-model2.sidecar.json calls=None verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['calls', 'verdict', 'urgency', 'risk', 'review', 'test', 'code_files', 'model-line-count: Model 行 2 条（要求洽 1）', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=None code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N7-flag11（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N7-flag11.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', 'code_files', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=0 code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N8-nofields（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N8-nofields.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', 'code_files', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=0 code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N9-indentmodel（期望 rc=1 且含 'model-line-count'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N9-indentmodel.sidecar.json calls=None verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['calls', 'verdict', 'urgency', 'risk', 'review', 'test', 'code_files', 'model-line-count: Model 行 2 条（要求洽 1）', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=None code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N10-headeronly（期望 rc=1 且含 'verdict-missing'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N10-headeronly.sidecar.json calls=1 verdict=None urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'row-count: 数据行 0 ≠ files 1', 'verdict-missing: 未找到数据行（数据行数=0；表头/散文不计 verdict）', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N11-fakerow（期望 rc=1 且含 'row-churn'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N11-fakerow.sidecar.json calls=1 verdict=PASS urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['row-churn: +0/-0 ≠ +1/-0', 'row-urgency: 0.1 ≠ 1.0', 'row-review: 0.2 ≠ 0.5', 'row-test: 0.3 ≠ 0.5', 'row-risk: 0 ≠ logic', "row-file: 行首列未含 files[0] basename 'synthetic'", '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N12-rename（期望 rc=1 且含 'row-file'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/N12-rename.sidecar.json calls=1 verdict=REVIEW urgency=2.79 risk=logic sha=4569aef4d30c65c279f65ebe39d01b06cf6d784b field_missing=["row-file: 行首列未含 files[0] basename 'g810-r8-sidecar.py'", '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- T-twin（期望 rc=0 且含 'none'）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/T-twin.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=[] path_decoded=True path_validation_failures={}
+rc=0 assert=yes
+--- P1（真实 r16，期望 rc=0）---
+sidecar=/tmp/g810-r15sc.ZPEIOg/P1.json calls=1 verdict=REVIEW urgency=2.41 risk=logic sha=884af91a66163f63ad6be5a137a28b3b2c63d5e6 field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+verdict_bad=0

@@ -1,0 +1,2 @@
+digest-drift: expect=deadbeefdeadbeef actual=ee045b4872d4bb0f
+chains=6 obj07=5 failures=1 source_digest=ee045b4872d4bb0f

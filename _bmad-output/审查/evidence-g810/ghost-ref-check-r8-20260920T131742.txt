@@ -1,0 +1,30 @@
+# CARD-G8-10 r8 ——「协议 §2.4 幽灵引用」核定（两副本对照；2026-09-20）
+# 卡文口径：「协议 /Users/.../feature-obsidian-hybrid-dev/.claude/rules/card-batch-protocol.md §2.4（以 feature 树绝对路径那份为准）」
+
+## A. 权威副本（feature 树，卡文指定为准）
+# path=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/rules/card-batch-protocol.md
+# sha256=1d82d11cbf3c8ce8740c933aa956547a9a62971a33f07dfca05419150f27d93b
+# 标题行：
+# 19:## 2. Codex 复核命令（2026-09-05 起）
+# 31:### 2.1 存档首部模板（2026-09-05 起硬规则；第十二批 RV-F 落地）
+# 47:### 2.2 裁判输出落盘（长跑卡 / 变异卡 / 复审卡）
+# 62:### 2.3 批级环境变更通告
+# 70:### 2.4 GLM-5.3 复核（ZAI profile；2026-09-19 起，D-43）
+
+## B. 车道本地副本（card-p6-skills-w 工作树）
+# path=.claude/rules/card-batch-protocol.md
+# sha256=69c48aa69d1ff445229f92b06038bcf4e7aa00ec8b7a6a61d163c975e52efe9e
+# 最后一次改动该文件的 commit：
+# 8856390d docs(batch14): 排批终稿——修正第五轮 10 卡 26 处 grep -E 假交替改 -e + 协议 §2.2 两条 + §三 终装配 [BATCH-2026-09-11-第十四批]
+# 标题行：
+# 19:## 2. Codex 复核命令（2026-09-05 起）
+# 31:### 2.1 存档首部模板（2026-09-05 起硬规则；第十二批 RV-F 落地）
+# 47:### 2.2 裁判输出落盘（长跑卡 / 变异卡 / 复审卡）
+# 62:### 2.3 批级环境变更通告
+
+## C. 结论（逐条）
+# 1. 权威副本含 §2.4（line 70 GLM-5.3 复核）/ §2.4.1（line 89 存档首部 GLM 版）/ §2.4.2（line 101 ZCode 补审）/ §2.4.3（line 111 Jev 分诊）——由第十五批 commit 90ff4570 + 59e1f494 引入（2026-09-19，D-43）。
+# 2. 车道本地副本停留在 8856390d（第十四批），只有 §2.1–§2.3 ⇒ r7-era UAT §九.25 的「协议无 §2.4/§2.4.1」是**对本地陈旧副本为真、对权威副本为假**的表述。
+# 3. 因此：r7 期间把 §八 的「§2.4.1」改成「§2.1」是对陈旧副本的补偿；按权威副本，GLM 存档首部规范 = §2.4.1（line 89）。本单 r8 更正并登记两副本差异（车道副本滞后 = 环境事实）。
+# 4. 卡文 §1 引用的「协议 §2.4」在上述口径下**不是幽灵引用**（权威副本存在该节）；卡文 §3「协议只有 §2.1-§2.3」同属陈旧副本口径，登记勘误。
+# 复现：grep -n '^### 2\.' <两副本>; git log -1 -- .claude/rules/card-batch-protocol.md（车道）

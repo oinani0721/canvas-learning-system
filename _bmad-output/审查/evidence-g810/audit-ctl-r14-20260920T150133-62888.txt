@@ -1,0 +1,43 @@
+# CARD-G8-10 r14 审计 v2.5 控制组（含目标标签断言；runner=_bmad-output/审查/evidence-g810/g810-r12-artifact-audit.zsh）
+# C1 marker-missing（REF=dce85102） / C1b marker-count（fixture 双标记） / C2 excl-dead / C3 excl-empty-reason / C4 excl-duplicate
+--- C1（期望 rc=1 且输出件含 'marker-count'）---
+marker-count
+artifact_audit_v2 ref=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 uat_blob=807327c7d56f864c13339a562010f65b0c9141e8 rc=1 file=artifact-audit-r12-20260920T150133-62894.txt
+# 输出件=artifact-audit-r12-20260920T150133-62894.txt
+rc=1 assert=yes
+--- C1b（期望 rc=1 且输出件含 'marker-count'）---
+marker-count
+artifact_audit_v2 ref=c84a0cc489eafb087cc107342bde12a86222a7b8 uat_blob=977aeeb0f7a369eea59fb5a584fe7d10fda6ad6f rc=1 file=artifact-audit-r12-20260920T150134-62914.txt
+# 输出件=artifact-audit-r12-20260920T150134-62914.txt
+rc=1 assert=yes
+--- C2（期望 rc=1 且输出件含 'excl-dead'）---
+# names=77 excluded=5 (excluded_unique=5) tracked=72 missing=0
+# ref=c84a0cc489eafb087cc107342bde12a86222a7b8
+# uat_blob=977aeeb0f7a369eea59fb5a584fe7d10fda6ad6f
+# runner_sha256=aff96a4310e5e05d78ad9e030981b6641f46be5368ae6bd3b9c3d5c133464dc5
+# runner_blob=df8a35b75de133e4def5e3f295d6461cbaf85d2e
+excl-dead: ghost-never-mentioned-r14.txt（§十三 名单项在审计名字面内 0 命中）
+artifact_audit_v2 ref=c84a0cc489eafb087cc107342bde12a86222a7b8 uat_blob=977aeeb0f7a369eea59fb5a584fe7d10fda6ad6f rc=1 file=artifact-audit-r12-20260920T150134-62933.txt
+# 输出件=artifact-audit-r12-20260920T150134-62933.txt
+rc=1 assert=yes
+--- C3（期望 rc=1 且输出件含 'excl-empty-reason'）---
+# names=77 excluded=5 (excluded_unique=5) tracked=72 missing=0
+# ref=c84a0cc489eafb087cc107342bde12a86222a7b8
+# uat_blob=977aeeb0f7a369eea59fb5a584fe7d10fda6ad6f
+# runner_sha256=aff96a4310e5e05d78ad9e030981b6641f46be5368ae6bd3b9c3d5c133464dc5
+# runner_blob=df8a35b75de133e4def5e3f295d6461cbaf85d2e
+excl-empty-reason: sidecar-g810-r9-9a22c33b.json（§十三 名单项缺理由）
+artifact_audit_v2 ref=c84a0cc489eafb087cc107342bde12a86222a7b8 uat_blob=977aeeb0f7a369eea59fb5a584fe7d10fda6ad6f rc=1 file=artifact-audit-r12-20260920T150134-62953.txt
+# 输出件=artifact-audit-r12-20260920T150134-62953.txt
+rc=1 assert=yes
+--- C4（期望 rc=1 且输出件含 'excl-duplicate'）---
+# names=77 excluded=5 (excluded_unique=4) tracked=73 missing=0
+# ref=c84a0cc489eafb087cc107342bde12a86222a7b8
+# uat_blob=977aeeb0f7a369eea59fb5a584fe7d10fda6ad6f
+# runner_sha256=aff96a4310e5e05d78ad9e030981b6641f46be5368ae6bd3b9c3d5c133464dc5
+# runner_blob=df8a35b75de133e4def5e3f295d6461cbaf85d2e
+excl-duplicate: scripts/jev_review_triage.py 在 §十三 出现 2 次（同名逐条并列会掩盖空理由/死项）
+artifact_audit_v2 ref=c84a0cc489eafb087cc107342bde12a86222a7b8 uat_blob=977aeeb0f7a369eea59fb5a584fe7d10fda6ad6f rc=1 file=artifact-audit-r12-20260920T150134-62972.txt
+# 输出件=artifact-audit-r12-20260920T150134-62972.txt
+rc=1 assert=yes
+verdict_bad=0

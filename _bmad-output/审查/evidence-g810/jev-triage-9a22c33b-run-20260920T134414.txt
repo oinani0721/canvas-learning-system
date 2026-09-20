@@ -1,0 +1,17 @@
+Ref:    9a22c33b (9a22c33b87b8)
+Commit: docs(evidence): CARD-G8-10 r9 checker v4.7 修 r8-H1/M1/M2 [BATCH-2026-09-18-第十五批 / CARD-G8-10]
+Files:  2 个含代码改动（分诊前 2 个，按 churn 降序）
+
+FILE                                                             CHURN    URG  REVIEW   TEST  RISK             VERDICT
+------------------------------------------------------------------------------------------------------------
+t/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py"   +79/-12   2.87    0.76   0.53  logic            REVIEW
+t/\345\256\241\346\237\245/evidence-g810/g810-r8-sidecar.py"    +45/-4   2.37    0.63   0.50  logic            REVIEW
+------------------------------------------------------------------------------------------------------------
+Model: jev-1.13.0 | calls: 2 | input_tokens: 6139 | output_tokens: 312
+Latency ms: min 213 / median 289 / max 289
+标记人工审查: 2/2
+  - "a/_bmad-output/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py" "b/_bmad-output/\345\256\241\346\237\245/evidence-g810/check_g810_refs.py"  (urgency 2.87, P(review)=0.76, risk=logic)
+  - "a/_bmad-output/\345\256\241\346\237\245/evidence-g810/g810-r8-sidecar.py" "b/_bmad-output/\345\256\241\346\237\245/evidence-g810/g810-r8-sidecar.py"  (urgency 2.37, P(review)=0.63, risk=logic)
+
+报告已保存: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/jev-triage-9a22c33b.json
+rc=0

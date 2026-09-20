@@ -1,0 +1,72 @@
+# CARD-G8-10 r15 审计 v2.6.1 控制组（逐条断言 rc=1 + 目标标签；输出件按本次 invocation 的 file= 解析）
+--- C1-section-anchor（期望 rc=1 且输出件含 'section-anchor'）---
+section-anchor
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160235-94578.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94578.txt
+rc=1 assert=yes
+--- C2-marker-count（期望 rc=1 且输出件含 'marker-count'）---
+marker-count
+artifact_audit_v2 ref=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 uat_blob=807327c7d56f864c13339a562010f65b0c9141e8 rc=1 file=artifact-audit-r12-20260920T160235-94600.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94600.txt
+rc=1 assert=yes
+--- C3-marker-context（期望 rc=1 且输出件含 'marker-context'）---
+marker-context
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160235-94622.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94622.txt
+rc=1 assert=yes
+--- C4-excl-dead（期望 rc=1 且输出件含 'excl-dead'）---
+# ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6
+# uat_blob=3f4157aab20a792b9c2198910c621dc89365925a
+# runner_sha256=e7b1ce48e68811c61b9f803b248f231200c70bd94d2d6f4bdbb963ac6b56bff7
+# runner_blob_used=20ee1d378a58e80e39dbf0af51c2afb97e60ce98
+# runner_blob_in_ref=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+excl-dead: ghost-never-mentioned-r15.txt（§十三 名单项在整个 §九 内 0 命中）
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160235-94644.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94644.txt
+rc=1 assert=yes
+--- C5-excl-empty-reason（期望 rc=1 且输出件含 'excl-empty-reason'）---
+# uat_blob=3f4157aab20a792b9c2198910c621dc89365925a
+# runner_sha256=e7b1ce48e68811c61b9f803b248f231200c70bd94d2d6f4bdbb963ac6b56bff7
+# runner_blob_used=20ee1d378a58e80e39dbf0af51c2afb97e60ce98
+# runner_blob_in_ref=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+excl-empty-reason: scripts/jev_review_triage.py（§十三 名单项缺理由）
+excl-duplicate: scripts/jev_review_triage.py 在 §十三 出现 2 次（同名逐条并列会掩盖空理由/死项）
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160235-94666.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94666.txt
+rc=1 assert=yes
+--- C6-excl-duplicate（期望 rc=1 且输出件含 'excl-duplicate'）---
+# ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6
+# uat_blob=3f4157aab20a792b9c2198910c621dc89365925a
+# runner_sha256=e7b1ce48e68811c61b9f803b248f231200c70bd94d2d6f4bdbb963ac6b56bff7
+# runner_blob_used=20ee1d378a58e80e39dbf0af51c2afb97e60ce98
+# runner_blob_in_ref=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+excl-duplicate: scripts/jev_review_triage.py 在 §十三 出现 2 次（同名逐条并列会掩盖空理由/死项）
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160235-94687.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94687.txt
+rc=1 assert=yes
+--- C7-excl-malformed（期望 rc=1 且输出件含 'excl-malformed'）---
+# ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6
+# uat_blob=3f4157aab20a792b9c2198910c621dc89365925a
+# runner_sha256=e7b1ce48e68811c61b9f803b248f231200c70bd94d2d6f4bdbb963ac6b56bff7
+# runner_blob_used=20ee1d378a58e80e39dbf0af51c2afb97e60ce98
+# runner_blob_in_ref=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+excl-malformed: <malformed:- `scripts/jev_review_triage.py`（缺破折号理由）>（§十三 行格式须为 `- \`名\` — 理由`）
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160235-94709.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94709.txt
+rc=1 assert=yes
+--- C8-gap-name-in-face（期望 rc=1 且输出件含 'ghost-gap-r16.txt'）---
+# ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6
+# uat_blob=3f4157aab20a792b9c2198910c621dc89365925a
+# runner_sha256=e7b1ce48e68811c61b9f803b248f231200c70bd94d2d6f4bdbb963ac6b56bff7
+# runner_blob_used=20ee1d378a58e80e39dbf0af51c2afb97e60ce98
+# runner_blob_in_ref=c9c590e01b77787d672f94cd001dc4f7c35fffc1
+# missing_list=ghost-gap-r16.txt
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160235-94731.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160235-94731.txt
+rc=1 assert=yes
+--- C9-dup28（期望 rc=1 且输出件含 'marker-context'）---
+marker-context
+artifact_audit_v2 ref=884af91a66163f63ad6be5a137a28b3b2c63d5e6 uat_blob=3f4157aab20a792b9c2198910c621dc89365925a rc=1 file=artifact-audit-r12-20260920T160236-94753.txt
+# file=/tmp/g810-r15ctl.6UPn3Z/artifact-audit-r12-20260920T160236-94753.txt
+rc=1 assert=yes
+verdict_bad=0

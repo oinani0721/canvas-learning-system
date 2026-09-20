@@ -1,0 +1,1 @@
+chains=6 obj07=5 failures=0 source_digest=ae6514682c1064c75534f212269ccc1c expect_digest=ae6514682c1064c75534f212269ccc1c head=c53069d3e87baae286b8e63c8e9e8af860c2d22f dirty=10

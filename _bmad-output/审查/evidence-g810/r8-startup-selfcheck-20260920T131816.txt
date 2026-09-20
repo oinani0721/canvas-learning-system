@@ -1,0 +1,18 @@
+# CARD-G8-10 r8 开工自证（本 goal 收敛轮；2026-09-20）
+# 车道=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w
+# 分支=card/p6-skills-w
+# 起点 HEAD=dce85102d15c37b7bd07b544986f1e4c8e2c13c4（= r7 收尾 ④′；r7 审查绑定的 ④ 首对象 = 6816ff71，amend 后为 dce85102）
+# 开工实查（本 session 首条命令）：git status --porcelain 输出为空 ⇒ 树净
+#   本条生成时刻（r8 改动在途）：tracked 改动=1 行 / untracked=14 行 —— 非开工态，见下两行口径
+# 底账 sha256=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+#   目标：cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9（一字不动；内容基线 commit=4120e0b6）
+# product code diff（4120e0b6 → HEAD，exclude _bmad-output）= 0 行（目标 0）
+# 卡文=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/收敛-CARD-G8-10-checker.md
+# 卡文 sha256=46380f7dd14aa5b00346a3d3f7d7307d9a0fbb0122c56f367944a45612799cbc
+# 协议（以 feature 树那份为准）sha256=1d82d11cbf3c8ce8740c933aa956547a9a62971a33f07dfca05419150f27d93b
+# unit 红基线（feature 树；本 goal 不跑 pytest，只作开工自证）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15/unit-red-baseline-9c4e7e82.txt
+#   grep -vc '^#' = 33（卡文口径 = 33）
+#   head -1 = # 第十五批 tests/unit 既有红基线（nodeid 口径，协议 §5）
+#   备注：车道本地无 _bmad-output/审查/evidence-b15/（该基线只在 feature 树；本单登记绝对路径）
+# PyYAML: python 3.14.4 pyyaml 6.0.3
+# codex: codex-cli 0.153.3

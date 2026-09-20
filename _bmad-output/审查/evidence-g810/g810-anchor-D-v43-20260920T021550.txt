@@ -1,0 +1,5 @@
+owner-missing: row1 (检索链) 非空 ID 缺失
+owner-invalid: row1 (检索链) 实见=[] 允许=['G4-3']
+owner-invalid: row1 (检索链) 非白名单描述词 '张三'
+digest-drift: expect=ae6514682c1064c75534f212269ccc1c actual=d45b48f71260d2546b7000385c936f56
+chains=6 obj07=5 failures=4 source_digest=d45b48f71260d2546b7000385c936f56 expect_digest=ae6514682c1064c75534f212269ccc1c head=c53069d3e87baae286b8e63c8e9e8af860c2d22f dirty=10

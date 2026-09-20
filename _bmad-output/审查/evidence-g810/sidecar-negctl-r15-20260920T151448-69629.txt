@@ -1,0 +1,34 @@
+# CARD-G8-10 r15 sidecar 生成器负控 v3（靶向 + 孪生正控）
+# generator=_bmad-output/审查/evidence-g810/g810-r8-sidecar.py
+# generator_sha256=b86487db4d6e39dadce9f4038d2ec262eb84e3f820f11b5a425b49c6bb14c26f
+--- N1-abs（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N1-abs.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'/tmp/x.py': '绝对路径'}
+rc=1 assert=yes
+--- N2-dotdot（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N2-dotdot.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'../x.py': '含 .. 段'}
+rc=1 assert=yes
+--- N3-badutf8（期望 rc=1 且含 'path_decoded=False'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N3-badutf8.sidecar.json calls=1 verdict=REVIEW urgency=1.0 risk=logic sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=1 calls=1 code_files=1>'] path_decoded=False path_validation_failures={'a/�x.py': '含 U+FFFD（UTF-8 解码失败残留）'}
+rc=1 assert=yes
+--- N4-calls5（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N4-calls5.sidecar.json calls=5 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', 'code_files', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=5 code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N5-codefiles（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N5-codefiles.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=0 code_files=1>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N6-model2（期望 rc=1 且含 'model-line-count'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N6-model2.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['model-line-count: Model 行 2 条（要求洽 1）'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N7-flag11（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N7-flag11.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', 'code_files', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=0 code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- N8-nofields（期望 rc=1 且含 'partial-inconsistent'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/N8-nofields.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=['verdict', 'urgency', 'risk', 'review', 'test', 'code_files', '<partial-inconsistent: --allow-empty 要求 fields 存在且 files=[] ∧ calls(Model 行)=0 ∧ code_files=[] ∧ 标记人工审查 0/0；实见 files=0 calls=0 code_files=0>'] path_decoded=True path_validation_failures={}
+rc=1 assert=yes
+--- T-twin（期望 rc=0 且含 'none'）---
+sidecar=/tmp/g810-r15sc.cHmgJi/T-twin.sidecar.json calls=0 verdict=None urgency=None risk=None sha=deadbeefdeadbeefdeadbeefdeadbeefdeadbeef field_missing=[] path_decoded=True path_validation_failures={}
+rc=0 assert=yes
+--- P1（真实 r14，期望 rc=0）---
+sidecar=/tmp/g810-r15sc.cHmgJi/P1.json calls=1 verdict=REVIEW urgency=2.36 risk=logic sha=b93812eac6685d36bd45c9ea34cc4eab3e2986bd field_missing=[] path_decoded=True path_validation_failures={}
+rc=0
+verdict_bad=0

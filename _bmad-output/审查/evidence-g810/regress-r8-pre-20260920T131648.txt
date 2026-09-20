@@ -1,0 +1,59 @@
+# CARD-G8-10 r8 回归负控（相位 pre）
+# checker=/tmp/g810-r8rg.MXyWA6/check_g810_refs_v45.py
+# checker_sha256=6e44e1437638fced14321dc239f4cc84cb0940f44fc7f0abd9fe2129a22590ae
+# canonical_ledger_sha256=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+--- case: r6-A（相位 pre）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: "pass", coverage: partial}（r6-H1 引号字面标量）
+# re-anchored_expect_digest(mutated)=14d3b5fba53689bafe5430624c5a7820
+pass-unsupported: 本脚本只做记录一致性核对；§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证（全底账 any-line 扫描）
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=2 source_digest=14d3b5fba53689bafe5430624c5a7820 expect_digest=14d3b5fba53689bafe5430624c5a7820 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=767bc1af14b9cbc7820c1cb3542641a0 expect_digest=767bc1af14b9cbc7820c1cb3542641a0 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r6-B（相位 pre）---
+# mutation: 检索链 owner cell：`G4-3` → `张三` / `G4-3`（r6-H2 反引号内伪 owner）
+# re-anchored_expect_digest(mutated)=c625cc724c9db53407b734b996b853c1
+owner-invalid: row1 (检索链) 非白名单描述词 '张三'
+chains=6 obj07=5 failures=1 source_digest=c625cc724c9db53407b734b996b853c1 expect_digest=c625cc724c9db53407b734b996b853c1 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=767bc1af14b9cbc7820c1cb3542641a0 expect_digest=767bc1af14b9cbc7820c1cb3542641a0 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r7-A（相位 pre）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: "pa\u0073s", coverage: partial}（r7 转义双引号标量）
+# re-anchored_expect_digest(mutated)=dd3872771a18096e026b19093a1fb8c6
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=1 source_digest=dd3872771a18096e026b19093a1fb8c6 expect_digest=dd3872771a18096e026b19093a1fb8c6 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=767bc1af14b9cbc7820c1cb3542641a0 expect_digest=767bc1af14b9cbc7820c1cb3542641a0 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r7-B（相位 pre）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: &not_yet pass, coverage: partial}（r7 anchor 标量）
+# re-anchored_expect_digest(mutated)=eebf55bf57e994e888477217e02518b8
+pass-unsupported: $.criteria[50].outcome@182 解析值=pass（真 YAML 解析）——§1 的 pass 认证需 candidate 树证据与主 session 裁定，机械门拒绝自证
+chains=6 obj07=5 failures=1 source_digest=eebf55bf57e994e888477217e02518b8 expect_digest=eebf55bf57e994e888477217e02518b8 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10
+neg_rc=1 expected_rc=1 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=767bc1af14b9cbc7820c1cb3542641a0 expect_digest=767bc1af14b9cbc7820c1cb3542641a0 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+--- case: r7-H1（相位 pre）---
+# mutation: criteria 追加 - {dim: observability-extra, outcome: "pa\u0073s", outcome: not_yet, coverage: partial}（r7-H1 复核原形：重复 key）
+# re-anchored_expect_digest(mutated)=b797b810d148fa702a68747a9249d864
+chains=6 obj07=5 failures=0 source_digest=b797b810d148fa702a68747a9249d864 expect_digest=b797b810d148fa702a68747a9249d864 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=10
+neg_rc=0 expected_rc=0 verdict=ok
+# --- control run（还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=767bc1af14b9cbc7820c1cb3542641a0 expect_digest=767bc1af14b9cbc7820c1cb3542641a0 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=9
+control_rc=0
+ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9 sha_equal=yes
+# --- 收尾（还原后 canonical 复跑）---
+expect_digest=767bc1af14b9cbc7820c1cb3542641a0
+chains=6 obj07=5 failures=0 source_digest=767bc1af14b9cbc7820c1cb3542641a0 expect_digest=767bc1af14b9cbc7820c1cb3542641a0 head=dce85102d15c37b7bd07b544986f1e4c8e2c13c4 dirty=9
+rc=0
+phase=pre verdict_bad=0

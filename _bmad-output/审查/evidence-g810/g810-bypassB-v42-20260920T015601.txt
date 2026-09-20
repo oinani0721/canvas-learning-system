@@ -1,0 +1,4 @@
+owner-invalid: row1 (检索链) 实见=['G99'] 允许=['G4-3']
+owner-invalid: G99 无 #### 档案节
+digest-drift: expect=638713e44b9047dc actual=3a16dbfb446c30d3
+chains=6 obj07=5 failures=3 source_digest=3a16dbfb446c30d3 expect_digest=638713e44b9047dc head=4120e0b6

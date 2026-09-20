@@ -1,0 +1,18 @@
+{
+  "commit": "docs(evidence): CARD-G8-10 r21 UAT §十 编号重排 (71-75) [BATCH-2026-09-18-第十五批 / CARD-G8-10]",
+  "ref": "67db0c61",
+  "sha": "67db0c6198a6f0b91c116da5136a65cf857b7f0e",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T16:38:07-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

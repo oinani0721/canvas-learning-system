@@ -1,0 +1,50 @@
+# CARD-G8-10 r12 产物审计 v2.3（REF=74d58d14；UAT blob=f2bd35db，从 REF 树读出）
+# runner= g810-r12-artifact-audit.zsh sha256=ce412a3566ec33b2aff7c7291a32aa246cc81cd4cfa26bc7c962b49604865d6b blob=91e432d36109a8c8bc46fb91ef1a0427a1aafa5f
+# 审计面 = UAT（§九 r8 起）引用的全部产物名 39 条；判定 = basename 在 REF 树内至少一处
+# 状态 命中路径 名称
+OK    .claude/rules/card-batch-protocol.md  .claude/rules/card-batch-protocol.md
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r10-v48-20260920T135852.txt  anchor-battery-r10-v48-20260920T135852.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r8-v46-20260920T131707.txt  anchor-battery-r8-v46-20260920T131707.txt
+OK    _bmad-output/审查/evidence-g810/anchor-battery-r9-v47-20260920T134307.txt  anchor-battery-r9-v47-20260920T134307.txt
+OK    .claude/rules/card-batch-protocol.md  card-batch-protocol.md
+OK    _bmad-output/审查/evidence-g810/check_g810_refs.py  check_g810_refs.py
+OK    _bmad-output/审查/codex-review-CARD-G8-10-r8.md  codex-review-CARD-G8-10-r8.md
+OK    _bmad-output/审查/evidence-g810/g810-green-r10-20260920T135904.txt  g810-green-r10-20260920T135904.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r6-post-20260920T103139.txt  g810-green-r6-post-20260920T103139.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r8-20260920T131722.txt  g810-green-r8-20260920T131722.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r8-20260920T132049.txt  g810-green-r8-20260920T132049.txt
+OK    _bmad-output/审查/evidence-g810/g810-green-r9-20260920T134329.txt  g810-green-r9-20260920T134329.txt
+OK    _bmad-output/审查/evidence-g810/g810-r10-sidecar-negctl.zsh  g810-r10-sidecar-negctl.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-anchor-battery.zsh  g810-r8-anchor-battery.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-green.zsh  g810-r8-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-negctl-runner.zsh  g810-r8-negctl-runner.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-regress.zsh  g810-r8-regress.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r8-sidecar.py  g810-r8-sidecar.py
+OK    _bmad-output/审查/evidence-g810/g810-r8-yamlgate-branches.zsh  g810-r8-yamlgate-branches.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-anchor-battery.zsh  g810-r9-anchor-battery.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-green.zsh  g810-r9-green.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-negctl-runner.zsh  g810-r9-negctl-runner.zsh
+OK    _bmad-output/审查/evidence-g810/g810-r9-yamlgate-branches.zsh  g810-r9-yamlgate-branches.zsh
+OK    _bmad-output/审查/evidence-g810/ghost-ref-check-r8-20260920T131742.txt  ghost-ref-check-r8-20260920T131742.txt
+OK    canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py  inbox_preview.py
+OK    _bmad-output/审查/evidence-g810/jev-triage-3457f70b.json  jev-triage-3457f70b.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-6816ff71-run-20260920T112121.txt  jev-triage-6816ff71-run-20260920T112121.txt
+OK    _bmad-output/审查/evidence-g810/jev-triage-6816ff71.json  jev-triage-6816ff71.json
+OK    _bmad-output/审查/evidence-g810/jev-triage-9e058c5d.json  jev-triage-9e058c5d.json
+OK    _bmad-output/审查/evidence-g810/r8-startup-selfcheck-20260920T131816.txt  r8-startup-selfcheck-20260920T131816.txt
+MISS  -  scripts/jev_review_triage.py
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r7-retro-6816ff71.json  sidecar-g810-r7-retro-6816ff71.json
+OK    _bmad-output/审查/evidence-g810/sidecar-g810-r8-3457f70b.json  sidecar-g810-r8-3457f70b.json
+MISS  -  sidecar-g810-r9-9a22c33b.json
+OK    _bmad-output/审查/evidence-g810/sidecar-negctl-r10-20260920T135940.txt  sidecar-negctl-r10-20260920T135940.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r10-v48-20260920T135900.txt  yamlgate-branches-r10-v48-20260920T135900.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r8-v46-20260920T131716.txt  yamlgate-branches-r8-v46-20260920T131716.txt
+OK    _bmad-output/审查/evidence-g810/yamlgate-branches-r9-v47-20260920T134314.txt  yamlgate-branches-r9-v47-20260920T134314.txt
+MISS  -  第十五批-goals/收敛-CARD-G8-10-checker.md
+# names=39 excluded=0 tracked=36 missing=3
+# ref=74d58d147cc5a51537fd65cca2f10ab069ea600f
+# uat_blob=f2bd35dbdbd307393083ef25abeb621b9bd006e1
+# runner_sha256=ce412a3566ec33b2aff7c7291a32aa246cc81cd4cfa26bc7c962b49604865d6b
+# runner_blob=91e432d36109a8c8bc46fb91ef1a0427a1aafa5f
+# missing_list=scripts/jev_review_triage.py,sidecar-g810-r9-9a22c33b.json,第十五批-goals/收敛-CARD-G8-10-checker.md
+rc=1

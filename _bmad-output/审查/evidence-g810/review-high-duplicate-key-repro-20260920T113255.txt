@@ -1,0 +1,17 @@
+# CARD-G8-10 r7 复核 HIGH 独立复现（PyYAML 重复 outcome key 折叠）
+# checker=_bmad-output/审查/evidence-g810/check_g810_refs.py
+# checker_sha256=6e44e1437638fced14321dc239f4cc84cb0940f44fc7f0abd9fe2129a22590ae
+# ledger_sha_before=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+# mutation: criteria 数组追加一行 - {dim: observability-extra, outcome: "pa\u0073s", outcome: not_yet, coverage: partial}（同一 mapping 两个 outcome key）
+# pyyaml 解析：safe_load(criteria[0]) = {'dim': 'x', 'outcome': 'not_yet', 'coverage': 'partial'}
+# re-anchored_expect_digest(mutated)=7851b94e1e5ff96f23bf06c3695567d8
+--- negctl run（变异底账 + 重锚 digest）---
+chains=6 obj07=5 failures=0 source_digest=7851b94e1e5ff96f23bf06c3695567d8 expect_digest=7851b94e1e5ff96f23bf06c3695567d8 head=6816ff711bda23f3e71314f83f440bd7852b15ca dirty=10
+neg_rc=0
+--- control run（git show HEAD: 还原后同一树）---
+chains=6 obj07=5 failures=0 source_digest=80839c8cb75876c1be261411675540c7 expect_digest=80839c8cb75876c1be261411675540c7 head=6816ff711bda23f3e71314f83f440bd7852b15ca dirty=9
+control_rc=0
+ledger_sha_after=cbfd619d2e79b4fce07a52864f3f64f6de455c5dc25f27423c8eba0836329bb9
+sha_equal=yes
+restore_method=git show HEAD:<ledger> > <ledger>; trap on EXIT; no stash/no checkout
+verdict=复现成立：v4.5 对该输入 rc=0（无 pass-unsupported）——与 glm-5.3 r7 复核 HIGH-1 一致

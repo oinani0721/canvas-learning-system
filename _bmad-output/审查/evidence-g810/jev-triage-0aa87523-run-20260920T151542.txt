@@ -1,0 +1,15 @@
+Ref:    0aa87523 (0aa875239de7)
+Commit: docs(evidence): CARD-G8-10 r15 审计 v2.6.1 锚/控制靶向 [BATCH-2026-09-18-第十五批 / CARD-G8-10]
+Files:  1 个含代码改动（分诊前 1 个，按 churn 降序）
+
+FILE                                                             CHURN    URG  REVIEW   TEST  RISK             VERDICT
+------------------------------------------------------------------------------------------------------------
+t/\345\256\241\346\237\245/evidence-g810/g810-r8-sidecar.py"    +14/-2   2.46    0.68   0.69  logic            REVIEW
+------------------------------------------------------------------------------------------------------------
+Model: jev-1.13.0 | calls: 1 | input_tokens: 1841 | output_tokens: 156
+Latency ms: min 321 / median 321 / max 321
+标记人工审查: 1/1
+  - "a/_bmad-output/\345\256\241\346\237\245/evidence-g810/g810-r8-sidecar.py" "b/_bmad-output/\345\256\241\346\237\245/evidence-g810/g810-r8-sidecar.py"  (urgency 2.46, P(review)=0.68, risk=logic)
+
+报告已保存: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-g810/jev-triage-0aa87523.json
+rc=0

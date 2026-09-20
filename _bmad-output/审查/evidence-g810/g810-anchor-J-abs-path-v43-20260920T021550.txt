@@ -1,0 +1,4 @@
+ref-missing: row1 越出树根 /tmp/service_status_abs.py:39
+ref-missing: row1 越出树根 /tmp/service_status_abs.py:108
+digest-drift: expect=ae6514682c1064c75534f212269ccc1c actual=eb7c3907ec45ff834734f3607b0a414e
+chains=6 obj07=5 failures=3 source_digest=eb7c3907ec45ff834734f3607b0a414e expect_digest=ae6514682c1064c75534f212269ccc1c head=c53069d3e87baae286b8e63c8e9e8af860c2d22f dirty=10
