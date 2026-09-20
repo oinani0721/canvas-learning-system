@@ -1,0 +1,48 @@
+⚠️ 本文件的 **rc 字段作废**（内容本身真实，判据结论以带正确 rc 的重跑件为准）。
+   坏因：末行写的是 `${PIPESTATUS[0]}` —— 那是 **bash** 语法，zsh 里该变量不存在 ⇒ 输出空的 `rc=`
+   ⇒ 带正确 rc 的重跑件：`loadbearing-and-negctl11-20260919T053037.txt`
+   （协议要求承重存档末行写 rc；写了一个**空的/取错的** rc 比不写更糟 —— 它占着那个
+     位置，让存档看起来合规。）
+--------------------------------------------------------------------------------
+
+变异前 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+
+=== 基线 === rc=0 ran=42  ======================= 42 passed, 10 warnings in 1.21s ========================
+
+[tree-probe-a1] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_first_probe_catches_what_the_key_probe_cannot
+
+[tree-not-isabs] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_relative_harness_tree_is_resolved_against_the_vault
+
+[ct-ts-rejects-date] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_harness_contract_refuses[ts_re_accepts_bare_date]
+
+[ct-ws-accepts] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_harness_contract_refuses[whole_second_re_rejects_whole_second]
+
+[ct-ws-rejects] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_harness_contract_refuses[whole_second_re_accepts_missing_seconds]
+
+[ct-classify] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_harness_contract_refuses[classify_says_review_for_empty_frontmatter]
+
+[ct-looks-like] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_harness_contract_refuses[looks_like_returns_zero_not_false]
+
+还原后 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+✅ 还原逐字节正确
+
+======================================================================
+汇总
+======================================================================
+tree-probe-a1          ✅ 恰好锁住       test_g33r2_first_probe_catches_what_the_key_probe_cannot
+tree-not-isabs         ✅ 恰好锁住       test_g33r2_relative_harness_tree_is_resolved_against_the_vault
+ct-ts-rejects-date     ✅ 恰好锁住       test_g33r2_harness_contract_refuses[ts_re_accepts_bare_date]
+ct-ws-accepts          ✅ 恰好锁住       test_g33r2_harness_contract_refuses[whole_second_re_rejects_whole_second]
+ct-ws-rejects          ✅ 恰好锁住       test_g33r2_harness_contract_refuses[whole_second_re_accepts_missing_seconds]
+ct-classify            ✅ 恰好锁住       test_g33r2_harness_contract_refuses[classify_says_review_for_empty_frontmatter]
+ct-looks-like          ✅ 恰好锁住       test_g33r2_harness_contract_refuses[looks_like_returns_zero_not_false]
+
+恰好锁住 = 7/7
+rc=

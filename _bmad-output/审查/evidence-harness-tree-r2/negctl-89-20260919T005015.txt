@@ -1,0 +1,3 @@
+段9: 段⑨ 变异已注入：删掉形状层的 isinstance(re.Pattern) 两行（-180 字符）
+  mut=6fc2525e  FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_contract_refuses_a_non_pattern_wrapper
+=========== 1 failed, 8 passed, 25 deselected, 10 warnings in 0.66s ============

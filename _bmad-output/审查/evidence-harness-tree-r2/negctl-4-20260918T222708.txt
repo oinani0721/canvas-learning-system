@@ -1,0 +1,14 @@
+=== 负控段4 @ HEAD ee9c9d49  2026-09-18T22:27:08 ===
+--- 跑前 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段④ 变异已注入：删 267 字符（只删键级探针的判断，词法否决原样）
+--- 变异后 shasum ---
+3a974e30f812d41ca6ec80b26bead25d62e277efe035f447b19714e448e58c0b  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+collected 26 items / 14 deselected / 12 selected
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_bare]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_flow_mapping]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_quoted_key]
+=========== 3 failed, 9 passed, 14 deselected, 10 warnings in 1.00s ============
+pytest rc=1
+--- 还原后 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md

@@ -1,0 +1,15 @@
+=== §二.7 测试名集合（AST，@ HEAD 0168760e）2026-09-18T19:50:51 ===
+<unknown>:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+
+backend/tests/regression/test_g3_2_review_ledger.py
+  open(AST)=153  close(AST)=153  grep '^def test_'=153
+  删除= 0
+  新增= 0
+
+backend/tests/skills/test_harness_tree_parse_r2.py
+  open(AST)=0  close(AST)=11  grep '^def test_'=11
+  删除= 0
+  新增= 11
+
+⇒ 两文件「删除」均为 0；新文件的 open 集为空属预期（PREV 里不存在该文件）。
+⇒ AST 顶层计数与 grep '^def test_' 两个口径在两个文件上均一致。

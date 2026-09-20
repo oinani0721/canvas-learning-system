@@ -1,0 +1,4 @@
+blocks 2 main 1
+harness_tree 1 harness_contract 0
+preflight_anchor_blocks 1
+combo_anchor_blocks 1

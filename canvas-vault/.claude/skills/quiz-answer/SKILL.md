@@ -186,6 +186,82 @@ PYEOF
   - 1 = 空泛/错误；2 = 部分正确但有实质缺口；3 = 正确且基本完整；4 = 正确完整且能自发联系/举例（流利）。
 - `grade` = 4 维均值（1–4）；`grade_norm = (grade - 1) / 3`。⛔ 分数先不显示。
 
+## Step 2.9 · harness 预检（写分之前先证树在、库在、契约对）
+
+⛔ **先拒后写**：Step 3 会用 `Edit` 往检验白板写分并置 `scored_pending_node_update`，而
+真正需要 harness 树的是 Step 4 的主写点。两者之间任何一次拒写，都会把白板留在
+「**已记分、节点没更新**」这个半态上——用户看到的是一块记了分的白板加一段看不懂的报错，
+而真正的原因（装错了解释器 / config 指错了树 / 那棵树不是本写点认识的那一套）早已滚出屏幕。
+
+所以把「这次到底能不能写成」挪到写分**之前**问一遍。本块**纯读零写**：不建锁、不读 payload、
+不落任何文件，它只回答一个问题——待会儿 Step 4 要用的那棵树，现在找得到、库在、契约对不对。
+
+- **预检 rc ≠ 0 ⇒ 停在 Step 2，不进 Step 3，不写分**，把拒因**原样**回给用户（别改写、别摘要）。
+- 既有的半态白板**不回滚**：分数保留，拒因里已经点明「装好 PyYAML / 修好 config 后重跑
+  `/quiz-answer` 从 Step 0 续写」——Step 0 的 `scored_pending_node_update` 续跑态会接上。
+- `<concept>` 换成本次的节点名；路径经**环境变量**传入，**不拼进代码**。
+
+```bash
+QUIZ_ANSWER_NODE='节点/<concept>.md' python3 - <<'PYEOF'
+import sys
+
+#: ⛔ **先关字节码, 再 import 别的**(round-3 复核 MEDIUM): 这一行原先排在
+#: `import ast, os, re, sys` **之后** —— 冷缓存环境下那一行自己就可能触发标准库的
+#: `__pycache__` 写入。`sys` 在解释器启动时已经载入, 单独 import 它不新增落盘面。
+sys.dont_write_bytecode = True
+
+import ast, os, re  # noqa: E402  —— 必须排在上面那一行之后, 顺序本身就是判据
+
+#: ⛔ 预检声称**纯读零写**, 那就得自己把字节码关掉(round-2 复核 MEDIUM, 已实测):
+#: 下面 `_harness_contract` 会 `import validate_learning_events`, 而真实用户跑
+#: `/quiz-answer` 时环境里**没有** `PYTHONDONTWRITEBYTECODE` —— Python 会往选中的那棵
+#: harness 树的 `backend/scripts/` 落 `__pycache__`。零写的那道门恰好设了那个环境变量,
+#: 所以这条路径在门下看不见(A/B 对照实测: 不设 ⇒ 落 1 个; 设了 ⇒ 0 个)。
+#: 写在这里而不是靠调用方传环境变量: 声称是这个块自己作出的, 保证也该由它自己给。
+
+#: ⛔ 用 `.get` 而不是下标: 环境变量没传进来时下标抛的是 KeyError, 用户看到的是一段
+#: traceback 而不是一句话 —— 预检的整个价值就在于「把拒绝说清楚」, 这里漏一句就少一半。
+NODE = os.environ.get("QUIZ_ANSWER_NODE", "")
+if not NODE:
+    raise SystemExit("[quiz-answer/preflight] 环境变量 QUIZ_ANSWER_NODE 没传进来(或是空串) — 预检不知道该查哪块白板所在的 vault, fail-closed 拒写 —— 停在 Step 2, 不写分")
+VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
+_SK = os.path.join(VAULT, ".claude", "skills", "quiz-answer", "SKILL.md")
+try:
+    with open(_SK, encoding="utf-8") as _f:
+        _TEXT = _f.read()
+except OSError as _e:
+    raise SystemExit(f"[quiz-answer/preflight] 读不到本写点自己 ({_SK}: {_e}) — vault 不是标准布局 (预期 <vault> 根下的 .claude 里有 skills 目录, 内含 quiz-answer/SKILL.md), 预检无从自证, fail-closed 拒写 —— 停在 Step 2, 不写分")
+#: ⛔ 两个定位锚都**拼出来**, 不写成字面量: 写成字面量的话本块自己就会命中自己,
+#: 「含该锚的块恰 1」当场自指失效, 判据变成恒真 —— 判据的输入面不能包含判据本身。
+_FENCE = "python3 - <<'" + "PYEOF" + "'"
+_ANCHOR = "def " + "_harness_tree" + "("
+_BLOCKS = [_b for _b in re.findall(_FENCE + r"\n(.*?)\n" + "PYEOF", _TEXT, re.S) if _ANCHOR in _b]
+if len(_BLOCKS) != 1:
+    raise SystemExit(f"[quiz-answer/preflight] 写点里带 harness 解析的块应恰 1 处, 实见 {len(_BLOCKS)} — 预检无从自证, fail-closed 拒写 —— 停在 Step 2, 不写分")
+_MOD = ast.parse(_BLOCKS[0])
+_WANT = ("_harness_tree", "_harness_contract")
+_FNS = [_n for _n in _MOD.body if isinstance(_n, ast.FunctionDef) and _n.name in _WANT]
+if len(_FNS) != len(_WANT):
+    raise SystemExit(f"[quiz-answer/preflight] 写点里 {_WANT} 应各恰 1 处, 实见 {[_n.name for _n in _FNS]} — 预检无从自证, fail-closed 拒写 —— 停在 Step 2, 不写分")
+#: ⛔ 与主写点**同一份实现**(AST 逐字抽取, 零第二份): 预检要是另抄一遍选树逻辑, 两份必然
+#: 漂移 —— 生产收紧了而预检还在按旧的判, 预检就会绿着骗人。
+#: ⛔ 命名空间只取**这两个函数之前**的顶层 import: 主块顶层还有 `from decay_beta import …`,
+#: 那是 vault 脚本, 得先插 sys.path 才导得进 —— 盲目全取会让预检自己装不起来, 而那个
+#: ImportError 长得就像「harness 有毛病」。这条口径与 test_g3_2 的 `_extract_harness_tree` 同。
+_CUT = min(_n.lineno for _n in _FNS)
+_NS = {}
+for _st in _MOD.body:
+    if isinstance(_st, (ast.Import, ast.ImportFrom)) and _st.lineno < _CUT:
+        exec(compile(ast.Module(body=[_st], type_ignores=[]), "<preflight-prelude>", "exec"), _NS)
+exec(compile(ast.Module(body=_FNS, type_ignores=[]), "<preflight-harness>", "exec"), _NS)
+#: 两个函数自己的拒因已经写全了(缺库 / 树不存在 / 解析不忠 / 契约不符), 原样传出去,
+#: 不在这里包一层 —— 包一层就把「哪一步不行」压成「预检没过」。
+_REPO = _NS["_harness_tree"](VAULT)
+_NS["_harness_contract"](_REPO)
+print(f"[quiz-answer/preflight] harness={_REPO} 契约 ok — 库在、树在、契约对, 可以进 Step 3 写分")
+PYEOF
+```
+
 ## Step 3 · 写分 + 置 scored_pending_node_update（两阶段第一步）
 
 `Edit` **检验白板 md** frontmatter：
@@ -416,8 +492,64 @@ def _harness_tree(vault_dir):
     不是合法 YAML ⇒ fail-closed 拒写。第一条与第二条混成一条, 「用户把这个键清
     掉了」就会变成砖化操作。⚠️ 这三条**全部以 PyYAML 可用为前提** —— 缺库时只有
     一种结局(拒写), 不要跨分支宣称。
+    ⛔ **威胁模型 —— 本层防什么、不防什么**(CARD-HARNESS-TREE-PARSE-R2, r10 H1 收口):
+    `:440` 那个行为探针只回答「它像不像一个解析器」。它回答不了「它对**这份文件**的解析
+    忠不忠于文件内容」—— 一个 `safe_load` 恒返 `{"a": 1}` 的模块**答得对探针**, 随后对写
+    着 `harness_tree: <目标树>` 的 config 也说「没有这个键」, 于是被读成用户的沉默, 静默
+    回退父树。补上的那一层是**词法否决**: 文件明文顶格有 `harness_tree:` 而解析结果里没
+    有这个键 ⇒ 解析器不可信 ⇒ 拒写。
+      · **防得住**(⚠️ 逐条限定, 别缩写成「防得住坏解析器」): 空的同名 `yaml.py`、半装的包、
+        C 扩展与纯 python 版本错配 —— 这些连第一道探针 `safe_load("a: 1")` 都过不去;
+        以及**丢掉文档一部分**的解析器(缓冲截断 / 流被提前关闭 / 只读前 N 行 / 只读最后
+        几行), **前提是它丢掉的那部分恰好落在那份 3 行探针里** —— 探针是
+        `a: 1 / b: 2 / harness_tree: <哨兵>`, 三行的值都校验, 所以丢头丢尾都显形。
+        ⚠️ **但一个只读前 5 行(或更宽)的解析器仍能答对这份 3 行探针** —— 阈值只是被推高,
+        没有关门。根本限制写在下面实现处: 探针永远是**另一份**文件。
+        ⚠️ **这条承诺一度被写强过两次**: round-1 为修误拒引入的「值内豁免」把它打穿
+        (round-2 复核抓到); round-3 之前探针是**单行**, 丢尾巴的解析器整类都能过
+        (round-3 复核抓到)。两次都已整改, 而**两次都是「写得比实际强」先于「实际变弱」**。
+        留这些记录是因为**规则与 docstring 会被后人照抄**: 写强了, 后人就以为这一层比
+        实际更管用。
+      · **代价**(与上一条同等重要, 别只抄上一条): 一批**合法**文档会被**误拒** ——
+        凡是「正则 `^harness_tree[ \t]*:` 顶格命中、而 PyYAML 解析出的顶层没有这个键」的
+        文档都在内。round-3 复核把这个集合列全了, 比本卡先前写的「跨行标量续行顶格」宽:
+          · 值里跨行、续行顶格: `note: "open<换行>harness_tree: /a/b"`(及其嵌套变体);
+          · 真正的**嵌套**键: `nested: {<换行>harness_tree: /a<换行>}`、`[{<换行>harness_tree: /a<换行>}]`;
+          · 它其实是**另一个键**: `harness_tree:other: /a`(键名是 `harness_tree:other`)、
+            `harness_tree:/a`(整串是键名, 没有值);
+          · `!!binary` 之类解析成非 `str` 标量的值里含那串字。
+        方向是安全的(可见的拒绝、拒因指明行号、改一下写法即可), 但它是**真代价**,
+        不是「保守拒无代价」—— 这句话在本卡历史上被证伪过一次, 别再写回去。
+      · **防不住**(明写, 别在别处宣称更强): 一个**敌意**的同名模块, 探针答对、且对真实
+        config 返回一棵**存在的别树**。词法这一层看得见「有人写过这个键」, 看不见「这个
+        键的值应该是什么」—— 要看见就得自己解析, 那就是逐行降级解析回潮, 那条路被四轮
+        同族缺陷打回过。这种形态与「在 `sys.path` 上放一个假 `validate_learning_events`」
+        同层: 能往解释器里塞模块的人本来就能做更多事。它由 `_harness_contract` 把面缩小
+        (选中的树得是本写点认识的那一套), 彻底收口要靠**树侧自报契约版本**(零写者文件,
+        已登记移交)。
+      · ⛔ **不采用「解析出的值必须逐字出现在原文」这类忠实性判据**: 转义引号、隐式类型
+        (日期/数字)、续行折叠之后, 合法文档的解析值本来就**不是**原文的子串 —— 那种判据
+        会把一批写对了的 config 打红。词法只做否决, 不做比对。
+      · ⚠️ **误拒面: 探测过一轮、漏了, 复核方补上了**(如实留档, 这条教训比结论值钱)。
+        本卡第一版在这里写过「探测 7 个候选形态, 零个落进误拒面」并据此说结构上不存在。
+        **那个结论是错的** —— 复核方当轮就给出了第 8 个: `note: "open<换行>harness_tree: /a/b"`。
+        值是一个**跨行的流式标量**, 它的续行可以顶格, 于是正则在第 2 行命中, 而 PyYAML 把
+        整段读成 `note` 的值, 解析完全正确。我那 7 个形态全都在问「顶层结构会不会冲突」,
+        **一个都没问「这行字会不会是别人的值」** —— 又是「缺的是一个维度, 不是一格」。
+        当时加了豁免去修它, 而那个豁免在 round-2 复核里被证明**打穿了本层**, 现已整段去掉
+        —— 这个误拒面因此成为本层**已知且接受的代价**(见下面实现处的三次尝试记录)。
+        教训: **「探测范围内的阴性」写成结论就会被当成证明**,
+        它顶多是「我没找到」, 而「我没找到」与「不存在」之间隔着别人的一次尝试。
+      · ⚠️ **词法这一层依赖书写形式, 所以它只是纵深, 不是主力**: `"harness_tree": v` 与
+        `{harness_tree: v}` 这两种本函数支持的合法写法, 行首都不是 `harness_tree`, 正则一条
+        都不命中。真正与书写形式无关的那道判据是上面的**键级探针**。
     """
     _cfg_p = os.path.join(vault_dir, ".canvas-config.yaml")
+    #: 本函数每一条拒因都带上这一句(CARD-HARNESS-TREE-PARSE-R2, 用户口径): 拒写发生在
+    #: Step 4 主写点, 而 Step 3 可能**已经写过分**了。不带这句时用户看到的是一块「记了分
+    #: 却没更新节点」的白板加一段看不懂的报错, 会以为分数也丢了 —— 分数没丢, 且本写点
+    #: **不回滚**它(回滚 Step 3 分数需用户另裁, 本卡不预设; 拒写态零写入)。
+    _HALFSTATE = "若检验白板已处于 scored_pending_node_update: 分数保留、不回滚; 装好 PyYAML / 修好 config 后重跑 /quiz-answer 从 Step 0 续写。"
     #: ⛔ **拿 PyYAML 与读 config 必须分成两个 try**(Codex round-7 HIGH, 已独立复现):
     #: 合在一个 try 里时, **导入过程自己抛的 OSError**(yaml 包源码/依赖不可读、权限错等)
     #: 会被下面那条 `except OSError` 当成「没有 config 文件」⇒ 静默回退父目录 ⇒ 绕过
@@ -442,6 +574,29 @@ def _harness_tree(vault_dir):
             raise ImportError(f"yaml.safe_load 在最简输入上就抛了 ({type(_pe).__name__}: {_pe}); 来自 {getattr(yaml, '__file__', '未知位置')}")
         if not (isinstance(_probe, dict) and _probe.get("a") == 1):
             raise ImportError(f"yaml.safe_load 对 'a: 1' 给出的是 {_probe!r} 而不是 {{'a': 1}} —— 它不是一个能用的 YAML 解析器 (来自 {getattr(yaml, '__file__', '未知位置')})")
+        #: ⛔ **键级探针**(CARD-HARNESS-TREE-PARSE-R2 round-1 整改, 两处未被拦下的输入):
+        #: 上面那条只问「它像不像解析器」, 下面这条问**本函数真正关心的那件事** ——
+        #: 「给它一份明确写着 harness_tree 的文档, 它给不给得出这个键」。
+        #: ⛔ 为什么非要单独一条: 收口的第一版只有下面的词法否决, 而词法问的是「文件里有没有
+        #: **顶格裸键**」—— 那依赖用户的**书写形式**。YAML 至少还有两种合法写法本函数是支持的:
+        #:   · `"harness_tree": /a/b`(带引号的键, 见 `..._noncanonical_key_form_is_honored`)
+        #:   · `{harness_tree: /a/b}`(整份 flow mapping, 见 `..._refuses_whole_flow_document`)
+        #: 两者行首都不是 `harness_tree`, 正则一条都不命中 ⇒ 恒返 `{"a": 1}` 的假模块在这两种
+        #: 写法下**照样静默回退父树**(2026-09-18 实测复现)。本探针**完全不看用户的文件**,
+        #: 所以它对任何合法写法都成立、零误拒, 且不挑书写形式。
+        #: ⛔ 探针文档是**多行的, 而且那个键在最后一行**(round-3 复核 HIGH, 已实测):
+        #: 原先是单行 `harness_tree: <哨兵>` —— 于是一整类**丢文件尾巴**的坏解析器
+        #: (缓冲截断 / 流被提前关闭 / 只读前 N 行)照样答得对, 因为单行文档没有尾巴可丢。
+        #: 它们过了这一层, 又因为词法否决只认**顶格裸键**(`"harness_tree": v` 与
+        #: `{harness_tree: v}` 行首都不是它), 于是两层一起落空 ⇒ 静默回退父树。
+        #: ⚠️ **如实**: 这只是把阈值从「1 行」推到「探针的行数」, **不是关门** ——
+        #: 一个只读前 5 行的解析器仍能答对这份 3 行探针。根本限制在于: 探针永远是**另一份**
+        #: 文件, 它测得到「这个解析器的一般能力」, 测不到「它对**用户那份 config** 忠不忠实」。
+        #: 要测后者就得自己解析用户的文件, 那就是逐行降级解析回潮(四轮同族缺陷打回过)。
+        _KPROBE_DOC = "a: 1\nb: 2\nharness_tree: __quiz_answer_key_probe__\n"
+        _kprobe = yaml.safe_load(_KPROBE_DOC)
+        if not (isinstance(_kprobe, dict) and _kprobe.get("harness_tree") == "__quiz_answer_key_probe__" and _kprobe.get("a") == 1 and _kprobe.get("b") == 2):
+            raise ImportError(f"yaml.safe_load 对一份三行、末行写着 harness_tree 的最简文档给出的是 {_kprobe!r} —— 它读不出本写点唯一关心的那个键(或者读丢了文档的尾巴), 选哪棵树不可证 (来自 {getattr(yaml, '__file__', '未知位置')})")
     except Exception as _ie:
         #: ⛔ 报错里必须带上**这个进程自己的解释器路径**与一条绑定它的安装命令
         #: (Codex round-6 LOW): 只说「请装 PyYAML」时, 用户照抄 `pip install pyyaml`
@@ -454,7 +609,7 @@ def _harness_tree(vault_dir):
         import shlex
 
         _exe_q = shlex.quote(sys.executable)
-        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在拿不到 PyYAML 时一律不写。拿不到的原因: {type(_ie).__name__}: {_ie}。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {_exe_q} -m pip install pyyaml")
+        raise SystemExit(f"[quiz-answer] PyYAML 不可用 — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 逐行扫描猜不出 YAML 的换行与语法上下文, 猜错的代价是把学习事件静静地绑到另一棵 harness 树上, 故本写点在拿不到 PyYAML 时一律不写。拿不到的原因: {type(_ie).__name__}: {_ie}。跑本写点的解释器是 {sys.executable} ; 请照抄这一条装(它绑定的正是上面那个解释器, 不要换成裸 pip): {_exe_q} -m pip install pyyaml。{_HALFSTATE}")
     #: ⛔ **「打不开」与「打开了但读/解析出错」必须分成两个作用域**(Codex round-9 HIGH,
     #: 已独立复现)。原先两者共用一个 `except OSError` ⇒ 解析途中的 IO 错(读流时 EIO、
     #: safe_load 自己抛的 OSError)被当成「压根没有 config」⇒ 静默回退父目录, 而 config
@@ -463,21 +618,67 @@ def _harness_tree(vault_dir):
     #: 一个 except, 于是一个异常被当成了另一个异常的意思。修一处不等于这类错没了 ——
     #: 往后在本函数里新开 try 时, 先问「这个 except 会不会同时接住两种不同含义的失败」。
     _tree = ""
+    _raw = ""
     try:
         _cf = open(_cfg_p, encoding="utf-8")
     except OSError:
         _cf = None  # 压根没有 .canvas-config.yaml ⇒ 没写这个键 ⇒ 缺省回退
     if _cf is not None:
         try:
+            #: ⛔ **先读原文, 再解析这份原文**(CARD-HARNESS-TREE-PARSE-R2, r10 H1 收口):
+            #: 原先直接把**文件对象**递给 safe_load, 于是函数手里从头到尾没有文件明文,
+            #: 也就无从发现「解析器说没有这个键, 而文件里明明写着」。读流自身的 OSError
+            #: 仍落在同一个 try 里 ⇒ 仍然 fail-closed, round-9 那条分界一个字没动。
             with _cf:
-                _doc = yaml.safe_load(_cf)
-            #: `_doc` 非 dict (空文件 / 纯标量 / 列表)、键缺失、值为 null —— 三者一律
-            #: 视同「没写这个键」, 与「值是空串」同口径回退, 不是 fail-closed。
-            if isinstance(_doc, dict) and _doc.get("harness_tree") is not None:
-                _tree = str(_doc["harness_tree"])
+                _raw = _cf.read()
+            _doc = yaml.safe_load(_raw)
         except Exception as _ye:
             #: 这里**不再**豁免 OSError: 文件已经打开了, 之后任何失败都不是「没有 config」。
-            raise SystemExit(f"[quiz-answer] .canvas-config.yaml 打开后读取/解析失败 ({type(_ye).__name__}: {_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}")
+            raise SystemExit(f"[quiz-answer] .canvas-config.yaml 打开后读取/解析失败 ({type(_ye).__name__}: {_ye}) — harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请人工修复 {_cfg_p}。{_HALFSTATE}")
+        #: ⛔ **词法否决: 只否决, 绝不采用**(CARD-HARNESS-TREE-PARSE-R2, r10 H1)。
+        #: `:440` 那个行为探针只证得到「它像个解析器」—— 证不到「它对这份文件的解析忠于
+        #: 文件内容」。一个 `safe_load` 恒返 `{"a": 1}` 的假模块**答得对探针**, 随后对
+        #: 写着 `harness_tree: <目标树>` 的 config 也返回 `{"a": 1}`, 于是下面那条「无键
+        #: ⇒ 视同没写」把它读成用户的沉默, 静默回退父树 —— config 明明指着另一棵。
+        #: 缺的维度不是「像不像解析器」, 是「解析结果忠不忠于文件」。这里补上: 文件明文
+        #: 里有这个键、解析结果却没有 ⇒ 解析器不可信 ⇒ 拒写。
+        #: ⛔ **只用来否决, 绝不拿 `_lex` 匹配到的值去当树**: 那是逐行降级解析回潮, 那条
+        #: 路被四轮同族缺陷打回过(见上面 docstring)。词法这一层不知道自己看的这一行处在
+        #: 什么语法上下文里 —— 它只够说「有人写过这个键」, 不够说「这个键的值是什么」。
+        #: ⛔ 键**在**、值是 null / 空串 ⇒ 不否决, 照旧回退(「用户把这个键清掉了」不是
+        #: 砖化操作); 注释掉的 `# harness_tree:` 不顶格 ⇒ 正则不命中, 也照旧回退。
+        _lex = re.search(r"^harness_tree[ \t]*:", _raw, re.M)
+        #: ⛔⛔ **这里没有「豁免」, 而且不能有 —— 三次尝试后的结论, 留档给后人**
+        #: (round-1 引入、round-2 复核打回、本轮去掉; 每一步都有实测):
+        #:   v1 豁免只看顶层 `values()`          → 嵌套一层的值仍被误拒;
+        #:   v2 改成遍历整棵结构 + 环防护         → 复核抓到: 它是**整份文档一个布尔**,
+        #:      只要已解析结果里**任意一个**字符串含那串字, 否决就对文件里**每一处**
+        #:      (含真正的顶层 `harness_tree` 键)一起失效。触发**不需要敌意模块**:
+        #:      一个**截断式解析器**(只读前 N 行 = 缓冲 / 流被提前关闭那一类事故; 两道探针
+        #:      都是单行文档, 所以它照样答对、活得过键级探针)配一份**普通的单行自文档
+        #:      config**(`note: "改这里的 harness_tree: 就能换树"`)就够 —— 实测静默回退父树;
+        #:   v3 改成按「处数」比(顶格 N 处 vs 值内 M 次) → 实测**修不了**: PyYAML 把双引号
+        #:      跨行标量的换行**折叠成空格**, 于是误拒形态(顶格 1 处 / 值内子串 1 次)与
+        #:      缺陷形态(顶格 1 处 / 值内子串 1 次)**完全同构**, 计数区分不了两者。
+        #: ⛔ **根本原因**: 豁免要拿**解析器的输出**去决定要不要相信解析器 —— 而解析器
+        #: 正是这一层唯一不可信的那一方。任何依赖不可信方输出的豁免, 说谎的那一方都能
+        #: 利用(换成 `yaml.compose()` 的位置跨度也一样: 它可以谎报跨度覆盖全文)。
+        #: ⚠️ **代价如实**: 一份值里跨行、续行恰好顶格写着 `harness_tree:` 的**合法**文档
+        #: 会被误拒(实测形态: `note: "open<换行>harness_tree: /a/b"`, 以及它的嵌套变体)。
+        #: 接受这个代价, 因为方向不同: 误拒是**可见的拒绝**, 拒因会指出是第几行、用户改一下
+        #: 写法就好; 而豁免带来的是**静默绑错树**, 用户无从察觉。本函数一以贯之的取向。
+        if _lex and (not isinstance(_doc, dict) or "harness_tree" not in _doc):
+            raise SystemExit(f"[quiz-answer] .canvas-config.yaml 解析结果与文件内容不符 (文件第 {_raw[: _lex.start()].count(chr(10)) + 1} 行明文写着 harness_tree 键, 解析器却没有给出它; 它给出的是 {type(_doc).__name__}) — 解析器不可信, harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请核对跑本写点的解释器 ({sys.executable}) 里的 yaml 模块 (来自 {getattr(yaml, '__file__', '未知位置')})。{_HALFSTATE}")
+        #: `_doc` 非 dict (空文件 / 纯标量 / 列表)、键缺失、值为 null —— 三者一律
+        #: 视同「没写这个键」, 与「值是空串」同口径回退, 不是 fail-closed。
+        #: ⚠️ **别把这条读成「走到这里时文件里一定没写这个键」**(round-4 复核 LOW, 原文
+        #: 就是这么写的, 不成立): 上面那条否决只认**顶格裸键**, 所以
+        #: `"harness_tree": v`(带引号的键)与 `{harness_tree: v}`(flow mapping)这两种
+        #: **本函数支持的合法写法**在词法层不命中 —— 它们若被解析器谎报成「无键」,
+        #: 会径直走到这一行并回退。挡住那一类的是上面的**键级探针**, 不是这一条。
+        #: 这一条如实的说法是: 「解析器说没有这个键, 而词法也没在顶格看到它」⇒ 回退。
+        if isinstance(_doc, dict) and _doc.get("harness_tree") is not None:
+            _tree = str(_doc["harness_tree"])
     if not _tree:
         return os.path.dirname(vault_dir)
     _given = os.path.expanduser(_tree)
@@ -497,8 +698,109 @@ def _harness_tree(vault_dir):
         #: 拒因先报**配置里写的那条路径**(已展开 `~`、已补全相对路径), 解析结果不
         #: 同时再附上 —— 只报解析后的路径, 用户认不出自己写错的是哪一行。
         _also = "" if (not _real or _real == _given) else f" [逐段解析 symlink 后: {_real}]"
-        raise SystemExit(f"[quiz-answer] harness_tree 指向不存在的树 ({_given}){_also} — G3-2 依赖不可达, fail-closed 拒写 — 请修正 .canvas-config.yaml 或删掉该键回退到 vault 父目录")
+        raise SystemExit(f"[quiz-answer] harness_tree 指向不存在的树 ({_given}){_also} — G3-2 依赖不可达, fail-closed 拒写 — 请修正 .canvas-config.yaml 或删掉该键回退到 vault 父目录。{_HALFSTATE}")
     return _real
+
+
+def _harness_contract(repo_dir):
+    """从选中的那棵树导入写点要用的 7 个名字, **并证明它就是本写点认识的那一套**。
+
+    ⛔ 本函数是 CARD-HARNESS-TREE-PARSE-R2 补上的一层。在它之前, 写点对 `harness_tree`
+    选中的树只有一条判据 —— 「那 7 个名字能不能从它的 validator 里裸 import 进来」。
+    导得进就按它的语义写账本, 别的一概不问。于是:
+      · 本仓 `b85a168a` 那棵旧树(`_vault_id_of` 是另一套实现)被静默采用, 账本照写 ——
+        这是 T7-A 已经**实测到的**反例, 不是假想;
+      · 任意旧版 / 异版 / 第三方分发的 harness 都享受同样的待遇。
+    `harness_tree` 是**部署侧可写的运行期自由变量**, 选错树的代价是「分数记到别的本子
+    上」, 而用户看到的是一次成功的写入 —— 无从察觉。所以这里把「导得进」升级成一份
+    可检验的契约。
+
+    四层, 逐层回答一个不同的问题:
+      ① **影子门** —— 导进来的真是**这棵树里的**那一份吗? (`sys.modules` 先到先得:
+         任何早于本写点被 import 的同名模块都会让上面那次 `sys.path.insert` 完全失效,
+         而 7 个名字照样导得到。)
+      ② **版本** —— 它是 v1 语义吗? (写点按 v1 消费: 账本行 `event_version != 1` 直接
+         拒写。树侧换了语义而写点不知道 = 两边对同一个字段的理解分叉。)
+      ③ **形状** —— 7 个名字都在, 且 5 个可调用 / 2 个是编译好的正则吗?
+      ④ **纯函数行为探针** —— 它们在**已知输入**上的答案对吗? (名字对、类型对, 不代表
+         语义对。这四个探针零 IO、零写, 只问纯函数。)
+
+    ⚠️ **本层挡不住什么, 如实写在这里**: 一棵「同名、同形状、纯函数行为也一样, 只有
+    别处语义不同」的树通得过 —— `b85a168a` 恰好就是这样的树(它也有 `EVENT_VERSION = 1`
+    和全部 7 个名字)。要挡住它得让**树侧自报契约版本**, 那是 `validate_learning_events.py`
+    的改动, 不在本写点职责内(已登记移交)。本层把「任何导得进的东西都算数」缩成
+    「形状与纯函数语义都对得上的东西才算数」, 是缩面, 不是关门。
+
+    返回 7 个名字组成的元组, 顺序与 `_HARNESS_NAMES` 逐一对应。
+    """
+    _HALFSTATE = "若检验白板已处于 scored_pending_node_update: 分数保留、不回滚; 装好 PyYAML / 修好 config 后重跑 /quiz-answer 从 Step 0 续写。"
+    #: ⛔ 名单在这里和调用点的解包各一份 —— 数量对不上时解包当场 `ValueError`(响亮失败),
+    #: 不会静默少绑一个名字。两份都在同一屏内, 改一处忘另一处走不出这个文件。
+    _HARNESS_NAMES = ("classify_card_state", "_vault_id_of", "_WHOLE_SECOND_RE", "_looks_like_review_ext", "validate_record_full", "_golden_manifest", "_TS_RE")
+    _scripts = os.path.join(repo_dir, "backend", "scripts")
+    sys.path.insert(0, _scripts)
+    try:
+        import validate_learning_events as _vle
+    except Exception as _e:
+        raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
+
+    def _refuse(_item, _actual):
+        raise SystemExit(f"[quiz-answer] harness 树契约不符 ({_item}: {_actual}) — 选中的树 {repo_dir} 不是本写点认识的 validate_learning_events, fail-closed 拒写。{_HALFSTATE}")
+
+    #: ① 影子门。⛔ 比 `abspath` 而**不是** `realpath`: 一键部署形态下 harness 树里的
+    #: validator 完全可以是一条指向别处的 symlink(测试夹具就是这么搭的), 那是合法布局。
+    #: 要判的是「Python 从**哪条 sys.path 条目**把它取进来的」, 不是「这个文件物理上躺
+    #: 在哪」—— 后者会把一棵合法的树判成影子。
+    _from = os.path.dirname(os.path.abspath(getattr(_vle, "__file__", "") or ""))
+    if _from != os.path.abspath(_scripts):
+        raise SystemExit(f"[quiz-answer] validate_learning_events 来自 {_from} 而不是选中的树 {repo_dir} — sys.modules 里先坐着一个同名模块(先到先得), 本写点这次 sys.path.insert 没有生效, 导进来的不是选中的树里那一份, harness 语义不可证, fail-closed 拒写。{_HALFSTATE}")
+
+    #: ② 版本。⛔ `bool` 要单独排除: `True == 1` 为真, 不排的话 `EVENT_VERSION = True`
+    #: 这种(配置注入 / 占位符没填)会被当成 v1 放行。
+    _ver = getattr(_vle, "EVENT_VERSION", None)
+    if isinstance(_ver, bool) or _ver != 1:
+        _refuse("EVENT_VERSION", f"{_ver!r} 非 1 — 本写点按 v1 语义消费(账本行 event_version != 1 直接拒写)")
+
+    #: ③ 形状。
+    for _n in _HARNESS_NAMES:
+        if not hasattr(_vle, _n):
+            _refuse("缺名字", f"{_n} 在这棵树的 validate_learning_events 里不存在")
+    for _n in ("classify_card_state", "_vault_id_of", "_looks_like_review_ext", "validate_record_full", "_golden_manifest"):
+        if not callable(getattr(_vle, _n)):
+            _refuse("不可调用", f"{_n} 是 {type(getattr(_vle, _n)).__name__}, 不是函数")
+    for _n in ("_TS_RE", "_WHOLE_SECOND_RE"):
+        if not isinstance(getattr(_vle, _n), re.Pattern):
+            _refuse("不是编译正则", f"{_n} 是 {type(getattr(_vle, _n)).__name__}")
+
+    #: ④ 纯函数行为探针(零 IO、零写)。
+    #: ⚠️ **覆盖如实**(round-2 复核 MEDIUM; 这里原本写「每条都两向」, 过强):
+    #:   · 两个正则(`_TS_RE` / `_WHOLE_SECOND_RE`)是**两向**的 —— 该认的认、该拒的拒;
+    #:   · `classify_card_state` / `validate_record_full` / `_looks_like_review_ext`
+    #:     各只测**一向**, 所以一个在别处语义不同、但这几点上恰好同答的占位实现能通过
+    #:     (复核方举的例子正是本卡测试自己的 `_VALIDATOR_STUB_OK`)。
+    #: 这一层是**缩面**不是关门: 把「任何导得进的东西都算数」缩成「形状与这几点语义对得上
+    #: 的才算数」。彻底收口要靠树侧自报契约版本(零写者文件, 已登记移交)。⛔ 不探 `_vault_id_of` / `_golden_manifest`: 它们要读
+    #: 文件, 而预检块必须是纯读零写的前置检查。
+    if not _vle._TS_RE.fullmatch("2026-08-01T10:00:00Z"):
+        _refuse("_TS_RE", "不认 '2026-08-01T10:00:00Z' 这样的事件时间戳")
+    if _vle._TS_RE.fullmatch("2026-08-01"):
+        _refuse("_TS_RE", "把光秃秃的 '2026-08-01' 也当成合法时间戳")
+    if not _vle._WHOLE_SECOND_RE.fullmatch("2026-08-01T10:00:00Z"):
+        _refuse("_WHOLE_SECOND_RE", "不认整秒时间戳 '2026-08-01T10:00:00Z'")
+    if _vle._WHOLE_SECOND_RE.fullmatch("2026-08-01T10:00Z"):
+        _refuse("_WHOLE_SECOND_RE", "把缺秒的 '2026-08-01T10:00Z' 也当成整秒")
+    _st = _vle.classify_card_state({})
+    if not (isinstance(_st, tuple) and len(_st) == 2 and _st[0] == "new"):
+        _refuse("classify_card_state", f"对空 frontmatter 给出 {_st!r}, 期望 ('new', <理由>) — 三态判别语义不同")
+    _vr = _vle.validate_record_full("x")
+    if not (isinstance(_vr, tuple) and len(_vr) == 2 and isinstance(_vr[0], list) and _vr[0]):
+        _refuse("validate_record_full", f"对一个非 JSON object 给出 {_vr!r}, 期望 (<非空错误列表>, <warnings>) — 它不会拒绝坏记录")
+    if _vle._looks_like_review_ext({}) is not False:
+        _refuse("_looks_like_review_ext", f"对空 dict 给出 {_vle._looks_like_review_ext({})!r}, 期望 False")
+
+    return tuple(getattr(_vle, _n) for _n in _HARNESS_NAMES)
+
+
 VAULT = os.path.dirname(os.path.dirname(os.path.abspath(NODE)))
 REPO = _harness_tree(VAULT)
 EV = os.path.join(VAULT, "learning_events.jsonl")
@@ -508,10 +810,14 @@ EV = os.path.join(VAULT, "learning_events.jsonl")
 sys.path.insert(0, os.path.join(VAULT, ".claude", "scripts"))
 try:
     from fsrs_bridge import rating_from_grade, fields_from_frontmatter, cas_token, cas_conflict
-    sys.path.insert(0, os.path.join(REPO, "backend", "scripts"))
-    from validate_learning_events import classify_card_state, _vault_id_of, _WHOLE_SECOND_RE, _looks_like_review_ext, validate_record_full, _golden_manifest, _TS_RE
 except Exception as _e:
     raise SystemExit(f"[quiz-answer] G3-2 依赖不可达 (validate_learning_events/fsrs_bridge import 失败), fail-closed 拒写: {_e}")
+#: ⛔ validator 那 7 个名字走 `_harness_contract` 而不是裸 import(CARD-HARNESS-TREE-PARSE-R2):
+#: 裸 import 只判「导得进」, 于是任意旧版 / 异版 harness 树都会被静默采用并按它的语义
+#: 写账本 —— T7-A 已实测到 `b85a168a` 那棵旧树就是这样被用上的。⛔ 解包成 7 个名字而
+#: 不是 `globals()[…] =` 反射写: 反射写既躲开了 lint 的写入面统计, 也让「这里到底绑了
+#: 哪些名字」只有运行时才知道。数量与函数里的 `_HARNESS_NAMES` 对不上时当场 ValueError。
+classify_card_state, _vault_id_of, _WHOLE_SECOND_RE, _looks_like_review_ext, validate_record_full, _golden_manifest, _TS_RE = _harness_contract(REPO)
 
 #: CARD-G3-3 (a) per-node CAS 令牌 —— 由**上面已经读进来的那份字节** `s` 构造,
 #: 不重读磁盘 (重读会在「令牌」与「真正拿去算的内容」之间再开一个可插队的窗口)。

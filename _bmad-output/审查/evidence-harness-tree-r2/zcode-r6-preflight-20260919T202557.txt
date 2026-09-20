@@ -1,0 +1,16 @@
+=== ZCode r6 preflight (CARD-HARNESS-TREE-PARSE-R2, §2.4.2) ===
+date=2026-09-20T03:25:57Z
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w
+branch=card/p6-skills-w
+HEAD=5e305b28
+anchor-5e305b28=ancestor-OK
+porcelain_lines=2
+--- zcode version ---
+zcode-app-cli 3.12.3-26
+zcode-runtime 0.16.5
+cfg-ok
+--- binding: 43bea775..HEAD stat (4 files, expect empty) ---
+binding_rc=0
+--- prompt file stats ---
+    2152  146385 _bmad-output/审查/prompts/zcode-review-prompt-CARD-HARNESS-TREE-PARSE-R2-r6.md
+0ec510ce66cbcb96a7ecc5b47c5ee3c45d93fedf5ee4fbb7bfeae11ec2f8e0c9  _bmad-output/审查/prompts/zcode-review-prompt-CARD-HARNESS-TREE-PARSE-R2-r6.md

@@ -1,0 +1,15 @@
+=== 负控段4 @ HEAD ee9c9d49  2026-09-18T22:25:49 ===
+--- 跑前 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/_bmad-output/审查/evidence-harness-tree-r2/negctl-4-mutant-source.py", line 33, in <module>
+    assert len(re.findall(r"^\s*if _lex and not _in_value and \(", t2, re.M)) == 1, "⛔ 词法否决被波及 = 拆了两层"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ⛔ 词法否决被波及 = 拆了两层
+--- 变异后 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+collected 26 items / 14 deselected / 12 selected
+================ 12 passed, 14 deselected, 10 warnings in 0.84s ================
+pytest rc=0
+--- 还原后 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md

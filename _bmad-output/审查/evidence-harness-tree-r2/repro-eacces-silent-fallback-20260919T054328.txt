@@ -1,0 +1,18 @@
+# 独立复现：config 存在但打不开 ⇒ 静默回退父树（人审替代轮 v2 · parse_layers HIGH）
+# HEAD = 31dfd0dee9c147c74049decef13748d536363753
+# 只读这棵树（AST 抽取 SKILL.md 的 _harness_tree），实验文件全在临时目录
+
+✅ 已从 SKILL.md 抽出 _harness_tree（只读）
+
+=== 控制组 A：config 可读 ⇒ 应绑 target-tree ===
+  ok  /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/repro-eacces-az4ml6rk/target-tree
+  ✅ 正常路径绑对了
+
+=== 场景 B：config **存在**但不可读（chmod 000 = EACCES）===
+  前提自证：文件存在 ✅，open 抛 PermissionError(errno=13) ✅
+  结果: ok  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/repro-eacces-az4ml6rk
+
+⛔⛔ 复现成立：config 明明指着 target-tree，却**静默返回了父树** —— 用户看不到任何拒绝。
+      父树   = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/repro-eacces-az4ml6rk
+      应绑   = /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/repro-eacces-az4ml6rk/target-tree
+rc=0

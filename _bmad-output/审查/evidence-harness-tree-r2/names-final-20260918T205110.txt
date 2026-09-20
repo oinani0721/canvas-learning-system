@@ -1,0 +1,13 @@
+=== §二.7 测试名集合（AST，@ 最终 HEAD dd20ac05）2026-09-18T20:51:10 ===
+
+backend/tests/regression/test_g3_2_review_ledger.py
+  open(AST)=153  close(AST)=153  grep '^def test_'=153
+  删除= 0
+  新增= 0
+
+backend/tests/skills/test_harness_tree_parse_r2.py
+  open(AST)=0  close(AST)=13  grep '^def test_'=13
+  删除= 0
+  新增= 13
+
+⇒ 两文件「删除」均为 0；新文件 open 集为空属预期；两口径一致。

@@ -1,0 +1,19 @@
+=== 负控段④ 删键级探针（词法否决保留）  2026-09-18T20:17:19 ===
+HEAD=09f190a3
+--- 跑前 shasum ---
+9e481db6c714e9633d10d23daa7e18a8b06ca04638b97bf6d1d1ab0e51cee4e5  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段④ 变异已注入：删 267 字符（只删键级探针的判断，词法否决原样）
+--- 变异后 shasum ---
+78fab38a44f7c5c68a27d8fde6bd02c491395d012941ce7b88d6d920d37de564  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 判据（逐格红点分类）---
+collected 22 items / 14 deselected / 8 selected
+E   AssertionError: ⛔ 拒因须落在该落的那一层(constant_bare 期望含 '读不出本写点唯一关心的那个键'): '[quiz-answer] .canvas-config.yaml 解析结果与文件内容不符 (文件第 2 行明文写着 harness_tree 键, 解析器却没有给出它; 它给出的是 dict) — 解析器不可信, harness_tree 指向哪棵树不可证, fail-closed 拒写 — 请核对跑本写点的解释器 (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python3.14) 里的 yaml 模块 (来自 未知位置)。若检验白板已处于 scored_pending_node_update: 分数保留、不回滚; 装好 PyYAML / 修好 config 后重跑 /quiz-answer 从 Step 0 续写。'
+E   AssertionError: ⛔ 解析器说不出这份 config 里的 harness_tree, `_harness_tree` 却返回了一棵树
+E   AssertionError: ⛔ 解析器说不出这份 config 里的 harness_tree, `_harness_tree` 却返回了一棵树
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_bare]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_flow_mapping]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_quoted_key]
+=========== 3 failed, 5 passed, 14 deselected, 10 warnings in 1.47s ============
+pytest rc=1
+--- 还原后 shasum ---
+9e481db6c714e9633d10d23daa7e18a8b06ca04638b97bf6d1d1ab0e51cee4e5  canvas-vault/.claude/skills/quiz-answer/SKILL.md

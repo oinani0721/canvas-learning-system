@@ -1,0 +1,25 @@
+# 负控段⑫：词法正则两向各有专属门（人审替代轮 v2 存活 HIGH 的整改验证）
+# HEAD = 31dfd0dee9c147c74049decef13748d536363753（本段跑在待提交工作树上）
+
+变异前 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+锚命中 1 处 ✅  _lex = re.search(r"^harness_tree[ \t]*:", _raw, re.M)
+
+=== 基线 === rc=0 ran=44  ======================= 44 passed, 10 warnings in 1.76s ========================
+
+[收窄-去掉[ \t]*] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_harness_tree_lying_parser_is_refused[honest_probes_spaced_key]
+
+[放宽-去掉末尾冒号] ✅ 红格集合恰好 == {声称的那一格}
+    test_g33r2_lexical_veto_does_not_over_match_a_similar_key
+
+还原后 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+✅ 还原逐字节正确
+
+======================================================================
+汇总
+======================================================================
+收窄-去掉[ \t]*            ✅ 恰好锁住       test_g33r2_harness_tree_lying_parser_is_refused[honest_probes_spaced_key]
+放宽-去掉末尾冒号              ✅ 恰好锁住       test_g33r2_lexical_veto_does_not_over_match_a_similar_key
+
+恰好锁住 = 2/2
+rc=0

@@ -1,0 +1,43 @@
+# Codex 复核通道诊断（2026-09-19）
+# 结论：不是配额耗尽，是 gpt-6-astra 在本账户已不可用（400 invalid_request_error）
+
+## 1. codex 版本
+codex-cli 0.153.3
+rc=0
+
+## 2. 显式 -m gpt-6-astra 的最小 prompt（stderr 末 2 行）
+ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."}}
+rc=1, stdout 0 字节
+
+## 3. 账户类型（auth.json，token 已脱敏不落盘）
+auth_mode = chatgpt
+
+## 4. config.toml 默认模型
+16:model = "gpt-6-astra"
+17:model_provider = "openai"
+22:model_reasoning_effort = "xhigh"
+25:model_reasoning_summary = "auto"
+
+## 5. codex debug models 实测可用列表（本次跑）
+模型数 = 5
+  gpt-reserve        hide  priority 3
+  gpt-5.6-terra      list  priority 7
+  gpt-5.6-luna       list  priority 8
+  gpt-5.5            list  priority 12
+  codex-auto-review  hide  priority 43
+gpt-6-astra 在列表里吗 -> False
+⚠️ config.toml 2026-08-16 注释记的 gpt-5.6-sol 也已不在列表 ⇒ 服务端侧模型集合变过
+
+## 6. 对本卡的影响
+round-1 与 round-5 的中断被归因为「配额耗尽 / try again at Sep 23rd」。
+本次复测证明：**当前挡住的不是配额层(429/usage limit)，是授权层(400 model not supported)**。
+⇒ 「等配额恢复后补审」这条路在不换模型的前提下**不成立**。
+⇒ 换模型触及用户 2026-09-05 裁定（固定 gpt-6-astra）+ 卡文/手册 grep -c 'gpt-5.6' 必须为 0，
+   属**用户决策**，车道/主 session 不自裁。
+
+## 7. 教训（已有记忆的加强版）
+reference_external_reset_time_is_an_observation 说「重置时间不是不变量」；
+这一次更进一步：**失败原因本身**也会变。继承「配额耗尽」的结论而不复测，
+就会一直等一个永远不会到来的恢复。复测成本 ~2 分钟。
+
+rc=0

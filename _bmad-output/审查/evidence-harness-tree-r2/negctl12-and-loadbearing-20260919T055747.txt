@@ -1,0 +1,33 @@
+# 负控段⑫ + 承重门（格式化后重跑，绑待提交工作树）
+# 基线 HEAD = 31dfd0dee9c147c74049decef13748d536363753
+# 工作树改动: 57	0	backend/tests/skills/test_harness_tree_parse_r2.py
+
+=== 负控段⑫：词法正则两向（含变异，先跑完腾出树）===
+    test_g33r2_lexical_veto_does_not_over_match_a_similar_key
+
+还原后 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+✅ 还原逐字节正确
+
+======================================================================
+汇总
+======================================================================
+收窄-去掉[ \t]*            ✅ 恰好锁住       test_g33r2_harness_tree_lying_parser_is_refused[honest_probes_spaced_key]
+放宽-去掉末尾冒号              ✅ 恰好锁住       test_g33r2_lexical_veto_does_not_over_match_a_similar_key
+
+恰好锁住 = 2/2
+rc=0
+
+=== (g)① g3_2 整文件 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================= 314 passed, 10 warnings in 246.68s (0:04:06) =================
+rc=0
+
+=== (g)② tests/skills 目录级 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 604 passed, 22 warnings in 46.58s =======================
+rc=0
+
+=== 收工：工作树代码面 ===
+ M backend/tests/skills/test_harness_tree_parse_r2.py
+
+总 rc: negctl12=0 g3_2=0 skills=0

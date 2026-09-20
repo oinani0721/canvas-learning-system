@@ -1,0 +1,17 @@
+# CARD-HARNESS-TREE-PARSE-R2 §〇 复核 2026-09-18T18:28:53
+HEAD=a05732c9  branch=card/p6-skills-w  dirty=1
+shasum SKILL.md = 6ae2558f1def3e94588bf0a043bb2d9e4b5904a618de5ec4b5260f5c206601b0
+## 行号复核结果
+SKILL.md: 384/440/443/465/467/473/476/480/482/493/501/502/503/508-514/166/180/189/228/229/281/3144/3145 = 逐字同
+SKILL.md: 卡文 :225 (4c prose) -> 实测 :226  [差 1 行, prose 不承重]
+test_g3_2: 43/49-56/7350/7435/7523/7550/7565/7655/7714/7795/7864/7901/7904/7936/7942/7944/7950/6860/6881/6941/7092/7116/7199/7255 = 逐字同
+skill_portability_lint.py 行号漂移 (P6-A CARD-SEB-WRITER-SUBSTRING-TMP 已改该文件):
+  TMP_BLOCK_BASELINE[quiz-answer]  卡文 :2126-2149 -> 实测 :2148-2172
+  QUIZ_ANSWER_BASELINE             卡文 :2203      -> 实测 :2234
+  MANAGED_FILE_DIGESTS[quiz-answer]卡文 :3212      -> 实测 :3243
+  tmp_block_fingerprints           卡文 :2884      -> 实测 :2915
+  check_managed_files              卡文 :3293      -> 实测 :3325
+  交接常量①注释                    卡文 :2187-2202 -> 实测 :2222-2233
+  内容逐字同: B104:53c5e24e48a924de / B229:9a1ec16c27149217 / S96:b55afbca27229028 / S205:44b7655dd97c27b7
+  QUIZ_ANSWER_BASELINE: claude_dir_ref=4 tmp_all=4 tmp_ns=0
+  digest = 6ae2558f1def3e94588bf0a043bb2d9e4b5904a618de5ec4b5260f5c206601b0

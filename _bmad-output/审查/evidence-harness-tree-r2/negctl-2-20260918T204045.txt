@@ -1,0 +1,15 @@
+=== 负控段2  2026-09-18T20:40:45 ===
+HEAD=dd20ac05
+--- 跑前 shasum ---
+9e45def42315dadaf2f5f84af44f146310769fcd32b57b8a8d0191861989388b  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段② 变异已注入：EVENT_VERSION 判据 `!= 1` → `not in (1, 2)`（只动版本一格）
+--- 变异后 shasum ---
+15d9a5bd838b6ce950baa2e097a2e9af207d2517b8d2dff7bbc13a33458bda1f  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+collected 25 items / 18 deselected / 7 selected
+    assert _got[0] == "exit", f"⛔ 契约被拆了一项({_case}) 却照常放行 —— 写点会按这棵树的语义写账本: {_got[1]!r}"
+E   AssertionError: ⛔ 契约被拆了一项(event_version_2) 却照常放行 —— 写点会按这棵树的语义写账本: (<function classify_card_state at 0x13acef1c0>, <function _vault_id_of at 0x13aced430>, re.compile('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$'), <function _looks_like_review_ext at 0x13aced380>, <function validate_record_full at 0x13aceca90>, <function _golden_manifest at 0x13acec880>, re.compile('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$'))
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_contract_refuses[event_version_2]
+=========== 1 failed, 6 passed, 18 deselected, 10 warnings in 1.39s ============
+pytest rc=1
+--- 还原后 shasum ---
+9e45def42315dadaf2f5f84af44f146310769fcd32b57b8a8d0191861989388b  canvas-vault/.claude/skills/quiz-answer/SKILL.md

@@ -1,0 +1,10 @@
+=== H1 condition probe (reviewer-named command) ===
+date=2026-09-20T03:51:04Z
+python 3.14.4
+yaml_file /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/yaml/__init__.py
+yaml_version 6.0.3
+with_libyaml True
+SafeLoader_is_CSafeLoader False
+probe str  -> {'harness_tree': '/a/b'} => verdict dict_with_key
+probe bytes-> {'harness_tree': '/a/b'}
+rc=0

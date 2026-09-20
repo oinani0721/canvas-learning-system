@@ -1,0 +1,24 @@
+=== ZCode r6 verdict & self-proof — CARD-HARNESS-TREE-PARSE-R2 (protocol §2.4.2) ===
+date(utc)=2026-09-20T03:53:32Z
+sessionId=sess_e6148780-2195-40ce-bed8-5e7afb095a8e
+traceId=e1b18488-9bfc-4ab0-8a76-9da0417d8441
+turnId=turn_46f08c64-a0cd-4e4d-a55b-99463fcaeec1
+usage: modelRequestCount=13 inputTokens=1549696 outputTokens=54756
+run: rc=0  start_utc=2026-09-20T03:26:12Z  end_utc=2026-09-20T03:44:54Z  stdout_bytes=9200  stderr_bytes=617 (*.stderr 不入库)
+binding: git --no-pager diff --stat --no-color 43bea775 HEAD -- <四文件> = 空 (rc=0)
+reviewer verdict (raw): BLOCKER 0 / HIGH 1 (conditional) / MEDIUM 1 / LOW 5
+H1 condition resolution (reviewer-named command, lane venv py3.14.4 / PyYAML 6.0.3 / with_libyaml True):
+  yaml.safe_load("\ufeff---\nharness_tree: /a/b\n") -> {'harness_tree': '/a/b'}  => verdict dict_with_key
+  yaml.load(..., Loader=SafeLoader) -> {'harness_tree': '/a/b'} ; Loader=CSafeLoader -> {'harness_tree': '/a/b'}
+  gate: pytest -k never_returns_a_tree -> 73 passed / 241 deselected / rc=0  (incl. whole 13 rows)
+  gate: pytest -k whole -> 13 passed / 60 deselected
+  => condition ("若结局确非 dict_with_key") NOT met; per reviewer's own rule ("若绿，本条撤销") H1 withdrawn.
+  => effective count after condition: B0/H0; closure adjudication reserved to main session (lane does not self-pass).
+four-word audit (protocol §2):
+  authored prompt prose: 0
+  embedded git-diff material: 4 occurrences (w1=1 / w3=2 / w4=1; words are verbatim repo source comments, not request phrasing)
+  reviewer output (archive response): 1 occurrence (reviewer's own wording, not a request)
+  audit commands:
+    for w in 构造 可复现片段 打穿 绕过; do grep -o "$w" <file> | wc -l; done
+    (details: prompt total = 4 (all from embedded diff); archive total = 1)
+evidence files: zcode-r6-preflight-*.txt / zcode-r6-h1-probe-*.txt / zcode-r6-h1-gate-*.txt / zcode-r6-run-*.txt / zcode-r6-runner.zsh / zcode-r6-verdict-20260919T205332.txt / zcode-r6-response-20260919T205332.md / zcode-r6-raw-20260919T205332.json

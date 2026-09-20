@@ -2118,7 +2118,12 @@ OPAQUE_TMP_BASELINE: dict[str, list[str]] = {
     # 「嵌入式 span」判据当成了 shell 命令替换。`_SPAN_SEP_CHARS` 已清空(只认 ASCII
     # 空白)——因为任何标点都可能是合法 shell 词的一部分。方向取舍: 漏检不可接受,
     # 误报可以登记。⛔ 登记项带**内容指纹**(r11 HIGH-3), 16 位、不 strip(r14)。
-    "quiz-answer": ["98:918de56473d5be1b", "205:44b7655dd97c27b7"],
+    # ⛔ 2026-09-18 CARD-HARNESS-TREE-PARSE-R2(第十五批): `:205` → `:267` 纯行号位移
+    # (Step 2.9 预检段插在 Step 2 与 Step 3 之间, +62 行), **指纹 `44b7655dd97c27b7`
+    # 一个字节未变** —— 那一行散文本身没动。本基线与 `TMP_BLOCK_BASELINE` 的 `S205`
+    # 是**同一行**的两套登记, 必须同批一起位移(漏改一处 ⇒ tests/skills 连带 7 道负控门
+    # 一起红, 因为它们断言「全量 lint 只应报我注入的那一个 problem」)。
+    "quiz-answer": ["98:918de56473d5be1b", "281:44b7655dd97c27b7"],
     # ⛔ CARD-SEB-WRITER-SUBSTRING-TMP(第十五批)实测重算: `:430` 的内容变了(Step 6.5 prose
     # 新增 `mkdir -p` 与命名空间路径)⇒ 指纹换; `:577` 行号下移到 `:603`(指纹不变, 该行
     # 一个字节没动); 新增 `:604` = 本次追加的变更记录条目。四条都是**保守误报登记**
@@ -2167,9 +2172,26 @@ TMP_BLOCK_BASELINE: dict[str, list[str]] = {
         #: 空的同名 yaml.py 照样导得进, 故改判 safe_load 在不在; 安装命令改 shlex.quote)。
         #: → `9a1ec16c27149217…`(Codex round-9 HIGH: 「打不开 config」与「打开了却解析失败」
         #: 拆成两个作用域; 并把「拿到 PyYAML」的判据从「可调用」升级为在已知输入上自证)。
-        "B229:9a1ec16c27149217",
+        #: → `14da24c2df92c341…`(CARD-HARNESS-TREE-PARSE-R2, 第十五批 · r10 H1 收口 + round-1/2/3/4 整改):
+        #:   主块里 `_harness_tree` 改「先读原文再 `safe_load(str)`」+ 加词法否决(文件明文
+        #:   有 `harness_tree:` 键而解析器没给出 ⇒ 拒写, 只否决不采用), 并新增
+        #:   `_harness_contract(REPO)`(影子/版本/形状/纯函数探针) ⇒ 整块哈希变。
+        #: ⛔ 块**起始行**从 `:229` 下移到 `:299`: Step 2.9 预检段(prose + 一个新 PYEOF
+        #:   fence)插在 Step 2 与 Step 3 之间, 共 +70 行(round-2 整改给预检块加了
+        #:   `sys.dont_write_bytecode = True` 与其理由注释, 又 +8; round-3 把它提到首行 import
+        #:   之前又 +6)。同一位移让散文条目 `S205` → `S281`
+        #:   ——**指纹一个字节没变**, 只是行号跟着走(那一行本身没动)。
+        #: ⛔ **无新增条目**: 预检块里一个 `/tmp` 都没有(节点路径经环境变量传入, SKILL.md
+        #:   路径用 `os.path.join` 分段拼), 所以它不进 `tmp_block_fingerprints` 的登记面。
+        #: ⛔ round-1 整改后**块起始行仍是 `:291`**(加的行都落在 `_harness_tree` 函数体内,
+        #:   不越过块首), 只有整块哈希再变一次: `ddee88b6…` → `39a76e33…`。改动内容 = 键级
+        #:   探针(`safe_load("harness_tree: <哨兵>")` 必须给出该键)+ 词法否决的「值内文本」豁免
+        #:   round-2 复核后**整段去掉了那个豁免**(它是整份文档一个布尔, 一处命中落在值内
+        #:   就让整份文件的否决失效; 按处数比也修不了, 因为 PyYAML 折叠跨行标量的换行);
+        #:   round-3 把键级探针的文档从单行改成三行(丢文件尾巴的坏解析器对单行没有尾巴可丢)。
+        "B305:14da24c2df92c341",
+        "S281:44b7655dd97c27b7",
         "S96:b55afbca27229028",
-        "S205:44b7655dd97c27b7",
     ],
     #: 2026-09-18 CARD-SEB-WRITER-SUBSTRING-TMP(第十五批): Step 6.5 落账块的查重段
     #: 从「整本有损解码 + 子串命中」改成「切 bytes + 逐行严格解码 + parsed-field 等值」,
@@ -2220,6 +2242,11 @@ PARENT_DIR_PROSE_BASELINE: dict[str, list[int]] = {
 #:
 #: quiz-answer 的 `harness_tree` 解析(E-2)归 U5-B, 本卡只钉现状、一个字节都不改。
 #: U5-B 改 `canvas-vault/.claude/skills/quiz-answer/SKILL.md` 后**必须**同步改这一段。
+#: ⛔ 2026-09-18 CARD-HARNESS-TREE-PARSE-R2(第十五批): 改 quiz-answer 写点后要同时重算
+#: **两处** —— `TMP_BLOCK_BASELINE["quiz-answer"]` 的块指纹(块起始行号会随插入段位移)与
+#: 下面这行整文件 digest; `QUIZ_ANSWER_BASELINE` 九项本卡实测**逐字未变**(⚠️ 新写的拒因
+#: 文案里别出现 `.claude/skills/` 这种连续路径串 —— `_CLAUDE_DIR_RE` 按文本计数, 一句
+#: 散文就能让 `claude_dir_ref` 从 4 变 5, 与实际可移植性无关)。
 #: 单列在这里就是为了让那次 diff 一眼可见。
 #: 行号标注(2026-09-14 CARD-HARNESS-TREE-PARSE-REDO 实测): 4 处裸 `/tmp/` 在
 #: `:98/:106/:205/:233`, 4 处 `claude_dir_ref` 在 `:74/:3104/:3112/:3203`。
@@ -3240,7 +3267,7 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
     "skills/configure-whiteboard/SKILL.md": "9eb21ecc6ac044a914ce11009025f8a84e51c5135221ec3b50f8c021ccfa2177",
     "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
     "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
-    "skills/quiz-answer/SKILL.md": "6ae2558f1def3e94588bf0a043bb2d9e4b5904a618de5ec4b5260f5c206601b0",
+    "skills/quiz-answer/SKILL.md": "d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38",
     # CARD-SEB-WRITER-SUBSTRING-TMP（第十五批）：Step 6.5 写规修复 + 临时路径解耦后重算。
     "skills/start-exam-board/SKILL.md": "c3c0434d385c66f33c097c051d4aac2d05f908a881bc1471785beeaf52493473",
     "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",

@@ -1,0 +1,52 @@
+=== §二.10 地盘门（最终 HEAD）2026-09-18T20:43:07 ===
+PREV=a05732c9  HEAD=dd20ac05
+本卡 commit 数 = 3
+  dd20ac05 fix(p6-skills): 值内豁免补全结构遍历 + 环防护 [BATCH-2026-09-18-第十五批 / CARD-HARNESS-TREE-PARSE-R2]
+  09f190a3 fix(p6-skills): 键级探针 + 词法否决值内豁免 [BATCH-2026-09-18-第十五批 / CARD-HARNESS-TREE-PARSE-R2]
+  0168760e fix(p6-skills): 选树词法否决 + 契约门 + Step 2.9 预检 [BATCH-2026-09-18-第十五批 / CARD-HARNESS-TREE-PARSE-R2]
+
+--- (l) 改动面 ⊆ 白名单 4 文件 ---
+backend/tests/regression/test_g3_2_review_ledger.py
+backend/tests/skills/skill_portability_lint.py
+backend/tests/skills/test_harness_tree_parse_r2.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+
+--- 验伪锚（--name-only；--stat 会把长路径缩成 .../ ⇒ 哑巴锚）---
+带 exclude 路径数 =        4
+不带 exclude 路径数 =       69
+多出的 _bmad-output/ 条数 = 65
+
+--- test_skill_portability_lint.py 零改动 ---
+diff 行数 =        0
+
+--- 禁触文件核查（全部零命中）---
+  start-exam-board/SKILL.md                        0
+  test_g3_3_cas.py                                 0
+  test_learning_events_schema_contract.py          0
+  vault_lint.py                                    0
+  test_vault_lint.py                               0
+  test_vault_install_manifest.py                   0
+  backend/scripts/validate_learning_events.py      0
+  backend/app/                                     0
+  canvas-vault/.claude/scripts/                    0
+  conftest.py                                      0
+  openapi.json                                     0
+  install-vault.sh                                 0
+  pytest.ini                                       0
+
+--- test_g3_2 hunk（(l) 要求不碰 :1-6859）---
+hunk 数 = 7
+最小起始行 = 7348
+
+--- (m) 现网只读 ---
+真 import 语句（语义判据）= 0
+canvas-vault/.claude/scripts/ 改动 =        0
+
+--- (o) 提交自检（逐 commit）---
+  dd20ac05  header wc -m=85  批次=1  卡号=1
+  09f190a3  header wc -m=84  批次=1  卡号=1
+  0168760e  header wc -m=95  批次=1  卡号=1
+*.stderr* 入库 = 0
+0
+openapi.json 入库 = 0
+0

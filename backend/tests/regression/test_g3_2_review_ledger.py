@@ -7348,6 +7348,15 @@ def _run_writer_no_yaml_at_harness_tree(vault: Path, payload: dict):
 #: 缺库时写点打出来的拒因（点名 PyYAML）。门靠它证明「确实是缺库这条路拒的」，
 #: 而不是碰巧被别的判据拒了。
 _NO_YAML_REFUSAL = "PyYAML 不可用 — harness_tree 指向哪棵树不可证"
+#: 生产键级探针喂给解析器的那份文档 —— **从写点里逐字抽出来，不手抄**。
+#: ⛔ round-3 把它从单行改成三行（丢文件尾巴的坏解析器对单行文档没有尾巴可丢，照样答对）。
+#: 当时这里写的是手抄常量 + `assert _KEY_PROBE_DOC in CODE` 的防漂移 —— 那条 assert
+#: **没红**，因为新文档恰好**包含**旧串（`in` 是子串判定）。两格门红才提醒了我。
+#: ⇒ 改成正则抽取：写点改一个字，这里跟着改，零手抄面。
+_KPROBE_M = re.search(r'_KPROBE_DOC = (".*?")\n', CODE)
+assert _KPROBE_M, '⛔ 写点里找不到 `_KPROBE_DOC = "..."` —— 键级探针的文档定义漂了，先核写点'
+_KEY_PROBE_DOC = ast.literal_eval(_KPROBE_M.group(1))
+assert "harness_tree" in _KEY_PROBE_DOC, f"⛔ 抽出来的探针文档里没有 harness_tree: {_KEY_PROBE_DOC!r}"
 
 
 def test_g33r2_harness_tree_no_pyyaml_refuses_canonical_form_accepted_cost(vault):
@@ -7562,97 +7571,133 @@ def _ht_outcome(_fn, _vault_dir):
         return ("exit", str(_e))
 
 
+#: 既有 60 条：每一条都是**接在固定三行 block 配置头之后的一行**（`_mode="headed"`）。
+#: ⛔ 本列表逐字保持原样（CARD-HARNESS-TREE-PARSE-R2 只加维度，不动既有参数）。
+_HEADED_LINES = [
+    # ── 规范写法(两条分支必须给出同一个结果)──
+    "harness_tree: /a/b",
+    "harness_tree:    /a/b   ",
+    "harness_tree: /a/b c",
+    "harness_tree: /a/b　c",
+    "harness_tree: /a/b c",
+    "harness_tree: /a/b　",
+    "harness_tree: /a/b,c",
+    "harness_tree: /a/[b]",
+    "harness_tree: /a/{b}",
+    "harness_tree: /a/b\\",
+    "harness_tree: /a/b'",
+    'harness_tree: /a/b"',
+    "harness_tree: /a",
+    # ── 本卡自查(2026-09-14)发现的四类: 正则取到值而 PyYAML 整份拒 ──
+    "harness_tree:\t/a/b",
+    "harness_tree: /a/b: c",
+    "harness_tree: /a/b:",
+    "harness_tree: /a/b\t",
+    # ── Codex round-1 MEDIUM 指出的结构形态: 逐行扫描看不见 YAML 在哪里换行 ──
+    "harness_tree: /a/bx",
+    "harness_tree: /a/b",
+    "harness_tree: /a/b x",
+    "harness_tree: /a/b x",
+    "harness_tree: /a/b\n  cont",
+    "harness_tree: /a/b\n\n  cont",
+    "{harness_tree: /a/b}",
+    # ── 既有三条分界与 M-c 家族(降级侧允许更窄, 但不许给出不同的树)──
+    "harness_tree:",
+    'harness_tree: ""',
+    "harness_tree: null",
+    "harness_tree: # reset",
+    "harness_tree: /a/b #c",
+    "harness_tree: /a/b#c",
+    "harness_tree: '/a/b'",
+    'harness_tree: "/a/b"',
+    "harness_tree : /a/b",
+    '"harness_tree": /a/b',
+    "'harness_tree': /a/b",
+    "harness_tree: ../rel",
+    "harness_tree: ~/x",
+    "harness_tree: 　#alt",
+    "# harness_tree: /a/b",
+    "other: 1",
+    # ── round-3: 文档结构与语法上下文(本卡自查 + Codex round-2 MEDIUM-2/3)──
+    #: `safe_load` 只收单文档; 逐行扫描看不见文档边界, 会把第二份文档里的那行当成有效值
+    "harness_tree: /a/b\n---\nharness_tree: /c/d",
+    "harness_tree: /a/b\n...\nharness_tree: /c/d",
+    #: 连「整份文件里根本没有这个键」的多文档也不行 —— PyYAML 整份拒而降级会回退
+    "other: 1\n---\nmore: 2",
+    "harness_tree: /a/b\n...",
+    #: 转义键: YAML 还原出同一个键, 而原文里根本不含 `harness_tree` 这串字符。
+    #: ⛔ 反斜杠用 chr(92) 拼: 本卡实测被中间工具层把转义展开成真字符一次。
+    '"harness' + chr(92) + 'u005ftree": /a/b',
+    #: 别名 / 合并键: 键可以不在它出现的那一行上定义
+    "note: &a /a/b\nharness_tree: *a",
+    #: 块标量: 那串字符在 YAML 眼里是**值的内容**, 不是键
+    "x: |\n  harness_tree: /a/b",
+    #: 指令行 + 内容之后的文档开始 —— 实测 PyYAML 在这里抛的是 ComposerError
+    #: (「只收单文档」), 不是指令语义; 如实标注, 不按「指令行」宣称。
+    "%YAML 1.1\n---\nharness_tree: /a/b",
+    #: 跨行引号标量: 开引号之后每一行的语法身份都不再是它看上去的样子
+    'note: "open\n  harness_tree: /a/b"',
+    # ── round-4: Codex round-3 MEDIUM-1/2/4 + 本卡自查 ──
+    #: M-1 同一函数里「什么算空白」两处口径不一致(裸 .strip() 按 Unicode 判空行,
+    #: 续行判据只认 ASCII) ⇒ 这类行既不算空行也不算续行, 被整个跳过, 降级照样
+    #: 采用前一行的值 —— 与本文件 round-3 的老教训同源。
+    #: ⛔ 不可见字符一律用 chr() 拼: 本卡实测被中间工具层把转义展开过三次。
+    "harness_tree: /a/b" + chr(10) + chr(0x3000) + "more",
+    "harness_tree: /a/b" + chr(10) + chr(0xA0) + "more",
+    "harness_tree: /a/b" + chr(10) + chr(0x3000) + chr(10) + "other: 1",
+    "harness_tree: /a/b" + chr(10) + chr(0x3000) + "# c",
+    #: M-4 非换行类的 YAML 非法字符: PyYAML 整份 ReaderError, 逐行扫描照样取到树
+    "other: " + chr(1) + "x" + chr(10) + "harness_tree: /a/b",
+    #: M-2 文档标记同行还有内容 / 连续起始标记 / 开头就是结束标记
+    "--- {a: 1}",
+    "---",
+    "...",
+    # ── round-5: 给三组「读不懂就停」判据各配一个专属哨兵（Codex round-4 LOW-1）──
+    #: 本卡原先登记「门结构上测不到判据失效、必须另立变异卡」—— **那是错的**。
+    #: 漏掉的一点: 判据一删, 降级就比 PyYAML **更宽**, 于是落进「违反」而不是「更窄」。
+    #: 下面三条各自只让**一组**判据的删除变红(本卡逐变体实测的对角线), 其余全绿。
+    "%FOO bar" + chr(10) + "harness_tree: /a/b",
+    "note: *undefined" + chr(10) + "harness_tree: /a/b",
+    'note: "unclosed' + chr(10) + "harness_tree: /a/b",
+]
+
+#: ── `_mode="whole"`：**整份文档**形态（CARD-HARNESS-TREE-PARSE-R2 补的维度）──
+#: ⛔ 为什么非补不可：上面 60 条**每一条**都被接在三行 block 配置头之后，于是「整份文档
+#: 级」的形态——文档起始/结束标记、`%YAML` 指令、BOM、多文档、顶层根本不是 block mapping
+#: ——在那张表下**一格都碰不到**。先例 `..._no_pyyaml_refuses_whole_flow_document` 已经
+#: 为「整份 flow mapping」单立过一门，本维度把它一般化。
+#: ⛔ 缺的是**一个维度**而不是一格：往 60 条里再加几行补不上它，因为那 60 格固定死了
+#: 同一个前提（顶层是一个 block mapping，且前三行合法）。那个被固定死的前提就是盲区。
+#:
+#: 第三元 `_truth` = **真 PyYAML 对这份文本的实际结局**，2026-09-18 于本车道共享 venv
+#: 逐条实测后写死。它在门里被当作**控制组前提**断言：少了这一半，「缺库时拒了」可能只是
+#: 因为这份文档本来就不合法 —— 那就什么也没证明。表与实际结局漂了，门会红在前提那一行。
+_WHOLE_DOCS = [
+    #: ── 文档标记族（UAT #16「首文档标记那一半测不到」的出处）──
+    ("---\nharness_tree: /a/b\n", "dict_with_key", "文件首 `---` 文档起始标记"),
+    ("%YAML 1.2\n---\nharness_tree: /a/b\n", "dict_with_key", "`%YAML` 指令 + `---`"),
+    ("\ufeff---\nharness_tree: /a/b\n", "dict_with_key", "BOM + `---`"),
+    ("--- # 这是一份 config\nharness_tree: /a/b\n", "dict_with_key", "`---` 同行带注释"),
+    ("harness_tree: /a/b\n...\n", "dict_with_key", "文末 `...` 文档结束标记"),
+    ("{vault_id: v, harness_tree: /a/b}\n", "dict_with_key", "整份 flow mapping（一般化了 `:7435` 那一门）"),
+    ("a: 1\n---\nharness_tree: /a/b\n", "raises:ComposerError", "多文档（`safe_load` 只收一份）"),
+    #: ── 引号奇偶（Codex r5 `:19`「一行里引号成不成对证不出引号闭没闭合」的出处）──
+    ('note: "他说 \\"hi\\""\nharness_tree: /a/b\n', "dict_with_key", "值里含转义引号：合法，PyYAML 照常给出键"),
+    ('note: "没闭合\nharness_tree: /a/b\n', "raises:ScannerError", "未闭合引号：PyYAML 整份拒"),
+    #: ── 隐式类型 / 复杂键 / 块结构（Codex r4 `:24-26` 三类的出处）──
+    ("when: 2026-08-01\nharness_tree: /a/b\n", "dict_with_key", "隐式日期类型：合法"),
+    ("when: 2026-02-30\nharness_tree: /a/b\n", "raises:ValueError", "生成不出来的隐式日期：整份 ValueError"),
+    ("? [a, b]\n: c\nharness_tree: /a/b\n", "raises:ConstructorError", "不可哈希的复杂键：整份 ConstructorError"),
+    ("a:\n  b: 1\n c: 2\nharness_tree: /a/b\n", "raises:ParserError", "块结构缩进不齐：整份 ParserError"),
+]
+
+
 @pytest.mark.parametrize(
-    "_line",
-    [
-        # ── 规范写法(两条分支必须给出同一个结果)──
-        "harness_tree: /a/b",
-        "harness_tree:    /a/b   ",
-        "harness_tree: /a/b c",
-        "harness_tree: /a/b　c",
-        "harness_tree: /a/b c",
-        "harness_tree: /a/b　",
-        "harness_tree: /a/b,c",
-        "harness_tree: /a/[b]",
-        "harness_tree: /a/{b}",
-        "harness_tree: /a/b\\",
-        "harness_tree: /a/b'",
-        'harness_tree: /a/b"',
-        "harness_tree: /a",
-        # ── 本卡自查(2026-09-14)发现的四类: 正则取到值而 PyYAML 整份拒 ──
-        "harness_tree:\t/a/b",
-        "harness_tree: /a/b: c",
-        "harness_tree: /a/b:",
-        "harness_tree: /a/b\t",
-        # ── Codex round-1 MEDIUM 指出的结构形态: 逐行扫描看不见 YAML 在哪里换行 ──
-        "harness_tree: /a/bx",
-        "harness_tree: /a/b",
-        "harness_tree: /a/b x",
-        "harness_tree: /a/b x",
-        "harness_tree: /a/b\n  cont",
-        "harness_tree: /a/b\n\n  cont",
-        "{harness_tree: /a/b}",
-        # ── 既有三条分界与 M-c 家族(降级侧允许更窄, 但不许给出不同的树)──
-        "harness_tree:",
-        'harness_tree: ""',
-        "harness_tree: null",
-        "harness_tree: # reset",
-        "harness_tree: /a/b #c",
-        "harness_tree: /a/b#c",
-        "harness_tree: '/a/b'",
-        'harness_tree: "/a/b"',
-        "harness_tree : /a/b",
-        '"harness_tree": /a/b',
-        "'harness_tree': /a/b",
-        "harness_tree: ../rel",
-        "harness_tree: ~/x",
-        "harness_tree: 　#alt",
-        "# harness_tree: /a/b",
-        "other: 1",
-        # ── round-3: 文档结构与语法上下文(本卡自查 + Codex round-2 MEDIUM-2/3)──
-        #: `safe_load` 只收单文档; 逐行扫描看不见文档边界, 会把第二份文档里的那行当成有效值
-        "harness_tree: /a/b\n---\nharness_tree: /c/d",
-        "harness_tree: /a/b\n...\nharness_tree: /c/d",
-        #: 连「整份文件里根本没有这个键」的多文档也不行 —— PyYAML 整份拒而降级会回退
-        "other: 1\n---\nmore: 2",
-        "harness_tree: /a/b\n...",
-        #: 转义键: YAML 还原出同一个键, 而原文里根本不含 `harness_tree` 这串字符。
-        #: ⛔ 反斜杠用 chr(92) 拼: 本卡实测被中间工具层把转义展开成真字符一次。
-        '"harness' + chr(92) + 'u005ftree": /a/b',
-        #: 别名 / 合并键: 键可以不在它出现的那一行上定义
-        "note: &a /a/b\nharness_tree: *a",
-        #: 块标量: 那串字符在 YAML 眼里是**值的内容**, 不是键
-        "x: |\n  harness_tree: /a/b",
-        #: 指令行 + 内容之后的文档开始 —— 实测 PyYAML 在这里抛的是 ComposerError
-        #: (「只收单文档」), 不是指令语义; 如实标注, 不按「指令行」宣称。
-        "%YAML 1.1\n---\nharness_tree: /a/b",
-        #: 跨行引号标量: 开引号之后每一行的语法身份都不再是它看上去的样子
-        'note: "open\n  harness_tree: /a/b"',
-        # ── round-4: Codex round-3 MEDIUM-1/2/4 + 本卡自查 ──
-        #: M-1 同一函数里「什么算空白」两处口径不一致(裸 .strip() 按 Unicode 判空行,
-        #: 续行判据只认 ASCII) ⇒ 这类行既不算空行也不算续行, 被整个跳过, 降级照样
-        #: 采用前一行的值 —— 与本文件 round-3 的老教训同源。
-        #: ⛔ 不可见字符一律用 chr() 拼: 本卡实测被中间工具层把转义展开过三次。
-        "harness_tree: /a/b" + chr(10) + chr(0x3000) + "more",
-        "harness_tree: /a/b" + chr(10) + chr(0xA0) + "more",
-        "harness_tree: /a/b" + chr(10) + chr(0x3000) + chr(10) + "other: 1",
-        "harness_tree: /a/b" + chr(10) + chr(0x3000) + "# c",
-        #: M-4 非换行类的 YAML 非法字符: PyYAML 整份 ReaderError, 逐行扫描照样取到树
-        "other: " + chr(1) + "x" + chr(10) + "harness_tree: /a/b",
-        #: M-2 文档标记同行还有内容 / 连续起始标记 / 开头就是结束标记
-        "--- {a: 1}",
-        "---",
-        "...",
-        # ── round-5: 给三组「读不懂就停」判据各配一个专属哨兵（Codex round-4 LOW-1）──
-        #: 本卡原先登记「门结构上测不到判据失效、必须另立变异卡」—— **那是错的**。
-        #: 漏掉的一点: 判据一删, 降级就比 PyYAML **更宽**, 于是落进「违反」而不是「更窄」。
-        #: 下面三条各自只让**一组**判据的删除变红(本卡逐变体实测的对角线), 其余全绿。
-        "%FOO bar" + chr(10) + "harness_tree: /a/b",
-        "note: *undefined" + chr(10) + "harness_tree: /a/b",
-        'note: "unclosed' + chr(10) + "harness_tree: /a/b",
-    ],
+    ("_mode", "_line", "_truth"),
+    [pytest.param("headed", _l, None, id=f"headed-{_i}") for _i, _l in enumerate(_HEADED_LINES)]
+    + [pytest.param("whole", _d, _tr, id=f"whole-{_i}") for _i, (_d, _tr, _why) in enumerate(_WHOLE_DOCS)],
 )
-def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch, _line):
+def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch, _mode, _line, _truth):
     """⛔ 缺 PyYAML 时, `_harness_tree` **对任何 config 都不返回任何树** —— 一律抛并点名 PyYAML。
 
     这是用户 2026-09-14 裁定「缺库即拒写」之后的不变量, 比它取代的那条更强也更简单。
@@ -7678,10 +7723,34 @@ def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch
     _fn = _extract_harness_tree()
     _vd = tmp_path / "canvas-vault"
     _vd.mkdir()
-    (_vd / ".canvas-config.yaml").write_text(
-        '# 测试 config\nvault_id: "canvas-vault-测试"\nsubject: cs-61b\n' + _line + "\n",
-        encoding="utf-8",
+    #: `headed` = 接在固定三行配置头之后的一行; `whole` = 这一条**就是整份文档**。
+    _text = (
+        '# 测试 config\nvault_id: "canvas-vault-测试"\nsubject: cs-61b\n' + _line + "\n" if _mode == "headed" else _line
     )
+    (_vd / ".canvas-config.yaml").write_text(_text, encoding="utf-8")
+
+    #: ── 有库控制半(whole 格): 先用**真 PyYAML** 跑同一份文本, 把它的真实结局断言成
+    #: 夹具前提。⛔ 少了这一半, 下面那句「缺库时拒了」可能只是因为这份文档本来就不合法,
+    #: 什么也没证明。⛔ 且这里**不许** `pytest.skip` —— skip 会把「前提不成立」吞成绿色;
+    #: 前提不成立的形态该做的是**不入表**(写进验收单「未入表形态与原因」), 不是跳过。
+    if _truth is not None:
+        import yaml as _real_yaml
+
+        try:
+            _parsed = _real_yaml.safe_load(_text)
+            _verdict = (
+                "dict_with_key"
+                if (isinstance(_parsed, dict) and "harness_tree" in _parsed)
+                else ("dict_no_key" if isinstance(_parsed, dict) else "not_a_dict")
+            )
+        except Exception as _pe:
+            _verdict = "raises:" + type(_pe).__name__
+        assert _verdict == _truth, (
+            f"⛔ 控制组前提没成立: 真 PyYAML 对这份整份文档给出的是 {_verdict!r}, 表里声明的是 {_truth!r}\n"
+            f"   文本: {_text!r}\n"
+            f"   ⇒ 表里写死的结局与 PyYAML 的实际行为漂了(换了版本? 改了文本?)。\n"
+            f"     先核实际结局再改表 —— 别为了让门变绿去松判据。"
+        )
 
     #: 前提自证: 屏蔽之前 PyYAML 确实可用 —— 否则下面那次「缺库」什么也没证明。
     assert "yaml" in sys.modules, "⛔ 前提没成立: 本进程里 PyYAML 本就不可用, 这一跑证不到东西"
@@ -7690,7 +7759,7 @@ def test_g33r2_harness_tree_no_pyyaml_never_returns_a_tree(tmp_path, monkeypatch
     _outcome = _ht_outcome(_fn, _vd)
     assert _outcome[0] == "exit", (
         f"⛔ 缺 PyYAML 时 `_harness_tree` 返回了一棵树, 而不是拒绝\n"
-        f"   配置行: {_line!r}\n"
+        f"   配置({_mode}): {_text!r}\n"
         f"   返回值: {_outcome[1]!r}\n"
         f"   ⇒ 降级解析被加回来了。它的每一个版本都留下过「采用一棵 PyYAML 不会给出的树」\n"
         f"     的实测反例; 真要加回来, 先读本门与 SKILL.md 里 `_harness_tree` 的 docstring。"
@@ -7898,7 +7967,7 @@ def test_g33r2_harness_tree_pyyaml_available_no_config_falls_back_to_parent(tmp_
     [
         ("parse_oserror", "解析途中抛 OSError（读流 EIO 之类）"),
         ("parse_valueerror", "解析途中抛 ValueError"),
-        ("parse_returns_junk", "解析返回一个非 dict 的东西"),
+        ("parse_returns_junk", "config 文件本身就是个列表（真 PyYAML，无假模块）"),
     ],
 )
 def test_g33r2_harness_tree_pyyaml_available_failures_are_not_missing_config(tmp_path, monkeypatch, _failure, _why):
@@ -7928,41 +7997,49 @@ def test_g33r2_harness_tree_pyyaml_available_failures_are_not_missing_config(tmp
 
     import yaml as _real_yaml
 
+    if _failure == "parse_returns_junk":
+        #: ⛔ **本参数改用真 PyYAML + 一份真的是列表的 config**(CARD-HARNESS-TREE-PARSE-R2)。
+        #: 原先这一格用**说谎的解析器**制造「非 dict」: config 文件里明明写着目标树, 假模块
+        #: 却返回一个列表, 然后断言「回退父树是对的」—— 那把**错误结果固化成了期望**。
+        #: 「YAML 本身是列表 ⇒ 按没写这个键回退」这条语义要成立, 文件就得**真的是列表**;
+        #: 而「解析器谎报无键」现在是另一回事, 由 tests/skills/test_harness_tree_parse_r2.py
+        #: 的 `..._lying_parser_is_refused` 钉住(拒写, 不是回退)。
+        (_vd / ".canvas-config.yaml").write_text("- a\n- b\n", encoding="utf-8")
+        #: 前提自证: 这份文件在真 PyYAML 眼里确实是个 list, 且**没有** harness_tree 字面键
+        #: (有的话会撞上词法否决, 那就测的是另一条路了)。
+        assert isinstance(_real_yaml.safe_load("- a\n- b\n"), list), "⛔ 前提没成立: 这份 config 不是列表"
+        assert re.search(r"^harness_tree[ \t]*:", "- a\n- b\n", re.M) is None, (
+            "⛔ 前提没成立: 文件里有 harness_tree 字面键"
+        )
+
+        _fn = _extract_harness_tree()
+        _outcome = _ht_outcome(_fn, _vd)
+        assert _outcome == ("ok", str(tmp_path)), (
+            f"⛔ config 真的是个列表(没有这个键)⇒ 应按「没写」回退父树({_why}), 实得 {_outcome!r}"
+        )
+        return
+
     _fake = types.ModuleType("yaml")
 
     def _safe_load(_stream, *_a, **_kw):
-        #: 自证探针(生产会先用 "a: 1" 验它像不像解析器)照常放行, 只在读**文件对象**时发难 ——
-        #: 否则这个假模块在自证那一步就被拒了, 本门就测不到「解析这一步」。
-        if isinstance(_stream, str):
+        #: 生产的**两道**自证探针都照常放行, 只在读 config 时发难 —— 否则这个假模块在自证
+        #: 那一步就被拒了, 本门就测不到「解析这一步」。
+        #: ⛔ 按**内容**分辨而不是按类型(CARD-HARNESS-TREE-PARSE-R2): 生产改成「先读原文、
+        #: 再 `safe_load(str)`」之后, 探针与 config **都是 str** —— `isinstance(_stream, str)`
+        #: 会把 config 也一起放行, 这三格当场全部失效(且是静默失效: 门照样绿)。
+        #: ⛔ 第二道探针是 round-1 整改加的**键级探针**; 漏放行它, 这两格会从「解析这一步坏了」
+        #: 掉回「拿不到 PyYAML」那一档(2026-09-18 实测, 拒因整句当场变)。
+        if _stream in ("a: 1", _KEY_PROBE_DOC):
             return _real_yaml.safe_load(_stream)
         if _failure == "parse_oserror":
             raise OSError(5, "Input/output error")
-        if _failure == "parse_valueerror":
-            raise ValueError("boom")
-        return ["not", "a", "dict"]
+        raise ValueError("boom")
 
     _fake.safe_load = _safe_load
     monkeypatch.setitem(sys.modules, "yaml", _fake)
 
     _fn = _extract_harness_tree()
     _outcome = _ht_outcome(_fn, _vd)
-
-    if _failure == "parse_returns_junk":
-        #: ⛔⛔ **本参数的期望有误, 已登记待主 session 裁定（Codex round-10 HIGH 的一部分）。**
-        #: 问题: 这里用的是一个**说谎的解析器**（config 文件里明明写着目标树, 假模块却返回
-        #: 一个列表）, 然后断言「回退父树是对的」—— 这等于把**错误结果固化进了门**。
-        #: 「YAML 本身是列表 ⇒ 回退」这条语义要成立, 场景应当是**config 文件里本来就是个
-        #: 列表**、用**真 PyYAML** 跑; 而不是让假模块谎报。
-        #: ⚠️ 未就地改断言的原因: 本卡 Codex 轮次已用满（新增范围 5/5）, 改测试属代码改动、
-        #: 需再送一轮。按协议「第 5 轮仍有 HIGH ⇒ 停下交主 session 人审」, 此处只标注不改。
-        #: 修法建议（给接手的人）: 把本参数换成 config 文件内容为 `- a\n- b` 的真实场景,
-        #: 并**删掉**假模块那一支; 同时补上 round-10 指出的第四种形态 ——
-        #: 「探针答对、但对真实 config 返回的东西不忠于文件内容」。
-        #: 解析**成功**但结果不是 dict ⇒ 按「没写这个键」回退, 与既有 16 门同口径。
-        assert _outcome == ("ok", str(tmp_path)), (
-            f"⛔ 解析出非 dict 时应按「没写这个键」回退父树({_why}), 实得 {_outcome!r}"
-        )
-        return
 
     assert _outcome[0] == "exit", (
         f"⛔ config 打得开、解析却失败时返回了一棵树而不是拒绝({_why}): {_outcome[1]!r}\n"

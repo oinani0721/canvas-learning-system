@@ -1,0 +1,35 @@
+{
+  "commit": "fix(p6-skills): 词法正则行首锚补门 [BATCH-2026-09-18-第十五批 / CARD-HARNESS-TREE-PARSE-R2]",
+  "ref": "43bea775",
+  "sha": "43bea775f2edd89d59fba2414e9262ea4e4163bf",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:28:41-0700",
+  "code_files": [
+    "backend/tests/skills/test_harness_tree_parse_r2.py"
+  ],
+  "files": [
+    {
+      "file": "backend/tests/skills/test_harness_tree_parse_r2.py",
+      "added": 65,
+      "removed": 0,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.44,
+      "urgency_conf": 0.26,
+      "review": 0.53,
+      "test": 0.91,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 2373,
+    "output_tokens": 158
+  },
+  "latency_ms": {
+    "min": 218,
+    "median": 218,
+    "max": 218
+  }
+}

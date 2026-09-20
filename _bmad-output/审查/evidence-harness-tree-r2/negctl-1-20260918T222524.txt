@@ -1,0 +1,18 @@
+=== 负控段1 @ HEAD ee9c9d49  2026-09-18T22:25:24 ===
+--- 跑前 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段① 变异已注入：删 414 字符（只删词法否决分支，键级探针原样）
+--- 变异后 shasum ---
+7fd54e29cddb8c372eaeca4ca00fabc519311542f6b293a2772243b98963e40f  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+collected 26 items / 14 deselected / 12 selected
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[honest_probes_empty_mapping]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[honest_probes_list]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lexical_veto_false_refusal_cost_is_accepted[inside_a_list]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lexical_veto_false_refusal_cost_is_accepted[inside_a_nested_dict]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lexical_veto_false_refusal_cost_is_accepted[toplevel_scalar]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_truncating_parser_cannot_disarm_the_veto
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_truncating_parser_control_group
+=========== 7 failed, 5 passed, 14 deselected, 10 warnings in 0.91s ============
+pytest rc=1
+--- 还原后 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md

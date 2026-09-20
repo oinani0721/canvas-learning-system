@@ -1,0 +1,36 @@
+# 承重门 + 负控段⑪（rc 用不带管道的写法取，前一份 …T052508/T052701 的 rc 字段作废）
+# ⚠️ 前份坏在两处：zsh 没有 ${PIPESTATUS[0]}（那是 bash）；rc=$? 写在 | tail 之后取的是 tail 的 rc
+# HEAD = 1fa2cf579f506f4dd9d878e905adcb3e6c8a907a
+
+=== 负控段⑪：新门是否恰好锁住声称的判据（含变异，先跑完腾出树）===
+✅ 还原逐字节正确
+
+======================================================================
+汇总
+======================================================================
+tree-probe-a1          ✅ 恰好锁住       test_g33r2_first_probe_catches_what_the_key_probe_cannot
+tree-not-isabs         ✅ 恰好锁住       test_g33r2_relative_harness_tree_is_resolved_against_the_vault
+ct-ts-rejects-date     ✅ 恰好锁住       test_g33r2_harness_contract_refuses[ts_re_accepts_bare_date]
+ct-ws-accepts          ✅ 恰好锁住       test_g33r2_harness_contract_refuses[whole_second_re_rejects_whole_second]
+ct-ws-rejects          ✅ 恰好锁住       test_g33r2_harness_contract_refuses[whole_second_re_accepts_missing_seconds]
+ct-classify            ✅ 恰好锁住       test_g33r2_harness_contract_refuses[classify_says_review_for_empty_frontmatter]
+ct-looks-like          ✅ 恰好锁住       test_g33r2_harness_contract_refuses[looks_like_returns_zero_not_false]
+
+恰好锁住 = 7/7
+rc=0
+
+=== (g)① g3_2 整文件 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================= 314 passed, 10 warnings in 140.17s (0:02:20) =================
+rc=0
+
+=== (g)② tests/skills 目录级 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 602 passed, 22 warnings in 46.06s =======================
+rc=0
+
+=== 收工：工作树代码面是否干净（变异已还原）===
+ M backend/tests/skills/test_harness_tree_parse_r2.py
+(仅应见 test 文件的 M)
+
+总 rc: negctl11=0 g3_2=0 skills=0

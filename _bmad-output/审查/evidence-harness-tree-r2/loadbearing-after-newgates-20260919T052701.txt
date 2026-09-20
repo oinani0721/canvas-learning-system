@@ -1,0 +1,19 @@
+⚠️ 本文件的 **rc 字段作废**（内容本身真实，判据结论以带正确 rc 的重跑件为准）。
+   坏因：`rc=$?` 写在 `| tail -3` **之后** ⇒ 取到的是 `tail` 的退出码，不是 pytest 的
+   ⇒ 带正确 rc 的重跑件：`loadbearing-and-negctl11-20260919T053037.txt`
+   （协议要求承重存档末行写 rc；写了一个**空的/取错的** rc 比不写更糟 —— 它占着那个
+     位置，让存档看起来合规。）
+--------------------------------------------------------------------------------
+
+=== (g)① g3_2 整文件 ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================= 314 passed, 10 warnings in 138.45s (0:02:18) =================
+rc=0
+
+=== (g)② tests/skills 目录级 ===
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 602 passed, 22 warnings in 46.12s =======================
+rc=0

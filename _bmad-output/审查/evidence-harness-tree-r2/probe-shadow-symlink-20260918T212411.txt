@@ -1,0 +1,8 @@
+布局                                             结局    说明
+--------------------------------------------------------------------------------------------------------
+① validator 是 symlink（夹具同法）                    ok    返回 7 元组
+② 树目录本身是 symlink（传未 realpath 路径）               ok    返回 7 元组
+③ backend/scripts 那一段是 symlink                 ok    返回 7 元组
+
+注：生产里 _harness_tree 对显式 harness_tree 值走 realpath(strict=True)，
+    所以 ② 那种「传未 realpath 路径」在真实链路上不会发生；这里是刻意加压。

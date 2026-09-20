@@ -1,0 +1,39 @@
+=== §二.10 地盘门（post-commit）2026-09-18T19:23:24 ===
+PREV=a05732c9（语义值：含 CARD-SEB-WRITER-SUBSTRING-TMP 的最近一条）
+HEAD=0168760e
+
+--- 改动面（排除 _bmad-output）应 ⊆ (l) 白名单 4 文件 ---
+ .../tests/regression/test_g3_2_review_ledger.py    | 298 +++++++----
+ backend/tests/skills/skill_portability_lint.py     |  27 +-
+ backend/tests/skills/test_harness_tree_parse_r2.py | 587 +++++++++++++++++++++
+ canvas-vault/.claude/skills/quiz-answer/SKILL.md   | 235 ++++++++-
+ 4 files changed, 1017 insertions(+), 130 deletions(-)
+
+--- 验伪锚：去掉 exclude 应多出 _bmad-output/ ---
+0
+  ↑ _bmad-output/ 路径条数（>0 = 锚成立，证明 exclude 真的在起作用）
+
+--- test_skill_portability_lint.py 应零改动 ---
+       0
+
+--- 禁触文件核查（应全部零命中）---
+  start-exam-board/SKILL.md                        0
+  test_g3_3_cas.py                                 0
+  test_learning_events_schema_contract.py          0
+  vault_lint.py                                    0
+  test_vault_lint.py                               0
+  test_vault_install_manifest.py                   0
+  backend/scripts/validate_learning_events.py      0
+  backend/app/                                     0
+  canvas-vault/.claude/scripts/                    0
+  conftest.py                                      0
+  openapi.json                                     0
+  install-vault.sh                                 0
+
+--- test_g3_2 hunk 头（每个应 ≥ 7562）---
+6
+7562
+  ↑ hunk 数 / 最小起始行
+
+--- (m) 现网只读：新增行里 fsrs_bridge / decay_beta 应 = 0 ---
+4

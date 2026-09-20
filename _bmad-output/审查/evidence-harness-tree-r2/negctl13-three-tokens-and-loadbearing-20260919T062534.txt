@@ -1,0 +1,35 @@
+# 负控段⑬（词法正则三个承重 token）+ 承重门
+# 基线 HEAD = 9132586f1c3b1cc346f53ec60957b5fb4d741257（跑在待提交工作树上）
+
+=== 负控段⑬ ===
+      test_g33r2_lexical_veto_does_not_over_match_a_similar_key
+
+[③ 放宽-去掉行首锚^] ✅ 红格集合恰好 == 声称的 3 格
+      test_g33r2_lexical_veto_requires_the_line_start_anchor[commented_out]
+      test_g33r2_lexical_veto_requires_the_line_start_anchor[indented_nested]
+      test_g33r2_lexical_veto_requires_the_line_start_anchor[inline_comment]
+
+还原后 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+✅ 还原逐字节正确
+
+======================================================================
+汇总
+======================================================================
+① 收窄-去掉[ \t]*              ✅ 恰好锁住       1 格
+② 放宽-去掉末尾冒号                ✅ 恰好锁住       1 格
+③ 放宽-去掉行首锚^                ✅ 恰好锁住       3 格
+
+恰好锁住 = 3/3
+rc=0
+
+=== (g)① g3_2 整文件 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================= 314 passed, 10 warnings in 133.95s (0:02:13) =================
+rc=0
+
+=== (g)② tests/skills 目录级 ===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 607 passed, 22 warnings in 43.98s =======================
+rc=0
+
+总 rc: negctl13=0 g3_2=0 skills=0

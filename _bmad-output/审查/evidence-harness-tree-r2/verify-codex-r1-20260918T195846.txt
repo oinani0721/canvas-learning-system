@@ -1,0 +1,9 @@
+=== 独立验证 Codex round-1 的三个发现 @ HEAD 0168760e  2026-09-18T19:58:46 ===
+形态                                     结局     值 / 拒因首段
+----------------------------------------------------------------------------------------------------------------------
+A 引号键 + 恒返{'a':1}                      OK     ⛔ 回退父树（config 指着 target-tree）
+B flow mapping + 恒返{'a':1}             OK     ⛔ 回退父树（config 指着 target-tree）
+C 值内跨行文本 + 真 PyYAML                    EXIT   [quiz-answer] .canvas-config.yaml 解析结果与文件内容不符 (文件第 2 行明文写着 harness_tree 键, 解析器
+D 裸键 + 恒返{'a':1}（对照：应被拒）               EXIT   [quiz-answer] .canvas-config.yaml 解析结果与文件内容不符 (文件第 1 行明文写着 harness_tree 键, 解析器
+E 引号键 + 真 PyYAML（对照：应采用）               OK     /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpcls9jl50/target-tree
+F flow + 真 PyYAML（对照：应采用）              OK     /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpzxh6kvzu/target-tree

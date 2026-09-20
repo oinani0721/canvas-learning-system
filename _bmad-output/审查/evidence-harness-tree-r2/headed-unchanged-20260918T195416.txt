@@ -1,0 +1,6 @@
+=== 核「既有 60 条 headed 参数逐字未动」2026-09-18T19:54:16 ===
+HEAD=0168760e  脚本入档: check-headed-unchanged.py
+PREV parametrize 元素数   = 60
+HEAD _HEADED_LINES 元素数 = 60
+逐元素 AST dump 完全相同  = True
+验伪锚（人为替换末项后再比）= False   ⇒ 上面那个 True 不是恒真

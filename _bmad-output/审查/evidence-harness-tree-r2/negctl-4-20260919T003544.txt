@@ -1,0 +1,13 @@
+=== 负控段④（锚修好后）@ 6660e5a1 ===
+跑前 shasum = abe5a0b6
+段④ 变异已注入：删 335 字符（只删键级探针的判断，词法否决原样）
+变异后 shasum = 07629654
+collected 32 items / 15 deselected / 17 selected
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_bare]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_flow_mapping]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_quoted_key]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_truncating_parser_is_refused[bare_key]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_truncating_parser_is_refused[flow_mapping]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_truncating_parser_is_refused[quoted_key]
+=========== 6 failed, 11 passed, 15 deselected, 10 warnings in 2.22s ===========
+还原后 shasum = abe5a0b6

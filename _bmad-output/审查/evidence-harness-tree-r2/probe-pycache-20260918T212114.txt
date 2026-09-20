@@ -1,0 +1,22 @@
+=== 预检块「纯读零写」声称 vs 实际（真实用户环境）  2026-09-18T21:21:14 ===
+HEAD=23c6aaf0
+
+--- A. 不设 PYTHONDONTWRITEBYTECODE（= 真实用户跑 /quiz-answer 的环境）---
+跑前 __pycache__ = 0
+预检 rc=0
+跑后 __pycache__ = 1
+<TMP>/harness/backend/scripts/__pycache__
+
+--- B. 对照：设 PYTHONDONTWRITEBYTECODE=1（= 测试 _run_preflight 的环境）---
+跑前 __pycache__ = 0
+预检 rc=0
+跑后 __pycache__ = 0
+
+⇒ A 写了 / B 没写 ⇒ 是 PYTHONDONTWRITEBYTECODE 在起作用，而**测试恰好设了它** ⇒
+   预检块 docstring 与 prose 里「纯读零写 / 不落任何文件」的声称在真实用户环境下**不成立**；
+   测试的零写断言测不到这条路径（门未覆盖的路径）。
+
+--- C. 影响面判定：写到哪里、会不会拒写 ---
+写入位置 = 选中的 harness 树的 backend/scripts/__pycache__（代码树，不是 vault 数据）
+vault 目录内 __pycache__ = 0
+harness 只读时 Python 会静默跳过写 .pyc，不抛错 ⇒ 不会把预检变成误拒

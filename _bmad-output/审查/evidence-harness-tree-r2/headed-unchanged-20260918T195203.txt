@@ -1,0 +1,21 @@
+=== 核「既有 60 条 headed 参数逐字未动」2026-09-18T19:52:03 ===
+--- PREV 的 parametrize 列表元素 vs HEAD 的 _HEADED_LINES 元素（AST 求值后逐项比对）---
+<unknown>:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+Traceback (most recent call last):
+  File "<stdin>", line 22, in <module>
+  File "<stdin>", line 12, in elems_from_prev
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/ast.py", line 106, in literal_eval
+    return _convert(node_or_string)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/ast.py", line 98, in _convert
+    left = _convert_signed_num(node.left)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/ast.py", line 79, in _convert_signed_num
+    return _convert_num(node)
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/ast.py", line 70, in _convert_num
+    _raise_malformed_node(node)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/ast.py", line 67, in _raise_malformed_node
+    raise ValueError(msg + f': {node!r}')
+ValueError: malformed node or string on line 7621: BinOp(left=Constant(value='"harness', kind=None), op=Add(), right=Call(func=Name(id='chr', ctx=Load(...)), args=[Constant(value=92, kind=None)], keywords=[]))
+
+--- 验伪锚：故意改一项应报不同 ---
+控制组（人为制造差异）逐项完全相同 = False   ⇒ 上面那个 True 不是恒真

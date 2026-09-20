@@ -1,0 +1,94 @@
+⛔⛔⛔ 本文件作废 —— 它的结论是假的，保留作教训记录，不得引用。
+
+【它说了什么】15 条判据全部「门未覆盖」（红 0 格）。
+【为什么是假的】每一段（含基线）的 pytest 都是 rc=4 = **用法错误，一格都没跑**。
+  根因：测试路径写成 `backend/tests/...` 而 cwd 已是 `backend/` ⇒ 拼成不存在的
+  `backend/backend/tests/...`。
+【为什么没被自己的自检拦住】脚本的基线自检只问「有没有 FAILED 行」。rc=4 时
+  **一条 FAILED 都没有** ⇒ `fails == []` ⇒ 自检通过 ⇒ 15 段照跑，给出一份
+  格式完美、结论全错的汇总。
+  ⇒ 「期望 0/空 的判据必须先证输入面非空」：`fails == []` 有两种世界
+     （全绿 / 根本没跑），只认一种就会假绿。
+【是什么救了它】不是脚本，是领域知识：段⑨(`ct-isinstance-re`) 有专属负控、
+  实测会红，「全 0」与这个已知真值冲突。若这 15 条都不熟，这份结论会原样入库。
+【修复】路径改相对 backend/；rc 纳入判据（4/5 = 没跑成）；基线硬前提 = 349 格全绿；
+  每段另证 ran == 349。修复后的结果见同目录 probe-uncovered-judges-<更晚时间戳>.txt。
+
+================================================================================
+以下为作废的原始输出，原样保留：
+================================================================================
+
+变异前 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+
+=== 基线（未变异）===
+rc=4  (无汇总行)
+
+[tree-probe-a1] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[tree-cf-is-none] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[tree-not-tree] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[tree-not-isabs] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-shadow] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-hasattr] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-callable] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-isinstance-re] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-ts-accepts-z] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-ts-rejects-date] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-ws-accepts] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-ws-rejects] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-classify] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-validate] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+[ct-looks-like] ⛔ 门未覆盖  rc=4  (无汇总行)
+
+还原后 sha256 = d64d3b8cd0a8c0fc78a59c9e736f67273acf6a65d7209cbdcb18d1c2e02e4f38
+✅ 还原逐字节正确
+
+==================================================================
+汇总（基线 (无汇总行)）
+==================================================================
+tree-probe-a1          ⛔ 门未覆盖       红  0 格
+tree-cf-is-none        ⛔ 门未覆盖       红  0 格
+tree-not-tree          ⛔ 门未覆盖       红  0 格
+tree-not-isabs         ⛔ 门未覆盖       红  0 格
+ct-shadow              ⛔ 门未覆盖       红  0 格
+ct-hasattr             ⛔ 门未覆盖       红  0 格
+ct-callable            ⛔ 门未覆盖       红  0 格
+ct-isinstance-re       ⛔ 门未覆盖       红  0 格
+ct-ts-accepts-z        ⛔ 门未覆盖       红  0 格
+ct-ts-rejects-date     ⛔ 门未覆盖       红  0 格
+ct-ws-accepts          ⛔ 门未覆盖       红  0 格
+ct-ws-rejects          ⛔ 门未覆盖       红  0 格
+ct-classify            ⛔ 门未覆盖       红  0 格
+ct-validate            ⛔ 门未覆盖       红  0 格
+ct-looks-like          ⛔ 门未覆盖       红  0 格
+
+门未覆盖的判据 = 15 条
+  ⛔ tree-probe-a1
+  ⛔ tree-cf-is-none
+  ⛔ tree-not-tree
+  ⛔ tree-not-isabs
+  ⛔ ct-shadow
+  ⛔ ct-hasattr
+  ⛔ ct-callable
+  ⛔ ct-isinstance-re
+  ⛔ ct-ts-accepts-z
+  ⛔ ct-ts-rejects-date
+  ⛔ ct-ws-accepts
+  ⛔ ct-ws-rejects
+  ⛔ ct-classify
+  ⛔ ct-validate
+  ⛔ ct-looks-like
+rc=

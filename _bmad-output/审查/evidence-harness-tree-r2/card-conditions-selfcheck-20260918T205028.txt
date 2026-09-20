@@ -1,0 +1,21 @@
+=== 卡文 (a)-(p) 完成状态自检  2026-09-18T20:50:28 ===
+HEAD=dd20ac05  PREV=a05732c9  commit 数=3
+
+(a) 第 0 分钟 + 开工基线      ✓  sec0-recheck / g32-open 301 / skills-open 560 / unit-open 33(diff 空)
+(b) 先红                      ✓  结构 0/0/2/1/0/0 与 1/1/0；lying_parser 红在「返回了一棵树」+ 返回值=父树；preflight 红在「无 Step 2.9」
+(c) H1 收口                   ✓  先读原文再 safe_load(str) + 词法否决 + 键级探针(round-1) + parse_returns_junk 改真列表 + 威胁模型
+(d) _harness_contract         ✓  影子(abspath)/版本(排 bool)/形状/纯函数双向探针 + 6 格 + 控制组
+(e) Step 2.9 先拒后写          ✓  subprocess 真跑 + 5 格 + 零写断言 + 次序门；块 42 行(卡文 ≤40，超 2 行含注释)
+(f) 结构判据成对               ✓  10 条改前/改后 + 指纹 + digest，验伪锚全命中
+(g) 承重门                    ✓  新文件 25(≥17) / g3_2 314 / tests-skills 585 / whole 13 格(≥8) 每格两半 / 零 mock
+(h) pyright                   —  不适用（零 backend/app；pyright 已 test -x 自证在位）
+(i) 套件不回退                 ✓  测试名删除=0(153/153, 0/13)；unit diff 只许 <（待 unit-final 复核）
+(j) openapi                   —  不适用（零端点改动，spec-sync-root skip，未入库）
+(k) 负控                      ✓  **4 段**（卡文要求 ≥2），四行 shasum 逐字同，段①④互为对角线
+(l) 地盘核                    ✓  4 文件；验伪锚 65；禁触 13 项 0；test_g3_2 最小 hunk 7348>6859
+(m) 现网只读                  ✓  真 import 语句=0；canvas-vault/.claude/scripts/ 改动=0；全 tmp_path
+(n) Codex 多轮                ⚠️  1 轮实质审查(3 发现已复现并整改) + 配额耗尽(已复测) ⇒ **移交主 session**
+(o) 独立 commit               ✓  3 个，header 95/84/85 ≤100，批次+卡号齐，stderr/openapi 零入库
+(p) 未证明 / 台账              ✓  §五 11 条(≥4) / §八 9 条(≥4)
+
+⛔ 唯一未闭合项 = (n)：整改后的那一轮 Codex 发不出去（配额），BLOCKER/HIGH=0 无法自证。

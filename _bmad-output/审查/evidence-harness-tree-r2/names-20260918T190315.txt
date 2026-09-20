@@ -1,0 +1,7 @@
+<unknown>:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+backend/tests/regression/test_g3_2_review_ledger.py  open=153 close=153
+  删除= 0
+  新增= 0
+backend/tests/skills/test_harness_tree_parse_r2.py  open=0 close=10
+  删除= 0
+  新增= 10

@@ -1,0 +1,35 @@
+> 批次: BATCH-2026-09-18-第十五批 · 车道 card-p6-skills-w · 卡 CARD-HARNESS-TREE-PARSE-R2 round-6（补审 · ZCode 通道 · 协议 §2.4.2）
+> 模型: `glm-5.3`（provider_config.defaultModelSelection = glm-5.3 + max）
+> 工具: `zcode-app-cli 3.12.3-26 / zcode-runtime 0.16.5`
+> 命令: `zcode --prompt "$(cat _bmad-output/审查/prompts/zcode-review-prompt-CARD-HARNESS-TREE-PARSE-R2-r6.md)" --cwd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-HARNESS-TREE-PARSE-R2-r6.md 2> _bmad-output/审查/zcode-review-CARD-HARNESS-TREE-PARSE-R2-r6.stderr`（rc=0；2026-09-19 20:26:12 → 20:44:54 -0700）
+> 审查绑定: `43bea775`（= 含代码改动的末 commit；`git --no-pager diff --stat --no-color 43bea775 HEAD -- backend/tests/regression/test_g3_2_review_ledger.py backend/tests/skills/skill_portability_lint.py backend/tests/skills/test_harness_tree_parse_r2.py canvas-vault/.claude/skills/quiz-answer/SKILL.md` = 空）
+> 自证: sessionId=`sess_e6148780-2195-40ce-bed8-5e7afb095a8e` · traceId=`e1b18488-9bfc-4ab0-8a76-9da0417d8441` · turnId=`turn_46f08c64-a0cd-4e4d-a55b-99463fcaeec1`（--json 原文抄录；usage: modelRequestCount=13 / inputTokens=1549696 / outputTokens=54756）
+
+---
+
+{
+  "sessionId": "sess_e6148780-2195-40ce-bed8-5e7afb095a8e",
+  "traceId": "e1b18488-9bfc-4ab0-8a76-9da0417d8441",
+  "turnId": "turn_46f08c64-a0cd-4e4d-a55b-99463fcaeec1",
+  "response": "读取面已全部核完。以下是独立对抗性审查结论。\n\n---\n\n## 结论先行\n\n**BLOCKER: 无。HIGH: 1（条件性，一条命令可裁决）。** 四个文件的最终态与内嵌 diff 一致；作者自述五条中四条经我逐条独立验证成立（词法只否决不采用 ✓、`parse_returns_junk` 改真列表语义 ✓、影子门 `abspath` 不 `realpath` ✓ 且有控制组守卫、预检与主块同一份实现且无 `P =` 字面量 ✓、半态不回滚口径落在各拒因 ✓）。发现一处硬编码「真值表」与 PyYAML 已知行为矛盾（HIGH，若属实则终态存在红门）、一处威胁模型/docstring 覆盖面与测试表实际形状不一致（MEDIUM）、若干 LOW。\n\n## 按点名问题的核对（③区）\n\n**⓪ 词法否决的误拒面 / 漏否决面**：误拒面已如实列出并有三格门钉住（`..._lexical_veto_false_refusal_cost_is_accepted`；`^` 锚、末尾冒号、`[ \\t]*` 三向各有专属门）。漏否决面：敌意「值谎报」已明写防不住（`SKILL.md:523-529`，与 UAT §五-duodecies.3 选项丙的降格要求一致）；但我找到一个**未点名**的组合——见 MEDIUM-1。\n\n**① 契约门可被「同名同形状异语义」树通过**：除已登记移交的 `b85a168a` 外，本卡测试自己的 `_VALIDATOR_STUB_OK` 就是通行者（docstring `:779-780` 已自认）；`_vault_id_of` / `_golden_manifest` 完全未探（docstring `:782` 已声明理由）。我未找到**未被自认**的新的通行形态——缩面声明与实际相符。真 validator 的 `_TS_RE` 实收 `[Tt ]` 与 offset，探针四个样本均兼容（`validate_learning_events.py:132/137` 核过）。\n\n**② 预检在非标准布局下的形态**：是**拒写**不是跳过——`SKILL.md:229-233` 读不到 SKILL.md 时 `raise SystemExit`（fail-closed 拒写）。自述成立；但该分支无任何测试（LOW-2）。\n\n**③ Step 2.9 与 Step 0 续跑态**：`SKILL.md:166` 写「跳过 Step 1-3」，未说明 2.9 是否在跳过之列——歧义且无门钉（LOW-1）。实质安全性无损：续跑路径的 Step 4 主写点自身仍 fail-closed，且续跑时半态已存在、不会产生**新的**半态。\n\n**④ `_mode=\"whole\"` 的有库控制半**：机制成立——`:7736-7753` 是硬 `assert _verdict == _truth`，全段无 `pytest.skip`/`skipif`（「不许 skip」只以注释存在，代码确实没写）。前提失败会红、不会被吞成假绿。**但该机制恰恰应当对 BOM 那一行红着**——见 HIGH-1。\n\n**⑤ 负控各段是否各只拆一层**：逐段审过（lying 6 / value-nest 3 / truncating 3 / tail-only 1 / wrapped-re 1 / contract 11 / shadow 1 / preflight 3 / env 1 / trailing-newline 1 / ledger 解析失败 2 …），每段确实只拆一项、断言锚定对应拒因文案；唯一结构性例外是 honest 层缺 quoted/flow 两形态（MEDIUM-1）。\n\n---\n\n## HIGH\n\n**H1 · `_WHOLE_DOCS` 的 BOM 行声明的真值与 PyYAML 对 str 输入的已知行为矛盾**\n`backend/tests/regression/test_g3_2_review_ledger.py:7679` —— `(\"\\ufeff---\\nharness_tree: /a/b\\n\", \"dict_with_key\", ...)`：生产读法是 `open(..., encoding=\"utf-8\").read()` 得到**带 U+FEFF 的 str** 再 `safe_load(str)`，而 PyYAML 纯 Python SafeLoader 对带 BOM 的 str 输入不出「干净 dict」是众所周知的既有行为（canonical 报错 `found character '\\ufeff' that cannot start any token`，社区标准解法是 `utf-8-sig`）；无论它实际红成 ReaderError/ScannerError/ParserError 还是把整份读成一个标量， verdict 都不会是 `dict_with_key`。若我判断正确，`whole-3` 的控制组前提断言在终态就是红的（「2026-09-18 逐条实测后写死」的说法对该行不成立，实测可能走了 bytes / `utf-8-sig` 路径而非生产的 str 路径）。**显形方式：对照输入** —— 在车道 venv 对同一字符串原样跑 `yaml.safe_load(\"\\ufeff---\\nharness_tree: /a/b\\n\")`，或直接跑 nodeid `whole-3`；若结局确非 `dict_with_key`，按门自己的政策「先核实际结局再改表」修正该格。我对此判断的置信度约九成，剩余一成留给「车道 venv 的 yaml 非常规」的可能——一条命令即可裁决，故不因不确定而降级（若绿，本条撤销）。\n\n## MEDIUM\n\n**M1 · 「无键谎报」只在裸键/冒号前空白两种写法下被否决，quoted/flow 写法下 r10-H1 的伤害以（仅敌意可达的）形态存活，且未在威胁模型里点名**\n`canvas-vault/.claude/skills/quiz-answer/SKILL.md:543-545` 与 `backend/tests/skills/test_harness_tree_parse_r2.py:252-267` —— 一个对两道探针都老实作答、只对用户 config 谎报无键的模块，遇到 `\"harness_tree\": v`（带引号键）或整份 flow mapping 时：键级探针测的是能力不是忠实性（过）、词法正则行首是 `\"` 或 `{`（不命中）⇒ 静默回退父树——这正是 r10 H1 的原形态，只是通行门票变成「能答对含不可猜哨兵的三行探针」（故仅敌意模块可达，落在已声明的敌意豁免区边缘）。docstring 的「防不住」例子只写了**值谎报**（返回别树），没写**键谎报**在 quoted/flow 下同样穿透；`:543` 那句「真正与书写形式无关的那道判据是键级探针」会诱导读者以为键谎报对这两种写法也有判据。测试表 `_CFG_FORMS` 定义了四种形态，honest 行只用了 bare/bare/spaced——缺的两格恰恰是会失败的格，表中无一句说明。**显形方式：未被拦下的输入** —— `_fake_yaml({}, _honest_probes=True)` 配 `_CFG_FORMS[\"quoted\"]`（或 `\"flow\"`）跑生产 `_harness_tree`：结局是 `(\"ok\", 父树)`。建议（可并入移交）：在「防不住」清单补一句该组合，或在 `_LYING_CASES` 注释说明 honest+quoted/flow 为何不入表。\n\n## LOW\n\n**L1 · 续跑路径是否过 Step 2.9 无字面裁定、无门**\n`canvas-vault/.claude/skills/quiz-answer/SKILL.md:166` —— 「跳过 Step 1-3」未覆盖 2.9 的归属；两种读法都安全（Step 4 自身仍拒），但「先拒后写」的 UX 承诺在续跑路径上处于未定义态。**显形方式：门未覆盖的路径** —— 把 2.9 从续跑路径剔除（或排版到 Step 3 后），现有 358 nodeid 无一变红。\n\n**L2 · 预检「读不到本写点自己」分支零覆盖**\n`canvas-vault/.claude/skills/quiz-answer/SKILL.md:229-233` —— 行为是构造性 `raise SystemExit`（问题②的答案：是拒写 ✓），但该分支没有任何测试。**显形方式：门未覆盖的路径** —— 删掉该 try/except（让它抛 OSError traceback），预检三格 + env 格照绿。\n\n**L3 · `_harness_contract` 的 import 失败拒因独缺半态句，且无测试**\n`canvas-vault/.claude/skills/quiz-answer/SKILL.md:744-745` —— 同函数内 `_refuse`/影子门拒因都带 `_HALFSTATE`，唯独「validator import 失败」这条不带；该路径在主写点运行时发生在 Step 3 写分**之后**。附带：函数把 `sys.path.insert` 的条目留到进程结束（无 finally），短命写点影响可忽略。**显形方式：负控输入** —— 一棵 `backend/scripts` 存在但 validator 语法错误的树：拒因不含「分数保留」。\n\n**L4 · lint 基线注释里的行号叙述与同 dict 的登记项自相矛盾**\n`backend/tests/skills/skill_portability_lint.py:2121-2126`（注释写 `:205 → :267` +62 行，登记项是 `281`）与 `:2179-2186`（叙述 `:299` 又说 `:291`，登记项是 `B305`）——登记项本身经我对 SKILL.md 实测吻合（`:281` 是 `4b · 用 Write 工具写 payload 到 /tmp/...` 那行；主块 fence 在 `:305`），但注释数字是中途态残留。**显形方式：对照输入** —— 同 dict 内注释数字 vs 键值并读即见。\n\n**L5（备忘，非代码）** · 审查面点名的上下文 `_bmad-output/审查/2026-09-15-第十四批复核裁定与待裁决登记.md:190` 不存在——该文件仅 112 行且只含 T6-B 卡内容；指针陈旧，无代码影响。\n\n---\n\n## 对「轮次闭合依据」的说明\n\n因存在 1 条 HIGH（H1，可用一条命令裁决：绿则撤销、红则属「指定裁判红」级），本轮**不满足**「BLOCKER 无 / HIGH 无」的闭合行。H1 之外的其余面（含 r10-H1 收口质量、预检先拒后写、契约四层、`parse_returns_junk` 重写、lint 基线同步）经逐条独立核对均与作者自述相符。",
+  "usage": {
+    "source": "provider",
+    "modelRequestCount": 13,
+    "inputTokens": 1549696,
+    "outputTokens": 54756,
+    "totalTokens": 1604452,
+    "cacheReadTokens": 1387456,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 0,
+    "webFetchRequests": 0,
+    "webSearchRequests": 0
+  },
+  "eventCount": 53928,
+  "projection": {
+    "status": "idle",
+    "turnCount": 1,
+    "totalTokenCount": 1604452,
+    "contextUsed": 189537,
+    "contextWindow": 200000
+  }
+}

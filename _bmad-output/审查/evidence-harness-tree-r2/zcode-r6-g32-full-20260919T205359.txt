@@ -1,0 +1,9 @@
+=== exact BOM row nodeid (reviewer-flagged whole row, actual id whole-2) ===
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 11 warnings in 0.77s ========================
+=== full g3_2 file re-run (terminal state, bound 43bea775) ===
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================= 314 passed, 11 warnings in 144.62s (0:02:24) =================

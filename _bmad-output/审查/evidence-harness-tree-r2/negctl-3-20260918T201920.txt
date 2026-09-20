@@ -1,0 +1,22 @@
+=== 负控段③ Step 2.9 挪到 Step 3 之后  2026-09-18T20:19:20 ===
+HEAD=09f190a3
+--- 跑前 shasum ---
+9e481db6c714e9633d10d23daa7e18a8b06ca04638b97bf6d1d1ab0e51cee4e5  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段③ 变异已注入：Step 2.9 段搬到 Step 3 之后（段落 sha256[:16]=a672c5a45d8e8c80，搬前搬后相同 = 只动位置）
+--- 变异后 shasum ---
+ded9a6c353801c13610c56c51909246a521b462f5927aace62e81483732884e0  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 判据 A：次序门 ---
+s29=198 s3=189
+ORDER_RED
+--- 判据 B：AST 应仍 main 1 ---
+blocks 3 main 1
+harness_tree 1 harness_contract 1
+--- 判据 C：结构门 ---
+collected 22 items / 20 deselected / 2 selected
+    assert _s29[0] < _s3[0], f"⛔ Step 2.9 在 :{_s29[0]}、Step 3 在 :{_s3[0]} —— 预检排在写分之后 = 半态照旧"
+E   AssertionError: ⛔ Step 2.9 在 :198、Step 3 在 :189 —— 预检排在写分之后 = 半态照旧
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_step29_precedes_step3
+=========== 1 failed, 1 passed, 20 deselected, 10 warnings in 0.67s ============
+pytest rc=1
+--- 还原后 shasum ---
+9e481db6c714e9633d10d23daa7e18a8b06ca04638b97bf6d1d1ab0e51cee4e5  canvas-vault/.claude/skills/quiz-answer/SKILL.md

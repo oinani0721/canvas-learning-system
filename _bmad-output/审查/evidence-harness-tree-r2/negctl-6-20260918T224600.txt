@@ -1,0 +1,18 @@
+=== 负控段⑥ 删预检的禁字节码  2026-09-18T22:46:00 ===
+HEAD=4b671eb7
+--- 跑前 shasum ---
+f8554e2970a342f6665300b1b70dc67cb7c660d896cbdfbd224307c51346e0aa  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段⑥ 变异已注入：删掉预检块的 sys.dont_write_bytecode（-31 字符）
+--- 变异后 shasum ---
+269f04d22785233630fe92325a07db4865e8092c60c7f82b80ee3ccb2d5f4021  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+collected 26 items / 20 deselected / 6 selected
+E   AssertionError: ⛔ 预检落了字节码(no_pyyaml): ['no-yaml/__pycache__']
+E   AssertionError: ⛔ 预检落了字节码(contract_broken): ['broken-harness/backend/scripts/__pycache__']
+E   AssertionError: ⛔ 预检**通过**这条路上落了字节码: ['harness/backend/scripts/__pycache__']
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_preflight_refuses_before_step3[no_pyyaml]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_preflight_refuses_before_step3[contract_broken]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_preflight_passes_on_a_good_vault
+=========== 3 failed, 3 passed, 20 deselected, 10 warnings in 0.76s ============
+pytest rc=1
+--- 还原后 shasum ---
+f8554e2970a342f6665300b1b70dc67cb7c660d896cbdfbd224307c51346e0aa  canvas-vault/.claude/skills/quiz-answer/SKILL.md

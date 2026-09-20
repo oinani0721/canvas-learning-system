@@ -1,0 +1,22 @@
+=== 负控段① 删词法否决分支  2026-09-18T19:43:04 ===
+HEAD=0168760e
+--- 跑前 shasum ---
+2a11a5965e05e3fab3fc1221b1d0efae1853f975b9800c8e8f9241d5b1152892  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段① 变异已注入：删 414 字符（if _lex 分支 + 其 raise 行）
+--- 变异后 shasum ---
+36393f7964b754e4fa6d07157bbc63725f6e8d86db2a1d100237171261f8d2ed  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 判据：lying_parser 三格应红、truthful 控制组应绿 ---
+collected 19 items / 15 deselected / 4 selected
+E   AssertionError: ⛔ 解析器谎报「没有 harness_tree 键」时 `_harness_tree` 返回了一棵树, 而不是拒绝
+E        返回值: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-403/test_g33r2_harness_tree_lying_0'  (父树 = '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-403/test_g33r2_harness_tree_lying_0')
+E   AssertionError: ⛔ 解析器谎报「没有 harness_tree 键」时 `_harness_tree` 返回了一棵树, 而不是拒绝
+E        返回值: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-403/test_g33r2_harness_tree_lying_1'  (父树 = '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-403/test_g33r2_harness_tree_lying_1')
+E   AssertionError: ⛔ 解析器谎报「没有 harness_tree 键」时 `_harness_tree` 返回了一棵树, 而不是拒绝
+E        返回值: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-403/test_g33r2_harness_tree_lying_2'  (父树 = '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-403/test_g33r2_harness_tree_lying_2')
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_probe_answer]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[empty_mapping]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[list_despite_key]
+=========== 3 failed, 1 passed, 15 deselected, 10 warnings in 1.18s ============
+pytest rc=1
+--- 还原后 shasum ---
+2a11a5965e05e3fab3fc1221b1d0efae1853f975b9800c8e8f9241d5b1152892  canvas-vault/.claude/skills/quiz-answer/SKILL.md

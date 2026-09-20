@@ -1,0 +1,3 @@
+fingerprints: ['B104:53c5e24e48a924de', 'B287:65133a75e3dbe80f', 'S263:44b7655dd97c27b7', 'S96:b55afbca27229028']
+bare_tmp 4
+counts {'claude_dir_ref': 5, 'tmp_all': 4, 'tmp_ns': 0}

@@ -1,0 +1,16 @@
+=== (f) 结构判据 改后 ===
+def _harness_contract( => 1
+## Step 2.9 => 1
+python3 - <<'PYEOF' => 3
+P = "/tmp/quiz-answer-payload.json" => 1
+re.search(r"^harness_tree[ \t]*:" => 1
+import validate_learning_events as _vle => 1
+from validate_learning_events import => 1
+--- 验伪锚 ---
+def _harness_tree( => 1
+^## Step 3 · => 1
+^PYEOF => 3
+--- TG ---
+return ["not", "a", "dict"] => 0
+if isinstance(_stream, str): => 0
+if _stream == "a: 1": => 1

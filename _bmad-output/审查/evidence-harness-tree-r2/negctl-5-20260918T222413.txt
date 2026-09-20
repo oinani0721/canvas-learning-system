@@ -1,0 +1,17 @@
+=== 负控段⑤ 豁免回潮  2026-09-18T22:24:13 ===
+HEAD=ee9c9d49
+--- 跑前 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段⑤ 变异已注入：把 round-1 的值内豁免加回去（+695 字符）
+--- 变异后 shasum ---
+fb4aee1761a98a3b42c16e853f86fe13d779bf2e1559ce2efc2df0ba942400d0  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 判据：truncating_parser 门与三格代价门应红；控制组与 constant_* 应绿 ---
+collected 26 items / 14 deselected / 12 selected
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lexical_veto_false_refusal_cost_is_accepted[inside_a_list]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lexical_veto_false_refusal_cost_is_accepted[inside_a_nested_dict]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lexical_veto_false_refusal_cost_is_accepted[toplevel_scalar]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_truncating_parser_cannot_disarm_the_veto
+=========== 4 failed, 8 passed, 14 deselected, 10 warnings in 1.10s ============
+pytest rc=1
+--- 还原后 shasum ---
+686a74bced8e55351c79c47222c018f2bf36f88aeaa46caf8afddc8ba1f97f09  canvas-vault/.claude/skills/quiz-answer/SKILL.md

@@ -1,0 +1,13 @@
+=== §二.8 lint 指纹 / digest 终值 @ HEAD 0168760e  2026-09-18T19:56:46 ===
+tmp_block_fingerprints : ['B104:53c5e24e48a924de', 'B291:ddee88b67b5e639b', 'S267:44b7655dd97c27b7', 'S96:b55afbca27229028']
+opaque_tmp_lines 行号   : [98, 267]
+bare_tmp                : 4
+QUIZ_ANSWER_BASELINE 九项: {'ask_user_question': 2, 'mcp_tool': 1, 'claude_dir_ref': 4, 'tmp_all': 4, 'tmp_ns': 0, 'p8011_all': 0, 'p8011_ns': 0, 'tree_name': 0, 'users_path': 0}
+
+—— 与 lint 里写入的基线对账 ——
+TMP_BLOCK_BASELINE[quiz-answer] = ['B104:53c5e24e48a924de', 'B291:ddee88b67b5e639b', 'S267:44b7655dd97c27b7', 'S96:b55afbca27229028']
+OPAQUE_TMP_BASELINE[quiz-answer] = ['98:918de56473d5be1b', '267:44b7655dd97c27b7']
+QUIZ_ANSWER_BASELINE             = {'ask_user_question': 2, 'mcp_tool': 1, 'claude_dir_ref': 4, 'tmp_all': 4, 'tmp_ns': 0, 'p8011_all': 0, 'p8011_ns': 0, 'tree_name': 0, 'users_path': 0}
+MANAGED_FILE_DIGESTS[quiz-answer]= 2a11a5965e05e3fab3fc1221b1d0efae1853f975b9800c8e8f9241d5b1152892
+
+实测 shasum: 2a11a5965e05e3fab3fc1221b1d0efae1853f975b9800c8e8f9241d5b1152892

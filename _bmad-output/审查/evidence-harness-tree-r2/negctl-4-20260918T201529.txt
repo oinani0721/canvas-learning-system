@@ -1,0 +1,18 @@
+=== 负控段④ 删键级探针（词法否决保留）  2026-09-18T20:15:29 ===
+HEAD=09f190a3
+--- 跑前 shasum ---
+9e481db6c714e9633d10d23daa7e18a8b06ca04638b97bf6d1d1ab0e51cee4e5  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+段④ 变异已注入：删 267 字符（只删键级探针的判断，词法否决原样）
+--- 变异后 shasum ---
+78fab38a44f7c5c68a27d8fde6bd02c491395d012941ce7b88d6d920d37de564  canvas-vault/.claude/skills/quiz-answer/SKILL.md
+--- 判据：constant_quoted_key / constant_flow_mapping 应红；其余应绿 ---
+collected 22 items / 14 deselected / 8 selected
+E        形态: constant_flow_mapping（书写形式 flow，解析器对这份 config 给出 {'a': 1}，对两个探针是否老实=False）
+E        形态: constant_quoted_key（书写形式 quoted，解析器对这份 config 给出 {'a': 1}，对两个探针是否老实=False）
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_bare]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_flow_mapping]
+FAILED tests/skills/test_harness_tree_parse_r2.py::test_g33r2_harness_tree_lying_parser_is_refused[constant_quoted_key]
+=========== 3 failed, 5 passed, 14 deselected, 10 warnings in 0.73s ============
+pytest rc=1
+--- 还原后 shasum ---
+9e481db6c714e9633d10d23daa7e18a8b06ca04638b97bf6d1d1ab0e51cee4e5  canvas-vault/.claude/skills/quiz-answer/SKILL.md

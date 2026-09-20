@@ -1,0 +1,49 @@
+=== §二.10 地盘门（post-commit，判据修正版）2026-09-18T19:24:40 ===
+PREV=a05732c9  HEAD=0168760e
+
+--- (l) 改动面 ⊆ 白名单 4 文件 ---
+backend/tests/regression/test_g3_2_review_ledger.py
+backend/tests/skills/skill_portability_lint.py
+backend/tests/skills/test_harness_tree_parse_r2.py
+canvas-vault/.claude/skills/quiz-answer/SKILL.md
+
+--- 验伪锚（⚠️ 必须用 --name-only：--stat 会把长路径首段缩成 .../，前缀 grep 恒 0 = 哑巴锚）---
+带 exclude 路径数 =        4
+不带 exclude 路径数 =       39
+多出的 _bmad-output/ 条数 = 35
+  ⇒ 35 > 0 ⇒ exclude 确实在起作用，上面那份「⊆ 白名单」不是空跑
+
+--- test_skill_portability_lint.py 零改动（P6-A 负控靶 quiz-answer:233 本卡保持）---
+diff 行数 =        0
+
+--- 禁触文件核查（全部零命中）---
+  start-exam-board/SKILL.md                        0
+  test_g3_3_cas.py                                 0
+  test_learning_events_schema_contract.py          0
+  vault_lint.py                                    0
+  test_vault_lint.py                               0
+  test_vault_install_manifest.py                   0
+  backend/scripts/validate_learning_events.py      0
+  backend/app/                                     0
+  canvas-vault/.claude/scripts/                    0
+  conftest.py                                      0
+  openapi.json                                     0
+  install-vault.sh                                 0
+  pytest.ini                                       0
+
+--- test_g3_2 hunk：数量 / 最小起始行（(l) 要求不碰 :1-6859）---
+hunk 数 = 6
+最小起始行 = 7562
+  ⇒ 7562 > 6859 ⇒ 未碰 :1-6859；亦未碰 _extract_harness_tree :7523-7548
+
+--- (m) 现网只读 ---
+字面 grep（卡文口径）命中 = 4
+  ⚠️ 这 4 条全是注释 / 断言字符串 / 既有拒因整句，逐条：
+    1) 测试 docstring 解释为何只取部分顶层 import（提到 from decay_beta import …）
+    2) 测试断言「预检块不得 import fsrs_bridge」—— 反向保护，命中的是断言消息本身
+    3) 预检块注释，同 1)
+    4) _harness_contract 拒因沿用原整句「validate_learning_events/fsrs_bridge import 失败」
+       （既有门 test_g3_2:6915 锚这句，改了会打红）
+语义判据：新增行里的真 import 语句 = 0
+  ⇒ 0 ⇒ 预检块与新测试均不 import 这两个零写者 vault 脚本
+canvas-vault/.claude/scripts/ 改动 =        0
