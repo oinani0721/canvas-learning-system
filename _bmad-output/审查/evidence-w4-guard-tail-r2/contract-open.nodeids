@@ -1,0 +1,2 @@
+FAILED tests/contract/test_health_contract.py::test_health_contract[GET /api/v1/health]
+FAILED tests/contract/test_node_id_patterns.py::TestNodeIdPatternConsistency::test_pattern_matches_json_schema

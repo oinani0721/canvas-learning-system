@@ -1,0 +1,34 @@
+=== contract 开工/收工红集与哨兵 ===
+open=contract-open-20260918T182916.txt  close=contract-close-20260918T174956.txt
+diff_rc=0 （0 = 逐条相同）
+--- 哨兵汇总行 ---
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=19 (blocked=19, advisory=0, unaccounted=0)
+blocked= 次数: open=1 close=1
+
+=== 改后判据自跑自己的 open/close 存档（端到端自证）===
+--- unit ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/_bmad-output/审查/evidence-w4-guard-tail-r2/unit-close-20260918T174956.txt: blocked=0 quad=(0, 0, 0, 0) bodies=[]
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+  ⚠️ 全零：本工具只能证明这几份存档**彼此一致**，不能证明门当时在位、也不能证明覆盖完整（汇总行不含 installed；xdist 每 worker 独立记账）。
+rc=0
+--- api ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/_bmad-output/审查/evidence-w4-guard-tail-r2/api-close-20260918T174956.txt: blocked=0 quad=(0, 0, 0, 0) bodies=[]
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+  ⚠️ 全零：本工具只能证明这几份存档**彼此一致**，不能证明门当时在位、也不能证明覆盖完整（汇总行不含 installed；xdist 每 worker 独立记账）。
+rc=0
+--- regression ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/_bmad-output/审查/evidence-w4-guard-tail-r2/regression-close-20260918T174956.txt: blocked=0 quad=(0, 0, 0, 0) bodies=[]
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+  ⚠️ 全零：本工具只能证明这几份存档**彼此一致**，不能证明门当时在位、也不能证明覆盖完整（汇总行不含 installed；xdist 每 worker 独立记账）。
+rc=0
+--- skills ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/_bmad-output/审查/evidence-w4-guard-tail-r2/skills-close-20260918T174956.txt: blocked=0 quad=(0, 0, 0, 0) bodies=[]
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+  ⚠️ 全零：本工具只能证明这几份存档**彼此一致**，不能证明门当时在位、也不能证明覆盖完整（汇总行不含 installed；xdist 每 worker 独立记账）。
+rc=0
+--- contract ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/_bmad-output/审查/evidence-w4-guard-tail-r2/contract-open-20260918T182916.txt: blocked=19 quad=(19, 19, 0, 0) bodies=["('::1', 7691, 0, 0) on thread asyncio-portal-<id>"]
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/_bmad-output/审查/evidence-w4-guard-tail-r2/contract-close-20260918T174956.txt: blocked=19 quad=(19, 19, 0, 0) bodies=["('::1', 7691, 0, 0) on thread asyncio-portal-<id>"]
+W4-IDENTITY: CONSISTENT files=2 blocked=19 quad=[(19, 19, 0, 0)]
+rc=0

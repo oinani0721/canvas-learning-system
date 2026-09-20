@@ -1,0 +1,8 @@
+W4-IDENTITY: CONFLICT /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpl2_hox9r/a.txt: 有 1 条完整的记录行不属于任何自报条数的记录块 —— 多半是某个块的抬头文案已漂、整块判据看不见它：["- ('127.0.0.1', 7691) on thread OtherThread (owner="]
+BASE(9c4e7e82): A(含截断的块外记录)=CONFLICT(有 1 条完整的记录行不属于任何自报条数的记录块 —— 多半是某个块的抬头文案已) | B(对照)=bodies["('::1', 7691, 0, 0) on thread MainThread"]
+HEAD: A(含截断的块外记录)=bodies["('::1', 7691, 0, 0) on thread MainThread"] | B(对照)=bodies["('::1', 7691, 0, 0) on thread MainThread"]
+BASE(9c4e7e82): main([A,B]) rc = 2
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpl2_hox9r/a.txt: blocked=2 quad=(2, 2, 0, 0) bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmpl2_hox9r/b.txt: blocked=2 quad=(2, 2, 0, 0) bodies=["('::1', 7691, 0, 0) on thread MainThread"]
+W4-IDENTITY: CONSISTENT files=2 blocked=2 quad=[(2, 2, 0, 0)]
+HEAD: main([A,B]) rc = 0

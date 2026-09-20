@@ -1,0 +1,10 @@
+=== (f) 结构判据 改后 Y 侧 ===
+① grep -c 'ast, "TypeAlias"' $CF = 3   [改前 0]
+② grep -c '已知但本卡未修的一条' $CF = 0   [改前 1]
+② grep -c 'CARD-W4-GUARD-TAIL-R2' $CF = 2   [改前 0]
+③ sed -n '1501p' $G =     except BaseException:  # noqa: BLE001 —— 与 _audit_hook :821 同型：任何异常都不得挡住 os._exit 前的打印与 flush
+④ grep -c '\.match(' $S = 4   [改前 9]
+④ grep -c '\.fullmatch(' $S = 8   [改前 0]
+⑤ grep -c 'W4LedgerConflict(' $S = 15   [改前 11，期望 14]
+⑥ test -f $L = true   [改前 false]
+⑥ grep -c '^\s*def test_' $L = 3

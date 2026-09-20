@@ -1,0 +1,11 @@
+=== 改后判据自跑 open/close 存档（rc 直接取被测命令，管道里只有 tee）===
+--- unit : rc=0
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+--- api : rc=0
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+--- regression : rc=0
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+--- skills : rc=0
+W4-IDENTITY: CONSISTENT-ZERO files=2 quad=[(0, 0, 0, 0)]
+--- contract : rc=0
+W4-IDENTITY: CONSISTENT files=2 blocked=19 quad=[(19, 19, 0, 0)]

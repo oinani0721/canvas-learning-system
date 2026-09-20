@@ -1,0 +1,6 @@
+HEAD deferred: ['ast.AsyncFunctionDef', 'ast.ClassDef', 'ast.DictComp', 'ast.FunctionDef', 'ast.GeneratorExp', 'ast.Lambda', 'ast.ListComp', 'ast.SetComp', "getattr(ast, 'TypeAlias', ())"]
+BASE deferred: ['ast.AsyncFunctionDef', 'ast.ClassDef', 'ast.DictComp', 'ast.FunctionDef', 'ast.GeneratorExp', 'ast.Lambda', 'ast.ListComp', 'ast.SetComp']
+HEAD late handlers: ['BaseException']
+BASE late handlers: ['Exception']
+GATE head_has_typealias=True base_has_typealias=False
+FALSIFICATION-ANCHOR: OK（BASE 恒不含）

@@ -368,10 +368,17 @@ class TestFailureBodyIdentities:
         assert main([str(a), str(b)]) == 1, "两份正文身份不同却判一致 = 假绿"
 
     def test_owner_containing_on_thread_does_not_leak_into_identity(self):
-        """⛔ parametrize id 可含空格/括号/等号。贪婪从右切会把 owner 切进身份。"""
+        """⛔ parametrize id 可含空格/括号/等号。贪婪从右切会把 owner 切进身份。
+
+        ⚠️ **输入已按 CARD-W4-GUARD-TAIL-R2 收窄**（第十五批）：本用例原来的 owner 是
+        ``test_q[a on thread b (owner=c)]``，它让整行出现**两个** `` (owner=`` ——
+        那一行有两种都能全匹配的切法，新判据按「边界不可判」**拒判**（见
+        ``TestGuardTailR2Closures::test_second_owner_separator_makes_the_boundary_unjudgeable``，
+        那条现在钉的正是旧输入）。这里换成只含 `` on thread ``、**切法唯一**的 owner，
+        本用例原本要证的那件事（owner 不得漏进身份）一字不变地继续被钉住。
+        """
         text = sentinel_block(
-            "  - ('::1', 7691, 0, 0) on thread MainThread "
-            "(owner=tests/unit/test_p.py::test_q[a on thread b (owner=c)])\n"
+            "  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/unit/test_p.py::test_q[a on thread b])\n"
         )
         assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread MainThread"}
 
@@ -496,13 +503,23 @@ class TestRound4Closures:
 
         旧兜底只管「一个块都没有」，所以「还识别到任何一个块（含零条块）」时就接不住。
         新规则：**每一行完整匹配 `_BODY_RE` 的记录行都必须被某个块认领**。
+
+        ⚠️ **输入已按 CARD-W4-GUARD-TAIL-R2 收窄**（第十五批）：本用例原来让漂掉那块
+        携带与正常块**逐字节相同**的记录行，而新判据对「与已认领记录逐字相同的块外行」
+        按集合语义豁免（T9-C 26 的假红收口）—— 逐字重复不可能改变身份集，所以那种输入
+        下**确实**没有信息丢失。这里让漂掉那块带一条**不同**的记录：它一旦静默消失，
+        身份集就真的少了一个元素，本用例要防的正是这件事。豁免的边界（差一个字节就
+        照样拒判 / 没被认领过就照样是孤儿）另由
+        ``TestGuardTailR2Closures`` 的两条对照用例钉住。
         """
         from tests.support import live_port_guard
 
         ok = live_port_guard.format_sentinel(
             "a", [{"address": "('::1', 7691, 0, 0)", "thread": "MainThread", "owner": "x"}]
         )
-        drifted = ok.replace("本用例期间有", "本用例期间有大约")  # 抬头文案漂移
+        drifted = live_port_guard.format_sentinel(
+            "b", [{"address": "('127.0.0.1', 7687)", "thread": "MainThread", "owner": "x"}]
+        ).replace("本用例期间有", "本用例期间有大约")  # 抬头文案漂移
         with pytest.raises(W4LedgerConflict, match="不属于任何自报条数的记录块"):
             failure_body_identities(ok + "\n" + drifted + "\n")
 
@@ -796,3 +813,152 @@ class TestToolTouchesNoNetwork:
         finally:
             _socket.socket.connect = original
         assert seen == [], f"解析过程发起了 socket 连接: {seen}"
+
+
+class TestGuardTailR2Closures:
+    """⛔ CARD-W4-GUARD-TAIL-R2 [BATCH-2026-09-18-第十五批]：T9-C 登记的四条 MEDIUM 收口。
+
+    四条的共同形状与本模块前几轮栽过的一样：**「匹配不上就当没看见」**。
+    ``if m:`` 的那个未写的 ``else`` 一次次把「读不清」压成「没有问题」。这一轮把四处
+    都改成「读不清就拒判」，方向全部是**收紧**（更多输入判红，没有任何输入因此变绿）。
+
+    代价如实写在这里：``_BODY_RE`` 全匹配 + 分隔符二次出现拒判会让**含 `` (owner=``
+    或两个 `` on thread `` 的 nodeid / 线程名 / 地址**被拒判（rc=2）。那是
+    「边界真的不可判」时该有的方向，但它是本卡**引入**的保守假红面，已登记。
+    """
+
+    # ── (d)① _BODY_RE 全匹配：前缀匹配把回显当记录 ────────────────────────
+    def test_record_echo_without_closing_paren_is_not_an_orphan(self):
+        """T9-C 26：``_BODY_RE`` 是 ``.match()`` = **前缀匹配** ⇒ 缺右括号的**回显**
+        ``- cache on thread worker (owner=`` 也被算作孤儿 ⇒ 假红 rc=2。
+
+        存档里到处是把上一轮判据输出抄进去的回显行（本模块开篇自己写过这件事），
+        一条**解析不完整**的行不该获得「无疑义地就是一条记录」这个身份。
+        """
+        ok = sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n")
+        echo = "- cache on thread worker (owner=\n"
+        assert failure_body_identities(ok + echo) == {"('::1', 7691, 0, 0) on thread MainThread"}
+
+    def test_second_owner_separator_makes_the_boundary_unjudgeable(self):
+        """线程名里含 `` (owner=`` ⇒ 同一行有**两种**合法切法，判据必须拒判而不是挑一个。
+
+        ``- ADDR on thread worker (owner=A) (owner=x)``：既可读成
+        ``thread='worker', owner='A) (owner=x'``，也可读成
+        ``thread='worker (owner=A)', owner='x'`` —— 两种都能全匹配。
+        """
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread worker (owner=A) (owner=x)\n")
+        with pytest.raises(W4LedgerConflict, match="分隔符"):
+            failure_body_identities(text)
+
+    def test_second_on_thread_separator_makes_the_boundary_unjudgeable(self):
+        """地址（裸 ``repr``，内容由调用方的 ``__repr__`` 决定）含 `` on thread ``
+        ⇒ 地址与线程名的边界有两种切法，同样拒判。
+
+        ⚠️ 卡文把这一类归在「``owner`` 组含 `` on thread ``」名下 —— 实测**不是**：
+        非贪婪的 ``thread`` 会一路吃到最后一个 `` (owner=`` 之前，``owner`` 组里
+        干干净净。真正判得出这一类的是「`` (owner=`` 之前的那一段里 `` on thread ``
+        出现了两次」。判据按后者写，理由记在 :func:`~tests.support.w4_sentinel_identity.
+        failure_body_identities` 的 docstring 与本卡验收单里。
+        """
+        text = sentinel_block("  - ADDR on thread B on thread MainThread (owner=x)\n")
+        with pytest.raises(W4LedgerConflict, match="分隔符"):
+            failure_body_identities(text)
+
+    def test_ordinary_record_with_parens_in_owner_still_parses(self):
+        """⛔ 反向锚：owner（nodeid）里含**成对括号**的参数化 id 必须照常解析。
+
+        ``\\)$`` 右锚 + 贪婪 ``owner`` 切在**最后**一个右括号上，所以
+        ``test_q[a(b)]`` 这类 id 不受影响。没有这条，上面两条拒判可能是「恒拒判」。
+        """
+        text = sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=tests/x.py::test_q[a(b)])\n")
+        assert failure_body_identities(text) == {"('::1', 7691, 0, 0) on thread MainThread"}
+
+    # ── (d)② _FINAL_RE 右锚 ──────────────────────────────────────────────
+    def test_truncated_final_ledger_line_is_refused_not_parsed(self):
+        """T9-C 14：``_FINAL_RE`` 只有左锚 ⇒ ``reported_status=garbage；`` 后面被截掉
+        （或格式已漂）时**仍能取到 blocked** —— 判据拿一份读不全的总账行当数据源。
+        """
+        text = "*** live Neo4j port connect attempted —— 最终总账：blocked=1 unaccounted=0 reported_status=garbage；\n"
+        with pytest.raises(W4LedgerConflict, match="截断或格式漂移"):
+            blocked_count(text)
+
+    def test_complete_final_ledger_line_still_parses(self):
+        """⛔ 反向锚：带产出方完整尾巴的总账行必须照常解析（不是「恒拒判」）。"""
+        text = (
+            "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+            "*** live Neo4j port connect attempted —— 最终总账：blocked=1 "
+            "unaccounted=0 reported_status=3；进程被强制以退出码 3 结束（迟到连接不得以 0 收场）***\n"
+        )
+        assert blocked_count(text) == 1
+
+    def test_stderr_tail_echo_of_a_final_line_is_still_not_a_producer(self):
+        """⛔ 左锚必须保留：``stderr_tail = '*** … 最终总账：…'`` 是**回显**不是产出。
+
+        T9-C 硬警告：不得为了拦这类混档把 ``final >= summary`` 改成 ``==``。回显行既不
+        参与取值，也不因「看起来像总账」而触发拒判 —— 它压根不以 ``***`` 开头。
+        """
+        text = (
+            "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)\n"
+            "stderr_tail = '*** live Neo4j port connect attempted —— 最终总账：blocked=9 "
+            "unaccounted=9 reported_status=3；'\n"
+        )
+        assert blocked_count(text) == 1, "回显行被当成了产出方的总账行"
+
+    # ── (d)③ 损坏汇总行不再被 if m 静默滤掉 ───────────────────────────────
+    def test_corrupted_summary_line_is_refused_not_silently_dropped(self):
+        """T9-C 17/27：抬头命中但不全匹配（缺右括号 / 字段缺失）的汇总行被 ``if m``
+        静默滤掉 ⇒ ``summary_quad`` 返回 ``None`` ⇒ CLI 走「没查成」而不是「这份档坏了」。
+
+        两者都非 0，但含义天差地别：前者会让人去补一份档，后者说明手上这份不可信。
+        """
+        with pytest.raises(W4LedgerConflict, match="汇总行损坏"):
+            summary_quad("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0\n")
+
+    def test_summary_line_missing_a_field_is_refused(self):
+        with pytest.raises(W4LedgerConflict, match="汇总行损坏"):
+            summary_quad("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0)\n")
+
+    def test_healthy_summary_line_still_parses(self):
+        """⛔ 反向锚：干净跑的那条汇总行（本卡目录级存档的常态）必须照常解析。"""
+        assert summary_quad("NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n") == (
+            0,
+            0,
+            0,
+            0,
+        )
+
+    # ── (d)④ 孤儿兜底不误伤已认领记录的逐字回显 ───────────────────────────
+    def test_verbatim_echo_of_a_claimed_record_is_not_an_orphan(self):
+        """T9-C 26：已被某个块认领的记录行，其**逐字**回显不得再被判成孤儿。
+
+        身份是**集合**语义：一条与已认领记录**逐字节相同**的行，无论出现几次，都不可能
+        改变身份集 —— 豁免它是可证安全的，不是「猜它大概是回显」。
+
+        ⚠️ 回显行**不能**紧贴块尾：紧随块尾的记录行先撞上「自报条数与实际不符」那道门
+        （块内条数对账，与孤儿兜底是两条不同的不变量）。真实存档里的回显也总在别处，
+        所以这里隔一行普通输出。
+        """
+        record = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n"
+        ok = sentinel_block(record)
+        echoed_elsewhere = "W4-IDENTITY: 上一轮判据输出回显如下\n" + record
+        assert failure_body_identities(ok + echoed_elsewhere) == {"('::1', 7691, 0, 0) on thread MainThread"}
+
+    def test_one_byte_different_record_outside_a_block_is_still_refused(self):
+        """⛔ 对照：只差**一个字节**的块外记录仍必须拒判 —— r4 MEDIUM-2
+        「另一块抬头漂了、记录静默消失」的门**不放松**。
+
+        豁免的边界是「逐字节相同」，不是「长得差不多」。隔一行普通输出，好让红**真的**
+        落在孤儿门上而不是块内条数对账那道门上（两者都拒判，但测的不是同一件事）。
+        """
+        ok = sentinel_block("  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n")
+        almost = "W4-IDENTITY: 上一轮判据输出回显如下\n  - ('::1', 7691, 0, 0) on thread MainThread (owner=y)\n"
+        with pytest.raises(W4LedgerConflict, match="不属于任何自报条数的记录块"):
+            failure_body_identities(ok + almost)
+
+    def test_echo_of_an_unclaimed_record_is_still_an_orphan(self):
+        """⛔ 对照二：没有任何块认领过它时，重复两次也还是孤儿（豁免只对**已认领**的生效）。"""
+        record = "  - ('::1', 7691, 0, 0) on thread MainThread (owner=x)\n"
+        with pytest.raises(W4LedgerConflict, match="不属于任何自报条数的记录块"):
+            failure_body_identities(
+                record + record + "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)\n"
+            )

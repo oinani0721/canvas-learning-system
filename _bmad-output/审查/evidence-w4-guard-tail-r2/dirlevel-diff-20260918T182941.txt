@@ -1,0 +1,26 @@
+=== 四目录级红集 diff（只允许 < ）===
+--- tests/unit  open=      32  close=      32 ---
+    open 存档=unit-open-20260918T165208.txt  close 存档=unit-close-20260918T174956.txt
+    diff_rc=0  （0 = 逐条相同；只许出现 < ）
+    哨兵 blocked= 行数: open=1 close=1
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+--- tests/api  open=       0  close=       0 ---
+    open 存档=api-open-20260918T173828.txt  close 存档=api-close-20260918T174956.txt
+    diff_rc=0  （0 = 逐条相同；只许出现 < ）
+    哨兵 blocked= 行数: open=1 close=1
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+--- tests/regression  open=       0  close=       0 ---
+    open 存档=regression-open-20260918T173828.txt  close 存档=regression-close-20260918T174956.txt
+    diff_rc=0  （0 = 逐条相同；只许出现 < ）
+    哨兵 blocked= 行数: open=1 close=1
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+--- tests/skills  open=       0  close=       0 ---
+    open 存档=skills-open-20260918T173828.txt  close 存档=skills-close-20260918T174956.txt
+    diff_rc=0  （0 = 逐条相同；只许出现 < ）
+    哨兵 blocked= 行数: open=1 close=1
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+
+=== tests/unit 收工 vs B15 基线（协议 §5 口径）===
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff_rc=1 （只许 < ）

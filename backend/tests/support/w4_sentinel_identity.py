@@ -74,6 +74,7 @@ class W4LedgerConflict(RuntimeError):
 # int() 得 12），而生产者是 int 的 f-string，不可能产全角；用 [0-9] 把伪造串挡在外面。
 # '0|[1-9][0-9]*' 拒前导零：f"{int}" 永不产 '007'。
 
+_SUMMARY_HEAD = "NEO4J_LIVE_PORT_CONNECT_ATTEMPTS="
 _SUMMARY_RE = re.compile(
     r"^NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=(0|[1-9][0-9]*) "
     r"\(blocked=(0|[1-9][0-9]*), advisory=(0|[1-9][0-9]*), "
@@ -86,9 +87,18 @@ _SUMMARY_RE = re.compile(
 #    拿它做段落锚会锚到非总账段。
 # reported_status 用 (\S+?)：ledger["reported_status"] 是 int | None，脚本直跑（非 pytest）
 #    时逐字输出 'reported_status=None'；写成 (\d+) 会恒不匹配。
+#
+# ⛔ **右锚**（CARD-W4-GUARD-TAIL-R2，T9-C 14）：上一版到 `reported_status=(\S+?)；` 为止就收手，
+#    于是 `…reported_status=garbage；` 这种**被截断或格式已漂**的行照样取得出 blocked ——
+#    判据拿一份读不全的总账行当数据源。现在一路锚到产出方 `live_port_guard.py:1544-1549`
+#    的固定尾巴为止；抬头命中但不全匹配 ⇒ 由 :func:`_final_blocked` **拒判**（见那里）。
+#    ⚠️ 左锚 `^` 必须保留：`stderr_tail = '*** … 最终总账：…'` 那种**回显**行不以 `***` 开头，
+#    本来就不该被认作产出 —— 不得为了拦混档把 `final >= summary` 改成 `==`（T9-C 硬警告）。
+_FINAL_HEAD = "*** live Neo4j port connect attempted —— 最终总账："
 _FINAL_RE = re.compile(
     r"^\*\*\* live Neo4j port connect attempted —— 最终总账："
-    r"blocked=(0|[1-9][0-9]*) unaccounted=(0|[1-9][0-9]*) reported_status=(\S+?)；",
+    r"blocked=(0|[1-9][0-9]*) unaccounted=(0|[1-9][0-9]*) reported_status=(\S+?)；"
+    r"进程被强制以退出码 (0|[1-9][0-9]*) 结束（迟到连接不得以 0 收场）\*\*\*$",
     re.ASCII,
 )
 
@@ -99,7 +109,18 @@ _FINAL_RE = re.compile(
 #: ⛔ 线程名用 ``.+?`` 而不是 ``\S+``（Codex round-1 HIGH-3）：``threading.Thread(name=...)``
 #: 允许**含空格**的线程名（实测 ``Thread-1 (worker)``）。``\S+`` 匹配不上时整行会被
 #: ``if m:`` **静默丢弃**，身份集变空、CLI 照样判一致 —— 那是假绿。
-_BODY_RE = re.compile(r"^- (?P<addr>.+?) on thread (?P<thread>.+?) \(owner=", re.ASCII)
+#
+#: ⛔ **全匹配**（CARD-W4-GUARD-TAIL-R2，T9-C 26）：上一版没有右锚、又用 ``.match()``
+#: = **前缀匹配**，于是 ``- cache on thread worker (owner=``（缺右括号的**回显**）
+#: 也被算成一条「无疑义地就是记录」的行 ⇒ 孤儿兜底把它判红（假红 rc=2）。
+#: 加上 ``(?P<owner>.*)\)$`` 并在三处改 ``.fullmatch()``：**解析不完整的行不再获得记录身份**。
+#: ``owner`` 用**贪婪** ``.*`` 切在**最后**一个右括号上，所以 ``test_q[a(b)]`` 这类
+#: 含成对括号的参数化 nodeid 不受影响。
+_BODY_RE = re.compile(r"^- (?P<addr>.+?) on thread (?P<thread>.+?) \(owner=(?P<owner>.*)\)$", re.ASCII)
+
+#: 记录行的两个分隔符。二者中任一在**可切位置上**出现两次 ⇒ 同一行有两种合法切法。
+_SEP_OWNER = " (owner="
+_SEP_THREAD = " on thread "
 
 #: 记录**块抬头**：三个产出点都在遍历记录之前**自报本块条数**。这是本模块唯一
 #: 用来定位记录的锚 —— 不再扫全文猜「哪行像记录 / 哪行像坏掉的记录」。
@@ -166,12 +187,20 @@ def summary_quad(text: str) -> tuple[int, int, int, int] | None:
     """汇总行的四元组 ``(total, blocked, advisory, unaccounted)``；无命中返回 ``None``。
 
     ``None`` 的含义是 **unchecked（没查成）**，不是 ``(0, 0, 0, 0)``。
+
+    ⛔ **抬头命中但不全匹配 ⇒ 拒判**（CARD-W4-GUARD-TAIL-R2，T9-C 17/27）：上一版的
+    ``if m`` 把「缺右括号 / 少一个字段」的汇总行**静默滤掉**，于是本函数返回 ``None``、
+    CLI 打出「没查成」。两者都非 0，含义却天差地别：「没查成」会让人去补一份存档，
+    而实情是**手上这份坏了**。又一个 ``if 匹配成功:`` 背后未写的 ``else``。
     """
-    quads = [
-        (int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)))
-        for m in (_SUMMARY_RE.match(ln.strip()) for ln in _lines(text))
-        if m
-    ]
+    quads = []
+    for raw in _lines(text):
+        line = raw.strip()
+        m = _SUMMARY_RE.fullmatch(line)
+        if m:
+            quads.append((int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))))
+        elif line.startswith(_SUMMARY_HEAD):
+            raise W4LedgerConflict(f"汇总行损坏（缺右括号 / 字段缺失），不得当作没有汇总行：{line[:120]!r}")
     if not quads:
         return None
     if len(quads) > 1:
@@ -191,8 +220,17 @@ def _final_blocked(text: str) -> int | None:
     总账行**不是必选**：``_final_accounting`` 只在 ``unaccounted > 0 or
     (blocked > 0 and effective_status == 0)`` 时才打印，而迟到路径的 ``os._exit``
     会跳过所有 atexit。所以「没有总账行」既不蕴含 ``blocked == 0`` 也不蕴含出错。
+
+    ⛔ **抬头命中但不全匹配 ⇒ 拒判**（CARD-W4-GUARD-TAIL-R2，T9-C 14）：``_FINAL_RE``
+    加了右锚之后，``…reported_status=garbage；``（截断 / 格式漂移）不再匹配 —— 但**不匹配
+    不等于不存在**。这一行确实是产出方的总账行，只是读不全；静默跳过就是把「读不清」
+    压成「没有总账行」。同 :func:`summary_quad`，方向是拒判。
     """
-    finals = [int(m.group(1)) for m in (_FINAL_RE.match(ln.strip()) for ln in _lines(text)) if m]
+    lines = [ln.strip() for ln in _lines(text)]
+    for line in lines:
+        if line.startswith(_FINAL_HEAD) and not _FINAL_RE.fullmatch(line):
+            raise W4LedgerConflict(f"最终总账行被截断或格式漂移，不得当作没有总账行：{line[:120]!r}")
+    finals = [int(m.group(1)) for m in (_FINAL_RE.fullmatch(ln) for ln in lines) if m]
     if not finals:
         return None
     if len(finals) > 1:
@@ -228,6 +266,43 @@ def blocked_count(text: str) -> int | None:
     return final
 
 
+def _refuse_ambiguous_record(line: str, m: "re.Match[str]") -> None:
+    """记录行**存在第二种切法**时拒判（CARD-W4-GUARD-TAIL-R2，T9-C 13/26/27）。
+
+    ``_BODY_RE`` 用两个分隔符切三段：``- <addr> on thread <thread> (owner=<owner>)``。
+    地址是 ``_safe_repr(address)`` 的**裸 repr**（内容由调用方的 ``__repr__`` 决定，
+    契约测试里就有返回任意串的地址对象），线程名允许含空格与括号，owner 是用户可控的
+    nodeid —— 三段都可能**自己带上分隔符**。带上了，同一行就有不止一种全匹配的切法：
+
+    * ``- ADDR on thread worker (owner=A) (owner=x)`` —— 线程名是 ``worker`` 还是
+      ``worker (owner=A)``？两种读法都能全匹配。
+    * ``- ADDR on thread B on thread MainThread (owner=x)`` —— 地址是 ``ADDR`` 还是
+      ``ADDR on thread B``？同样两种都成立。
+
+    正则只会给出其中一种（非贪婪 = 最左最短），而它**不知道**自己选对没有。所以这里
+    **拒判不猜** —— 与本模块其余各处同一个方向。
+
+    ⚠️ **与卡文的一处口径更正（如实记）**：卡文把上面第二例归在「``owner`` 组含
+    `` on thread ``」名下。实测**不是**：非贪婪的 ``thread`` 会一路吃到最后一个
+    `` (owner=`` 之前，第二例里 ``owner`` 组干干净净就是 ``x``。真正判得出第二例的是
+    「`` (owner=`` **之前**那一段里 `` on thread `` 出现了两次」，所以按后者写。
+    反过来，``owner`` 里含 `` on thread ``（如 ``test_q[a on thread b]``）在只有**一个**
+    `` (owner=`` 时切法唯一、**不**歧义，按那条字面口径拒判等于凭空造一个假红。
+
+    :raises W4LedgerConflict: 该行存在第二种切法。
+    """
+    if line.count(_SEP_OWNER) > 1:
+        raise W4LedgerConflict(
+            f"记录行分隔符出现两次，边界不可判（{_SEP_OWNER!r} 出现 {line.count(_SEP_OWNER)} 次）：{line[:120]!r}"
+        )
+    head = line.split(_SEP_OWNER, 1)[0]
+    if head.count(_SEP_THREAD) > 1:
+        raise W4LedgerConflict(
+            f"记录行分隔符出现两次，边界不可判（{_SEP_THREAD!r} 在地址/线程段出现 "
+            f"{head.count(_SEP_THREAD)} 次）：{line[:120]!r}"
+        )
+
+
 def _declared_record_blocks(lines: list[str]) -> list[tuple[int, int, int]]:
     """找出全部「自报了条数的记录块」：返回 ``(抬头行下标, 自报条数, 记录起始偏移)``。
 
@@ -238,7 +313,7 @@ def _declared_record_blocks(lines: list[str]) -> list[tuple[int, int, int]]:
     heads: list[tuple[int, int, int]] = []
     for i, raw in enumerate(lines):
         line = raw.strip()
-        m = _FINAL_RE.match(line)
+        m = _FINAL_RE.fullmatch(line)
         if m:
             heads.append((i, int(m.group(2)), 1))  # 第 2 组 = unaccounted；记录在下一行
             continue
@@ -308,15 +383,17 @@ def failure_body_identities(text: str) -> set[str]:
                 f"记录块自报 {declared} 条，但存档只剩 {len(taken)} 行 —— "
                 f"存档被截断，不得当作『就这么多记录』：抬头={lines[head_idx].strip()[:80]!r}"
             )
-        parsed = [_BODY_RE.match(ln) for ln in taken]
+        parsed = [_BODY_RE.fullmatch(ln) for ln in taken]
         if not all(parsed):
             bad = [ln for ln, m in zip(taken, parsed) if not m]
             raise W4LedgerConflict(
                 f"记录块自报 {declared} 条，其中 {len(bad)} 行解析不出身份 —— "
                 f"不得当作『没有这条记录』静默放过：{bad[:3]}"
             )
+        for ln, m in zip(taken, parsed):
+            _refuse_ambiguous_record(ln, m)
         nxt = i + declared
-        if nxt < len(lines) and _BODY_RE.match(lines[nxt].strip()):
+        if nxt < len(lines) and _BODY_RE.fullmatch(lines[nxt].strip()):
             raise W4LedgerConflict(
                 f"记录块自报 {declared} 条，紧随其后还有一条记录行 —— 自报条数与实际不符：{lines[nxt].strip()[:80]!r}"
             )
@@ -332,7 +409,18 @@ def failure_body_identities(text: str) -> set[str]:
     #    （必须同时有 ``- `` 前缀、`` on thread ``、`` (owner=``）。普通日志
     #    （``cache refreshed (owner=worker)`` 缺 `` on thread ``、源码回显不以 ``- `` 开头）
     #    都不满足，所以 round-3 MEDIUM-2 的那几条假红不会回来。
-    orphans = [ln.strip() for n, ln in enumerate(lines) if n not in claimed and _BODY_RE.match(ln.strip())]
+    #
+    #    ⛔ 豁免一条、且只豁免这一条（CARD-W4-GUARD-TAIL-R2，T9-C 26）：与某条**已认领**
+    #    记录行 **逐字节相同** 的块外行不算孤儿。身份是**集合**语义 —— 一条逐字重复的行
+    #    无论出现几次都不可能改变身份集，所以豁免它是**可证**安全的，不是「猜它大概是回显」。
+    #    边界是「逐字节相同」：只差一个字节的块外记录仍拒判（r4 MEDIUM-2 的门不放松），
+    #    没有任何块认领过它时重复两次也仍是孤儿。
+    claimed_texts = {lines[n].strip() for n in claimed}
+    orphans = [
+        ln.strip()
+        for n, ln in enumerate(lines)
+        if n not in claimed and _BODY_RE.fullmatch(ln.strip()) and ln.strip() not in claimed_texts
+    ]
     if orphans:
         raise W4LedgerConflict(
             f"有 {len(orphans)} 条完整的记录行不属于任何自报条数的记录块 —— "

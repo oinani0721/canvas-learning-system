@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import inspect
 import json
+import os
 import textwrap
 import threading
 from pathlib import Path
@@ -1363,10 +1364,10 @@ def _refuse_to_guess_on_deferred_execution(scope: ast.FunctionDef) -> None:
     ``class Early: ...`` 之后得出的结论，**对原例不成立**，Codex round-5 LOW-2 更正）；
     把模块级函数直接绑成类属性。
 
-    ⛔ **已知但本卡未修的一条（MEDIUM，移交下一张 W4 卡）**：PEP 695 的 ``type X = <expr>``
-    （``ast.TypeAlias``，CPython 3.12 起**惰性求值**，读 ``__value__`` 才跑）是**本作用域内
-    AST 可见**的延迟执行体，按本函数自己的口径**应当**进拒绝面，但当前实现漏了它。
-    Codex round-5 MEDIUM-1 在本机 Python 3.14.4 实测：
+    ⛔ **第五类延迟体：PEP 695 的 ``type X = <expr>``**（``ast.TypeAlias``，CPython 3.12 起
+    **惰性求值**，读 ``__value__`` 才跑）—— 它是**本作用域内 AST 可见**的延迟执行体，按本
+    函数自己的口径就该进拒绝面。Codex round-5 MEDIUM-1 在本机 Python 3.14.4 实测的原例
+    （**保留为常驻说明**，对应用例 ``test_type_alias_is_in_the_deferred_reject_set``）：
 
     .. code-block:: python
 
@@ -1375,9 +1376,11 @@ def _refuse_to_guess_on_deferred_execution(scope: ast.FunctionDef) -> None:
         assert_neo4j_target_blocked()
         H.__value__; R.__value__          # 真实求值序：precheck → hook → register
 
-    下标读成 ``0/1/2`` ⇒ 两个顺序门**双双假绿**。修法是一行：把 ``ast.TypeAlias`` 加进下面的
-    收集分支。**本卡不改**——D-15 轮次上限 5 已用尽（末轮绑最终 HEAD 且 BLOCKER/HIGH = 0），
-    审后再改代码须再送一轮，故按 MEDIUM「登记不阻断」移交，见验收单 §四。
+    下标读成 ``0/1/2`` ⇒ 两个顺序门**双双假绿**。**已由 CARD-W4-GUARD-TAIL-R2 修（第十五批）**：
+    下面的收集分支加了 ``ast.TypeAlias`` 一支（``getattr(ast, "TypeAlias", ())`` 形态照
+    ``tests/skills/skill_portability_lint.py`` 的既有写法，3.11 及更早无该节点类型时退化成
+    空元组、``isinstance`` 恒假）。先红存档见
+    ``_bmad-output/审查/evidence-w4-guard-tail-r2/typealias-red-*.txt``（改前 ``not raised``）。
     ⚠️ 特别更正一句我曾写下、已被证伪的话：「挪到模块级函数里顺序门就数得对」——**不成立**，
     模块级 helper 正是上面第一条反例。顺序门证明的是 ``install()`` **字面语句序列**里那几个
     **直接具名调用**的先后，行为面的证明在子进程探针
@@ -1400,6 +1403,8 @@ def _refuse_to_guess_on_deferred_execution(scope: ast.FunctionDef) -> None:
             deferred.append("lambda")
         elif isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
             deferred.append(type(node).__name__)
+        elif isinstance(node, getattr(ast, "TypeAlias", ())):
+            deferred.append(f"type {node.name.id}")
     assert not deferred, (
         f"{scope.name}() 里出现了延迟执行体 {sorted(set(deferred))} —— 顺序类判据**拒绝猜**："
         "谁在什么时候真的执行了它，需要解析调用绑定才答得出，纯 AST 判不了（本卡四轮外审逐一"
@@ -1809,6 +1814,58 @@ class TestSingleLedgerSnapshot:
         assert calls["n"] == 1, "陈旧那次真的调了 write_ledger —— 判据被假喂饱了"
         assert not Path(path).exists()
 
+    def test_publish_ledger_keeps_old_content_when_open_fails_before_truncation(self, tmp_path, isolated_state):
+        """截断**之前**就失败（权限）⇒ 旧那份合法 JSON 原样还在，而发布序已先行推进。
+
+        ⛔ 这一条补的是 :func:`~tests.support.live_port_guard._publish_ledger` docstring 里
+        **只有描述、没有运行时断言**的那句话（CARD-W4-4b7-TAIL 台账 6）。既有的
+        ``test_publish_ledger_refuses_stale_even_after_a_failed_write`` 用 monkeypatch 让
+        ``write_ledger`` 抛，文件**根本不存在**（它自己的末条断言就是
+        ``assert not Path(path).exists()``）—— 它钉的是「先行推进」，钉不到「旧内容保留」。
+
+        ⛔ 不 monkeypatch ``open`` / ``write_ledger``（DD-03）：那样测的是桩的行为，而
+        「截断前失败」恰恰是**真实文件系统**才给得出的那一种失败点。这里用真实权限位。
+
+        ⚠️ 权限必须打在**账本文件自身**上，不是父目录：对**已存在**的文件，
+        ``open(path, "w")`` 只查该文件的写权限 —— 父目录 ``0o500`` 挡不住截断
+        （挡的是创建与改名）。写成目录权限这条门就会在「文件已存在」这一支上恒绿。
+
+        本机不强制文件写权限时（root / 某些文件系统）**skip 并登记**，不得假绿：
+        「造不出这个失败态」与「这个失败态下行为正确」是两件事。
+        """
+        path = str(tmp_path / "ledger.json")
+        stale = isolated_state.late_snapshot()
+        assert guard._publish_ledger(path, stale) is True
+        old_bytes = Path(path).read_bytes()
+        assert json.loads(old_bytes.decode("utf-8"))["unaccounted"] == 0, "前提：旧那份是合法且自洽的 JSON"
+
+        isolated_state.record(("127.0.0.1", 7691))
+        mid = isolated_state.late_snapshot()
+        fresh = isolated_state.late_snapshot()
+        assert stale["seq"] < mid["seq"] < fresh["seq"], "前提：三份快照的发布序严格递增"
+
+        if os.geteuid() == 0:
+            pytest.skip("root 下文件写权限不被强制，截断前失败态无法真实制造")
+        os.chmod(path, 0o400)
+        try:
+            try:
+                guard._publish_ledger(path, fresh)
+            except PermissionError:
+                pass
+            else:
+                pytest.skip("本机不强制文件写权限，截断前失败态无法真实制造")
+
+            assert Path(path).read_bytes() == old_bytes, (
+                "失败点在 open(path,'w') 的截断**之前**，旧那份合法 JSON 却没了 —— 父进程读到的既不是新账也不是旧账"
+            )
+            assert guard._PUBLISHED_SEQ == fresh["seq"], (
+                "发布序没有先行推进 —— 写盘失败会把 MEDIUM-4 关掉的陈旧覆盖从 I/O 失败这条缝里放回来"
+            )
+            assert guard._publish_ledger(path, mid) is False, "写盘失败之后，更旧的快照反而被放行了"
+            assert Path(path).read_bytes() == old_bytes, "被拒的陈旧发布仍然碰了文件"
+        finally:
+            os.chmod(path, 0o600)
+
     def test_plain_ledger_read_does_not_consume_a_publish_seq(self, isolated_state):
         """「随手看一眼账面」不得推进发布序（2026-09-08 实测教训）。
 
@@ -1839,6 +1896,44 @@ class TestSingleLedgerSnapshot:
 
 class TestInstallOrder:
     """T-14：承重 hook 必须装在任何预检之前。"""
+
+    def test_type_alias_is_in_the_deferred_reject_set(self):
+        """PEP 695 ``type X = <expr>`` 必须进拒绝面（CARD-W4-GUARD-TAIL-R2）。
+
+        ``ast.TypeAlias`` 的体从 CPython 3.12 起**惰性求值**——读 ``__value__`` 才跑。
+        所以下面这段的真实求值序是 ``precheck → hook → register``，而按**语句下标**读成
+        ``0/1/2``：两个顺序门（``test_audit_hook_is_installed_before_the_target_precheck``
+        与 ``test_final_accounting_is_registered_before_the_precheck``）**双双假绿**。
+        Codex round-5 MEDIUM-1 原例，本机 Python 3.14.4 实测复现（先红存档
+        ``evidence-w4-guard-tail-r2/typealias-red-*.txt``：改前 ``VERDICT: not raised``）。
+
+        ⛔ 前提断言不可省：先证这段源码在本解释器下**真的**解析出 ``ast.TypeAlias`` 节点。
+        否则「判据抛了」也可能是别的分支抛的，而「判据没抛」也可能只是 3.x 把
+        ``type X = ...`` 解析成了别的东西 —— 两侧都不成立时这条门什么也没测。
+        """
+        src = (
+            "def install():\n"
+            "    type H = _install_audit_hook()\n"
+            "    type R = register_final_accounting()\n"
+            "    assert_neo4j_target_blocked()\n"
+            "    H.__value__; R.__value__\n"
+        )
+        fn = ast.parse(src).body[0]
+        assert isinstance(fn, ast.FunctionDef)
+        assert sum(isinstance(n, getattr(ast, "TypeAlias", ())) for n in ast.walk(fn)) == 2, (
+            f"本解释器（{__import__('sys').version.split()[0]}）没把 `type X = ...` 解析成 ast.TypeAlias 节点 —— "
+            "这条门测的不是它声称要测的那件事"
+        )
+        with pytest.raises(AssertionError, match="type H"):
+            _refuse_to_guess_on_deferred_execution(fn)
+
+    def test_real_install_has_no_deferred_bodies_including_type_alias(self):
+        """⛔ 反向锚：收紧之后真实 ``install()`` 仍须照常通过，不是「恒拒绝」。
+
+        没有这一条，上一条只证明了「判据会抛」，证明不了它**只对该抛的输入**抛 ——
+        把拒绝面写成 ``assert False`` 也能让上一条变绿。
+        """
+        _refuse_to_guess_on_deferred_execution(_fn_ast(guard.install))
 
     def test_audit_hook_is_installed_before_the_target_precheck(self):
         """``install()`` 体内 ``_install_audit_hook()`` 必须排在预检之前。
@@ -2216,3 +2311,122 @@ class TestFinalizeRaceSeam:
         assert isolated_state.blocked == 1, "seam 抛异常把记账整条跳过了"
         assert isolated_state.total == 1
         assert isolated_state.late_snapshot()["unaccounted"] == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def _parent_map(tree: ast.AST) -> dict:
+    """``child -> parent`` 表（``ast`` 不带父指针）。"""
+    parents: dict = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[child] = parent
+    return parents
+
+
+def _nearest_try_slot(node: ast.AST, parents: dict) -> tuple[ast.Try | None, str]:
+    """往上找**最近的** ``ast.Try`` 祖先，并报出 ``node`` 落在它的哪个字段里。
+
+    ⛔ 为什么必须报字段（CARD-W4-FINAL-ACCOUNTING 台账 ⑨ / Codex L1）：冻结裁判
+    ``evidence-w4final/ast-protected.py:17`` 的判据是
+    ``a.lineno < n.lineno <= a.end_lineno`` —— 落在**整个 Try 行区间**内就算 protected，
+    于是 ``handlers`` / ``orelse`` / ``finalbody`` 里的 ``print`` **一样**被判 protected。
+    可 ``except BaseException`` 只护 ``try.body``：一个写在 handler 里的 print 抛出时，
+    异常照样越过 ``os._exit``。行区间判据在那条路径上恒绿 = 盲区。
+    """
+    child = node
+    parent = parents.get(child)
+    while parent is not None:
+        if isinstance(parent, ast.Try):
+            for slot in ("body", "handlers", "orelse", "finalbody"):
+                if any(child is stmt for stmt in getattr(parent, slot)):
+                    return parent, slot
+            return parent, "?未知字段"
+        child = parent
+        parent = parents.get(child)
+    return None, "无 try 祖先"
+
+
+class TestForcedExitPathsAreFailOpen:
+    """⛔ ``os._exit`` 之前的任何**可观测性**动作都不得挡住强制退出。
+
+    强制非零 rc 是承重的那一层；账本落盘与 stderr 打印都只是可观测性。三条强制退出路径
+    （``_audit_hook`` 的迟到分支 / ``_final_accounting`` / 被前者调用的
+    ``_rewrite_ledger_after_late_record``）上，任何一处异常逸出都会把「拦下了就必然非零收场」
+    这句承诺在那种状态下变成假的 —— 而那正是 W4 唯一承重的那句话。
+    """
+
+    def test_late_rewrite_swallows_base_exception_like_the_exit_guard(self, monkeypatch, tmp_path, isolated_state):
+        """迟到重写必须对 ``BaseException`` 也 fail-open（与调用点 ``_audit_hook`` 同型）。
+
+        改前 ``_rewrite_ledger_after_late_record`` 的处理器是 ``except Exception``，比调用点
+        ``_audit_hook`` 那层 ``except BaseException`` **窄**。窄处理器的后果不是「进程不退出」
+        （调用点那层兜得住 ``os._exit`` 仍会跑），而是**跳过** ``_audit_hook`` 里紧随其后的
+        stderr 打印与两次 flush —— 「迟到连接必打印一行再退出」这句话在
+        ``BaseException`` 形态（``KeyboardInterrupt`` / 直接继承 ``BaseException`` 的自定义类）
+        下不成立，且该函数 docstring 自称的「全程 fail-open」不实。
+
+        ⛔ 断言的是「不抛」这一件事本身：抛出去就意味着调用点那层 ``except BaseException``
+        要替它兜，而被兜掉的是打印，不是这次异常。
+        """
+        monkeypatch.setenv(guard.ENV_LEDGER, str(tmp_path / "ledger.json"))
+
+        def boom(path, ledger):
+            raise _CustomBaseException("落盘期 BaseException（负控形态：KeyboardInterrupt 同型）")
+
+        monkeypatch.setattr(guard, "_publish_ledger", boom)
+
+        guard._rewrite_ledger_after_late_record()  # 不得抛 —— 抛出即本条红
+
+    def test_late_rewrite_handler_is_baseexception(self):
+        """结构面：该函数的异常处理器类型集合必须恰是 ``{'BaseException'}``。
+
+        行为面那条（上一条）能被「把 ``_publish_ledger`` 的抛出点挪走」绕过；这条钉的是
+        处理器本身，两条一起才既锁住行为又锁住写法。
+        """
+        node = _fn_ast(guard._rewrite_ledger_after_late_record)
+        handlers = sorted(ast.unparse(h.type) for h in ast.walk(node) if isinstance(h, ast.ExceptHandler) and h.type)
+        assert handlers == ["BaseException"], (
+            f"_rewrite_ledger_after_late_record 的处理器是 {handlers} —— 比调用点 _audit_hook 的 "
+            "except BaseException 窄，BaseException 从这里逸出时会跳过 os._exit 前的打印与 flush"
+        )
+
+    def test_every_print_on_forced_exit_paths_sits_in_a_baseexception_try_body(self):
+        """三条强制退出路径上的每一个 ``print`` 都必须位于某个 ``try.body``，且该 ``try``
+        至少有一个 ``except BaseException`` 处理器。
+
+        ⛔ 口径收窄（台账 ⑨ / Codex L1）：冻结裁判 ``ast-protected.py`` 只判「print 的行号落在
+        Try 的行区间内」，于是写在 ``handlers`` / ``orelse`` / ``finalbody`` 里的 print 一样
+        被判 protected —— 而 ``except BaseException`` 只护 ``try.body``。本用例改判**字段**。
+        它落在契约套件里，不改那两份已归档的冻结脚本（它们保留为历史证据，不再作裁判）。
+
+        ⚠️ 本用例只覆盖**字面 ``print(...)`` 调用**。经 ``sys.stderr.write`` / 绑成变量再调
+        / 由被调函数内部打印的路径，AST 在这一层看不见 —— 属**门未覆盖的路径**，如实登记。
+        """
+        source = Path(inspect.getsourcefile(guard)).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        parents = _parent_map(tree)
+        wanted = {"_final_accounting", "_audit_hook", "_rewrite_ledger_after_late_record"}
+        funcs = [n for n in ast.walk(tree) if getattr(n, "name", "") in wanted]
+        assert {f.name for f in funcs} == wanted, f"三条强制退出路径没找全：{sorted(f.name for f in funcs)}"
+
+        rows: list[tuple[str, int, str, bool]] = []
+        for func in funcs:
+            for call in ast.walk(func):
+                if not (isinstance(call, ast.Call) and getattr(call.func, "id", "") == "print"):
+                    continue
+                node, slot = _nearest_try_slot(call, parents)
+                guarded = node is not None and any(
+                    isinstance(h.type, ast.Name) and h.type.id == "BaseException" for h in node.handlers
+                )
+                rows.append((func.name, call.lineno, slot, guarded))
+
+        rows.sort(key=lambda r: r[1])
+        listing = "\n".join(f"  {fn}:{lineno} slot={slot} baseexception_handler={ok}" for fn, lineno, slot, ok in rows)
+        assert rows, "三条路径上一个 print 都没找到 —— 判据锚已漂（函数名改了？）"
+        bad = [r for r in rows if r[2] != "body" or not r[3]]
+        assert not bad, (
+            "强制退出路径上有 print 不在 `except BaseException` 的 try.body 里 —— "
+            f"它抛出时会越过 os._exit。逐 print 名单（行号 = live_port_guard.py 绝对行号）：\n{listing}"
+        )

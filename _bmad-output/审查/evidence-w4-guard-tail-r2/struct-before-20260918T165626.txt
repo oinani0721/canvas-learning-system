@@ -1,0 +1,13 @@
+=== (f) 结构判据 改前 X 侧 @ 9c4e7e82 ===
+① grep -c 'ast, "TypeAlias"' $CF = 0
+② grep -c '已知但本卡未修的一条' $CF = 1
+② grep -c 'CARD-W4-GUARD-TAIL-R2' $CF = 0
+③ sed -n '1501p' $G =     except Exception:  # noqa: BLE001 —— 见上：绝不阻断 os._exit
+④ grep -c '\.match(' $S = 9
+④ grep -c '\.fullmatch(' $S = 0
+⑤ grep -c 'W4LedgerConflict(' $S = 11
+⑥ test -f $L = false
+--- 附：docstring 里 ast.TypeAlias 字样出现次数（文本 grep 假绿的来源）---
+grep -c 'ast.TypeAlias' $CF = 2
+grep -c 'TypeAlias' $CF = 2
+grep -c 'TypeAlias' $G = 0

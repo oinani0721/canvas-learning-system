@@ -1,0 +1,3 @@
+python: 3.14.4
+TypeAlias nodes: 2
+VERDICT: raised install() 里出现了延迟执行体 ['type H', 'type R'] —— 顺序类判据**拒绝猜**：谁在什

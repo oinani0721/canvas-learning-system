@@ -1,0 +1,13 @@
+=== (m) 现网只读自证 @ 2026-09-18 17:50:21 HKT ===
+--- 本卡五个改动文件里 fsrs_bridge / decay_beta 命中数（期望 0）---
+grep_rc=1 （1 = 零命中）
+--- live vault 两份复习链脚本 shasum（跑前/跑后对照用）---
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/.claude/scripts/decay_beta.py
+--- 本卡五文件里指向现网端口的环境变量 / 端口字面量 ---
+backend/tests/unit/test_w4_a_regression_lock.py:16:``sys.audit("socket.connect", None, ("127.0.0.1", 7691))`` **合成** —— 不建立任何真实连接，
+backend/tests/unit/test_w4_a_regression_lock.py:17:不连 7691 / 7687 / 7692。账本路径一律由 pytest 的 ``tmp_path_factory`` 派生。
+backend/tests/unit/test_w4_a_regression_lock.py:56:    sys.audit("socket.connect", None, ("127.0.0.1", 7691))
+（7691 只出现在 sys.audit 合成事件的地址元组里，不建立连接）
+--- W4_GUARD_REQUIRE_BLOCKED_TARGET 处置 ---
+47:os.environ.pop("W4_GUARD_REQUIRE_BLOCKED_TARGET", None)   # 默认不连库

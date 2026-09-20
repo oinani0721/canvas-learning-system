@@ -1488,7 +1488,7 @@ def _rewrite_ledger_after_late_record() -> None:
     钉的也不是等价，而是**两个特例**（有迟到 ⇒ rc=3 且 unaccounted>0；零连接 ⇒
     rc=0 且零账），判据本身不变。
 
-    ⚠️ 全程 fail-open：这是解释器收尾期、在任意线程里跑的，落盘失败绝不能挡住
+    ⚠️ 对 ``BaseException`` 也 fail-open（与调用点 :func:`_audit_hook` 同型）：收尾期任意线程里落盘失败绝不能挡住
     ``os._exit`` —— 强制非零 rc 才是承重的那一层，账本只是可观测性。
     """
     try:
@@ -1498,7 +1498,7 @@ def _rewrite_ledger_after_late_record() -> None:
         # 经 _publish_ledger 而不是直接 write_ledger：这一份是**较新**的快照，
         # 发布后结算线程手上的旧快照就再也盖不回来（MEDIUM-4）。
         _publish_ledger(path, STATE.late_snapshot())
-    except Exception:  # noqa: BLE001 —— 见上：绝不阻断 os._exit
+    except BaseException:  # noqa: BLE001 —— 与 _audit_hook :821 同型：任何异常都不得挡住 os._exit 前的打印与 flush
         pass
 
 

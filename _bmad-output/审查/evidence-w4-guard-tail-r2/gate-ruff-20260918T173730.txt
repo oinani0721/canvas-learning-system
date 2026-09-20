@@ -1,0 +1,21 @@
+files=5
+backend/tests/support/live_port_guard.py
+backend/tests/support/w4_sentinel_identity.py
+backend/tests/unit/test_live_port_guard_contract.py
+backend/tests/unit/test_w4_a_regression_lock.py
+backend/tests/unit/test_w4_sentinel_rebind.py
+All checks passed!
+rc=0
+5 files already formatted
+fmt_rc=0
+
+=== 验伪锚：F821 探针（backend/ruff.toml 无 F401，锚选 F821）===
+1 | print(undefined_name_xyz)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_ruff_rc=1
+残留核 git status | grep -c _f821_probe = 0
+--- backend/ruff.toml select ---
+10:select = ["E9", "F63", "F7", "F82"]
