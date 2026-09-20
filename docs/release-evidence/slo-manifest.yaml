@@ -2,17 +2,17 @@
 # 上游: 计划书 §12.5 L592（E3 前锁定用户批准的 SLO，不得事后降门槛；J manifest 必须记录阈值与实测）
 #       + 总账 v2 :405-410（schema 字段唯一定义 owner = CARD-R-SLO；G8-8/G2-10/G4-14/G6-11 一律复用）
 # 消费: J manifest 的 slo.manifest_revision 逐字引用本文件 revision；五键导出映射见 export_shape。
-# 本版 status=draft（等用户「R-SLO 授权锁版」口令 + 逐项阈值裁定后才可改 locked 或升 r2）。
-revision: "slo-manifest@2026-09-19-r1"
-status: "draft"
+# 本版 status=locked / revision=r2（用户 2026-09-20 口令「R-SLO 授权锁版」+ 逐项裁定后锁版；r1=2026-09-19 draft 正文见 git 历史 8e36c412）。
+revision: "slo-manifest@2026-09-20-r2"
+status: "locked"
 schema_version: "1.0.0"
 source:
   - "计划书 §12.5 L592（阈值、参考环境、数据规模和降级规则写入 versioned benchmark/SLO manifest；J manifest 必须记录阈值与实测）"
   - "总账 v2 :405-410 owner 裁定（本卡是 schema 字段的唯一定义 owner；G8-8/G2-10/G4-14/G6-11 复用不另造格式）"
 decision:
-  locked_by: null
-  locked_at: null
-  note: "锁版流程：用户在本车道说「R-SLO 授权锁版」并逐项裁定阈值 → threshold.locked 填实 / status 改 locked / revision 升 r<N+1> / locked_by、locked_at 填实（带时区）。未授权前一律 draft —— 本版本即 draft。"
+  locked_by: "Heishing（用户本人）"
+  locked_at: "2026-09-20T14:02:29-0700"
+  note: "锁版依据：用户 2026-09-20 回复「R-SLO 授权锁版」+ 逐项裁定——9 项 candidate 全部照准：①review_overview_first_paint ≤500ms ②rag_query_warm ≤5000ms ③rag_query_cold 无候选（本次运行含超时样本 ⇒ 整项 not_measured；owner=G4-14 复测后以新 revision 起草）④kg_read ≤500ms ⑤review_rebuild ≤30s ⑥first_index 无候选（owner=G2-10）⑦graphiti_ack 无候选（owner=G4-14/7692）⑧graphiti_replay 无候选（owner=R-J10）⑨recovery_time 无候选（owner=R-J10）；统计量（p50 median + p95 quantiles(n=20)[18]、rebuild n=5 同式）、repeats 20/5、并发 1、时区 PDT 一并确认。无候选值的 5 项保持 threshold.locked=null（⛔ 不填估计值），其阈值只能由 owner 卡首测后以新 revision 起草。code_sha 裁定为候选值 9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680（取证据实 + 收窄勘误；同进程连续性未证）。本 r2 取代 r1（draft，正文见 git 历史 8e36c412）；旧 r1 引用按 README 版本化规则改指本 revision。"
 environment:
   machine: "Apple M5 Max（sysctl -n machdep.cpu.brand_string；memsize=137438953472 bytes）"
   os: "macOS 26.5（sw_vers -productVersion；arch=arm64）"
@@ -30,25 +30,25 @@ environment:
     index_stats: {}
     kg: {node_count: 0, edge_count: 0, episode_count: 0, last_episode_timestamp: null}
   data_sha: "df036977f3d220b10d6be95c16cd83b1ff5241d066884e4b09e9060397551907（find <live> -name '*.md' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256）"
-  code_sha: null
-  code_sha_null_reason: "主 session 未在 evidence-b15/ 公布 8011 进程代码树 SHA（该目录实测仅 docker-ps / lanes-created / unit-red-baseline 三件，无 code_sha 记录）；8011 运转的代码树与本车道树的对应关系未证明。"
-  lane_sha: "a03f0ce34de9a9c4652310d45eae283f78d11451（本车道树 HEAD = P10-B CARD-R-RC 末 commit；入库后为 P10-C 卡片自身 commit）"
+  code_sha: "9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680"
+  code_sha_basis: "用户 2026-09-20 裁定采用候选值。取证据实：8011 = feature-obsidian-hybrid-dev 树 backend/ 的 live bind；FE 树 67d66672..HEAD 0 个 commit 触达 backend/src，tree(FE HEAD:backend) == tree(9c4e7e82:backend) == a5cd759a…；窗口内各次探测均 200/健康、同进程连续性未证、ignored 运行时面不入 code_sha；重建项仅 scripts/daily_review_pick.py blob 等同。证据：_bmad-output/审查/evidence-rslo/code-sha-runtime-tree-20260920T131615.txt + 收窄勘误 code-sha-runtime-tree-erratum-20260920T133330.txt。"
+  lane_sha: "d0e8b989a0d4753cc3337797c8b99ace6665ea76（锁版前置末 commit；锁版 commit 紧随其后，HEAD 以 git rev-parse HEAD 为准）"
   cache_state: "warm=seed 第 1 条同串重复 20 次；cold=seed 全 20 条互异串各一次（其中第 1 条已被 warm 预跑 20 次 ⇒ 19 条未由本卡 warm 环节预跑+1 条已暖；其余 19 条在进程历史中是否曾被命中未证——只读约束下拿不到查询历史）；均为进程未重启口径；真冷启=重启后首查，不在本卡只读范围"
   concurrency: 1
   timezone: "PDT (America/Los_Angeles)"
   seed: "rag-queries.txt sha256=4dd05b33342dfdcad3ddaa4de89834592fa45631b451b404b2f26676c91e2afa（evidence-rslo/rag-queries.txt；20 条互异串=live 节点×14 + 原白板×6 文件名）"
   repeats: {http_metrics: 20, review_rebuild: 5}
   statistic: "p50 = statistics.median(xs)；p95 = statistics.quantiles(xs, n=20)[18]（Python 3.14 statistics；review_rebuild 项 n=5 用同一公式）"
-  adjudicator: null
+  adjudicator: "Heishing（用户本人；2026-09-20「R-SLO 授权锁版」+ 逐项裁定）"
 metrics:
   - id: review_overview_first_paint
     metric: "review_overview_first_paint_p95_ms"
     unit: "ms"
     description: "GET /api/v1/review/overview/page 服务端首屏整页返回耗时（内联 HTML；body=30187B 非空锚）"
     threshold:
-      locked: null
+      locked: "p95 ≤ 500ms"
       candidate: "p95 ≤ 500ms"
-      threshold_source: "实测 p95=39.1ms × ≈12.8 余量（本地服务端渲染页；本卡起草，待用户锁版）"
+      threshold_source: "实测 p95=39.1ms × ≈12.8 余量（本地服务端渲染页；本卡起草，2026-09-20 用户锁版照准）"
     method:
       command: 'B=http://127.0.0.1:8011/api/v1; for i in $(seq 20); do curl -s -o /dev/null -m 60 -w "%{http_code} %{time_total} %{size_download}\n" "$B/review/overview/page"; sleep 0.2; done'
       repeat: 20
@@ -62,16 +62,16 @@ metrics:
       n: 20
       at: "2026-09-19T17:11:24-07:00"
       evidence: "measure-review_overview_first_paint-20260919T171124.txt"
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "G6-11（复习链性能面在其环境正式测）；R-J0x 消费本 revision"
   - id: rag_query_warm
     metric: "rag_query_warm_p95_ms"
     unit: "ms"
     description: "POST /api/v1/rag/query 同一查询串重复 20 次的端到端耗时（warm=同串重复口径）"
     threshold:
-      locked: null
+      locked: "p95 ≤ 5000ms"
       candidate: "p95 ≤ 5000ms"
-      threshold_source: "实测 p95=1866.5ms × ≈2.7 余量（RAG 检索含 rerank；本卡起草，待用户锁版）"
+      threshold_source: "实测 p95=1866.5ms × ≈2.7 余量（RAG 检索含 rerank；本卡起草，2026-09-20 用户锁版照准）"
     method:
       command: 'B=http://127.0.0.1:8011/api/v1; Q=$(head -1 "$EV/rag-queries.txt"); VID=<live vault_id>; for i in $(seq 20); do curl -s -o /dev/null -m 120 -w "%{http_code} %{time_total} %{size_download}\n" -H "Content-Type: application/json" -X POST "$B/rag/query" -d "{\"query\":\"$Q\",\"vault_id\":\"$VID\"}"; sleep 0.2; done'
       repeat: 20
@@ -85,7 +85,7 @@ metrics:
       n: 20
       at: "2026-09-19T17:11:44-07:00"
       evidence: "measure-rag_warm-20260919T171144.txt"
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "G4-14（gold-set 指标在其指定环境正式测）；R-J0x 消费本 revision"
   - id: rag_query_cold
     metric: "rag_query_cold_p95_ms"
@@ -109,16 +109,16 @@ metrics:
       at: "2026-09-19T17:12:26-07:00"
       reason: "20 条互异串各一次的第 4 条 120s 超时（curl -m 120 → http_code=000、120.0037s；样本不剔除）；其余 19/20=200（p50≈3.29s、p95≈5.36s，仅作描述不给结论）；同串复打一次 1.67s 通过（probe-cold4-replay-20260919T171547.txt）⇒ 瞬态挂起。按规则（任一非 200 ⇒ 整项 not_measured）整项 not_measured。"
       evidence: "measure-rag_cold-20260919T171226.txt"
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "G4-14（gold-set 环境复测并定 candidate）；R-J0x 消费本 revision"
   - id: kg_read
     metric: "kg_read_p95_ms"
     unit: "ms"
     description: "GET /api/v1/health/knowledge-graph 图统计只读快照耗时（8011 → 7691 只读路径）"
     threshold:
-      locked: null
+      locked: "p95 ≤ 500ms"
       candidate: "p95 ≤ 500ms"
-      threshold_source: "实测 p95=27.1ms × ≈18 余量（只读统计快照；本卡起草，待用户锁版）"
+      threshold_source: "实测 p95=27.1ms × ≈18 余量（只读统计快照；本卡起草，2026-09-20 用户锁版照准）"
     method:
       command: 'B=http://127.0.0.1:8011/api/v1; for i in $(seq 20); do curl -s -o /dev/null -m 30 -w "%{http_code} %{time_total} %{size_download}\n" "$B/health/knowledge-graph"; sleep 0.2; done'
       repeat: 20
@@ -132,16 +132,16 @@ metrics:
       n: 20
       at: "2026-09-19T17:11:34-07:00"
       evidence: "measure-kg_read-20260919T171134.txt"
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "G6-11（万节点量级复测）；R-J0x 消费本 revision"
   - id: review_rebuild
     metric: "review_rebuild_p95_s"
     unit: "s"
     description: "scripts/daily_review_pick.py --write 在 live vault 的 tmp rsync 副本上整次重建耗时（写只落副本；live outputs/今日复习.json 前后 shasum 同）"
     threshold:
-      locked: null
+      locked: "p95 ≤ 30s"
       candidate: "p95 ≤ 30s"
-      threshold_source: "实测 p95=0.05s × ≈600 余量（先例宽松起草，待用户锁版收紧/放宽）"
+      threshold_source: "实测 p95=0.05s × ≈600 余量（先例宽松起草，2026-09-20 用户锁版照准（后续 by 用户/新 revision 收紧或放宽））"
     method:
       command: 'TMP=<tmp>; rsync -a --exclude ".obsidian/plugins" <live>/ "$TMP/vaults/canvas-vault/"; (cd backend && for i in 1 2 3 4 5; do /usr/bin/time -p .venv/bin/python ../scripts/daily_review_pick.py --vault "$TMP/vaults/canvas-vault" --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --write; done)'
       repeat: 5
@@ -155,7 +155,7 @@ metrics:
       n: 5
       at: "2026-09-19T17:15:56-07:00"
       evidence: "measure-review_rebuild-20260919T171556.txt"
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "G6-11（复习链性能面在其环境正式测）；R-J0x 消费本 revision"
   - id: first_index
     metric: "first_index_seconds"
@@ -179,7 +179,7 @@ metrics:
       at: null
       reason: "需写 LanceDB（LANCEDB_DATA_PATH 隔离 + 独立进程），归 G2-10 千笔记 fixture；本卡现网只读约束下不可测，禁填估计值。"
       evidence: null
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "G2-10（千笔记 fixture 首测并起草 candidate）；R-J0x 消费本 revision"
   - id: graphiti_ack
     metric: "graphiti_ack_ms"
@@ -203,7 +203,7 @@ metrics:
       at: null
       reason: "需 POST /memory/episodes 写 7691，归 G4-14 在 7692；本卡现网只读约束下不可测，禁填估计值。"
       evidence: null
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "G4-14（在 7692 正式测并起草 candidate）；R-J0x 消费本 revision"
   - id: graphiti_replay
     metric: "graphiti_replay_s"
@@ -227,7 +227,7 @@ metrics:
       at: null
       reason: "需 POST /traces/replay-fallbacks（T6-B）写 7691，归 R-J10 / 恢复演练在 7692；本卡现网只读约束下不可测，禁填估计值。"
       evidence: null
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "R-J10（恢复演练在 7692 正式测并起草 candidate）；R-J0x 消费本 revision"
   - id: recovery_time
     metric: "recovery_time_s"
@@ -251,7 +251,7 @@ metrics:
       at: null
       reason: "需重启 backend，归 R-J10 恢复演练；本卡现网只读约束下不可测，禁填估计值。"
       evidence: null
-    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。锁版后：locked 阈值即发布判据（无候选、locked=null 项维护为 not_measured+owner，新 revision 起草前不计判据）。"
     owner_consumer: "R-J10（恢复演练正式测并起草 candidate）；R-J0x 消费本 revision"
 export_shape:
   target: "J manifest 的 slo.measurements[]（manifest.schema.json :475-530；required 五键 = metric/threshold/measured/method/meets；additionalProperties:false，另有可选 unit/waiver）"

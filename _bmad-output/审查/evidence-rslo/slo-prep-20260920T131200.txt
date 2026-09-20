@@ -1,0 +1,40 @@
+### 锁版前置（A5-prep）车道只读复核 CARD-R-SLO（生成于 P1 commit 后）2026-09-20T13:16-0700
+HEAD=090dc4b57ad3ac43cd9ac28beaedc93c4db2610e branch=card/p10-docs dirty_lines=1
+
+--- (1) validate_release_manifest.py --all ---
+✅ PASS docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0
+
+--- (2) rev-check: revision↔yaml + metric⊆yaml ---
+rev_check=OK slo-manifest@2026-09-19-r1 9
+rc=0
+
+--- (3) yaml 自检（draft 面不动） ---
+yaml_ok metrics=9 measured=4 not_measured=5 status=draft revision=slo-manifest@2026-09-19-r1
+rc=0
+
+--- (4) README 反链计数（P1 后重测） ---
+grep -c 'slo-manifest.yaml' README = 3
+occurrences = 5
+
+--- (5) README 累计纯新增（PREV=a03f0ce3 .. HEAD） ---
+13	0	docs/release-evidence/README.md
+README '-' 行数（非 --- 头） = 0
+
+--- (6) schema 指纹（两值须逐字同） ---
+4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f940327922c547
+SCHEMA_SHA256 = "4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f940327922c547"
+
+--- (7) 地盘面文件名（排除 _bmad-output） ---
+docs/release-evidence/README.md
+docs/release-evidence/slo-manifest.yaml
+
+--- (8) v2 汇总档 sha 与 .py 面 ---
+f953de63b7ed5a2cd85fc5a674e328f2226dd0d752fa2afb9978929583f22587  _bmad-output/审查/evidence-rslo/measure-stats-summary-v2-20260920T131200.txt
+py 面改动数 = 0
+
+--- (9) 工作树状态（此时应为仅本存档未跟踪） ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-rslo/slo-prep-20260920T131200.txt"
+rc=0

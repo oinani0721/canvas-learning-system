@@ -3,15 +3,15 @@
 > **批次**：`[BATCH-2026-09-18-第十五批 / CARD-R-SLO]` · 车道 `card-p10-docs`（分支 `card/p10-docs`），本车道第 **3/3** 张（末张）
 > **`<PREV>`**（P10-B CARD-R-RC 末 commit）：`a03f0ce3`（`a03f0ce34de9a9c4652310d45eae283f78d11451`）
 > **最终代码 SHA**：`a03f0ce34de9a9c4652310d45eae283f78d11451`（本卡零代码：commit A/B 只改 `docs/release-evidence/` 与 `_bmad-output/`；代码面 SHA 恒等于 P10-B 末 commit）
-> **commit 数**：5（A = yaml + README + 本验收单 + evidence-rslo；A2 = 首轮整改；A3 = 次轮整改；A4 = 三轮整改（负控 3 输入侧证据 + 指针/澄清）；B = 负控 + Codex 存档 + 收工裁判；若用户当次锁版另有 C）
-> **Codex 轮次**：r1（绑 A）：0B/4H/1M/1L ⇒ 整改（A2）；r2（绑 A2）：0B/1H/1M/1L ⇒ 整改（A3）；r3（绑 A3）：0B/1H/1M/1L ⇒ 整改（A4）；**r4（绑 A4）：0B/0H/0M/2L ⇒ 通过**（L1→台账 #10；L2→§6 evidence index；绑定核在 B 后 = 非 `_bmad-output` 面空 diff）。
-> **签字**：⛔「R-SLO 授权锁版」未发生 ⇒ `status: draft` + SKIP 登记（§12）
+> **commit 数**：A/B 5（A = yaml + README + 本验收单 + evidence-rslo；A2/A3/A4 = 三轮整改；B = 负控 + Codex 存档 + 收工裁判） + 补审归档 1（`b0ac7192`） + 锁版前置 6（`090dc4b5`→`67d0555c`→`29d578e5`→`9ed914e5`→`f01dc9a3`→`7f6dfeb8`） + r5 整改 1（`e90fc46c`） + r6 整改 1（`4f80542f`） + r7 收口 1（`d0e8b989`） + 锁版 1（`08cf6bf7`） + 锁版存档 1（`f27531a9`） + r8 整改 1（`90b8db84`） + r9 收口 1（`aa72d7ba`） + r9 记录补录 1（紧随其后）**；若用户当次锁版另有 C —— 当前 HEAD 以 `git rev-parse HEAD` 为准。
+> **Codex 轮次**：r1（绑 A）：0B/4H/1M/1L ⇒ 整改（A2）；r2（绑 A2）：0B/1H/1M/1L ⇒ 整改（A3）；r3（绑 A3）：0B/1H/1M/1L ⇒ 整改（A4）；**r4（绑 A4）：0B/0H/0M/2L ⇒ 通过**（L1→台账 #10；L2→§6 evidence index；绑定核在 B 后 = 非 `_bmad-output` 面空 diff）；r5（绑 `7f6dfeb8`）：0B/0H/2M/1L ⇒ 整改（勘误+脱敏+元数据）；**r6（绑 `e90fc46c`）：0B/0H/0M/2L ⇒ 整改（L1 措辞收窄 + L2 顶部元数据补全）**。另：ZCode/GLM-5.3 通道（绑 `e4ef1ebf`）：0B/0H/0M/3L（已随锁版前置处置，见 §14）。 r7（绑 `4f80542f`）：0B/0H/0M/0L ⇒ 锁版前置面收口；**r8（绑 `f27531a9`，锁版轮）：0B/2H/1M/3L ⇒ 整改（§15 补录 + 过期陈述更新 + degrade_rule 勘误 + 腿输入存档）；**r9（绑 `90b8db84`）：0B/0H/0M/0L ⇒ 锁版面收口（交主 session）**。
+> **签字**：✅ 2026-09-20 用户口令「R-SLO 授权锁版」+ 9 项逐项裁定（含 5 项 not_measured owner 分派）⇒ `status: locked` / `revision: slo-manifest@2026-09-20-r2`（§12 已签 / §15 锁版记录）
 
 ---
 
 ## 0 一句话
 
-整批 J manifest 卡在 E2 的那块拼图落成单文件 `docs/release-evidence/slo-manifest.yaml`：9 项指标、每项可复跑命令、**4 项现网只读实测**（首屏 / RAG warm / kg 读 / 复习重建）、1 项因样本含超时如实 `not_measured`（cold）、4 项写侧只读不可测项如实 `not_measured` + 指定 owner 卡；README 补 `slo.manifest_revision` 反向引用段与锁版规则，并加一条「S9 不查 draft/locked」的已知边界。阈值全部是 `candidate`（draft），等用户口令锁版。
+整批 J manifest 卡在 E2 的那块拼图落成单文件 `docs/release-evidence/slo-manifest.yaml`：9 项指标、每项可复跑命令、**4 项现网只读实测**（首屏 / RAG warm / kg 读 / 复习重建）、1 项因样本含超时如实 `not_measured`（cold）、4 项写侧只读不可测项如实 `not_measured` + 指定 owner 卡；README 补 `slo.manifest_revision` 反向引用段与锁版规则，并加一条「S9 不查 draft/locked」的已知边界。阈值：4 项 measured 已由用户 2026-09-20 锁版照准（`threshold.locked`，revision `slo-manifest@2026-09-20-r2`），5 项无候选保持 `null`（not_measured + owner 卡）；锁版记录见 §15。
 
 ---
 
@@ -103,12 +103,12 @@ README 改动 = **纯新增**（`-` 行数 = 0）。
 
 ## 5 结构判据 (f) / 消费契约门 (g) / 套件 (i)
 
-### (f)（权威组：`yaml-check-20260919T211540.txt` / `rev-check-post-20260919T211540.txt`（A3 轮重跑，r3 复核通过）；过程档 `f12-struct-…171903` / `yaml-check-…202309` / `rev-check-post-…171908`）
+### (f)（权威组：`yaml-check-20260919T211540.txt` / `rev-check-post-20260919T211540.txt`（A3 轮重跑，r3 复核通过）；过程档 `f12-struct-…171903` / `yaml-check-…202309` / `rev-check-post-…171908`）。⚠️ 落地时机（ZCode LOW-2 补注）：本行 211540 组随 **commit B（`c2b1fac3`）** 入库。
 
 | # | 判据 | 结果 |
 |---|---|---|
 | ① | `test -e …/slo-manifest.yaml` | `rc 1 → 0` ✅ |
-| ② | `grep -c 'slo-manifest.yaml' README` | `0 → 2`（≥1）✅ |
+| ② | `grep -c 'slo-manifest.yaml' README` | `0 → 2`（A 期）；**锁版前置重测 2026-09-20：行计数 3、出现 5 次**（≥1 满足；ZCode 记 4 为计数口径差异）✅ |
 | ③ | revision 对照脚本 | `rev_check=OK slo-manifest@2026-09-19-r1 9`（rc=0）；**验伪锚**：tmp revision 改 `…1999-01-01-r9` → 红在 `('revision 不在 yaml', …)`（rc=1）；还原后 rc=0 ✅ |
 | ④ | yaml 自检 | `yaml_ok metrics=9 measured=4 not_measured=5 status=draft`；**验伪锚**：删一条 `reason` 再跑 → 红（`AssertionError: rag_query_cold`）✅ |
 | ⑤ | schema 指纹 | `shasum` 与校验器 `SCHEMA_SHA256` 两值逐字同 `4456e1ad…c547` ✅ |
@@ -157,7 +157,7 @@ README 改动 = **纯新增**（`-` 行数 = 0）。
 
 ---
 
-## 7 脱敏与只读门 (m)（权威组：`desens-final-20260919T211549.txt`（A3 轮）；过程档 `desens-final-20260919T202600.txt`；`neo4j-ro-20260919T202618.txt`）
+## 7 脱敏与只读门 (m)（权威组：`desens-final-20260919T211549.txt`（A3 轮）；过程档 `desens-final-20260919T202600.txt`；`neo4j-ro-20260919T202618.txt`）。⚠️ 落地时机（ZCode LOW-2 补注）：211549 组随 **commit B（`c2b1fac3`）** 入库。
 
 | 判据 | 实测 |
 |---|---|
@@ -168,6 +168,8 @@ README 改动 = **纯新增**（`-` 行数 = 0）。
 | live outputs before/after | 逐字同 `105f563c…` ✅ |
 | `measure-*.txt` 内写端点字样 | `0`（写端点一个未打）✅ |
 | 7691 触达 | 全部经 8011 只读 GET；白名单直连语句**未使用**（存档贴语句原文与 `READ_ACCESS` 形态）；7687 未触达 / 7692 未用 ✅ |
+
+> 补充（r5 M2 脱敏登记）：新增取证档 `code-sha-runtime-tree-20260920T131615.txt` 含 bind 源宿主绝对路径（原始档保留、复核用途）；**消费面以 `code-sha-runtime-tree-erratum-20260920T133330.txt` 的 redacted 表示为准**。README/yaml 面 `/Users/` 命中仍 = 0（两文件不变）。
 
 ---
 
@@ -230,12 +232,12 @@ README 改动 = **纯新增**（`-` 行数 = 0）。
 
 ---
 
-## 10 本卡未证明什么（≥4）
+## 10 本卡未证明什么（≥4；as-of `d0e8b989`——锁版后条目 1/4/12 已更新，其余仍适用）
 
-1. **未证明任何阈值「合理」**——9 项阈值全是 `candidate` 起草值；锁版前没有一项是「生产力标准」，用户可逐项改。
+1. **未证明任何阈值「合理」**（锁版 ≠ 证明合理）——4 项 `threshold.locked` 是用户 2026-09-20 照准的起草值（实测×余量，单机单时段证据）；5 项无候选（not_measured）；用户可经新 revision 逐项改。
 2. **写侧四项未实测**——首次索引 / Graphiti ACK / replay / 恢复时间只给了在指定环境（G2-10 / 7692 / R-J10）可复跑的命令与 owner 卡，`not_measured`，⛔ 未填估计值。
 3. **RAG「cold」是「进程未重启的首见串」口径**——未证明进程冷启动后的真实首查延迟（现网禁重启）；且本次 cold 因 1 次超时整体 `not_measured`，连该口径的结论也未成立。
-4. **单机 / 单时段 / 并发 1 / n=20（重建 n=5）**——不证明跨机、跨日、并发下的分布；也不证明「8011 当时运转的代码树 = 本车道树」（`code_sha: null`，主 session 未公布）。
+4. **单机 / 单时段 / 并发 1 / n=20（重建 n=5）**——不证明跨机、跨日、并发下的分布；也不证明「8011 当时运转的代码树 = 本车道树」（`code_sha` 已随 r2 绑为 `9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680`——绑定为取证件收窄口径，同进程连续性未证；见 §15）。
 5. **`/rag/query` 的 service 层写点未审、且未做 live vault 全量跑前/跑后 SHA**——端点文件内无写点已核；service 层是否记录查询/学习事件未审（若有，本卡 40 次官方查询 + 2 次探针查询已在现网留痕），移交 G4-14 或 P8 census；「只读」目前只到发起命令面 + outputs 锚点（README 已同步收窄措辞）。
 6. **README 锁版规则没有机器门**——校验器 S9 只查非 null、不查 draft/locked 与 revision 存在性；靠 G1-6 审计链与 R-J0x 人工核。
 7. **重建耗时在 tmp 副本上测得**——未证明等于 live 目录上的耗时（磁盘/缓存位置不同）。
@@ -243,21 +245,27 @@ README 改动 = **纯新增**（`-` 行数 = 0）。
 9. **导出纪律无全量机器门**——`not_measured ⇒ meets=false` 与「9 项全导出」只是纪律：S9 在 `meets=true` 时直接放行、且只要求 ≥1 条测量；负控段 3 已把该未被拦下的输入落档（README 已知边界同登）。
 10. **cold 的唯一一次 120s 超时未定位到根因**——复打通过仅说明当时呈瞬态；其触发条件（并发/负载/特定串）未证明。
 11. **README 既有行（「三步操作」第 2 步）句面残留**——r3 L-R3-1：该句「至少一条实测」易被读成机器门；受本卡「纯新增（`-` 行数=0）」硬约束不可删改，已在本卡新增 bullet 内澄清并登记台账（批级统一句面修订项）。
+12. **锁版前置（2026-09-20）只清复核 LOW 与文档口径**——不新增任何实测、不改任何 candidate/measured 数字；5 项 not_measured 依旧未测。**后续（同日）已执行锁版：4 项 `threshold.locked` + r2（见 §15）。**
 
 ---
 
-## 11 台账待登记条目（≥4）
+## 11 台账待登记条目（≥4；条目 1/2/7 已更新至锁版后，其余为 as-of `d0e8b989`）
 
-1. `docs/release-evidence/slo-manifest.yaml`：`revision=slo-manifest@2026-09-19-r1`、`status=draft`、9 指标（4 measured / 5 not_measured）+ 每项 p95（首屏 39.1ms、warm 1866.5ms、kg 27.1ms、重建 0.05s）——供 G8-8 / G2-10 / G4-14 / G6-11 / R-J0x 引用。
-2. **锁版授权状态**：「R-SLO 授权锁版」**未发生** ⇒ 全批 J manifest 只能引用 draft revision ⇒ **E3 不可达**——批级事实，须写进第十五批复核裁定。
+1. `docs/release-evidence/slo-manifest.yaml`：**`revision=slo-manifest@2026-09-20-r2`、`status=locked`**（2026-09-20 用户锁版；此前 r1=draft）、9 指标（4 measured / 5 not_measured，**4×`threshold.locked` / 5×null**）+ 每项 p95（首屏 39.1ms、warm 1866.5ms、kg 27.1ms、重建 0.05s）——供 G8-8 / G2-10 / G4-14 / G6-11 / R-J0x 引用（E3+ 现可引用）。
+2. **锁版授权状态**：**已发生（2026-09-20）**（口令 + 9 项逐项裁定 + code_sha 裁定，原文见 §15）⇒ 全批 J manifest 可引用 `slo-manifest@2026-09-20-r2`（locked）⇒ **E3 引用可行**；写侧 5 项仍按 not_measured+waiver 链（S9 不变）。
 3. 写侧四项 owner 回填：G2-10（首次索引）/ G4-14（ACK 在 7692）/ R-J10（replay + 恢复时间），并在总账对应卡「做什么」里回填「复用 R-SLO 条目 id」；cold 复测亦归 G4-14。
 4. 清单更正：`manifest.schema.json` 与 J08 示例件**零改动**；「查询 7691 只读」收窄为「经 8011 GET 或白名单两条 `execute_read`（本卡实际未用直连）」。
 5. `/rag/query` service 层写点未审 → 移交 G4-14 或 P8 census（本卡 42 次查询已在现网留痕，如 service 层记账则含本次）。
 6. README 行号漂移实测表（本单 §1）并入台账备注；「S9 不查 draft/locked」的已知边界已写进 README。
-7. Codex 1 轮（glm-5.3 max）存档路径、绑定 SHA（commit A）、B/H/M/L 计数。
+7. Codex 轮次（glm-5.3 max）r1–r8 + ZCode 通道 rc：存档路径/绑定 SHA/计数见 §14（r1–r7）与 §15（r8 锁版轮）；r9 为本整改的复核轮。
 8. 卡文偏差表（本单 §9 共 10 条）需主 session 知悉；测时窗口与门跑之间的 3 小时墙钟间隔一并登记备查。
 9. README「三步操作」第 2 步既有句「至少一条实测」（受「纯新增」约束本卡未改）——批级统一句面修订时与 R-EVD 原文一并处理（r3 L-R3-1）。
-10. r4 L1：README `:198` 概括写侧为「可复跑命令」略强于 yaml `method sketch` 事实——批级统一句面 / owner 卡清单时改称「method sketch，owner 补实例与实参后复跑」（本卡不改既有行）。
+10. r4 L1：README `:198` 概括写侧为「可复跑命令」略强于 yaml `method sketch` 事实——**锁版前置已就地改**（该句属本卡新增 bullet，非既有行）：改称「method sketch（owner 补实例/实参后复跑）」。
+11. ZCode LOW-1 处置：README 既有行「校验器不做数值比较」与 S9 数值交叉核对并存的歧义——既有行不改（纯新增约束），已在 `## 已知边界` 新增并存口径澄清条；批级统一句面修订时再处理既有行。
+12. ZCode LOW-2 处置：§5/§7 权威组补「随 commit B（`c2b1fac3`）入库」；§5 (f)② 终版重测计数（行 3 / 出现 5）；§6 A4 evidence index 随 commit B 落地。
+13. ZCode LOW-3 处置：新增 `evidence-rslo/measure-stats-summary-v2-20260920T131200.txt`（同批原始样本重算 + 5 个 raw_sha256；cold 描述统计限 19 条 200 样本、全样本 max=120.0037 单列）；v1 原档保留不改。
+14. **`code_sha` 公布请求（锁版前置；2026-09-20 已只读取证）**：总 goal 要求锁版时 `code_sha` 非 null；卡文 §一(c) 规定该字段 = 主 session 公布的「8011 进程代码树 SHA」。**取证已补齐**（存档 `evidence-rslo/code-sha-runtime-tree-20260920T131615.txt`）：docker inspect 实证 8011 = FE 树（`feature-obsidian-hybrid-dev`）`backend/` 的 live bind（镜像 `feature-obsidian-hybrid-dev-backend` digest `sha256:64aecd97…` 被 bind 遮蔽、不作代码身份）；FE 树 `67d66672..HEAD` **0 个 commit 触达 `backend`/`src`**，`tree(HEAD:backend) == tree(9c4e7e82:backend) == a5cd759a…` ⇒ **tracked backend 树**口径下，8011 所服务 `backend` == 批次代码面 `9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680` 的 `backend`（tree `a5cd759a…`；车道侧 `git cat-file -t` = commit ✓）；窗口内各次 8011 探测均 200/健康、**未做连续 uptime 监控**（同进程/无重启连续性未证；r5 M1 / r6 L1）；唯一 **tracked** backend/src 脏文件 = 测试 fixture（mtime 2026-08-19、非运行时面），ignored 运行时面（`.env`/`.hypothesis`/`data/*` 等，含 `llm_call_logs.db` 窗口内 17:15 变动）不入 code_sha 口径；重建项仅 `scripts/daily_review_pick.py` blob 等同（`2d6c745a…`），本车道整棵 backend tree ≠ 代码面（r5 M1）。**候选绑定值 = `9c4e7e82f2c8…`（语义收窄详见 `code-sha-runtime-tree-erratum-20260920T133330.txt`）；待主 session 公布/用户裁定后由车道绑入**，未公布前维持 null + 理由（禁估计值/禁拿本车道树冒名）。**已裁定（2026-09-20）：用户采用候选值 → 锁版 commit 已绑入（见 §15）。**
+15. **JEV 复核待重跑（绑最终 HEAD；2026-09-20 机制核实）**：`evidence-rslo/jev-triage-R-SLO-e4ef1ebf.json` 的 `code_files`/`files`/`usage` 全空。机制：`scripts/jev_review_triage.py` 默认 pathspec = `*.py/*.ts/*.tsx/*.sh/*.js`（代码扩展名）——**本卡零代码 ⇒ 默认跑法必然 0 文件 0 调用（PARTIAL）**，不得据此无限重跑。锁版 commit 后建议双跑并存档：(a) 标准 wrapper `bash ~/.b15b-drive/jev_triage.sh <final-HEAD> <outdir>`（协议 §6 原样，如实记 0 调用 = PARTIAL）；(b) 对实际交付面出分诊：`python3 scripts/jev_review_triage.py <final-HEAD> --out <outdir>/jev-triage-<short>.docs.json --pathspec docs/release-evidence --pathspec _bmad-output/验收单`（凭据名已就位：`~/.config/jev/env` 含 `TYPESAFE_API_KEY`（值不落盘）；`--help` 可用），使 `files/usage` 非空、B/H/M/L 口径可判。最终以主 session 对「零代码卡的 JEV 口径」裁定为准（本卡不自判）。 机制实证（2026-09-20）：`evidence-rslo/jev-triage-f01dc9a3.docs-prelock.json`（calls=1、usage 非空、verdict=REVIEW/test_or_docs）——**非门证据**，仅证 docs-pathspec 跑法可行；门证据须绑锁版 commit。
 
 ---
 
@@ -266,9 +274,10 @@ README 改动 = **纯新增**（`-` 行数 = 0）。
 > 口令：**「R-SLO 授权锁版」** + 逐项阈值裁定。
 > 授权后车道将：`threshold.locked` 逐项填实 → `status: locked` → `revision` 升 `r2` → `decision.locked_by/locked_at` 填实（带时区）→ commit C（+ Codex `-r2` 再送一轮绑最终 HEAD）。
 
-- ☐ 我同意以上阈值（可逐项批注修改）：________________________________
-- 签字（用户）：____________________　日期：________________
-- **未授权状态**：登记「**锁版 SKIP：等用户**」（本单随 commit A 入库时即为该状态）。
+- ✅ 已裁定并绑入（2026-09-20）：`code_sha` = `9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680`（用户裁定采用候选值；yaml `environment.code_sha` 已填，`code_sha_basis` 记依据；`git cat-file -t` = commit ✓）。
+- ☑ 我同意以上阈值（可逐项批注修改）：**全部照准**（2026-09-20 口令授权原文见 §15；无修改项）
+- 签字（用户）：Heishing　日期：2026-09-20
+- **授权状态**：2026-09-20 已授权（「R-SLO 授权锁版」+ 逐项裁定）⇒ 锁版已执行：`status: locked` / `revision: slo-manifest@2026-09-20-r2`（见 §15）。
 
 ---
 
@@ -278,3 +287,43 @@ README 改动 = **纯新增**（`-` 行数 = 0）。
 - 我在白板里问一个概念 → 第二次问同一个问题明显比第一次快 → 我感觉它记住了我刚问过什么。
 - 我看到一张表，上面写着「这些速度要多快才算合格」、每一项旁边有今天量出来的真实数字、还有一个空着的「我签字」位 → 我感觉标准是我定的，不是它自己说自己达标。
 - 有几项写着「今天没量、原因是……、以后在哪儿量」 → 我感觉它没糊弄我。
+
+---
+
+## 14 锁版前置（A5-prep，2026-09-20；**as-of `d0e8b989` 历史记录——已被 r2 锁版 superseded，见 §15**）
+
+> 状态（as-of `d0e8b989`）：当时 `status: draft`；本段只清复核遗留 LOW，不触发锁版。锁版已于 2026-09-20 完成（§15）。
+
+- 触发：Codex r4（绑 `e4ef1ebf`）0B/0H/0M/**2L** + ZCode/GLM-5.3（绑 `e4ef1ebf`）0B/0H/0M/**3L**；goal 门 = 绑最终 HEAD 的 B/H/M/L 全 0。
+- 处置（docs/evidence-only；yaml / schema / 校验器 / J08 零改动）：
+  1. r4 L1：README 本卡新增 bullet 内「可复跑命令」→「method sketch（owner 补实例/实参后复跑）」（新增行，非既有行）。
+  2. ZCode L1：README `## 已知边界` 新增一条并存口径澄清（纯新增；既有行不改）。
+  3. r4 L2 / ZCode L2：§5/§7 权威组补落地时机（commit B `c2b1fac3`）+ (f)② 终版重测计数；§6 已含 A4 evidence index。
+  4. ZCode L3：`evidence-rslo/measure-stats-summary-v2-20260920T131200.txt`（同批样本重算；cold 描述统计限 19 条 200、全样本 max=120.0037 单列）。
+- 复核：`validate_release_manifest.py --all` rc=0（1 份 J08）；rev-check 对照 `rev_check=OK slo-manifest@2026-09-19-r1 9`；README 纯新增（`-` 行 = 0）；schema 指纹未动。
+- 存档：`_bmad-output/审查/evidence-rslo/slo-prep-20260920T131200.txt`（本段全套命令输出）。
+- 追加（2026-09-20 13:16）：`code_sha` 运行时树只读取证 → `evidence-rslo/code-sha-runtime-tree-20260920T131615.txt`（§11.14 候选值）。
+- r5（绑 `7f6dfeb8`）：**0B/0H/2M/1L** ⇒ 本轮整改：①M1 → 新增收窄勘误档 `evidence-rslo/code-sha-runtime-tree-erratum-20260920T133330.txt`（容器连续性未证 / tracked 脏文件口径 / 重建项仅脚本 blob / ignored 面不入 code_sha）；②M2 → 脱敏补充（原始取证档保留绝对路径，消费面以 erratum 的 redacted 表示为准；§7 已登记）；③L1 → 本单顶部元数据更新；yaml `code_sha_null_reason` 于锁版 commit 按裁定改写（绑定 ⇒ 换绑定值+备注；维持 null ⇒ 理由改「候选已取证、待裁定」）。
+- r5 存档：`codex-review-CARD-R-SLO-r5.md` + prompt（随整改 commit 入库）。
+- r6（绑 `e90fc46c`）：**0B/0H/0M/2L** ⇒ 本轮整改：①L1 → 「窗口内 8011 连续可用」收窄为「各次探测均 200/健康；未做连续 uptime 监控；同进程连续性未证」（勘误档 + §11.14/§12 同步）；②L2 → 顶部元数据补全（含 `b0ac7192`；Codex 轮次补至 r5/r6）。
+- r6 存档：`codex-review-CARD-R-SLO-r6.md` + prompt（随整改 commit 入库）。
+- r7（绑 `4f80542f`）：**0B/0H/0M/0L** ⇒ 锁版前置面收口；后续只剩：用户口令/逐项裁定 + code_sha 裁定 → 锁版 commit → 锁版轮复核（目标同 0/0/0/0）。
+- r7 存档：`codex-review-CARD-R-SLO-r7.md` + prompt（随本 commit 入库）。
+
+---
+
+## 15 锁版记录（2026-09-20；用户口令节点完成；r8 复核后补录）
+
+> 补录说明（HIGH-1 处置）：首版锁版 commit（`08cf6bf7`）的 §15 追加脚本写错变量（写入未含 §15 的旧文本），§15 实际未落而 §12/顶部/存档已引用之；r8 复核（`codex-review-CARD-R-SLO-r8.md` HIGH-1）指出后，于 r8 整改 commit 补录本节。yaml 的 locked 对象不受影响（r8 已独立复核 4×locked/5×null、measured/method 与 draft 逐字一致）。
+
+- **授权原文**（用户，2026-09-20，逐字）：
+  > R-SLO 授权锁版。9 项 candidate 全部照准；5 项 not_measured owner 分派确认（③冷启 G4-14 复测 / ⑥首次索引 G2-10 / ⑦ACK G4-14 / ⑧replay R-J10 / ⑨恢复时间 R-J10）；code_sha 用候选值 9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680。
+- **逐项裁定对照**（①-⑨ = yaml 指标顺序 first_paint / warm / cold / kg / rebuild / first_index / ack / replay / recovery）：① ≤500ms 照准；② ≤5000ms 照准；③ 无候选（整项 not_measured；owner=G4-14 复测后以新 revision 起草）；④ ≤500ms 照准；⑤ ≤30s 照准；⑥ 无候选（owner=G2-10）；⑦ 无候选（owner=G4-14/7692）；⑧ 无候选（owner=R-J10）；⑨ 无候选（owner=R-J10）——9 项全部照准，含 5 项 owner 分派。统计量（p50 median + p95 quantiles(n=20)[18]、rebuild n=5 同式）、repeats 20/5、并发 1、时区 PDT 一并确认。
+- **code_sha 裁定**：采用候选值 `9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680`（`git cat-file -t`=commit；binding basis 见 yaml `code_sha_basis`；证据 `code-sha-runtime-tree-20260920T131615.txt` + 收窄勘误 `…-erratum-20260920T133330.txt`）。
+- **yaml 变更**（锁版 commit）：r1→r2；draft→locked；4×`threshold.locked` 填实（= 照准值）；5×`threshold.locked` 保持 null（⛔ 不填估计值）；`decision.locked_by/locked_at`、`environment.adjudicator` 填实；`environment.code_sha` 绑定 + `code_sha_null_reason`→`code_sha_basis`（null 条件消失）；`lane_sha` 更新为 `d0e8b989…`；4×`threshold_source` 与 9×`degrade_rule` 配套措辞更新（未改任何阈值数字/实测/统计量/导出映射）。
+- **r2 消费腿（绑 r2）**：legA（partial）rc=1/[S9]×5；legB（整体 fail）rc=0/[S9]×0——输入与 sha 见 `slo-lock-legs-inputs-20260920T141118.txt`（LOW-3 处置）。
+- **r8 复核与整改（锁版轮）**：r8 = 0B/**2H**/1M/3L ⇒ 本 commit 整改：① HIGH-1 → 本节补录；② HIGH-2 → §0/§10/§11/§14 过期活动陈述更新或 as-of 标注；③ MEDIUM-1 → `degrade_rule` 口径勘误档 `slo-lock-20260920T140356-erratum-degrade-rule-20260920T141118.txt`（按 r8 建议不改 locked 文案）；④ LOW-1 → README 版本化单文件例外句；⑤ LOW-2 → 顶部计数补至锁版存档 commit；⑥ LOW-3 → 腿输入档补齐。
+- **后续**：r9 复核本整改（绑本 commit 后 HEAD，目标 0/0/0/0）；通过后说「复核第十五批 P10」交主 session。
+- **r9 复核（绑 `90b8db84`）**：**0B/0H/0M/0L ⇒ 锁版面收口**（存档 `codex-review-CARD-R-SLO-r9.md`；随 `aa72d7ba` 入库）。
+- **JEV 双跑（绑锁版 commit `08cf6bf7`）**：wrapper（协议 §6 原样）0 调用 = PARTIAL（零代码卡机制必然，见 §11.15 机制档）；docs-pathspec 变体 2 文件 triage、usage 非空（`jev-triage-08cf6bf7.json` / `jev-triage-08cf6bf7.docs.json`）——两文件 risk=test_or_docs、REVIEW 标记（= 推荐人工复审；两文件已经 r1–r9 + ZCode 多轮人审），无缺陷级发现。
+- **交主 session**：说「复核第十五批 P10」；锁版面（`docs/release-evidence/`）已冻结——后续仅 `_bmad-output` 存档/记录 commit，`git diff 90b8db84..HEAD -- . ':(exclude)_bmad-output'` 为空。

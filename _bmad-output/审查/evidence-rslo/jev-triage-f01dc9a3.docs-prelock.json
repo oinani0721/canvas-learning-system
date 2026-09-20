@@ -1,0 +1,35 @@
+{
+  "commit": "docs(r-slo): 锁版前置——JEV 零代码卡口径登记（默认 pathspec 必空）[BATCH-2026-09-18-第十五批 / CARD-R-SLO]",
+  "ref": "f01dc9a3",
+  "sha": "f01dc9a34a379a948c580c5ad0a6ad1a615c1de4",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T13:18:19-0700",
+  "code_files": [
+    "\"_bmad-output/\\351\\252\\214\\346\\224\\266\\345\\215\\225/UAT-CARD-R-SLO-2026-09-19.md\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\351\\252\\214\\346\\224\\266\\345\\215\\225/UAT-CARD-R-SLO-2026-09-19.md\" \"b/_bmad-output/\\351\\252\\214\\346\\224\\266\\345\\215\\225/UAT-CARD-R-SLO-2026-09-19.md\"",
+      "added": 1,
+      "removed": 1,
+      "runtime": 0.03,
+      "risk": "test_or_docs",
+      "risk_conf": 0.92,
+      "urgency": 1.36,
+      "urgency_conf": 0.36,
+      "review": 0.63,
+      "test": 0.3,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 2230,
+    "output_tokens": 158
+  },
+  "latency_ms": {
+    "min": 296,
+    "median": 296,
+    "max": 296
+  }
+}

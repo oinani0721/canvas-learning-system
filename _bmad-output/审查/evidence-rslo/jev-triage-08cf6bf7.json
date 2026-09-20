@@ -1,0 +1,18 @@
+{
+  "commit": "docs(r-slo): 锁版 locked/r2——用户口令+逐项裁定+code_sha 绑定 [BATCH-2026-09-18-第十五批 / CARD-R-SLO]",
+  "ref": "08cf6bf7",
+  "sha": "08cf6bf7619b975f019ba110fbf133cde8129e4d",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T14:05:14-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

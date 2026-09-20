@@ -1,0 +1,32 @@
+### code_sha 运行时树取证 · 收窄勘误（r5 M1/M2 处置；不重写原档）20260920T133330 -0700
+绑定：r5 复核 `7f6dfeb8`（0B/0H/2M/1L）；本档 = 对 `code-sha-runtime-tree-20260920T131615.txt` 的收窄与脱敏补充。
+边界：docs/evidence-only；原档不改（证据不可变）；yaml 维持 `code_sha: null`（待主 session 公布/用户裁定）。
+
+--- (1) 收窄（r5 M1）：原档哪些表述超出证据 ---
+a) 容器连续性：不得读成「同进程无重启」。可证 = 批级存档 `docker-ps-open-20260919T165812.txt`（16:58 同名容器 healthy）+ 窗口内各次 8011 探测均 200/健康（未做连续 uptime 监控，见 r6 L1）；
+   未证 = 2026-09-19 17:11–17:16 PDT 窗口内后端进程无重启（现容器 `StartedAt=2026-09-20T20:14:13Z` 已被今日重启刷新，不能回填）。
+b) 脏文件口径：应为「唯一 **tracked** backend/src 脏文件 = backend/tests/fixtures/regression_baselines/board_manifest_last_run.json（mtime 2026-08-19）」；
+   ignored 面（backend/.env mtime 2026-08-02；backend/.hypothesis/**；__pycache__/**；backend/.coverage；backend/data/llm_call_logs.db mtime 2026-09-19 17:15 ← 窗口内变动）不纳入 code_sha 口径。
+   其中 llm_call_logs.db 的窗口内变动与 UAT §10 第 5 条「service 层副作用未审」的既有披露相符（测量可能在现网留下 LLM 调用日志；不在 live vault、不在 code_sha 语义内）。
+c) 重建项：仅 `scripts/daily_review_pick.py` 的 blob 与代码面相同（blob `2d6c745ad7468c6e529299da1a2af7d250c0e0aa`，两 ref 复算一致）；
+   不得表述为「本车道整棵 backend 代码面同为 9c4e7e82」——本车道 `7f6dfeb8:backend` tree = `78a352945f5d9627c667483fa9e224bdbef216e3`，
+   与 `9c4e7e82:backend` tree = `a5cd759a1f2d46737e337b87cefcf577a353c62c` 不同（差异恰为 P10-B 新增 `backend/scripts/freeze_release_candidate.py` + 对应单测；`scripts/` 面差 = 0）。
+d) 收窄后的候选语义：code_sha 候选 = `9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680`，含义 =「8011 运行时（FE 树 live bind）的 **tracked backend 树** == `9c4e7e82:backend`；窗口内各次 8011 探测均 200/健康、未做连续 uptime 监控（同进程连续性未证）；重建项仅脚本 blob 等同」。仍待主 session/用户裁定。
+
+--- (2) 脱敏补充（r5 M2）：绝对路径表示 ---
+原始 docker inspect 档（code-sha-runtime-tree-20260920T131615.txt）保留宿主绝对路径（bind 源；复核用途）。消费面（本档）redacted 表示：
+  bind <FE-worktree>/backend -> /app (rw)
+  bind <FE-worktree>/src -> /app/src (rw)
+  volume canvas-lancedb-data -> /lancedb (rw)
+  volume canvas-hf-cache -> /root/.cache/huggingface (rw)
+  bind <repo-root> -> /vaults (rw)
+（<FE-worktree> = feature-obsidian-hybrid-dev worktree；<repo-root> = 主仓根。README/yaml 面 `/Users/` 命中 = 0 不变。）
+
+--- (3) 复算记录（本次重跑，只读） ---
+tree(7f6dfeb8:backend)=78a352945f5d9627c667483fa9e224bdbef216e3
+tree(9c4e7e82:backend)=a5cd759a1f2d46737e337b87cefcf577a353c62c
+tree(FE HEAD 59e1f494:backend)=a5cd759a1f2d46737e337b87cefcf577a353c62c（== 代码面）
+blob(7f6dfeb8:scripts/daily_review_pick.py)=2d6c745ad7468c6e529299da1a2af7d250c0e0aa == blob(9c4e7e82:scripts/daily_review_pick.py)
+git diff --name-status 9c4e7e82 7f6dfeb8 -- backend → A backend/scripts/freeze_release_candidate.py；A backend/tests/unit/test_freeze_release_candidate.py
+git diff --name-only 9c4e7e82 7f6dfeb8 -- scripts → 0 个
+rc=0

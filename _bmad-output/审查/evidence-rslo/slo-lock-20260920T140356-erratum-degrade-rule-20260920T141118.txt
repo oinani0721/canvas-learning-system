@@ -1,0 +1,5 @@
+### degrade_rule「不计判据」口径勘误（r8 MEDIUM-1 处置；不改 locked r2 文案）20260920T141118 -0700
+背景：锁版 commit（08cf6bf7）中 9×degrade_rule 新句「…locked=null 项保持 not_measured+owner，新 revision 起草前不计判据」被 r8 判为与 S9/导出链存在字面歧义（MEDIUM-1）。按 r8 建议**不静默改 locked r2 文案**，以本勘误澄清消费口径。
+正确读法：locked=null 项**没有阈值比较依据**（不构成“达标与否”的数值判据），但导出时按 export_shape 写 threshold="(未定)" + measured="not_measured" + meets=false，**仍进入 S9 链**：整体 result≠fail 且无用户 waiver 时按未达标拦截；⛔ 不得读作“可忽略 / 可静默 pass”。
+实证：锁版存档 slo-lock-20260920T140356.txt:22-29（legA partial ⇒ rc=1/[S9]×5；legB result=fail ⇒ rc=0/0 条）；输入档 slo-lock-legs-inputs-20260920T141118.txt。
+rc=0

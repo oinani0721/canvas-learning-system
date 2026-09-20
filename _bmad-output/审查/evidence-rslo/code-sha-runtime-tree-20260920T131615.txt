@@ -1,0 +1,42 @@
+### code_sha 运行时树取证（只读）CARD-R-SLO 20260920T131615 -0700
+目的：为 yaml environment.code_sha 提供「8011 进程代码树」的可复核候选值；本卡不擅自绑定（等待主 session 公布/用户裁定）。
+边界：只读 docker inspect/ps + git 只读查询；未起停容器；未写 live；未连 7691/7687。
+
+--- (1) docker ps -a ---
+canvas-learning-system-backend | Up 2 minutes (healthy) | feature-obsidian-hybrid-dev-backend
+canvas-learning-system-neo4j-test | Up 2 minutes (healthy) | neo4j:5.26-community
+canvas-learning-system-neo4j | Up 2 minutes (healthy) | neo4j:5.26-community
+canvas-backend-worktree | Exited (137) 4 months ago | canvas-learning-system-backend:latest
+neo4j-canvas-graphiti | Exited (137) 4 months ago | neo4j:5.26-community
+neo4j-graphiti | Exited (137) 4 months ago | neo4j:5.26-community
+
+--- (2) backend 容器 inspect（选定字段） ---
+created=2026-08-31T05:50:31.246823959Z state=running started=2026-09-20T20:14:13.387560208Z image=sha256:64aecd97e4c0b116a338c0bfe3f741d192a3f41020fc5d82fb8832ef27c526f0
+bind /host_mnt/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/backend -> /app (rw)
+bind /host_mnt/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/src -> /app/src (rw)
+volume /var/lib/docker/volumes/canvas-lancedb-data/_data -> /lancedb (rw)
+volume /var/lib/docker/volumes/canvas-hf-cache/_data -> /root/.cache/huggingface (rw)
+bind /Users/Heishing/Desktop/canvas/canvas-learning-system -> /vaults (rw)
+
+
+--- (3) FE 树（8011 的 bind 源）事实 ---
+FE_HEAD=59e1f494cc9bdd1b11045c6c43ff93171edecdfd
+FE_reflog 锚点（与窗口相关）：61b85b5b @2026-09-19 16:58:36 -0700 → 06a11a46 @17:25:53 → 59e1f494 @17:39:13
+commits touching backend/src in 67d66672..HEAD = 0
+commits touching backend/src in 9c4e7e82..HEAD = 0
+tree(9c4e7e82:backend)=a5cd759a1f2d46737e337b87cefcf577a353c62c
+tree(HEAD:backend)    =a5cd759a1f2d46737e337b87cefcf577a353c62c
+9c4e7e82 full=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680   date=2026-09-17T22:20:52+08:00
+backend dirty files:
+ M backend/tests/fixtures/regression_baselines/board_manifest_last_run.json
+dirty fixture mtime: -rw-r--r--@ 1 Heishing  staff  143 Aug 19 09:53 backend/tests/fixtures/regression_baselines/board_manifest_last_run.json
+
+--- (4) 本车道侧校验 git cat-file -t（候选值存在性） ---
+git cat-file -t 9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680 => commit
+
+--- (5) 结论（候选，待主 session 裁定） ---
+8011 运行时 = FE 树 backend/ 的 live bind（docker inspect 实证）；其 tracked 内容在 67d66672..HEAD 全区间 0 commit 触达 backend/src，
+且 tree(HEAD:backend)==tree(9c4e7e82:backend)（a5cd759a1f2d46737e337b87cefcf577a353c62c）⇒ 测量窗口（2026-09-19 17:11–17:16 PDT）内所服务代码 = 批次代码面 9c4e7e82。
+唯一 backend 脏文件 = 测试 fixture（mtime 2026-08-19 09:53，早于窗口；非运行时面）。重建项所用脚本来自本车道树（零 .py 改动，代码面同为 9c4e7e82）。
+⇒ 建议绑定候选：code_sha = 9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680（主 session 公布或用户裁定后由车道绑入；未公布前维持 null+理由）。
+rc=0

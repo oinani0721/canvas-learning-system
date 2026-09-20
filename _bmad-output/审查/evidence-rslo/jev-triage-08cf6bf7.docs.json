@@ -1,0 +1,50 @@
+{
+  "commit": "docs(r-slo): 锁版 locked/r2——用户口令+逐项裁定+code_sha 绑定 [BATCH-2026-09-18-第十五批 / CARD-R-SLO]",
+  "ref": "08cf6bf7",
+  "sha": "08cf6bf7619b975f019ba110fbf133cde8129e4d",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T14:05:15-0700",
+  "code_files": [
+    "\"_bmad-output/\\351\\252\\214\\346\\224\\266\\345\\215\\225/UAT-CARD-R-SLO-2026-09-19.md\"",
+    "docs/release-evidence/slo-manifest.yaml"
+  ],
+  "files": [
+    {
+      "file": "docs/release-evidence/slo-manifest.yaml",
+      "added": 27,
+      "removed": 27,
+      "runtime": 0.05,
+      "risk": "test_or_docs",
+      "risk_conf": 0.84,
+      "urgency": 2.78,
+      "urgency_conf": 0.76,
+      "review": 0.8,
+      "test": 0.46,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "\"a/_bmad-output/\\351\\252\\214\\346\\224\\266\\345\\215\\225/UAT-CARD-R-SLO-2026-09-19.md\" \"b/_bmad-output/\\351\\252\\214\\346\\224\\266\\345\\215\\225/UAT-CARD-R-SLO-2026-09-19.md\"",
+      "added": 7,
+      "removed": 7,
+      "runtime": 0.03,
+      "risk": "test_or_docs",
+      "risk_conf": 0.94,
+      "urgency": 2.13,
+      "urgency_conf": 0.26,
+      "review": 0.63,
+      "test": 0.29,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 11514,
+    "output_tokens": 316
+  },
+  "latency_ms": {
+    "min": 324,
+    "median": 325,
+    "max": 325
+  }
+}

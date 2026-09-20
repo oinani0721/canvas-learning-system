@@ -1,0 +1,8 @@
+### r2 消费腿输入档（r8 LOW-3 处置）20260920T141118 -0700
+用途：锁版存档 slo-lock-20260920T140356.txt 的 legA/legB 可字节复现输入。
+生成命令（模板）：把 J08 示例 manifest 的 slo 置为 {manifest_revision: slo-manifest@2026-09-20-r2, measurements: 9 项五键导出（threshold=locked 或 (未定)；measured=p95=… 或 not_measured；meets=measured 状态；method=method.command）}；legB 另把 result 改 fail。
+sha256:
+27dbdd55a664574d206077b76a5b26f53d47b8b3d1f31cd41a3622d4664fe709  _bmad-output/审查/evidence-rslo/slo-lock-legA-input-20260920T141118.json
+68129a4800d9ba89b268f9e835241c6e16520530422f6945f931ec625cc5a1f9  _bmad-output/审查/evidence-rslo/slo-lock-legB-input-20260920T141118.json
+legA_rc/legB_rc：见 slo-lock-20260920T140356.txt:22-29（legA rc=1/S9×5；legB rc=0/S9×0）
+rc=0

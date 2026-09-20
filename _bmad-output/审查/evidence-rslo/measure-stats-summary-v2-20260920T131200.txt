@@ -1,0 +1,26 @@
+### 实测统计汇总 v2（CARD-R-SLO · 2026-09-20 13:12:00 PDT 重算版；从同一批原始样本重算，不剔除样本、不改原始档）
+（背景：v1 = measure-stats-summary-20260919T171634.txt。ZCode/GLM-5.3 复核 LOW-3 指出：v1 的 cold 段标注 `p95(quantiles n=20 [18])` 但实际计算集为 19 条 200 样本，单独读档可能误读；本 v2 只修正表头/口径标注，并把超时样本的 max 单列。cold 整项维持 not_measured。）
+--- review_overview_first_paint: measure-review_overview_first_paint-20260919T171124.txt ---
+rows=20 ok200=20 non200=[]
+raw_sha256=0748b1fa4562b2b43a7660cfda9dc73c07544ed815f7d563fcaf1f59c026161c
+统计量（对全部 200 样本，n=20）：p50=0.0099 p95(quantiles n=20 [18])=0.0391 max=0.0396
+--- rag_warm: measure-rag_warm-20260919T171144.txt ---
+rows=20 ok200=20 non200=[]
+raw_sha256=21e5b9ee464d23fbf711f353449af99a936e152ef219275ba24f947eaa19a6fc
+统计量（对全部 200 样本，n=20）：p50=1.6687 p95(quantiles n=20 [18])=1.8665 max=1.8702
+--- rag_cold: measure-rag_cold-20260919T171226.txt ---
+rows=20 ok200=19 non200=[('000', '120.003677')]
+raw_sha256=5052db191dcb60e21deaa43a6941c780becb376a9329be75cabc3b515aab2244
+统计量（仅对 19 条 200 样本做描述统计，不给结论）：p50=3.2870 p95(quantiles n=20 [18])=5.3628 max=5.3628
+全样本 max（含非 200）=120.0037  ← 非 200 样本保留、不剔除；整项按规则 not_measured
+--- kg_read: measure-kg_read-20260919T171134.txt ---
+rows=20 ok200=20 non200=[]
+raw_sha256=9dd7f170df8873eaf0326771b69e8823fc8e90a225b23bb891076df4800d8b9a
+统计量（对全部 200 样本，n=20）：p50=0.0036 p95(quantiles n=20 [18])=0.0271 max=0.0278
+--- review_rebuild: measure-review_rebuild-20260919T171556.txt ---
+n=5 raw=[0.05, 0.05, 0.05, 0.04, 0.04] run_rc=[0, 0, 0, 0, 0]
+raw_sha256=df98c686e91106e47e19fce0b821709b0437c3e2c44cb0cb1d34d9339b6d0350
+统计量（对全部 n=5）：p50=0.0500 p95(quantiles n=20 [18])=0.0500 max=0.0500
+--- live outputs before/after 逐字同 ---
+identical=YES
+rc=0

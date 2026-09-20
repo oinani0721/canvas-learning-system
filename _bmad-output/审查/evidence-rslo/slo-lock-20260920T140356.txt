@@ -1,0 +1,48 @@
+### 锁版执行与只读复核 CARD-R-SLO 20260920T140356 -0700
+授权：用户 2026-09-20「R-SLO 授权锁版」+ 9 项逐项裁定（原文见 UAT §15）；code_sha 裁定采用候选值。
+锁定 commit：08cf6bf7619b975f019ba110fbf133cde8129e4d（前序 d0e8b989a0d4753cc3337797c8b99ace6665ea76）
+yaml sha256（draft 末次 ca5a2d5e… → 锁定版见下）
+
+--- (1) yaml 锁定版 sha256 与 cat-file ---
+2ae5225ecd943d23fc8014c51035e444a97f7329f5085a2409f04550798e3006  docs/release-evidence/slo-manifest.yaml
+git cat-file -t 9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680 => commit
+
+--- (2) yaml 锁定自检 ---
+locked_ok metrics=9 measured=4 not_measured=5 locked=4/null=5 revision=slo-manifest@2026-09-20-r2 status=locked
+rc=0
+
+--- (3) rev_check（E3 引用可解：r2 ↔ yaml + metric⊆yaml） ---
+rev_check=OK slo-manifest@2026-09-20-r2 9
+rc=0
+
+--- (4) validator --all（仓库面） ---
+
+合计 1 份 manifest, 失败 0 份。
+
+--- (5) 消费契约腿（tmp J08 + r2 全 9 项五键导出） ---
+legA(partial)_rc=1 / S9数=5
+[S9] slo.measurements[2] (rag_query_cold_p95_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partia
+[S9] slo.measurements[5] (first_index_seconds) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 
+[S9] slo.measurements[6] (graphiti_ack_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户
+[S9] slo.measurements[7] (graphiti_replay_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无
+[S9] slo.measurements[8] (recovery_time_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户
+legB(fail)_rc=0 / S9数=0
+
+--- (6) 地盘门（PREV=a03f0ce3 → 锁定 HEAD，排除 _bmad-output） ---
+docs/release-evidence/README.md
+docs/release-evidence/slo-manifest.yaml
+README '-' 行数 = 0
+禁止面命中数 = 0
+
+--- (7) schema 指纹（两值须同） ---
+4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f940327922c547
+SCHEMA_SHA256 = "4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f940327922c547"
+
+--- (8) 脱敏门 ---
+yaml 内 /Users/ 命中 = 0
+faunabridge 敏感词命中 = 0
+NEO4J_PASSWORD 命中 = 0
+
+--- (9) 工作树状态（本档生成时） ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-rslo/slo-lock-20260920T140356.txt"
+rc=0
