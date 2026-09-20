@@ -1,0 +1,151 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 15 items
+
+tests/unit/test_pyright_tail_behavior.py FFF.F.F.FF.FF..                 [100%]
+
+=================================== FAILURES ===================================
+___________ test_resolve_intent_model_uses_configured_scoring_model ____________
+tests/unit/test_pyright_tail_behavior.py:61: in test_resolve_intent_model_uses_configured_scoring_model
+    from app.services.agent_routing_engine import _resolve_intent_model
+E   ImportError: cannot import name '_resolve_intent_model' from 'app.services.agent_routing_engine' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/services/agent_routing_engine.py)
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "[Story 1.3] Runtime model config updated \u2014 chat=none, scoring=none", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-18T12:01:34.016352Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.core.litellm_config:litellm_config.py:129 [Story 1.3] Runtime model config updated — chat=none, scoring=none
+_____________ test_resolve_intent_model_falls_back_without_config ______________
+tests/unit/test_pyright_tail_behavior.py:81: in test_resolve_intent_model_falls_back_without_config
+    from app.services.agent_routing_engine import (
+E   ImportError: cannot import name '_INTENT_FALLBACK_MODEL' from 'app.services.agent_routing_engine' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/services/agent_routing_engine.py)
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "[Story 1.3] Runtime model config updated \u2014 chat=none, scoring=none", "logger": "app.core.litellm_config", "level": "info", "timestamp": "2026-09-18T12:01:34.024122Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.core.litellm_config:litellm_config.py:129 [Story 1.3] Runtime model config updated — chat=none, scoring=none
+________ test_resolve_path_returns_vault_relative_path_for_nested_note _________
+tests/unit/test_pyright_tail_behavior.py:120: in test_resolve_path_returns_vault_relative_path_for_nested_note
+    assert svc._resolve_path("note") == "sub/note.md"
+E   AssertionError: assert 'note.md' == 'sub/note.md'
+E     
+E     - sub/note.md
+E     ? ----
+E     + note.md
+----------------------------- Captured stdout call -----------------------------
+{"vault_path": "/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-449/test_resolve_path_returns_vaul0/vault", "total_nodes": 2, "total_edges": 1, "graph_build_time_ms": 497.3, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-18T12:01:34.525002Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-449/test_resolve_path_returns_vaul0/vault', 'total_nodes': 2, 'total_edges': 1, 'graph_build_time_ms': 497.3, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-18T12:01:34.525002Z'}
+_____________ test_resolve_path_disambiguates_duplicate_basenames ______________
+tests/unit/test_pyright_tail_behavior.py:173: in test_resolve_path_disambiguates_duplicate_basenames
+    assert svc._resolve_path("unique") == "sub/unique.md"
+E   AssertionError: assert 'unique.md' == 'sub/unique.md'
+E     
+E     - sub/unique.md
+E     ? ----
+E     + unique.md
+----------------------------- Captured stdout call -----------------------------
+{"vault_path": "/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-449/test_resolve_path_disambiguate0/vault", "total_nodes": 4, "total_edges": 0, "graph_build_time_ms": 15.8, "event": "wikilink.graph_built", "logger": "app.services.wikilink_graph_service", "level": "info", "timestamp": "2026-09-18T12:01:34.573498Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.wikilink_graph_service:wikilink_graph_service.py:90 {'vault_path': '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-449/test_resolve_path_disambiguate0/vault', 'total_nodes': 4, 'total_edges': 0, 'graph_build_time_ms': 15.8, 'event': 'wikilink.graph_built', 'logger': 'app.services.wikilink_graph_service', 'level': 'info', 'timestamp': '2026-09-18T12:01:34.573498Z'}
+_____________ test_build_misconception_preserves_caller_timestamp ______________
+tests/unit/test_pyright_tail_behavior.py:211: in test_build_misconception_preserves_caller_timestamp
+    from app.services.error_classifier import _build_misconception
+E   ImportError: cannot import name '_build_misconception' from 'app.services.error_classifier' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/services/error_classifier.py)
+_______ test_classify_gather_result_separates_cancellation_from_failure ________
+tests/unit/test_pyright_tail_behavior.py:260: in test_classify_gather_result_separates_cancellation_from_failure
+    from app.services.batch_orchestrator import _classify_gather_result
+E   ImportError: cannot import name '_classify_gather_result' from 'app.services.batch_orchestrator' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/services/batch_orchestrator.py)
+_____________ test_classify_gather_result_treats_real_result_as_ok _____________
+tests/unit/test_pyright_tail_behavior.py:269: in test_classify_gather_result_treats_real_result_as_ok
+    from app.services.batch_orchestrator import (
+E   ImportError: cannot import name '_classify_gather_result' from 'app.services.batch_orchestrator' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/services/batch_orchestrator.py)
+______ test_retry_single_node_rejects_unknown_agent_type_before_dispatch _______
+tests/unit/test_pyright_tail_behavior.py:306: in test_retry_single_node_rejects_unknown_agent_type_before_dispatch
+    resp = await svc.retry_single_node(
+app/services/intelligent_parallel_service.py:629: in retry_single_node
+    raise RuntimeError(
+E   RuntimeError: agent_service not injected — cannot execute single node. Check dependencies.py EPIC-33 service registration.
+----------------------------- Captured stdout call -----------------------------
+{"event": "ConnectionManager initialized", "logger": "app.services.websocket_manager", "level": "info", "timestamp": "2026-09-18T12:01:34.632996Z"}
+{"event": "IntelligentParallelService: grouping_service not injected \u2014 analyze_canvas() will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:01:34.633315Z"}
+{"event": "IntelligentParallelService: session_manager not injected \u2014 start_batch_session()/get_session_status() will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:01:34.633483Z"}
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:01:34.633583Z"}
+{"event": "IntelligentParallelService: agent_service not injected \u2014 retry_single_node() will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:01:34.633656Z"}
+{"event": "IntelligentParallelService: routing_engine not injected \u2014 auto-routing disabled for retry_single_node()", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:01:34.633728Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:01:34.633863Z"}
+{"event": "retry_single_node called: node=node-1, agent=nope", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:01:34.634085Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.websocket_manager:websocket_manager.py:64 {'event': 'ConnectionManager initialized', 'logger': 'app.services.websocket_manager', 'level': 'info', 'timestamp': '2026-09-18T12:01:34.632996Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:96 {'event': 'IntelligentParallelService: grouping_service not injected — analyze_canvas() will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:01:34.633315Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:101 {'event': 'IntelligentParallelService: session_manager not injected — start_batch_session()/get_session_status() will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:01:34.633483Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:01:34.633583Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:111 {'event': 'IntelligentParallelService: agent_service not injected — retry_single_node() will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:01:34.633656Z'}
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:116 {'event': 'IntelligentParallelService: routing_engine not injected — auto-routing disabled for retry_single_node()', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:01:34.633728Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:01:34.633863Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:626 {'event': 'retry_single_node called: node=node-1, agent=nope', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:01:34.634085Z'}
+_____ test_generate_embedding_reports_missing_service_without_import_error _____
+tests/unit/test_pyright_tail_behavior.py:339: in test_generate_embedding_reports_missing_service_without_import_error
+    assert not any("ImportError" in m for m in messages), (
+E   AssertionError: 已无死 import ⇒ 不得再把原因写成 ImportError
+E   assert not True
+E    +  where True = any(<generator object test_generate_embedding_reports_missing_service_without_import_error.<locals>.<genexpr> at 0x13b3a31d0>)
+----------------------------- Captured stdout call -----------------------------
+{"event": "MultimodalStore not available \u2014 using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-449/test_generate_embedding_report0/storage/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-18T12:01:34.684175Z"}
+{"event": "\u5411\u91cf\u641c\u7d22\u4e0d\u53ef\u7528\uff08embedding service ImportError\uff09\uff0c\u964d\u7ea7\u4e3a\u6587\u672c\u641c\u7d22", "logger": "app.services.multimodal_service", "level": "warning", "timestamp": "2026-09-18T12:01:34.686007Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.multimodal_service:multimodal_service.py:197 {'event': 'MultimodalStore not available — using JSON file persistence at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-449/test_generate_embedding_report0/storage/content_index.json. Data will survive restarts but advanced features (vector search) are disabled.', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-18T12:01:34.684175Z'}
+WARNING  app.services.multimodal_service:multimodal_service.py:1431 {'event': '向量搜索不可用（embedding service ImportError），降级为文本搜索', 'logger': 'app.services.multimodal_service', 'level': 'warning', 'timestamp': '2026-09-18T12:01:34.686007Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_pyright_tail_behavior.py::test_resolve_intent_model_uses_configured_scoring_model
+FAILED tests/unit/test_pyright_tail_behavior.py::test_resolve_intent_model_falls_back_without_config
+FAILED tests/unit/test_pyright_tail_behavior.py::test_resolve_path_returns_vault_relative_path_for_nested_note
+FAILED tests/unit/test_pyright_tail_behavior.py::test_resolve_path_disambiguates_duplicate_basenames
+FAILED tests/unit/test_pyright_tail_behavior.py::test_build_misconception_preserves_caller_timestamp
+FAILED tests/unit/test_pyright_tail_behavior.py::test_classify_gather_result_separates_cancellation_from_failure
+FAILED tests/unit/test_pyright_tail_behavior.py::test_classify_gather_result_treats_real_result_as_ok
+FAILED tests/unit/test_pyright_tail_behavior.py::test_retry_single_node_rejects_unknown_agent_type_before_dispatch
+FAILED tests/unit/test_pyright_tail_behavior.py::test_generate_embedding_reports_missing_service_without_import_error
+=================== 9 failed, 6 passed, 10 warnings in 2.87s ===================

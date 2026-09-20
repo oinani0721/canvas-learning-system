@@ -1,0 +1,28 @@
+=== 地盘门: git --no-pager diff --stat --no-color $PREV HEAD -- . ':(exclude)_bmad-output' ===
+ backend/app/services/agent_routing_engine.py       | 122 +++---
+ backend/app/services/batch_orchestrator.py         | 157 ++++----
+ backend/app/services/error_classifier.py           |  84 +++--
+ .../app/services/intelligent_parallel_service.py   | 130 +++----
+ backend/app/services/multimodal_service.py         | 164 +++-----
+ backend/app/services/wikilink_graph_service.py     |  40 +-
+ backend/tests/unit/test_pyright_tail_behavior.py   | 411 +++++++++++++++++++++
+ 7 files changed, 707 insertions(+), 401 deletions(-)
+
+=== 同上 --name-only(防 --stat 路径缩写) ===
+backend/app/services/agent_routing_engine.py
+backend/app/services/batch_orchestrator.py
+backend/app/services/error_classifier.py
+backend/app/services/intelligent_parallel_service.py
+backend/app/services/multimodal_service.py
+backend/app/services/wikilink_graph_service.py
+backend/tests/unit/test_pyright_tail_behavior.py
+
+=== 禁改面必须为空 ===
+(禁改面 end — 上面应无任何输出)
+
+=== 验伪锚: 去掉 exclude 应多出 _bmad-output/ 路径 ===
+0
+
+=== 现网只读: 改动文件内 fsrs_bridge/decay_beta/7691/7687 ===
+backend/tests/unit/test_pyright_tail_behavior.py:14:#   零连库(7691/7687/7692 均不触)、零网络、零 live vault 读写;落盘只用 `tmp_path`。
+grep_rc=0  (1 = 无命中 = 合规)

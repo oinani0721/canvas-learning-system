@@ -93,34 +93,23 @@ class IntelligentParallelService:
 
         # Log dependency injection status
         if self._grouping_service is None:
-            logger.warning(
-                "IntelligentParallelService: grouping_service not injected — "
-                "analyze_canvas() will fail"
-            )
+            logger.warning("IntelligentParallelService: grouping_service not injected — analyze_canvas() will fail")
         if self._session_manager is None:
             logger.warning(
                 "IntelligentParallelService: session_manager not injected — "
                 "start_batch_session()/get_session_status() will fail"
             )
         if self._batch_orchestrator is None:
-            logger.warning(
-                "IntelligentParallelService: batch_orchestrator not injected — "
-                "batch execution will fail"
-            )
+            logger.warning("IntelligentParallelService: batch_orchestrator not injected — batch execution will fail")
         if self._agent_service is None:
-            logger.warning(
-                "IntelligentParallelService: agent_service not injected — "
-                "retry_single_node() will fail"
-            )
+            logger.warning("IntelligentParallelService: agent_service not injected — retry_single_node() will fail")
         if self._routing_engine is None:
             logger.warning(
                 "IntelligentParallelService: routing_engine not injected — "
                 "auto-routing disabled for retry_single_node()"
             )
 
-        logger.info(
-            "IntelligentParallelService initialized with real service dependencies"
-        )
+        logger.info("IntelligentParallelService initialized with real service dependencies")
 
     async def analyze_canvas(
         self,
@@ -190,9 +179,7 @@ class IntelligentParallelService:
             ValueError: If groups configuration invalid
             RuntimeError: If required services not injected
         """
-        logger.info(
-            f"start_batch_session called: path={canvas_path}, groups={len(groups)}"
-        )
+        logger.info(f"start_batch_session called: path={canvas_path}, groups={len(groups)}")
 
         if self._session_manager is None:
             raise RuntimeError(
@@ -251,9 +238,7 @@ class IntelligentParallelService:
                     timeout=timeout,
                 )
             )
-            logger.info(
-                f"Batch execution launched as background task for session {session_id}"
-            )
+            logger.info(f"Batch execution launched as background task for session {session_id}")
         else:
             logger.warning(
                 f"batch_orchestrator not injected — session {session_id} created "
@@ -297,9 +282,7 @@ class IntelligentParallelService:
                 timeout=timeout,
             )
         except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
-            logger.error(
-                f"Background batch execution failed for session {session_id}: {e}"
-            )
+            logger.error(f"Background batch execution failed for session {session_id}: {e}")
             # Notify WebSocket clients of failure
             await self.notify_error(
                 session_id=session_id,
@@ -345,17 +328,13 @@ class IntelligentParallelService:
             "partial_failure": ParallelTaskStatus.partial_failure,
         }
         session_status_value = session.status.value
-        parallel_status = status_map.get(
-            session_status_value, ParallelTaskStatus.pending
-        )
+        parallel_status = status_map.get(session_status_value, ParallelTaskStatus.pending)
 
         # Build progress percent
         total_nodes = session.node_count
         completed_nodes = session.completed_nodes
         failed_nodes = session.failed_nodes
-        progress_percent = (
-            int(completed_nodes / total_nodes * 100) if total_nodes > 0 else 0
-        )
+        progress_percent = int(completed_nodes / total_nodes * 100) if total_nodes > 0 else 0
 
         # Story 33.10 Fix #3: Build group progress from session.node_results
         groups_progress = []
@@ -432,9 +411,7 @@ class IntelligentParallelService:
                 duration = (ended - started).total_seconds()
                 perf_metrics = PerformanceMetrics(
                     total_duration_seconds=duration,
-                    average_duration_per_node=(
-                        duration / completed_nodes if completed_nodes > 0 else 0
-                    ),
+                    average_duration_per_node=(duration / completed_nodes if completed_nodes > 0 else 0),
                     parallel_efficiency=0.0,
                     peak_concurrent=0,
                 )
@@ -444,11 +421,7 @@ class IntelligentParallelService:
             status=parallel_status,
             total_groups=len(groups_progress) if groups_progress else 0,
             total_nodes=total_nodes,
-            completed_groups=sum(
-                1
-                for g in groups_progress
-                if g.status in (GroupStatus.completed, GroupStatus.failed)
-            ),
+            completed_groups=sum(1 for g in groups_progress if g.status in (GroupStatus.completed, GroupStatus.failed)),
             completed_nodes=completed_nodes,
             failed_nodes=failed_nodes,
             progress_percent=progress_percent,
@@ -507,15 +480,11 @@ class IntelligentParallelService:
         try:
             from app.models.session_models import SessionStatus
 
-            await self._session_manager.transition_state(
-                session_id, SessionStatus.CANCELLED
-            )
+            await self._session_manager.transition_state(session_id, SessionStatus.CANCELLED)
         except (RuntimeError, ConnectionError, ValueError) as e:
             logger.warning(f"Session cancel: state transition failed: {e}")
 
-        logger.info(
-            f"Session cancelled: {session_id}, completed_count={completed_count}"
-        )
+        logger.info(f"Session cancelled: {session_id}, completed_count={completed_count}")
 
         return CancelResponse(
             success=True,
@@ -542,10 +511,7 @@ class IntelligentParallelService:
             Node content string if available, None otherwise
         """
         if self._canvas_service is None:
-            logger.warning(
-                "[Story 33.10] canvas_service not injected — "
-                "cannot fetch real node content"
-            )
+            logger.warning("[Story 33.10] canvas_service not injected — cannot fetch real node content")
             return None
 
         try:
@@ -563,27 +529,20 @@ class IntelligentParallelService:
                     break
 
             if target_node is None:
-                logger.warning(
-                    f"[Story 33.10] Node not found: {node_id} in {canvas_name}"
-                )
+                logger.warning(f"[Story 33.10] Node not found: {node_id} in {canvas_name}")
                 return None
 
             from .context_enrichment_service import get_node_content
 
             vault_path = ""
-            if self._canvas_service and hasattr(
-                self._canvas_service, "canvas_base_path"
-            ):
+            if self._canvas_service and hasattr(self._canvas_service, "canvas_base_path"):
                 vault_path = self._canvas_service.canvas_base_path or ""
 
             # Wrap sync file I/O in thread to avoid blocking event loop
             # (get_node_content reads files synchronously for "file" type nodes)
             content = await asyncio.to_thread(get_node_content, target_node, vault_path)
             if content:
-                logger.debug(
-                    f"[Story 33.10] Retrieved content for node {node_id}: "
-                    f"{len(content)} chars"
-                )
+                logger.debug(f"[Story 33.10] Retrieved content for node {node_id}: {len(content)} chars")
             return content
 
         except (
@@ -593,9 +552,7 @@ class IntelligentParallelService:
             ValueError,
             AttributeError,
         ) as e:
-            logger.warning(
-                f"[Story 33.10] Failed to get node content (non-blocking): {e}"
-            )
+            logger.warning(f"[Story 33.10] Failed to get node content (non-blocking): {e}")
             return None
 
     async def retry_single_node(
@@ -625,6 +582,26 @@ class IntelligentParallelService:
         """
         logger.info(f"retry_single_node called: node={node_id}, agent={agent_type}")
 
+        # [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+        # 本方法的形参是 `agent_type: str`, 而 `AgentService.call_agent` 要 `AgentType`
+        # 枚举。改前直接把裸字符串传下去 ⇒ 未知取值一路走到 agent 调用才失败,
+        # 报出来的是下游的错。这里当场校验并转换, 未知取值立刻变成一条能看懂的失败。
+        # ⚠️ 顺序: 校验放在 `self._agent_service is None` 检查**之前** —— agent_type
+        # 是请求自带的数据, 与依赖是否注入无关; 先答「你传的名字不存在」比先答
+        # 「服务没接上」对调用方更有用。合法 agent_type + 未注入依赖仍走 RuntimeError。
+        from app.services.agent_service import AgentType
+
+        try:
+            agent_type_enum = AgentType(agent_type)
+        except ValueError:
+            logger.warning(f"retry_single_node: unknown agent_type={agent_type!r}")
+            return SingleAgentResponse(
+                node_id=node_id,
+                file_path=None,
+                status=SingleAgentStatus.failed,
+                error_message=f"unknown agent_type: {agent_type}",
+            )
+
         if self._agent_service is None:
             raise RuntimeError(
                 "agent_service not injected — cannot execute single node. "
@@ -637,19 +614,12 @@ class IntelligentParallelService:
             if node_content:
                 prompt = node_content
             else:
-                logger.warning(
-                    f"[Story 33.10] Could not fetch content for node {node_id}, "
-                    "using fallback prompt"
-                )
+                logger.warning(f"[Story 33.10] Could not fetch content for node {node_id}, using fallback prompt")
                 prompt = f"Process node {node_id} from canvas {canvas_path}"
 
-            # Call real agent
-            # ⛔ 既有类型不一致(Codex round-1 MEDIUM): 本方法形参是 agent_type: str, 而
-            # call_agent 要 AgentType(str, Enum)。此处**不做** cast —— 「AgentType 继承 str」
-            # 不能反向证明任意字符串就是 AgentType 实例, cast 只会掩盖。加转换/校验 = 运行期
-            # 语义改动, 不在本卡范围 → 只标注并 TAIL 登记。
+            # Call real agent(传上面校验过的枚举值, 不再是裸字符串)
             result = await self._agent_service.call_agent(
-                agent_type=agent_type,  # pyright: ignore[reportArgumentType]
+                agent_type=agent_type_enum,
                 prompt=prompt,
             )
 
@@ -662,6 +632,23 @@ class IntelligentParallelService:
                 )
                 if not file_path:
                     file_path = f"{canvas_path.replace('.canvas', '')}/{node_id}-{agent_type}.md"
+                    # ⚠️ 这条路径**没有任何写方**: `AgentResult` 是 dataclass 且不含
+                    # `file_path` 字段 ⇒ 上面的 hasattr 恒 False ⇒ 这里恒执行;
+                    # `call_agent` 也不落盘, agent 的回答在 `result.result` / `result.data`
+                    # 里被本方法整个丢弃。于是响应里的 file_path 是**推导出来的名字**,
+                    # 不是真实存在的文件。
+                    # [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+                    # 本卡之前 `call_agent` 收到裸字符串 ⇒ 下游 `agent_type.value` 抛
+                    # AttributeError 被吞成 success=False ⇒ 这个成功分支**恒不可达**;
+                    # 本卡把类型修对后它首次在生产可达。重新设计成功语义(落盘 / 回传正文 /
+                    # 改响应模型)超出本卡授权(⛔ 不加字段、不改 api/**、不改 agent_service),
+                    # 故这里只把「路径是推导的」这件事说出来, 不再静默。已登记移交。
+                    logger.warning(
+                        "retry_single_node: agent 未回传 file_path, 响应里的路径是按 "
+                        "canvas_path/node_id/agent_type 推导的, 不保证该文件真实存在",
+                        node_id=node_id,
+                        derived_file_path=file_path,
+                    )
 
                 return SingleAgentResponse(
                     node_id=node_id,
@@ -670,11 +657,7 @@ class IntelligentParallelService:
                     error_message=None,
                 )
             else:
-                error_msg = (
-                    result.error
-                    if hasattr(result, "error")
-                    else "Agent execution failed"
-                )
+                error_msg = result.error if hasattr(result, "error") else "Agent execution failed"
                 return SingleAgentResponse(
                     node_id=node_id,
                     file_path=None,
@@ -707,9 +690,7 @@ class IntelligentParallelService:
             bool: True if session exists
         """
         if self._session_manager is None:
-            logger.warning(
-                "session_manager not injected — session_exists returns False"
-            )
+            logger.warning("session_manager not injected — session_exists returns False")
             return False
 
         try:
@@ -866,14 +847,10 @@ class IntelligentParallelService:
             success_count=success_count,
             failure_count=failure_count,
         )
-        sent_count = await self._connection_manager.broadcast_to_session(
-            session_id, event
-        )
+        sent_count = await self._connection_manager.broadcast_to_session(session_id, event)
 
         # Auto-close connection when session completes
-        await self._connection_manager.close_session_connections(
-            session_id, reason="Session completed"
-        )
+        await self._connection_manager.close_session_connections(session_id, reason="Session completed")
 
         return sent_count
 

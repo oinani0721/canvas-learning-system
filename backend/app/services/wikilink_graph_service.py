@@ -27,9 +27,7 @@ class NeighborNote:
     hop_distance: int
     frontmatter: dict[str, Any] = field(default_factory=dict)
     # Story 2.2+2.9 T2 (2026-05-11) — 4 精度 wikilink + backlink 支持
-    is_backlink: bool = (
-        False  # True: 通过反向边 (predecessor) 到达; False: 出边 (outgoing)
-    )
+    is_backlink: bool = False  # True: 通过反向边 (predecessor) 到达; False: 出边 (outgoing)
     # Story 2.2+2.9 T4 (path_trace, 2026-05-11) — BFS 路径 (含 seed → ... → self)
     path_trace: list[str] = field(default_factory=list)
 
@@ -82,9 +80,7 @@ class WikilinkGraphService:
             self._graph = vault.graph
             self._node_count = self._graph.number_of_nodes()
             self._edge_count = self._graph.number_of_edges()
-            self._build_timestamp = datetime.now(timezone.utc).isoformat(
-                timespec="seconds"
-            )
+            self._build_timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
         duration_ms = (time.monotonic() - start) * 1000
         logger.info(
@@ -315,17 +311,42 @@ class WikilinkGraphService:
             return {}
 
     def _resolve_path(self, note_key: str) -> str:
+        """把图节点名解析成 vault 内的相对路径(POSIX 分隔符)。
+
+        `note_key` 恒来自本服务自己那张图的节点名。obsidiantools 的
+        `Vault.md_file_index` 键规则: 没有重名时是裸文件名(`note`), 出现同名不同目录时
+        自动改用去扩展名的相对路径(`sub/note` / `sub2/note`), 图节点名同步跟随。
+
+        ⚠️ 但**图节点不是索引键的同一集合, 而是它的超集**: 图节点 = 索引键 ∪ 正文
+        wikilink 的目标文本, 后者含「指向不存在笔记的链接」和「非 .md 的链接目标」。
+        实测(重名 `sub/note.md` + `sub2/note.md`, 另有笔记写裸名 `[[note]]` 与
+        `[[data.txt]]`): 索引键 = {hub, sub/note, sub2/note}, 图节点额外多出
+        {note, data.txt}。这些多出来的键查不到索引 ⇒ 走下面的兜底
+        `f"{note_key}.md"`, 与旧行为一致。
+        ⚠️ 先前这里写的是「两者同域, 不存在歧义」——那是只测了「重名」与「嵌套目录」
+        两个维度、没测它们与裸名链接的**组合**就下的结论, 已按实测改正
+        (本卡 Codex round-1 指出、主 session 复跑确认)。回归门见
+        `tests/unit/test_pyright_tail_behavior.py::test_resolve_path_falls_back_for_unresolved_link_targets`。
+
+        [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+        改前这里调的是 `self._vault.get_source_path(...)` —— obsidiantools 的 Vault
+        **没有**这个方法 ⇒ 恒 AttributeError 被 `except Exception` 吞掉 ⇒ 这个函数
+        退化成恒返回兜底值 `f"{note_key}.md"`。
+        ⚠️ 影响面如实(不是「所有嵌套笔记的目录信息全部丢失」): 兜底值是否等于真实路径,
+        取决于那一刻的键形态 —— **无重名**时键是裸文件名, 嵌套笔记的兜底给出扁平
+        `note.md` 而真实路径是 `sub/note.md` ⇒ 丢失目录信息; **重名**时键本身已是
+        `sub/note` 这样的相对路径, 兜底 `f"{key}.md"` 恰好**等于**真实路径 ⇒ 无损。
+        先前这里写「嵌套目录信息全部丢失」把前一种情形说成了全部(本卡 Codex round-2 指出)。
+        """
         if self._vault is None:
             return f"{note_key}.md"
         try:
-            # ⛔ 实测 (obsidiantools 随包): Vault 只有 get_source_text, **没有**
-            # get_source_path → 本行运行期恒 AttributeError, 被下面的 except Exception
-            # 吞掉并静默降级成 f"{note_key}.md"。这是既有真缺陷, 修它属语义改动、
-            # 不在 CARD-PYRIGHT-DEBT-services 范围内 → 只做类型层标注并登记 TAIL。
-            source = self._vault.get_source_path(note_key)  # pyright: ignore[reportAttributeAccessIssue]
-            return str(source) if source else f"{note_key}.md"
-        except Exception:
+            source = self._vault.md_file_index.get(note_key)
+        except (AttributeError, KeyError, TypeError):
             return f"{note_key}.md"
+        if not source:
+            return f"{note_key}.md"
+        return Path(source).as_posix()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -525,11 +546,7 @@ def get_wikilink_graph_service() -> WikilinkGraphService:
 
     # Wave-5 Stage C lazy build: 仅当 (1) 未尝试过 lazy build 且
     # (2) 图为空 (避免 build 完成的 instance 重复 build).
-    if (
-        not getattr(svc, "_lazy_build_attempted", False)
-        and svc.node_count == 0
-        and not svc.is_built
-    ):
+    if not getattr(svc, "_lazy_build_attempted", False) and svc.node_count == 0 and not svc.is_built:
         svc._lazy_build_attempted = True  # type: ignore[attr-defined]  # 防重入,无论成功失败
         vault_path = _resolve_vault_path(key)
         if vault_path is not None:

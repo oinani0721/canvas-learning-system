@@ -1,0 +1,25 @@
+=== ruff check 本卡改动文件(zsh 数组口径) ===
+files=7
+  backend/app/services/agent_routing_engine.py
+  backend/app/services/batch_orchestrator.py
+  backend/app/services/error_classifier.py
+  backend/app/services/intelligent_parallel_service.py
+  backend/app/services/multimodal_service.py
+  backend/app/services/wikilink_graph_service.py
+  backend/tests/unit/test_pyright_tail_behavior.py
+All checks passed!
+ruff_rc=0
+
+=== 验伪锚: F821(backend/ruff.toml select 无 F401, 锚必须选 F821) ===
+F821 Undefined name `undefined_name_x`
+ --> backend/_ruff_probe_tmp.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_x
+  |            ^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_rc=1
+--- 探针移出工作树 ---
+(探针已不在工作树)

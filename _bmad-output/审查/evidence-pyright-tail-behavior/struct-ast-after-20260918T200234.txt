@@ -1,0 +1,113 @@
+### 判据脚本全文(scratchpad，不入库；此处内联以便复核) ###
+"""AST 口径结构判据 — [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+
+为什么不用文本 grep：卡文 §二.2 的 `grep -cF 'get_litellm_config'` 等三条判据数的是
+**全文件文本**，而本卡故意在注释/docstring 里保留了旧符号名（说明「改前是什么、为什么改」）。
+文本判据因此恒 ≥1，看上去像没改干净，实则代码里已一处不剩。
+本脚本先用 AST 剥掉注释与 docstring，再在**剩下的代码**上判。
+
+每条判据都配验伪锚：同一口径下一个**已知为真**的正例必须命中，否则说明脚本本身没在数。
+"""
+
+import ast
+import sys
+from pathlib import Path
+
+SERVICES = Path(sys.argv[1]) / "backend" / "app" / "services"
+
+
+def code_without_docstrings(path: Path) -> str:
+    """返回剥掉注释(ast.unparse 天然丢弃)与 docstring 之后的源码。"""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(
+            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            continue
+        body = node.body
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            node.body = body[1:] or [ast.Pass()]
+    return ast.unparse(tree)
+
+
+def misconception_kwargs(path: Path) -> list[list[str]]:
+    """列出本文件里每一处 `Misconception(...)` 调用的关键字参数名。"""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    out = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "Misconception"
+        ):
+            out.append(sorted(k.arg for k in node.keywords if k.arg))
+    return out
+
+
+CASES = [
+    # (文件, 符号, 期望命中数, 说明)
+    ("agent_routing_engine.py", "get_litellm_config", 0, "不存在的旧函数名已从代码移除"),
+    ("agent_routing_engine.py", "get_runtime_model_config", 2, "验伪锚: 新函数名确在代码里"),
+    ("multimodal_service.py", "agentic_rag.embedding", 0, "死 import 已退役"),
+    ("multimodal_service.py", "降级为文本搜索", 1, "验伪锚: 用户可见口径仍在代码里"),
+    ("wikilink_graph_service.py", "get_source_path", 0, "Vault 上不存在的方法已不再调用"),
+    ("wikilink_graph_service.py", "md_file_index", 1, "验伪锚: 新取路径手段确在代码里"),
+    ("multimodal_service.py", "EMBEDDING_MAX_RETRIES", 0, "随重试循环一并退役"),
+    ("multimodal_service.py", "asyncio", 0, "唯一用处(sleep)已删, import 一并退役"),
+]
+
+failures = []
+print("== AST 口径符号判据(剥注释 + 剥 docstring 后) ==")
+for fname, symbol, expected, note in CASES:
+    code = code_without_docstrings(SERVICES / fname)
+    got = code.count(symbol)
+    ok = got == expected
+    print(f"{'OK ' if ok else 'BAD'} {fname:36s} {symbol:28s} got={got} expected={expected}  # {note}")
+    if not ok:
+        failures.append((fname, symbol, got, expected))
+
+print()
+print("== Misconception(...) 调用的 kwarg 名(锁住 T-new-2 的真实修复点) ==")
+calls = misconception_kwargs(SERVICES / "error_classifier.py")
+print(f"call_sites={len(calls)}")
+for kwargs in calls:
+    print(f"  kwargs={kwargs}")
+    if "created_at" in kwargs:
+        failures.append(("error_classifier.py", "Misconception(created_at=)", 1, 0))
+    if "misconception_created_at" not in kwargs:
+        failures.append(
+            ("error_classifier.py", "Misconception(misconception_created_at=)", 0, 1)
+        )
+if not calls:
+    failures.append(("error_classifier.py", "Misconception(...) 调用点", 0, ">=1"))
+
+print()
+print(f"FAILURES={len(failures)}")
+for f in failures:
+    print(f"  {f}")
+sys.exit(1 if failures else 0)
+
+### 执行 ###
+$ python3 struct_ast_judge.py /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend
+== AST 口径符号判据(剥注释 + 剥 docstring 后) ==
+OK  agent_routing_engine.py              get_litellm_config           got=0 expected=0  # 不存在的旧函数名已从代码移除
+OK  agent_routing_engine.py              get_runtime_model_config     got=2 expected=2  # 验伪锚: 新函数名确在代码里
+OK  multimodal_service.py                agentic_rag.embedding        got=0 expected=0  # 死 import 已退役
+BAD multimodal_service.py                降级为文本搜索                      got=2 expected=1  # 验伪锚: 用户可见口径仍在代码里
+OK  wikilink_graph_service.py            get_source_path              got=0 expected=0  # Vault 上不存在的方法已不再调用
+OK  wikilink_graph_service.py            md_file_index                got=1 expected=1  # 验伪锚: 新取路径手段确在代码里
+OK  multimodal_service.py                EMBEDDING_MAX_RETRIES        got=0 expected=0  # 随重试循环一并退役
+OK  multimodal_service.py                asyncio                      got=0 expected=0  # 唯一用处(sleep)已删, import 一并退役
+
+== Misconception(...) 调用的 kwarg 名(锁住 T-new-2 的真实修复点) ==
+call_sites=1
+  kwargs=['context', 'description', 'error_type', 'misconception_created_at', 'misconception_id', 'node_id', 'remedy_strategy', 'session_id']
+
+FAILURES=1
+  ('multimodal_service.py', '降级为文本搜索', 2, 1)
+rc=1

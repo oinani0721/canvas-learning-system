@@ -49,6 +49,10 @@ if TYPE_CHECKING:
     # 都未传 stream=True → 运行期恒为 ModelResponse。cast 只作类型层断言, 不改行为。
     from litellm.types.utils import ModelResponse
 
+    # 同理: litellm_config 只在 `_resolve_intent_model` 内延迟 import(保持既有
+    # 「函数内延迟 import」风格), 这里只取类型给 pyright 看。
+    from app.core.litellm_config import RuntimeModelConfigManager
+
 logger = structlog.get_logger(__name__)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -187,15 +191,71 @@ AGENT_DESCRIPTIONS: Dict[str, str] = {
     "deep-decomposition": "深度拆解 — 对复杂概念进行层层分解的深度分析，适合复杂多层次的知识体系",
 }
 
-INTENT_CLASSIFICATION_SYSTEM = (
-    "你是教育内容分类器。根据学习主题选择最合适的教学方式。只返回JSON，不要其他文字。"
-)
+INTENT_CLASSIFICATION_SYSTEM = "你是教育内容分类器。根据学习主题选择最合适的教学方式。只返回JSON，不要其他文字。"
 
 INTENT_CLASSIFICATION_USER = (
     "可选教学方式：\n{descriptions}\n\n"
     "学习主题：{node_text}\n\n"
     '返回JSON：{{"agent_type": "名称", "confidence": 0.0到1.0}}'
 )
+
+# 语义路由在**没有任何运行期模型配置**时使用的兜底模型串。
+# 2026-09-18 之前这个串是 `_llm_classify_intent` 里的一个字面量, 而它上面那行
+# `from app.core.litellm_config import get_litellm_config` 导入的是一个**不存在**的
+# 名字 ⇒ 恒 ImportError 被 `except Exception` 吞掉 ⇒ 无论用户在设置面板里配了什么,
+# 意图分类恒用这个写死的串。[BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+_INTENT_FALLBACK_MODEL = "gemini/gemini-2.0-flash"
+
+
+def _resolve_intent_model(
+    config: Optional["RuntimeModelConfigManager"] = None,
+) -> str:
+    """解析意图分类要用的 LiteLLM 模型串。
+
+    Args:
+        config: 运行期模型配置管理器;省略时取进程内单例。
+
+    Returns:
+        已配置的 scoring 模型串(`RuntimeModelConfigManager.get_scoring_model()`
+        在没有 scoring 配置时自身会回落到 chat 模型);两者都没有时返回
+        ``_INTENT_FALLBACK_MODEL``。
+
+    Notes:
+        配置读取失败(模块缺失 / 属性缺失 / 运行期错误)时**记一条 warning 再回落**,
+        不再像旧实现那样 `except Exception` 全吞 —— 配置断裂要能在日志里看见。
+
+        边界如实: except 元组只收这三类(卡文规定), 其它异常(例如 pydantic
+        `ValidationError`)会**外溢到调用方** `_llm_classify_intent`, 而那里的调用点
+        位于它后半段 `try` 之外 ⇒ 会让语义路由整段抛出而不是降级。本卡 Codex round-1
+        实测: 当前代码路径上不存在这样的来源(`SystemModelConfig` 三个字段都有默认值
+        `None`, 空配置不触发校验失败), 故不扩大 except 面; 若将来给
+        `SystemModelConfig` 加了必填字段或校验器, 这条边界会变成真缺陷。
+
+        ⚠️ 本函数**不**负责 api_key: `_llm_classify_intent` 的 `litellm.acompletion`
+        只传 `model` 不传 `api_key`, 而面板配的 key 只活在 `RuntimeModelConfigManager`
+        内存里。模型一旦切到环境变量里没有 key 的 provider, 调用会抛
+        `AuthenticationError` 并被外层 `except Exception` 吞成「分类失败」。
+        改 `acompletion` 调用不在本卡范围(卡文 ⛔), 已登记移交。
+    """
+    try:
+        if config is None:
+            from app.core.litellm_config import get_runtime_model_config
+
+            config = get_runtime_model_config()
+        model = config.get_scoring_model()
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.warning(
+            "intent_model_config_unavailable",
+            fallback_model=_INTENT_FALLBACK_MODEL,
+            error=str(exc),
+        )
+        return _INTENT_FALLBACK_MODEL
+
+    if not model:
+        logger.debug("intent_model_not_configured", fallback_model=_INTENT_FALLBACK_MODEL)
+        return _INTENT_FALLBACK_MODEL
+    return model
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Confidence Thresholds & Scoring Constants
@@ -273,9 +333,7 @@ class AgentRoutingEngine:
         """
         self.pattern_config = pattern_config or CONTENT_PATTERN_MAP
         self.pattern_version = PATTERN_VERSION
-        logger.info(
-            f"AgentRoutingEngine initialized with pattern version {self.pattern_version}"
-        )
+        logger.info(f"AgentRoutingEngine initialized with pattern version {self.pattern_version}")
 
     def analyze_content(self, node_text: str) -> List[Tuple[str, float]]:
         """
@@ -294,9 +352,7 @@ class AgentRoutingEngine:
         # Normalize text: lowercase for English, keep original for Chinese
         normalized_text = node_text.strip()
 
-        matches: List[
-            Tuple[str, float, int, List[str]]
-        ] = []  # (agent, score, priority, patterns)
+        matches: List[Tuple[str, float, int, List[str]]] = []  # (agent, score, priority, patterns)
 
         for agent_name, config in self.pattern_config.items():
             patterns = config.get("patterns", [])
@@ -312,9 +368,7 @@ class AgentRoutingEngine:
                     if re.search(pattern, normalized_text, re.IGNORECASE):
                         matched_patterns.append(pattern)
                         # Calculate match quality based on pattern specificity
-                        match_quality = self._calculate_match_quality(
-                            pattern, normalized_text
-                        )
+                        match_quality = self._calculate_match_quality(pattern, normalized_text)
                         max_match_quality = max(max_match_quality, match_quality)
                 except re.error as e:
                     logger.warning(f"Invalid regex pattern '{pattern}': {e}")
@@ -362,9 +416,7 @@ class AgentRoutingEngine:
 
         return min(quality, 1.0)
 
-    def _calculate_confidence(
-        self, matches: List[Tuple[str, float]], has_override: bool = False
-    ) -> float:
+    def _calculate_confidence(self, matches: List[Tuple[str, float]], has_override: bool = False) -> float:
         """
         Calculate confidence score based on match analysis.
 
@@ -390,9 +442,7 @@ class AgentRoutingEngine:
             # Single match - base confidence on match score
             score = matches[0][1]
             return min(
-                CONFIDENCE_SINGLE_MATCH_BASE
-                + (score - CONFIDENCE_SINGLE_MATCH_OFFSET)
-                * CONFIDENCE_SINGLE_MATCH_SCALE,
+                CONFIDENCE_SINGLE_MATCH_BASE + (score - CONFIDENCE_SINGLE_MATCH_OFFSET) * CONFIDENCE_SINGLE_MATCH_SCALE,
                 CONFIDENCE_MAX,
             )
 
@@ -416,13 +466,9 @@ class AgentRoutingEngine:
             base_confidence += CONFIDENCE_MODERATE_DOMINANCE_BONUS
 
         # Penalty for multiple competing patterns
-        competing_count = sum(
-            1 for _, score in matches if score >= top_score * COMPETING_SCORE_RATIO
-        )
+        competing_count = sum(1 for _, score in matches if score >= top_score * COMPETING_SCORE_RATIO)
         if competing_count > COMPETING_THRESHOLD:
-            base_confidence -= CONFIDENCE_COMPETING_PENALTY * (
-                competing_count - COMPETING_THRESHOLD
-            )
+            base_confidence -= CONFIDENCE_COMPETING_PENALTY * (competing_count - COMPETING_THRESHOLD)
 
         return max(min(base_confidence, CONFIDENCE_MAX), CONFIDENCE_MIN)
 
@@ -441,9 +487,7 @@ class AgentRoutingEngine:
         # Task 4: Handle manual override (AC3)
         if request.agent_override:
             if request.agent_override in ALL_AGENT_NAMES:
-                logger.info(
-                    f"Manual override to {request.agent_override} for node {request.node_id}"
-                )
+                logger.info(f"Manual override to {request.agent_override} for node {request.node_id}")
                 return RoutingResult(
                     node_id=request.node_id,
                     recommended_agent=request.agent_override,
@@ -453,19 +497,14 @@ class AgentRoutingEngine:
                     reason="manual_override",
                 )
             else:
-                logger.warning(
-                    f"Invalid override agent '{request.agent_override}', "
-                    f"falling back to automatic routing"
-                )
+                logger.warning(f"Invalid override agent '{request.agent_override}', falling back to automatic routing")
 
         # Analyze content
         matches = self.analyze_content(request.node_text)
 
         if not matches:
             # No matches - use fallback
-            logger.debug(
-                f"No pattern matches for node {request.node_id}, using fallback"
-            )
+            logger.debug(f"No pattern matches for node {request.node_id}, using fallback")
             return RoutingResult(
                 node_id=request.node_id,
                 recommended_agent=DEFAULT_FALLBACK_AGENT,
@@ -495,8 +534,7 @@ class AgentRoutingEngine:
         # Check confidence threshold
         if confidence < CONFIDENCE_LOW_THRESHOLD:
             logger.debug(
-                f"Low confidence ({confidence:.2f}) for node {request.node_id}, "
-                f"using fallback {DEFAULT_FALLBACK_AGENT}"
+                f"Low confidence ({confidence:.2f}) for node {request.node_id}, using fallback {DEFAULT_FALLBACK_AGENT}"
             )
             return RoutingResult(
                 node_id=request.node_id,
@@ -544,24 +582,10 @@ class AgentRoutingEngine:
             logger.debug("litellm not available, skipping semantic routing")
             return None
 
-        descriptions = "\n".join(
-            f"- {name}: {desc}" for name, desc in AGENT_DESCRIPTIONS.items()
-        )
-        user_msg = INTENT_CLASSIFICATION_USER.format(
-            descriptions=descriptions, node_text=node_text[:200]
-        )
+        descriptions = "\n".join(f"- {name}: {desc}" for name, desc in AGENT_DESCRIPTIONS.items())
+        user_msg = INTENT_CLASSIFICATION_USER.format(descriptions=descriptions, node_text=node_text[:200])
 
-        try:
-            # ⛔ 实测: app/core/litellm_config.py 只有 get_runtime_model_config,
-            # **没有** get_litellm_config → 本行运行期恒 ImportError, 被下面的
-            # `except Exception` 吞掉并静默降级成写死的 fallback 模型。既有真缺陷,
-            # 修它属语义改动、不在本卡范围 → 只做类型层标注并登记 TAIL。
-            from app.core.litellm_config import get_litellm_config  # pyright: ignore[reportAttributeAccessIssue]
-
-            config = get_litellm_config()
-            model = config.get_scoring_model()
-        except Exception:
-            model = "gemini/gemini-2.0-flash"
+        model = _resolve_intent_model()
 
         try:
             response = await litellm.acompletion(
@@ -601,10 +625,7 @@ class AgentRoutingEngine:
         result = self.route_single_node(request)
 
         # If high/medium confidence or manual override, return immediately
-        if (
-            result.confidence >= CONFIDENCE_LOW_THRESHOLD
-            or result.reason == "manual_override"
-        ):
+        if result.confidence >= CONFIDENCE_LOW_THRESHOLD or result.reason == "manual_override":
             return result
 
         # Semantic fallback for low confidence / no match

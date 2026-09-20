@@ -1,0 +1,17 @@
+=== 地盘门(带 exclude) ===
+backend/app/services/agent_routing_engine.py
+backend/app/services/batch_orchestrator.py
+backend/app/services/error_classifier.py
+backend/app/services/intelligent_parallel_service.py
+backend/app/services/multimodal_service.py
+backend/app/services/wikilink_graph_service.py
+backend/tests/unit/test_pyright_tail_behavior.py
+--- 计数:        7 ---
+
+=== 验伪锚: 去掉 exclude 后必须多出 _bmad-output/ 路径 ===
+不带 exclude 的 _bmad-output/ 条目数 = 57
+带 exclude 的 _bmad-output/ 条目数   = 0
+(前者 > 0 且后者 = 0 ⇒ exclude 真的在起作用,判据非空洞)
+
+=== 禁改面(须空) ===
+(禁改面 end)

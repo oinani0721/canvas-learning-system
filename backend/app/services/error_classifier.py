@@ -48,11 +48,7 @@ def _safe_json_for_xml_envelope(obj: Any) -> str:
     escape, 既保持 JSON 合法又防字面 closing tag 出现在 prompt.
     """
     s = json.dumps(obj, ensure_ascii=False)
-    return (
-        s.replace("&", "\\u0026")
-        .replace("<", "\\u003c")
-        .replace(">", "\\u003e")
-    )
+    return s.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def _strip_markdown_fence(content: str) -> str:
@@ -69,6 +65,37 @@ def _strip_markdown_fence(content: str) -> str:
             lines = lines[:-1]
         s = "\n".join(lines).strip()
     return s
+
+
+def _build_misconception(
+    *,
+    error_type: ErrorType,
+    description: str,
+    context: str,
+    remedy: RemedyStrategy,
+    node_id: str,
+    session_id: str,
+    created_at: str,
+) -> Misconception:
+    """建一个 `Misconception` 实体, 把调用方给的时间戳真正写进去。
+
+    [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+    改前 `classify()` 用的是旧字段名 `created_at=`——P0-4(2026-05-14) 已把该字段
+    改名为 `misconception_created_at`(避 Graphiti 保护属性冲突), 而 `Misconception`
+    没有 `model_config` ⇒ pydantic v2 默认 `extra='ignore'` ⇒ 旧名**不报错、值直接丢**,
+    字段悄悄回落到 default_factory。两个值当时都是「now」, 所以症状是不可见的;
+    一旦调用方想写一个**不是 now** 的时间(回灌历史错题、事件重放), 就会静默写错。
+    """
+    return Misconception(
+        misconception_id=str(uuid.uuid4()),
+        error_type=error_type,
+        description=description,
+        context=context,
+        remedy_strategy=remedy,
+        node_id=node_id,
+        session_id=session_id,
+        misconception_created_at=created_at,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -132,9 +159,7 @@ class ClassifiedError(BaseModel):
     context: str = Field(default="", description="对话上下文")
     confidence: float = Field(ge=0.0, le=1.0, description="LLM 分类置信度")
     legacy_remedy: RemedyStrategy = Field(..., description="Story 3.6 单一补救策略")
-    pedagogy_remedies: list[RemedyStrategy] = Field(
-        default_factory=list, description="PRD §FR-CONV-06 补救策略列表"
-    )
+    pedagogy_remedies: list[RemedyStrategy] = Field(default_factory=list, description="PRD §FR-CONV-06 补救策略列表")
     sub_tags: list[str] = Field(
         default_factory=list,
         description="子标签 (如 synonym_confusion / transfer_failure)",
@@ -186,20 +211,16 @@ class ErrorClassifier:
         error_type = await self._llm_classify(error_description, context)
         remedy = ERROR_TYPE_TO_REMEDY[error_type]
 
-        misconception = Misconception(
-            misconception_id=str(uuid.uuid4()),
+        misconception = _build_misconception(
             error_type=error_type,
             description=error_description,
             context=context,
-            remedy_strategy=remedy,
+            remedy=remedy,
             node_id=node_id,
             session_id=session_id,
-            # ⛔ 实测: Misconception 在 P0-4(2026-05-14) 把该字段改名为
-            # misconception_created_at(避 Graphiti 保护属性冲突), 本处仍传旧名。
-            # pydantic model_config 为空 ⇒ extra='ignore' ⇒ 传入值被静默丢弃, 字段回落
-            # default_factory(同样是 datetime.now(timezone.utc).isoformat())。
-            # 改参数名 = 行为变化(卡文 §一(h)②「须裁」) → 只做类型层标注并登记 TAIL。
-            created_at=datetime.now(timezone.utc).isoformat(),  # pyright: ignore[reportCallIssue]
+            # LLM 调用在上面已经完成 ⇒ 这里取的仍是「建实体那一刻」的时间,
+            # 与改前 `Misconception(...)` 内联调 datetime.now() 的时点一致。
+            created_at=datetime.now(timezone.utc).isoformat(),
         )
 
         return ClassificationResult(
@@ -235,13 +256,9 @@ class ErrorClassifier:
         Returns:
             ClassifiedError 含 legacy_type + pedagogy_type + 双 remedy + sub_tags.
         """
-        legacy_type, confidence = await self._llm_classify_with_confidence(
-            error_description, context
-        )
+        legacy_type, confidence = await self._llm_classify_with_confidence(error_description, context)
         legacy_remedy = ERROR_TYPE_TO_REMEDY[legacy_type]
-        pedagogy_type = map_legacy_to_pedagogy(
-            legacy_type, error_description, sub_tags
-        )
+        pedagogy_type = map_legacy_to_pedagogy(legacy_type, error_description, sub_tags)
         pedagogy_remedies = list(PEDAGOGY_TYPE_TO_REMEDIES[pedagogy_type])
 
         return ClassifiedError(
@@ -255,9 +272,7 @@ class ErrorClassifier:
             sub_tags=list(sub_tags or []),
         )
 
-    async def _llm_classify_with_confidence(
-        self, error_description: str, context: str
-    ) -> tuple[ErrorType, float]:
+    async def _llm_classify_with_confidence(self, error_description: str, context: str) -> tuple[ErrorType, float]:
         """LLM 分类 + 提取 confidence (Story 2.5).
 
         基于 _llm_classify, 但额外解析 LLM 返回的 confidence 字段.
@@ -305,15 +320,11 @@ class ErrorClassifier:
                 return self._heuristic_classify(error_description), 0.5
         except (ImportError, json.JSONDecodeError, ValueError, TypeError) as e:
             logger.warning(
-                f"[Story 2.5] LLM classification failed ({type(e).__name__}): {e}, "
-                "fallback heuristic (confidence=0.5)"
+                f"[Story 2.5] LLM classification failed ({type(e).__name__}): {e}, fallback heuristic (confidence=0.5)"
             )
             return self._heuristic_classify(error_description), 0.5
         except Exception as e:
-            logger.warning(
-                f"[Story 2.5] LLM classification unexpected error: {e}, "
-                "fallback heuristic (confidence=0.5)"
-            )
+            logger.warning(f"[Story 2.5] LLM classification unexpected error: {e}, fallback heuristic (confidence=0.5)")
             return self._heuristic_classify(error_description), 0.5
 
     async def _llm_classify(self, error_description: str, context: str) -> ErrorType:
@@ -368,16 +379,11 @@ class ErrorClassifier:
             try:
                 return ErrorType(raw_type)
             except ValueError:
-                logger.warning(
-                    f"[Story 3.6] LLM returned invalid error_type: {raw_type}, "
-                    "falling back to heuristic"
-                )
+                logger.warning(f"[Story 3.6] LLM returned invalid error_type: {raw_type}, falling back to heuristic")
                 return self._heuristic_classify(error_description)
 
         except ImportError:
-            logger.warning(
-                "[Story 3.6] litellm not available, using heuristic classification"
-            )
+            logger.warning("[Story 3.6] litellm not available, using heuristic classification")
             return self._heuristic_classify(error_description)
         except json.JSONDecodeError as e:
             logger.warning(f"[Story 3.6] LLM response not valid JSON: {e}")

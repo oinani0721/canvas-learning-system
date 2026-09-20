@@ -1,0 +1,23 @@
+--- ignore 计数(九文件) ---
+learning_context_service=1
+error_classifier=0
+agent_routing_engine=0
+batch_orchestrator=0
+intelligent_parallel_service=1
+multimodal_service=0
+wikilink_graph_service=0
+exam_service=1
+exam_service_ext=0
+合计=3
+--- 地盘 ---
+backend/app/services/agent_routing_engine.py
+backend/app/services/batch_orchestrator.py
+backend/app/services/error_classifier.py
+backend/app/services/intelligent_parallel_service.py
+backend/app/services/multimodal_service.py
+backend/app/services/wikilink_graph_service.py
+backend/tests/unit/test_pyright_tail_behavior.py
+--- 禁改面(须空) ---
+(禁改面 end)
+--- 现网只读 ---
+grep_rc=1

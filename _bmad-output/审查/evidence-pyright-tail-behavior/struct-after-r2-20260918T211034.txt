@@ -1,0 +1,16 @@
+learning_context_service=1
+error_classifier=0
+agent_routing_engine=0
+batch_orchestrator=0
+intelligent_parallel_service=1
+multimodal_service=0
+wikilink_graph_service=0
+exam_service=1
+exam_service_ext=0
+runtime_cfg=2
+mc_created=1
+cancelled=4
+agenttype=1
+mdindex=2
+tnew7=1
+query_eq=2

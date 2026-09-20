@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Literal, Optional
 
 import structlog
 
@@ -128,6 +128,58 @@ class PerformanceMetrics:
     sequential_time_estimate: float = 0.0
 
 
+def _classify_gather_result(result: object) -> Literal["ok", "failed", "cancelled"]:
+    """把 `asyncio.gather(..., return_exceptions=True)` 的一个结果项归类。
+
+    [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+    改前两处结果处理都写成 `isinstance(result, Exception)`。`asyncio.CancelledError`
+    继承 **BaseException 而非 Exception**(Python 3.8 起), 而 `gather` 在
+    `return_exceptions=True` 下会把取消也放进结果列表 ⇒ 取消被当成业务结果 append。
+    改前的后果按层不同: `_execute_group`(node 级)紧接着访问 `result.success` ⇒ 当场
+    AttributeError; `_execute_all_groups`(group 级)本身不访问 `.success`, 要等到
+    `start_batch_session` 里 `sum(r.failed_count for r in results)` 才炸。
+
+    `tests/unit/test_pyright_tail_behavior.py::test_gather_return_exceptions_surfaces_cancellation_as_non_exception`
+    锁的是**缺陷输入面真实存在**(真 gather 确实会把 CancelledError 放进结果列表,
+    且 `isinstance(result, Exception)` 对它为 False), 不是这两个循环的接线;
+    接线由同文件的 `test_gather_result_loops_screen_on_baseexception_not_exception`
+    以 AST 口径锁住。
+
+    ⚠️ 可达性如实(范围限于**本文件**, 不主张全仓): `start_batch_session` 里的
+    `asyncio.wait_for(self._execute_all_groups(...), timeout=...)` 取消的是**外层**协程
+    —— 那种情况下 gather 直接重抛 CancelledError、根本不返回结果列表; 本文件内也没有
+    任何地方持有 gather 子任务的句柄去单独 `.cancel()`(用户发起的取消走
+    `self._cancel_requested` 这个协作式布尔标志)。所以就**本文件已知的取消路径**而言,
+    ``"cancelled"`` 这一支要被命中, 需要**子任务自己**以 `CancelledError` 收尾
+    (例如下游库把取消漏出来)。本卡未穷举文件外的调用方是否另有取消源。
+    ⚠️ 先前这里把方法名写成了 `execute_batch` —— 本文件**没有**这个方法, 且当时还写了
+    「本仓唯一的取消源」这种超出已核范围的话, 均已改正(本卡 Codex round-2 指出)。
+    本卡未证明该条件在生产中可触发, 已登记(见验收单「本卡未证明什么」)。
+
+    Returns:
+        ``"cancelled"``  —— 任务被取消(`asyncio.CancelledError`);
+        ``"failed"``     —— 其它任何 `BaseException`;
+        ``"ok"``         —— 真业务结果。
+
+    Notes:
+        `KeyboardInterrupt` / `SystemExit` 在类型上也落 ``"failed"`` 这一支, 但**实测
+        到不了这里**: Python 3.14.4 上让子协程 `raise KeyboardInterrupt()`,
+        `gather(return_exceptions=True)` 不会把它放进结果列表, 原异常在
+        `asyncio.run()` 边界重新抛出(本卡 Codex round-1 指出、主 session 复跑确认)。
+        所以 ``"failed"`` 这一支在真实 asyncio 路径上只会命中普通 `Exception` 子类,
+        以及自定义的非 `CancelledError` `BaseException` 子类。
+        ⚠️ 先前这里写的是「归 failed 比改前收紧」——那是从 `BaseException` 的类型
+        关系**推演**的, 没有实测, 已按实测改正。
+        本函数**不**吞掉任何异常、也不重新抛出——`gather(return_exceptions=True)`
+        已经把「是否传播」这个决定做掉了, 本函数只负责归类。
+    """
+    if isinstance(result, asyncio.CancelledError):
+        return "cancelled"
+    if isinstance(result, BaseException):
+        return "failed"
+    return "ok"
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Progress Event Data Class
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -176,9 +228,7 @@ class BatchOrchestrator:
         agent_service: Any,  # AgentService - avoid circular import
         max_concurrent: int = DEFAULT_MAX_CONCURRENT,
         progress_callback: Optional[Callable[[ProgressEvent], None]] = None,
-        canvas_service: Optional[
-            Any
-        ] = None,  # CanvasService - optional for node content
+        canvas_service: Optional[Any] = None,  # CanvasService - optional for node content
         vault_path: Optional[str] = None,  # Vault path for file node content extraction
         routing_engine: Optional[Any] = None,  # AgentRoutingEngine for auto-routing
     ):
@@ -254,10 +304,7 @@ class BatchOrchestrator:
             raise
 
         if session.status != SessionStatus.PENDING:
-            logger.error(
-                f"[Story 33.6] Session {session_id} is in {session.status.value}, "
-                "expected pending"
-            )
+            logger.error(f"[Story 33.6] Session {session_id} is in {session.status.value}, expected pending")
             raise InvalidStateTransitionError(session.status, SessionStatus.RUNNING)
 
         return session
@@ -291,16 +338,12 @@ class BatchOrchestrator:
 
         # Transition to running state
         try:
-            await self.session_manager.transition_state(
-                session_id, SessionStatus.RUNNING
-            )
+            await self.session_manager.transition_state(session_id, SessionStatus.RUNNING)
         except InvalidStateTransitionError as e:
             logger.error(f"[Story 33.6] Failed to transition session: {e}")
             raise
 
-        logger.info(
-            "batch_session_starting", session_id=session_id, group_count=len(groups)
-        )
+        logger.info("batch_session_starting", session_id=session_id, group_count=len(groups))
 
         # Story 30.12 AC-30.12.2: canvas-orchestrator memory write on session start
         try:
@@ -312,9 +355,7 @@ class BatchOrchestrator:
                 result=None,
             )
         except Exception as mem_err:
-            logger.warning(
-                f"canvas-orchestrator memory write failed (non-blocking): {mem_err}"
-            )
+            logger.warning(f"canvas-orchestrator memory write failed (non-blocking): {mem_err}")
 
         # Broadcast session started
         await self._broadcast_progress(
@@ -399,9 +440,7 @@ class BatchOrchestrator:
             return final_result
 
         except asyncio.TimeoutError:
-            logger.error(
-                f"[Story 33.6] Session {session_id} timed out after {timeout}s"
-            )
+            logger.error(f"[Story 33.6] Session {session_id} timed out after {timeout}s")
             try:
                 await self.session_manager.transition_state(
                     session_id,
@@ -427,9 +466,7 @@ class BatchOrchestrator:
         except Exception as e:
             logger.exception(f"[Story 33.6] Session {session_id} failed: {e}")
             try:
-                await self.session_manager.transition_state(
-                    session_id, SessionStatus.FAILED, error_message=str(e)
-                )
+                await self.session_manager.transition_state(session_id, SessionStatus.FAILED, error_message=str(e))
             except InvalidStateTransitionError:
                 logger.warning(
                     "batch_session_error_transition_skipped",
@@ -476,19 +513,21 @@ class BatchOrchestrator:
         """
         # AC2: Use asyncio.gather with return_exceptions=True
         # [Source: docs/architecture/decisions/0004-async-execution-engine.md#L114-L149]
-        tasks = [
-            self._execute_group(session_id, canvas_path, group) for group in groups
-        ]
+        tasks = [self._execute_group(session_id, canvas_path, group) for group in groups]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results, converting exceptions to failed GroupExecutionResult
         processed_results: List[GroupExecutionResult] = []
         for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                logger.error(
-                    f"[Story 33.6] Group {groups[i].group_id} failed with exception: {result}"
-                )
+            # `BaseException` 而非 `Exception`: 取消(CancelledError)必须一并筛掉,
+            # 否则会被当成业务结果 append 进来。见 `_classify_gather_result`。
+            if isinstance(result, BaseException):
+                kind = _classify_gather_result(result)
+                if kind == "cancelled":
+                    logger.error(f"[Story 33.6] Group {groups[i].group_id} was cancelled ({type(result).__name__})")
+                else:
+                    logger.error(f"[Story 33.6] Group {groups[i].group_id} failed with exception: {result}")
                 processed_results.append(
                     GroupExecutionResult(
                         group_id=groups[i].group_id,
@@ -498,12 +537,7 @@ class BatchOrchestrator:
                     )
                 )
             else:
-                # ⛔ 既有缺陷(Codex round-1 HIGH, 已实证 Python 3.14.4):
-                # asyncio.CancelledError 继承 BaseException 而非 Exception, 上一分支的
-                # isinstance(result, Exception) 筛不掉它, 而 gather(return_exceptions=True)
-                # 会把它放进 results ⇒ 取消异常会被当成业务结果 append 进来。
-                # 修它要改 isinstance 的捕获面 = 运行期语义改动, 不在本卡范围 → TAIL 登记。
-                processed_results.append(result)  # pyright: ignore[reportArgumentType]
+                processed_results.append(result)
 
         return processed_results
 
@@ -527,8 +561,7 @@ class BatchOrchestrator:
         [Source: Story 33.6 Task 2.1]
         """
         logger.debug(
-            f"[Story 33.6] Starting group {group.group_id} "
-            f"with {len(group.node_ids)} nodes using {group.agent_type}"
+            f"[Story 33.6] Starting group {group.group_id} with {len(group.node_ids)} nodes using {group.agent_type}"
         )
 
         # Execute all nodes in parallel within this group
@@ -553,21 +586,26 @@ class BatchOrchestrator:
         for i, result in enumerate(results):
             node_id = group.node_ids[i]
 
-            if isinstance(result, Exception):
+            # 同 `_execute_all_groups`: 用 BaseException 才能把取消筛掉。
+            if isinstance(result, BaseException):
+                kind = _classify_gather_result(result)
+                # `str(CancelledError())` 是空串 ⇒ 回落到类型名, 免得前端拿到空 message。
                 node_results.append(
                     NodeExecutionResult(
                         node_id=node_id,
                         success=False,
-                        error_message=str(result),
+                        error_message=str(result) or type(result).__name__,
                         error_type=type(result).__name__,
                     )
                 )
                 failed_count += 1
+                if kind == "cancelled":
+                    logger.warning(
+                        f"[Story 33.6] Node {node_id} in group {group.group_id} was cancelled ({type(result).__name__})"
+                    )
             else:
-                # ⛔ 同上(Codex round-1 HIGH): CancelledError 会走到这里, 随后的
-                # result.success 会抛 AttributeError。既有缺陷, 本卡只标注 → TAIL 登记。
-                node_results.append(result)  # pyright: ignore[reportArgumentType]
-                if result.success:  # pyright: ignore[reportAttributeAccessIssue]
+                node_results.append(result)
+                if result.success:
                     completed_count += 1
                 else:
                     failed_count += 1
@@ -707,9 +745,7 @@ class BatchOrchestrator:
                         node_text=node_content,
                         agent_override=agent_type if agent_type != "auto" else None,
                     )
-                    routing_result = await self.routing_engine.route_single_node_async(
-                        routing_req
-                    )
+                    routing_result = await self.routing_engine.route_single_node_async(routing_req)
                     if routing_result and routing_result.confidence >= 0.7:
                         effective_agent_type = routing_result.recommended_agent
                         logger.debug(
@@ -724,9 +760,7 @@ class BatchOrchestrator:
                     AttributeError,
                     RuntimeError,
                 ) as e:
-                    logger.warning(
-                        f"[EPIC-33] Routing engine failed, using original agent_type: {e}"
-                    )
+                    logger.warning(f"[EPIC-33] Routing engine failed, using original agent_type: {e}")
 
             # Call agent through agent_service
             result = await self.agent_service.call_agent(
@@ -764,9 +798,7 @@ class BatchOrchestrator:
                     {
                         "node_id": node_id,
                         "agent_type": agent_type,
-                        "file_path": result.file_path
-                        if hasattr(result, "file_path")
-                        else None,
+                        "file_path": result.file_path if hasattr(result, "file_path") else None,
                         "execution_time_ms": execution_time_ms,
                     },
                 )
@@ -774,20 +806,14 @@ class BatchOrchestrator:
                 return NodeExecutionResult(
                     node_id=node_id,
                     success=True,
-                    file_path=result.file_path
-                    if hasattr(result, "file_path")
-                    else None,
+                    file_path=result.file_path if hasattr(result, "file_path") else None,
                     execution_time_ms=execution_time_ms,
                     started_at=started_at,
                     completed_at=completed_at,
                 )
             else:
                 # Agent returned failure
-                error_msg = (
-                    result.error
-                    if hasattr(result, "error")
-                    else "Agent execution failed"
-                )
+                error_msg = result.error if hasattr(result, "error") else "Agent execution failed"
 
                 await self.session_manager.add_node_result(
                     session_id=session_id,
@@ -879,9 +905,7 @@ class BatchOrchestrator:
         [QA-002: Added for production node content retrieval]
         """
         if self.canvas_service is None:
-            logger.debug(
-                f"[Story 33.6] canvas_service not configured, skipping node content fetch"
-            )
+            logger.debug(f"[Story 33.6] canvas_service not configured, skipping node content fetch")
             return None
 
         try:
@@ -903,9 +927,7 @@ class BatchOrchestrator:
                     break
 
             if target_node is None:
-                logger.warning(
-                    f"[Story 33.6] Node not found: {node_id} in {canvas_name}"
-                )
+                logger.warning(f"[Story 33.6] Node not found: {node_id} in {canvas_name}")
                 return None
 
             # Extract content based on node type
@@ -916,9 +938,7 @@ class BatchOrchestrator:
             content = get_node_content(target_node, vault_path)
 
             if content:
-                logger.debug(
-                    f"[Story 33.6] Retrieved content for node {node_id}: {len(content)} chars"
-                )
+                logger.debug(f"[Story 33.6] Retrieved content for node {node_id}: {len(content)} chars")
             return content
 
         except (
@@ -928,9 +948,7 @@ class BatchOrchestrator:
             ValueError,
             AttributeError,
         ) as e:
-            logger.warning(
-                f"[Story 33.6] Failed to get node content (non-blocking): {e}"
-            )
+            logger.warning(f"[Story 33.6] Failed to get node content (non-blocking): {e}")
             return None
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -1010,9 +1028,7 @@ class BatchOrchestrator:
             # Extract concept from result or use node_id
             concept = node_id  # Fallback
             if hasattr(result, "content") and result.content:
-                concept = (
-                    result.content[:50] if len(result.content) > 50 else result.content
-                )
+                concept = result.content[:50] if len(result.content) > 50 else result.content
 
             # Call agent_service._trigger_memory_write (fire-and-forget)
             # This is already wrapped in try-except and asyncio.create_task
@@ -1023,19 +1039,13 @@ class BatchOrchestrator:
                     node_id=node_id,
                     concept=concept,
                 )
-                logger.debug(
-                    f"[Story 33.6] Memory write triggered for {agent_type} on {node_id}"
-                )
+                logger.debug(f"[Story 33.6] Memory write triggered for {agent_type} on {node_id}")
             else:
-                logger.debug(
-                    f"[Story 33.6] agent_service doesn't have _trigger_memory_write, skipping"
-                )
+                logger.debug(f"[Story 33.6] agent_service doesn't have _trigger_memory_write, skipping")
 
         except Exception as e:
             # AC6: Memory write failures must NOT block agent execution
-            logger.error(
-                f"[Story 33.6] Memory write trigger failed (non-blocking): {e}"
-            )
+            logger.error(f"[Story 33.6] Memory write trigger failed (non-blocking): {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Task 5: Result Aggregation

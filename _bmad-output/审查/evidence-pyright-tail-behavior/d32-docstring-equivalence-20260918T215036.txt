@@ -1,0 +1,15 @@
+=== D-32 纯文案等价自证 ===
+基准 = 3596e98b (Codex r2 绑定的 SHA) vs 当前工作树
+口径: 剥掉 module/class/function 的 docstring 后 ast.dump 逐字相同 = 真代码零改动
+
+backend/app/services/batch_orchestrator.py
+    剥 docstring 后 AST 相同 = True
+    未剥 docstring 时       = False   <- 必须为 False, 否则说明这次 commit 什么都没改
+backend/app/services/wikilink_graph_service.py
+    剥 docstring 后 AST 相同 = True
+    未剥 docstring 时       = False   <- 必须为 False, 否则说明这次 commit 什么都没改
+backend/tests/unit/test_pyright_tail_behavior.py
+    剥 docstring 后 AST 相同 = True
+    未剥 docstring 时       = False   <- 必须为 False, 否则说明这次 commit 什么都没改
+
+ALL_STRIPPED_AST_IDENTICAL = True

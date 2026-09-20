@@ -15,7 +15,6 @@ Story 35.1 Implementation:
 [Source: src/agentic_rag/storage/multimodal_store.py]
 """
 
-import asyncio
 import base64
 import json
 import math
@@ -112,9 +111,15 @@ MAX_FILE_SIZE = _max_mb * 1024 * 1024
 # URL fetch timeout
 URL_FETCH_TIMEOUT = 30.0
 
-# Embedding retry settings (ADR-009: 2 retries, 2s interval)
-EMBEDDING_MAX_RETRIES = 2
-EMBEDDING_RETRY_DELAY = 2.0
+# Embedding retry settings 已随 `_generate_embedding` 的死 import 一并退役
+# (ADR-009 的 2 次重试 / 2s 间隔)。第十六批补实现时按新 embedder 的真实失败模式
+# 重新定, 不复用这两个旧值。
+# 引用面如实: 全仓**可执行代码**(*.py / *.sh / *.js / *.ts)对这两个名字 0 命中;
+# 文档里仍有历史提及(如 `docs/stories/36.13.story.md` 把 EMBEDDING_RETRY_DELAY
+# 登记为「✅ 常量」), 退役后那条登记已失实, 归第十六批一并更正。
+# ⚠️ 先前这里写的是「全仓再无引用」——当时的 grep 面只有 `backend/**/*.py`,
+# 主张却说了「全仓」, 已按实测收窄(本卡 Codex round-1 指出)。
+# [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
 
 # Magic bytes signatures for file content validation
 # Format: {MediaType: [(magic_bytes, offset), ...]}
@@ -314,10 +319,7 @@ class MultimodalService:
             return str(thumb_path)
 
         except ImportError:
-            logger.warning(
-                "Pillow not installed — thumbnail generation disabled. "
-                "Install with: pip install Pillow"
-            )
+            logger.warning("Pillow not installed — thumbnail generation disabled. Install with: pip install Pillow")
             return None
         except (OSError, ValueError) as e:
             logger.warning("Thumbnail generation failed for %s: %s", content_id, e)
@@ -333,9 +335,7 @@ class MultimodalService:
         logger.info("MultimodalService initialized successfully")
         return True
 
-    def _detect_media_type(
-        self, filename: str, content_type: Optional[str] = None
-    ) -> MultimodalMediaType:
+    def _detect_media_type(self, filename: str, content_type: Optional[str] = None) -> MultimodalMediaType:
         """
         Detect media type from filename and/or content type.
 
@@ -362,9 +362,7 @@ class MultimodalService:
 
         raise FileValidationError(f"Unsupported file type: {ext or content_type}")
 
-    def _validate_file(
-        self, filename: str, content_type: Optional[str], file_size: int
-    ) -> MultimodalMediaType:
+    def _validate_file(self, filename: str, content_type: Optional[str], file_size: int) -> MultimodalMediaType:
         """
         Validate uploaded file.
 
@@ -381,9 +379,7 @@ class MultimodalService:
         """
         # Validate file size
         if file_size > MAX_FILE_SIZE:
-            raise FileValidationError(
-                f"File too large: {file_size / 1024 / 1024:.1f}MB (max: 50MB)"
-            )
+            raise FileValidationError(f"File too large: {file_size / 1024 / 1024:.1f}MB (max: 50MB)")
 
         # Validate and detect media type
         media_type = self._detect_media_type(filename, content_type)
@@ -392,9 +388,7 @@ class MultimodalService:
         if content_type:
             expected_mimes = SUPPORTED_MIME_TYPES.get(media_type, set())
             if content_type not in expected_mimes:
-                logger.warning(
-                    f"Content-Type mismatch: {content_type} vs expected {expected_mimes}"
-                )
+                logger.warning(f"Content-Type mismatch: {content_type} vs expected {expected_mimes}")
 
         return media_type
 
@@ -436,23 +430,13 @@ class MultimodalService:
 
         # Audio: RIFF WAVE, ID3, sync bytes, OggS, fLaC
         if media_type == MultimodalMediaType.AUDIO:
-            if (
-                file_bytes[:4] == b"RIFF"
-                and len(file_bytes) >= 12
-                and file_bytes[8:12] == b"WAVE"
-            ):
+            if file_bytes[:4] == b"RIFF" and len(file_bytes) >= 12 and file_bytes[8:12] == b"WAVE":
                 return
-            if (
-                file_bytes[:3] == b"ID3"
-                or file_bytes[:4] == b"OggS"
-                or file_bytes[:4] == b"fLaC"
-            ):
+            if file_bytes[:3] == b"ID3" or file_bytes[:4] == b"OggS" or file_bytes[:4] == b"fLaC":
                 return
             if file_bytes[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2"):
                 return
-            logger.warning(
-                "Unrecognized audio format for %s, allowing upload", filename
-            )
+            logger.warning("Unrecognized audio format for %s, allowing upload", filename)
             return
 
         # Video: ftyp (MP4/MOV) at offset 4, EBML (WebM/MKV)
@@ -461,9 +445,7 @@ class MultimodalService:
                 return
             if file_bytes[:4] == b"\x1a\x45\xdf\xa3":
                 return
-            logger.warning(
-                "Unrecognized video format for %s, allowing upload", filename
-            )
+            logger.warning("Unrecognized video format for %s, allowing upload", filename)
             return
 
         # For IMAGE and PDF: strict — reject unrecognized files
@@ -472,9 +454,7 @@ class MultimodalService:
             f"Upload rejected for security."
         )
 
-    def _generate_unique_filename(
-        self, original_filename: str, media_type: MultimodalMediaType
-    ) -> str:
+    def _generate_unique_filename(self, original_filename: str, media_type: MultimodalMediaType) -> str:
         """
         Generate a unique filename for storage.
 
@@ -658,9 +638,7 @@ class MultimodalService:
             thumbnail_path=thumbnail_path,
         )
 
-        logger.info(
-            f"Uploaded file: {content_id} ({media_type.value}) - {file_size} bytes"
-        )
+        logger.info(f"Uploaded file: {content_id} ({media_type.value}) - {file_size} bytes")
 
         return MultimodalUploadResponse(
             content=response_content,
@@ -696,13 +674,9 @@ class MultimodalService:
                 response = await client.get(request.url, follow_redirects=True)
                 response.raise_for_status()
         except httpx.TimeoutException:
-            raise MultimodalServiceError(
-                f"URL fetch timeout after {URL_FETCH_TIMEOUT}s"
-            )
+            raise MultimodalServiceError(f"URL fetch timeout after {URL_FETCH_TIMEOUT}s")
         except httpx.HTTPStatusError as e:
-            raise MultimodalServiceError(
-                f"URL fetch failed: HTTP {e.response.status_code}"
-            )
+            raise MultimodalServiceError(f"URL fetch failed: HTTP {e.response.status_code}")
         except (httpx.HTTPError, ConnectionError) as e:
             raise MultimodalServiceError(f"URL fetch failed: {e}")
 
@@ -779,9 +753,7 @@ class MultimodalService:
             thumbnail_path=thumbnail_path,
         )
 
-        logger.info(
-            f"Uploaded from URL: {content_id} ({media_type.value}) - {file_size} bytes"
-        )
+        logger.info(f"Uploaded from URL: {content_id} ({media_type.value}) - {file_size} bytes")
 
         return MultimodalUploadResponse(
             content=response_content,
@@ -1153,9 +1125,7 @@ class MultimodalService:
 
         return MediaItemResponse(
             id=data["id"],
-            type=data["media_type"].value
-            if hasattr(data["media_type"], "value")
-            else data["media_type"],
+            type=data["media_type"].value if hasattr(data["media_type"], "value") else data["media_type"],
             path=data["file_path"],
             title=title,
             relevanceScore=score,
@@ -1228,9 +1198,7 @@ class MultimodalService:
                 )
 
                 for content in contents[:limit]:
-                    items.append(
-                        self._content_to_media_item(content, 1.0, include_thumbnail)
-                    )
+                    items.append(self._content_to_media_item(content, 1.0, include_thumbnail))
                     seen_ids.add(content.id)
 
             except Exception as e:
@@ -1336,9 +1304,7 @@ class MultimodalService:
                     if request.media_types:
                         from agentic_rag.models.multimodal_content import MediaType
 
-                        store_media_types = [
-                            MediaType(mt.value) for mt in request.media_types
-                        ]
+                        store_media_types = [MediaType(mt.value) for mt in request.media_types]
 
                     # Perform vector search
                     results = await self.multimodal_store.search(
@@ -1350,11 +1316,7 @@ class MultimodalService:
 
                     # Convert to MediaItemResponse
                     for content, score in results:
-                        items.append(
-                            self._content_to_media_item(
-                                content, score, include_thumbnail
-                            )
-                        )
+                        items.append(self._content_to_media_item(content, score, include_thumbnail))
 
                     return MultimodalSearchResponse(
                         items=items,
@@ -1367,9 +1329,7 @@ class MultimodalService:
                 logger.warning("MultimodalStore search failed: %s", e)
 
         # Fallback: simple text search in descriptions
-        logger.warning(
-            "向量搜索不可用，降级为文本搜索。搜索结果基于关键字匹配而非语义相似度。"
-        )
+        logger.warning("向量搜索不可用，降级为文本搜索。搜索结果基于关键字匹配而非语义相似度。")
 
         query_lower = request.query.lower()
         scored_items: List[Tuple[dict, float]] = []
@@ -1408,52 +1368,43 @@ class MultimodalService:
 
     async def _generate_embedding(self, text: str) -> Optional[List[float]]:
         """
-        Generate embedding vector for text with retry.
+        Generate embedding vector for text.
 
         [Source: docs/stories/35.2.story.md#Task-2.2]
-        [ADR-009: Embedding retry strategy - 2 retries, 2s interval]
+
+        本方法当前**恒返回 None**——本仓没有任何已接入的 embedding 服务。
+        调用方 `search()` 会据此走文本降级分支, 用户可见行为(`search_mode="text"`)不变。
+
+        ⚠️ 与 `get_health_status` 的已知不一致(**改前就存在, 本卡未引入、也未修**):
+        那里的 `vector_search_available = has_store and lancedb_connected` 与本方法
+        完全解耦。注入了 `multimodal_store` 且其 `health_check()` 报 lancedb 已连时,
+        健康端点会给出 `vector_search_available=True` / `capability_level="full"`,
+        而同一进程里 `search()` 的 `if query_vector:` 永不为真、`search_mode` 恒 `"text"`。
+        改前这个矛盾要运行到 ImportError 才显形, 本卡把本方法固化成恒 None 之后,
+        它变成**静态可证**的。改 `get_health_status` 的口径 = 改健康端点语义,
+        超出本卡授权, 已登记随第十六批补实现一并处置。
+
+        [BATCH-2026-09-18-第十五批 / CARD-PYRIGHT-TAIL-BEHAVIOR]
+        改前这里 import 的是 `agentic_rag.embedding.embedding_service`——
+        `backend/lib/agentic_rag/` 下**没有** embedding 子包, 全仓也找不到
+        `embedding_service*` ⇒ 恒 `ImportError` ⇒ 后面那段重试循环的被调对象
+        从来不存在, 是不可达代码。把死 import 与不可达的重试循环一并退役,
+        原因如实写成「未接入」而不是谎称 ImportError。
+
+        **补实现不在本卡**(第十六批): 仓内现成的 embedder 是
+        `app/graphiti/embedder_factory.py::build_embedder(embedding_dim=1024)`,
+        而 `backend/lib/agentic_rag/storage/multimodal_store.py` 的默认维度也是
+        1024(bge-m3)——旧代码里那句 `len(vector) == 768` 与两者都对不上,
+        接线时必须同时改维度断言。
 
         Args:
-            text: Text to embed
+            text: Text to embed(当前未使用——没有可调用的 embedding 服务)
 
         Returns:
-            768-dimensional embedding vector, or None if failed
+            恒 None。
         """
-        try:
-            # ⛔ 真死 import(归 TAIL T-new): backend/lib/agentic_rag/ 下**没有** embedding
-            # 子包, 全仓 find -name 'embedding_service*' 为空 ⇒ U2 阶段 0 的 extraPaths
-            # 也解不了它。运行期恒走下方 except ImportError ⇒ 向量搜索**永久关闭**,
-            # 一直在降级跑文本搜索。是退役该分支还是补实现 = 产品裁定, 不在本卡。
-            from agentic_rag.embedding.embedding_service import (  # pyright: ignore[reportMissingImports]
-                get_embedding_service,
-            )
-        except ImportError:
-            logger.warning(
-                "向量搜索不可用（embedding service ImportError），降级为文本搜索"
-            )
-            return None
-
-        for attempt in range(EMBEDDING_MAX_RETRIES + 1):
-            try:
-                service = get_embedding_service()
-                if service:
-                    vector = await service.embed_text(text)
-                    if vector and len(vector) == 768:
-                        return vector
-                return None  # Service exists but returned invalid vector
-            except (RuntimeError, ConnectionError, ValueError) as e:
-                if attempt < EMBEDDING_MAX_RETRIES:
-                    logger.warning(
-                        f"Embedding attempt {attempt + 1}/{EMBEDDING_MAX_RETRIES + 1} failed: {e}, "
-                        f"retrying in {EMBEDDING_RETRY_DELAY}s"
-                    )
-                    await asyncio.sleep(EMBEDDING_RETRY_DELAY)
-                else:
-                    logger.warning(
-                        f"向量搜索不可用（embedding 生成失败，已重试 {EMBEDDING_MAX_RETRIES} 次: {e}），"
-                        f"降级为文本搜索"
-                    )
-
+        del text  # 无已接入的 embedding 服务, 入参无处可用(保留形参以维持调用签名)
+        logger.warning("向量搜索不可用（未接入 embedding 服务），降级为文本搜索")
         return None
 
     async def list_all(
@@ -1504,9 +1455,7 @@ class MultimodalService:
                         all_items.append(
                             {
                                 "id": content.id,
-                                "media_type": MultimodalMediaType(
-                                    content.media_type.value
-                                ),
+                                "media_type": MultimodalMediaType(content.media_type.value),
                                 "file_path": content.file_path,
                                 "related_concept_id": content.related_concept_id,
                                 "created_at": content.created_at,
@@ -1530,9 +1479,7 @@ class MultimodalService:
                                 all_items.append(
                                     {
                                         "id": content.id,
-                                        "media_type": MultimodalMediaType(
-                                            content.media_type.value
-                                        ),
+                                        "media_type": MultimodalMediaType(content.media_type.value),
                                         "file_path": content.file_path,
                                         "related_concept_id": content.related_concept_id,
                                         "created_at": content.created_at,
@@ -1574,10 +1521,7 @@ class MultimodalService:
         paginated_items = all_items[offset : offset + page_size]
 
         # Convert to MediaItemResponse
-        items = [
-            self._to_media_item(item, 1.0, include_thumbnail)
-            for item in paginated_items
-        ]
+        items = [self._to_media_item(item, 1.0, include_thumbnail) for item in paginated_items]
 
         # Build pagination meta
         pagination = PaginationMeta(
