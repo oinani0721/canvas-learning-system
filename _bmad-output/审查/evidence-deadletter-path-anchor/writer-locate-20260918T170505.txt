@@ -1,0 +1,9 @@
+WRITER tests/unit/test_canvas_edge_bulk_sync.py delta=1
+WRITER tests/unit/test_canvas_edge_sync.py delta=1
+clean  tests/unit/test_acp_prompt_externalization.py delta=0
+WRITER tests/unit/test_agent_memory_trigger.py delta=1
+clean  tests/unit/test_canvas_memory_trigger.py delta=0
+clean  tests/unit/test_neo4j_client.py delta=0
+WRITER tests/unit/test_story_30_22_agent_trigger_deep.py delta=2
+clean  tests/unit/test_error_writer.py delta=0
+clean  tests/unit/test_memory_service_structured_routing.py delta=0

@@ -1,0 +1,11 @@
+ew_relstr(期望0)=0
+traces_concat(期望0)=0
+ANCHOR_in backend/app/core/failure_counters.py = 1
+ANCHOR_in backend/app/services/episode_worker.py = 5
+ANCHOR_in backend/app/api/v1/endpoints/traces.py = 5
+验伪锚 EDGE_SYNC_in_traces(恒2)=2
+--- AST 门（期望 0）---
+cwd_relative_defaults= 0
+--- AST 验伪锚（恒 1）---
+f 1 'data/x.jsonl'
+cwd_relative_defaults= 1

@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from app.core.failure_counters import DEAD_LETTER_EPISODES_PATH
 from graphiti_core import Graphiti
 
 logger = structlog.get_logger(__name__)
@@ -204,7 +205,8 @@ class DeadLetterStore:
     Previously this stored the full ``episode_body`` plaintext on every failure,
     which means all content the LLM saw — including potentially PII, student
     answers, system prompts containing instructions, and the rare leaked
-    credential — was permanently archived in ``data/dead_letter_episodes.jsonl``.
+    credential — was permanently archived in ``backend/data/dead_letter_episodes.jsonl``
+    (``DEAD_LETTER_EPISODES_PATH``, cwd 无关).
     Combined with the file being committed to git in some failure modes, this
     is a CWE-532 vector.
 
@@ -221,8 +223,11 @@ class DeadLetterStore:
         end up in the structured log stream either.
     """
 
-    def __init__(self, file_path: str = "data/dead_letter_episodes.jsonl") -> None:
-        self._file_path = Path(file_path)
+    def __init__(self, file_path: str | Path | None = None) -> None:
+        # ⚠️ 默认值必须在**调用时**解析 ``DEAD_LETTER_EPISODES_PATH``，不能写成
+        # ``file_path=DEAD_LETTER_EPISODES_PATH`` —— def 期默认值绑定在函数对象的
+        # ``__defaults__`` 上，模块属性打桩就对它失效，行为门便只能对着真死信文件跑。
+        self._file_path = Path(file_path) if file_path is not None else DEAD_LETTER_EPISODES_PATH
         self._file_path.parent.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
@@ -303,7 +308,7 @@ class GraphitiEpisodeWorker:
     def __init__(
         self,
         maxsize: int = 100,
-        dead_letter_path: str = "data/dead_letter_episodes.jsonl",
+        dead_letter_path: str | Path | None = None,
     ) -> None:
         self._graphiti: Optional[Graphiti] = None
         self._queue: asyncio.Queue[EpisodeTask] = asyncio.Queue(maxsize=maxsize)

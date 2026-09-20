@@ -1,0 +1,19 @@
+--- 变异前 shasum ---
+9120c51b09fb38d908f10530b5255c1fa28ea2ea97e32cc2c53433713b661367  backend/tests/unit/test_failure_observability.py
+--- 变异前 snap ---
+backend/data/failed_edge_syncs.jsonl lines=10 sha=20fc6365f24b3c8c
+backend/data/failed_writes.jsonl lines=9 sha=4772c6c609adc190
+backend/data/dead_letter_episodes.jsonl lines=ABSENT sha=ABSENT
+backend/data/bug_log.jsonl lines=ABSENT sha=ABSENT
+ANCHOR(已知存在) backend/data/reference_priority.json lines=55 sha=5a51e17cf2edc0f4
+变异已注入（去掉本卡两处 patch）
+collected 29 items / 25 deselected / 4 selected
+=========== 2 passed, 2 skipped, 25 deselected, 10 warnings in 6.97s ===========
+--- 变异跑后 snap（failed_edge_syncs 须 +2 = 写脏门红）---
+backend/data/failed_edge_syncs.jsonl lines=12 sha=eb2c9dbd1563eb3e
+backend/data/failed_writes.jsonl lines=9 sha=4772c6c609adc190
+backend/data/dead_letter_episodes.jsonl lines=ABSENT sha=ABSENT
+backend/data/bug_log.jsonl lines=ABSENT sha=ABSENT
+ANCHOR(已知存在) backend/data/reference_priority.json lines=55 sha=5a51e17cf2edc0f4
+--- 还原后 shasum（须与变异前逐字同）---
+9120c51b09fb38d908f10530b5255c1fa28ea2ea97e32cc2c53433713b661367  backend/tests/unit/test_failure_observability.py

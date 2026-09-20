@@ -1,0 +1,7 @@
+=== AST 门（被测 episode_worker.py）改前 —— 期望 2 ===
+__init__ 224 'data/dead_letter_episodes.jsonl'
+__init__ 303 'data/dead_letter_episodes.jsonl'
+cwd_relative_defaults= 2
+=== 同一份门脚本喂已知正例（验伪锚）—— 期望 1 ===
+f 1 'data/x.jsonl'
+cwd_relative_defaults= 1

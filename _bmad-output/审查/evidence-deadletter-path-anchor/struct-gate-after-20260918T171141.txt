@@ -1,0 +1,12 @@
+=== (f) 结构门改后（成对后半）===
+ew_relstr(2->期望0)=0
+traces_concat(2->期望0)=0
+ANCHOR_in backend/app/core/failure_counters.py = 1
+ANCHOR_in backend/app/services/episode_worker.py = 5
+ANCHOR_in backend/app/api/v1/endpoints/traces.py = 5
+验伪锚 EDGE_SYNC_in_traces(恒2)=2
+=== (f)③ AST 门改后（2->期望0）===
+cwd_relative_defaults= 0
+=== 同门喂已知正例（验伪锚，恒1）===
+f 1 'data/x.jsonl'
+cwd_relative_defaults= 1

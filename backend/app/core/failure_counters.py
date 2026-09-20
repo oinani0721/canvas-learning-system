@@ -35,6 +35,17 @@ EDGE_SYNC_DEAD_LETTER_PATH: Path = (
 DUAL_WRITE_DEAD_LETTER_PATH: Path = (
     Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
 )
+# CARD-DEADLETTER-PATH-ANCHOR: episode worker 的死信落点。写侧原先是
+# ``episode_worker.py`` 两个 ``__init__`` 的字面量默认值
+# ``"data/dead_letter_episodes.jsonl"`` —— **相对 cwd**，而生产单例
+# ``get_episode_worker()`` 无参构造 ⇒ 进程从哪个目录启动，死信就落到哪个
+# ``data/`` 下，读侧 ``/traces`` 用的却是 backend 绝对锚，两边只有 cwd=backend
+# 时才偶然对得上。锚放在本模块是因为它只 import 标准库，``episode_worker``
+# 反向 import 不成环，读写两侧才能指同一个对象。
+# 排版写成单行而非上面两条的多行括号：上面两条的括号是主干既有的 ruff format 漂移
+# （在 B15_BASE 上 `ruff format --check` 即判 dirty），照抄会把漂移带到本卡改动行上。
+# 锚的构造方式与它们完全相同；D-40 的整仓 format 落地后三条会自然一致。
+DEAD_LETTER_EPISODES_PATH: Path = Path(__file__).parent.parent.parent / "data" / "dead_letter_episodes.jsonl"
 
 
 def bound_from_env(name: str, default: int, *, minimum: int) -> int:

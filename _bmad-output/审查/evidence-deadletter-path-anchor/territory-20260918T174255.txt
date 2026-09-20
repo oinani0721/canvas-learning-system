@@ -1,0 +1,21 @@
+=== (l) 地盘门：本卡代码面（B15_BASE 9c4e7e82 → HEAD bfeefadd）===
+ backend/app/api/v1/endpoints/traces.py             |  27 ++---
+ backend/app/core/failure_counters.py               |  11 ++
+ backend/app/services/episode_worker.py             |  13 ++-
+ backend/tests/unit/test_dead_letter_path_anchor.py | 116 +++++++++++++++++++++
+ backend/tests/unit/test_failure_observability.py   |  38 +++++--
+ 5 files changed, 178 insertions(+), 27 deletions(-)
+
+=== 禁改文件 diff（须全空）===
+(上面无输出 = 全空 ✅)
+
+=== 验伪锚：去掉 exclude 应多出 _bmad-output/ 路径（post-commit 才非空洞）===
+35
+(>0 ⇒ exclude 确实在起作用，上面的白名单不是因为 diff 恒空)
+
+=== episode_worker.py :600 零改动核（逐 hunk 看行区间）===
+@@ -32,0 +33 @@ from typing import Any, Optional
+@@ -207 +208,2 @@ class DeadLetterStore:
+@@ -224,2 +226,5 @@ class DeadLetterStore:
+@@ -306 +311 @@ class GraphitiEpisodeWorker:
+↑ 每个 hunk 的新文件起始行与长度；:600 必须不在任何 -/+ 行覆盖区间内

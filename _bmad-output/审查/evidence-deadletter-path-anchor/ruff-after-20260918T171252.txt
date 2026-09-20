@@ -1,0 +1,12 @@
+files=5
+All checks passed!
+rc=0
+F821 Undefined name `undefined_name_xyz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p2-outbox/4abcb13c-3bb0-4c69-8138-31ec83ba6145/scratchpad/_ruffprobe_tmp.py:1:7
+  |
+1 | print(undefined_name_xyz)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+锚rc=1 (期望1)

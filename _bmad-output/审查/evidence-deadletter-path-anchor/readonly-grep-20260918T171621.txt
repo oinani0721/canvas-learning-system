@@ -1,0 +1,10 @@
+=== (m) 现网只读：本卡改动文件中禁用串命中数（期望全 0）===
+fsrs_bridge    = 0
+decay_beta     = 0
+7691           = 0
+7687           = 0
+canvas-vault   = 0
+
+=== 验伪锚：同一组文件里一个已知存在的串（证明 grep 真的在读这些文件）===
+DEAD_LETTER_EPISODES_PATH = 13
+（期望 >0 ⇒ 上面的 0 是真 0，不是 grep 没读到文件）

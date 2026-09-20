@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends
 from app.clients.neo4j_client import DEFAULT_STORAGE_PATH as NEO4J_MEMORY_FILE
 from app.core.failed_writes_constants import FAILED_WRITES_FILE
 from app.core.failure_counters import (
+    DEAD_LETTER_EPISODES_PATH,
     DUAL_WRITE_DEAD_LETTER_PATH,
     EDGE_SYNC_DEAD_LETTER_PATH,
     bound_from_env,
@@ -46,12 +47,14 @@ router = APIRouter()
 # 是空目录，**恒查不到** —— DD-13 名实不符。``parents[4]`` == backend。
 #
 # ⚠️ 但**别把这处修复说得比它实际管用**（独立复核 2026-09-15 MEDIUM 更正了
-# 初版注释的过强表述）：四个源里只有 ``failed_edge_syncs``（写侧
-# ``failure_counters.py`` 的 ``parent.parent.parent/"data"``）与 ``audit``
-# 是绝对锚，改对目录就真读得到。``bug_log`` 与 ``dead_letter_episodes`` 的
-# 写侧是 **cwd 相对**路径（``episode_worker.py:224`` 的默认参数
-# ``"data/dead_letter_episodes.jsonl"``），只有在 cwd=backend 时才与这里一致；
-# cwd 不是 backend 时它们仍然对不上，而那不是本卡能在读侧修的。
+# 初版注释的过强表述）。逐源实况（CARD-DEADLETTER-PATH-ANCHOR 更新）：
+#   - ``failed_edge_syncs`` / ``audit``：写侧本就是绝对锚，改对目录即读得到；
+#   - ``dead_letter_episodes``：写侧（``episode_worker.py`` 的两个 ``__init__``）
+#     曾是 cwd 相对默认值，现已锚定到 ``DEAD_LETTER_EPISODES_PATH``，下表直接
+#     import 该常量 ⇒ 读侧与写侧是**同一个对象**，不再依赖 cwd；
+#   - ``bug_log``：**仍是 cwd 相对**（``bug_tracker.py:89`` 的默认参数
+#     ``"data/bug_log.jsonl"`` + 模块级单例 ``bug_tracker = BugTracker()``），
+#     cwd 不是 backend 时这里仍然对不上。它不在本卡地盘，归属待裁，未修。
 _BACKEND_DIR = Path(__file__).resolve().parents[4]
 
 DATA_DIR = _BACKEND_DIR / "data"
@@ -60,7 +63,7 @@ LOGS_DIR = _BACKEND_DIR / "logs"
 LOG_FILES = {
     "bug_log": DATA_DIR / "bug_log.jsonl",
     "failed_edge_syncs": DATA_DIR / "failed_edge_syncs.jsonl",
-    "dead_letter_episodes": DATA_DIR / "dead_letter_episodes.jsonl",
+    "dead_letter_episodes": DEAD_LETTER_EPISODES_PATH,
     "audit": LOGS_DIR / "audit.jsonl",
 }
 
@@ -73,15 +76,15 @@ LOG_FILES = {
 # —— 报「不存在」而其实一直在写，又是一处 DD-13。
 #
 # 能 import 到常量的一律直接 import，不手抄路径（手抄的两份清单必然漂移）。
-# 唯一的例外是 ``dead_letter_episodes.jsonl``：它的写侧
-# （episode_worker.py:224）是**函数参数默认值** ``"data/dead_letter_episodes.jsonl"``，
-# 相对 cwd 解析，没有模块常量可 import。运行时 cwd=backend 时与下面一致；
-# cwd 不是 backend 时实际落点会不同，本表报的就会是另一个位置。
+# ``dead_letter_episodes.jsonl`` 原是这条规矩的唯一例外（写侧是
+# episode_worker.py 的 cwd 相对默认参数，没有模块常量可 import）——
+# CARD-DEADLETTER-PATH-ANCHOR 把写侧锚成了 ``DEAD_LETTER_EPISODES_PATH``，
+# 例外随之消除：下表**每一条**都是 import 来的写侧常量，无一手抄。
 BACKLOG_FILES: Dict[str, Path] = {
     "failed_writes.jsonl": FAILED_WRITES_FILE,
     "failed_edge_syncs.jsonl": EDGE_SYNC_DEAD_LETTER_PATH,
     "failed_dual_writes.jsonl": DUAL_WRITE_DEAD_LETTER_PATH,
-    "dead_letter_episodes.jsonl": DATA_DIR / "dead_letter_episodes.jsonl",
+    "dead_letter_episodes.jsonl": DEAD_LETTER_EPISODES_PATH,
     "neo4j_memory.json": NEO4J_MEMORY_FILE,
     "learning_memories.json": LEARNING_MEMORIES_FILE,
     "canvas_events_fallback.json": CANVAS_EVENTS_FALLBACK_FILE,

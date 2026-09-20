@@ -173,8 +173,14 @@ class TestCanvasServiceEdgeSyncFailure:
     """Test that _sync_edge_to_neo4j increments counter + writes dead-letter on failure."""
 
     @pytest.mark.asyncio
-    async def test_edge_sync_failure_increments_counter(self):
-        """When Neo4j sync fails after retries, edge_sync_failures counter increments."""
+    async def test_edge_sync_failure_increments_counter(self, tmp_path):
+        """When Neo4j sync fails after retries, edge_sync_failures counter increments.
+
+        CARD-DEADLETTER-PATH-ANCHOR: 本条断言的是计数器，但被测路径
+        ``_sync_edge_to_neo4j`` 失败时同时 ``write_dead_letter(EDGE_SYNC_DEAD_LETTER_PATH, …)``
+        —— 那是个 backend 绝对锚，不打桩就每跑一次往真死信文件 ``backend/data/
+        failed_edge_syncs.jsonl`` 追加一行。与 :200 那条同形打桩（见其 ``dl_path``）。
+        """
         from app.services.canvas_service import CanvasService
 
         service = CanvasService(canvas_base_path="/tmp/test")
@@ -186,12 +192,14 @@ class TestCanvasServiceEdgeSyncFailure:
         mock_memory.neo4j = mock_neo4j
         service._memory_client = mock_memory
 
-        result = await service._sync_edge_to_neo4j(
-            canvas_path="test.canvas",
-            edge_id="edge-001",
-            from_node_id="node-a",
-            to_node_id="node-b",
-        )
+        dl_path = tmp_path / "failed_edge_syncs.jsonl"
+        with patch("app.services.canvas_service.EDGE_SYNC_DEAD_LETTER_PATH", dl_path):
+            result = await service._sync_edge_to_neo4j(
+                canvas_path="test.canvas",
+                edge_id="edge-001",
+                from_node_id="node-a",
+                to_node_id="node-b",
+            )
 
         assert result is None  # Failed
         assert get_edge_sync_failures() >= 1
@@ -223,8 +231,12 @@ class TestCanvasServiceEdgeSyncFailure:
         assert entry["type"] == "edge_sync"
 
     @pytest.mark.asyncio
-    async def test_edge_sync_failure_logs_warning(self, caplog):
-        """WARNING log includes edge_id, canvas, error, total_failures (AC-36.12.4)."""
+    async def test_edge_sync_failure_logs_warning(self, caplog, tmp_path):
+        """WARNING log includes edge_id, canvas, error, total_failures (AC-36.12.4).
+
+        CARD-DEADLETTER-PATH-ANCHOR: 同 :176 —— 断言的是日志，写的却是真死信文件，
+        故一并把 ``EDGE_SYNC_DEAD_LETTER_PATH`` 打桩到 tmp_path。
+        """
         from app.services.canvas_service import CanvasService
 
         service = CanvasService(canvas_base_path="/tmp/test")
@@ -234,7 +246,11 @@ class TestCanvasServiceEdgeSyncFailure:
         mock_memory.neo4j = mock_neo4j
         service._memory_client = mock_memory
 
-        with caplog.at_level(logging.WARNING):
+        dl_path = tmp_path / "failed_edge_syncs.jsonl"
+        with (
+            caplog.at_level(logging.WARNING),
+            patch("app.services.canvas_service.EDGE_SYNC_DEAD_LETTER_PATH", dl_path),
+        ):
             await service._sync_edge_to_neo4j(
                 canvas_path="test.canvas",
                 edge_id="edge-log-test",
