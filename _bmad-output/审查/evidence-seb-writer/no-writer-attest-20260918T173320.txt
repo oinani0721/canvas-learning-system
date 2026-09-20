@@ -1,0 +1,12 @@
+=== 零写者自证: fsrs_bridge.py / decay_beta.py（B15_BASE 版本 vs 当前工作树）===
+--- canvas-vault/.claude/scripts/fsrs_bridge.py ---
+  B15_BASE: a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0
+  工作树  : a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0
+--- canvas-vault/.claude/scripts/decay_beta.py ---
+  B15_BASE: 3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90
+  工作树  : 3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90
+=== 现网 live vault 只读自证: 本卡零写入 ===
+本卡只写车道树 canvas-vault/.claude/skills/start-exam-board/SKILL.md（worktree 内），
+live vault 路径 /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/ 未出现在任何写操作中。
+=== 库连接自证（W4 哨兵，取自各承重跑存档末尾）===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)

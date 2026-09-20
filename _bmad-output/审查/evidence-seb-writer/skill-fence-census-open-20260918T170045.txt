@@ -1,0 +1,31 @@
+=== (e) 普查: prompt 模板 fence 内的执行动作 (T7-B 形态) ===
+关键词集合 = python3 |PYEOF|`Bash`|Bash:|mkdir -p|os\.write|`Write`
+
+--- canvas-vault/.claude/skills/ai-linked-doc/SKILL.md  fences=6 分桶={'(no-tag)': 5, 'bash': 1}
+
+--- canvas-vault/.claude/skills/board-recap/SKILL.md  fences=8 分桶={'(no-tag)': 3, 'bash': 4, 'markdown': 1}
+
+--- canvas-vault/.claude/skills/chat-with-context/SKILL.md  fences=3 分桶={'(no-tag)': 3}
+
+--- canvas-vault/.claude/skills/configure-whiteboard/SKILL.md  fences=8 分桶={'(no-tag)': 6, 'bash': 1, 'python': 1}
+
+--- canvas-vault/.claude/skills/exam-quick/SKILL.md  fences=4 分桶={'(no-tag)': 3, 'markdown': 1}
+
+--- canvas-vault/.claude/skills/node-chat/SKILL.md  fences=2 分桶={'(no-tag)': 2}
+
+--- canvas-vault/.claude/skills/quiz-answer/SKILL.md  fences=6 分桶={'(no-tag)': 2, 'bash': 3, 'json': 1}
+    SAME-FAMILY canvas-vault/.claude/skills/quiz-answer/SKILL.md:3087: _txt_lock = _raw_lock.decode("utf-8", "replace")
+
+--- canvas-vault/.claude/skills/start-exam-board/SKILL.md  fences=8 分桶={'(no-tag)': 4, 'bash': 3, 'markdown': 1}
+    FLAG canvas-vault/.claude/skills/start-exam-board/SKILL.md:303-308 tag='' 命中=['Bash:']
+    SAME-FAMILY canvas-vault/.claude/skills/start-exam-board/SKILL.md:473: _txt = b"".join(_chunks).decode("utf-8", "replace")
+    SAME-FAMILY canvas-vault/.claude/skills/start-exam-board/SKILL.md:477: seen = any(json.dumps(evid, ensure_ascii=False) in ln for ln in _lines)
+
+--- canvas-vault/.claude/skills/study-question/SKILL.md  fences=10 分桶={'(no-tag)': 6, 'markdown': 4}
+
+files= 9  flagged_fences= 1
+
+=== 验伪锚: ```bash fence 内的 PYEOF 计数 (证明真读到了 fence 内容) ===
+    canvas-vault/.claude/skills/ai-linked-doc/SKILL.md: bash-fence 内 PYEOF 出现 2 次
+    canvas-vault/.claude/skills/quiz-answer/SKILL.md: bash-fence 内 PYEOF 出现 4 次
+    canvas-vault/.claude/skills/start-exam-board/SKILL.md: bash-fence 内 PYEOF 出现 6 次

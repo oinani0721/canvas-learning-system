@@ -1,0 +1,3 @@
+HEAD (1, 0, ['Exception', 'OSError'])
+BASE (1, 0, ['Exception', 'OSError'])   <- 验伪锚: 恒 (1, 0, ...)
+同文本? True

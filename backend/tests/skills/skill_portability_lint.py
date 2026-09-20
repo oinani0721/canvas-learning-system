@@ -5,35 +5,42 @@ CARD-SKILL-PORT-LINT-PARSER 抽出，**纯搬迁、行为零漂移**：12 个 `c
 正则/解析 helper、全部基线常量的**值逐字节未变**。判据函数是纯函数，可被
 pytest 以外的静态面直接导入复用（`from tests.skills.skill_portability_lint import …`）。
 
-⚠️ 交接登记（CARD-SKILL-PORT-LINT-PARSER (h)，doc-only，本卡未动手）：
+✅ 交接登记（CARD-SKILL-PORT-LINT-PARSER (h) 立项 → **已由 CARD-SEB-WRITER-SUBSTRING-TMP
+于 BATCH-2026-09-18-第十五批解耦**；下文历史保留，值已按解耦后实测更新）：
 
-(i) `canvas-vault/.claude/skills/start-exam-board/SKILL.md` 里 `/tmp/exam-created-event.json`
-    尚有 **2 处裸 `/tmp/`** 残留（`Write` 的目标路径一处、`P = "…"` 赋值一处）。
-    这不是新债——第十三批 U4 CARD-SKILL-PORT-LINT 收工时已把裸 `/tmp/` 从 4 降到 2，
-    这 2 处是当时刻意留下的残留。层 2 基线 `BASELINE["start-exam-board"]` 的
-    `tmp_all=6 / tmp_ns=4` ⇒ `bare_tmp()` = 2，与之一致。
+(i) `canvas-vault/.claude/skills/start-exam-board/SKILL.md` 里那条 exam-created-event
+    临时路径曾有 **2 处裸 `/tmp/`** 残留（`Write` 的目标路径一处、`P = "…"` 赋值一处）。
+    那不是新债——第十三批 U4 CARD-SKILL-PORT-LINT 收工时已把裸 `/tmp/` 从 4 降到 2，
+    这 2 处是当时刻意留下的残留（受 (iii) 的地盘约束）。
+    ✅ 现已迁入 `/tmp/cls-exam/` 命名空间，层 2 基线 `BASELINE["start-exam-board"]`
+    随之改为 `tmp_all=8 / tmp_ns=8` ⇒ `bare_tmp()` = **0**（两端均为实测值；
+    +2 来自 Step 6.5 自带的 `mkdir -p` 与变更记录条目，见该卡验收单）。
 
-(ii) 真把这 2 处改成 `/tmp/cls-exam/` 命名空间，必须**同批**改 **4 处 regression 硬钉点**
+(ii) 这 2 处改成命名空间时，**同批**改掉了 **4 处 regression 硬钉点**
     （引用一律用「文件名 + 条目名」，不用行号——行号会随别的卡漂移）：
       · `backend/tests/regression/test_g3_3_cas.py` —— `_SEB_BLOCKS` 列表推导按
-        `'P = "/tmp/exam-created-event.json"'` 字面量过滤 + 紧随其后的
-        `assert len(_SEB_BLOCKS) == 1`；以及 `_exam_board_code()` 里对同一字面量的
-        `.replace(...)`（它吃的是模块级 `SEB_CODE`）。
-        ⛔ 这两处都在**模块级**（其上无任何 `def` / `class`），导入期即执行 ⇒
-        改字面量 = **collect-time ERROR，整个文件不可收集**，不是单条测试红。
+        `P = "…"` 字面量过滤 + 紧随其后的 `assert len(_SEB_BLOCKS) == 1`；以及
+        `_exam_board_code()` 里对同一字面量的 `.replace(...)`（它吃的是模块级 `SEB_CODE`）。
+        ⛔ 两处的**位置不同**（HANDOFF §四 LOW：原文「这两处都在模块级」有歧义）：
+        列表推导与其 assert 在**模块级**（其上无任何 `def` / `class`），导入期即执行；
+        `.replace(...)` 在 `_exam_board_code()` **函数体内**。但**破法相同**——
+        只要模块级那处过滤不中，`assert len(_SEB_BLOCKS) == 1` 就在导入期炸 ⇒
+        **collect-time ERROR，整个文件不可收集**，不是单条测试红。
       · `backend/tests/regression/test_learning_events_schema_contract.py` —— 函数
         `test_real_producer_start_exam_board_writer` **体内**的 `matches` 列表推导
         （同一字面量）+ `assert len(matches) == 1`，以及同函数体内的 `.replace(...)`。
-        这一侧在测试函数体内（有缩进）⇒ 改字面量 = **该条单测运行期断言红**，
-        不是 collect-time ERROR。两侧破法不同，解耦时要分别处置。
+        这一侧整体在测试函数体内 ⇒ 改字面量 = **该条单测运行期断言红**，
+        不是 collect-time ERROR。两侧破法不同，解耦时分别处置（已验，见下）。
+      ⛔ 「同批改钉点不是多余动作」由 CARD-SEB-WRITER-SUBSTRING-TMP 的负控段③ 实证：
+      把 cas 侧字面量单独改回旧值，`pytest tests/regression/test_g3_3_cas.py` 即
+      collect-time ERROR。
 
 (iii) 上述 2 个 regression 文件在第十四批设计稿 §3 **都不属任何车道**：
     `test_g3_3_cas.py` 无车道；`test_learning_events_schema_contract.py` 经裁定
     R-B14-8 只把 producer 提取锚一处放行给同车道前卡 T7-B。⇒
-    **CARD-SKILL-PORT-LINT-PARSER 对这 2 个文件都无写权**，真解耦属跨地盘改动，
-    须主 session 先裁「扩本卡地盘 / 另立带 regression 地盘的卡 / 维持残留登记」。
-    本卡因此**只登记不动手**：SKILL.md 未改（digest 保持 `0f2c085a…`）、
-    regression 未改、裸 `/tmp/` 仍为 2。
+    **CARD-SKILL-PORT-LINT-PARSER 对这 2 个文件都无写权**，真解耦属跨地盘改动。
+    第十五批排批时裁定扩地盘给 P6-A，该卡同批改齐 SKILL.md + 4 处钉点 + 本模块两张
+    基线表 + `MANAGED_FILE_DIGESTS` 的 SEB 行，交接就此闭合。
 """
 
 from __future__ import annotations
@@ -1979,19 +1986,26 @@ BASELINE: dict[str, dict[str, int]] = {
     #    而写入方是 Write 工具、不是那段 python(它只读 + `os.remove`), 所以建目录
     #    必须落在 Write **之前**; 该字面量带尾斜杠 ⇒ 同时计入 tmpAll 与 tmpNS,
     #    裸值不受影响)
-    #   ⇒ 收工实测 tmp_all 4→6 / tmp_ns 0→4 / **裸 4→2**(剩 `:430/:435`, 归第十四批解耦卡)
+    #   ⇒ 第十三批收工实测 tmp_all 4→6 / tmp_ns 0→4 / **裸 4→2**(剩 Step 6.5 那两处)
     #   (6/4 而非卡文预估的 5/3: 文件末尾的「变更记录」小节自身也写了一次
     #    `/tmp/cls-exam/`, 同时进 all 与 ns ⇒ 裸值不受影响。)
     #   ⛔ 基线钉的是 **all 与 ns 两端**, 不是裸值 —— 见模块 docstring
     #   「为什么钉两端而不是钉裸值」: 只钉裸值时「一增一减」不可见。
     #   `:304` 的 `http://localhost:8011` → `${CLS_BACKEND_URL:-http://localhost:8011}`
     #   ⇒ p8011All 1 / p8011NS 1 / **裸 1→0**
+    # ── CARD-SEB-WRITER-SUBSTRING-TMP(BATCH-2026-09-18-第十五批) 解耦后重测 ──
+    #   Step 6.5 剩的那 2 处裸路径迁入 `/tmp/cls-exam/`, 同批改 4 处 regression 钉点。
+    #   ⇒ 收工实测 tmp_all 6→**8** / tmp_ns 4→**8** / **裸 2→0**。
+    #   +2 的来处(实测, 非推算): Step 6.5 prose 自带的 `mkdir -p /tmp/cls-exam/` 一次
+    #   (该步**不能**依赖 Step 3 那次 —— `node` 参数命中时 Step 3 整步跳过), 以及
+    #   本次「变更记录」新条目里写的一次 `/tmp/cls-exam/`; 两者都带尾斜杠 ⇒ 同时进
+    #   all 与 ns, 裸值不受影响。
     "start-exam-board": {
         "ask_user_question": 4,
         "mcp_tool": 3,
         "claude_dir_ref": 3,
-        "tmp_all": 6,
-        "tmp_ns": 4,
+        "tmp_all": 8,
+        "tmp_ns": 8,
         "p8011_all": 1,
         "p8011_ns": 1,
         "tree_name": 0,
@@ -2038,14 +2052,15 @@ ESCAPING_TMP_BASELINE: dict[str, list[str]] = {
         "prose:/tmp/quiz-answer-payload.json",
         "prose:/tmp/quiz-answer-payload.json",
     ],
-    # `:430/:435` exam-created-event（被 tests/regression 逐字钉死，本卡只钉不改）;
-    # `:128` 散文裸 `/tmp` 提法; `:188` 变更行 backtick 整段命令（含 /tmp 的非路径 span，保守登记）。
+    # CARD-SEB-WRITER-SUBSTRING-TMP（第十五批）解耦后实测（⛔ 值由 `escaping_tmp_paths()`
+    # 跑出来贴进来，不是手写猜的）：原 exam-created-event 的 4 条越界项（fence ×2 + prose ×2）
+    # 随迁入 `/tmp/cls-exam/` 而消失；剩下的 3 条是：
+    # `:128` 散文裸 `/tmp` 提法；Step 3 与 Step 6.5 各一条 backtick 整段命令
+    # （`Bash: mkdir -p /tmp/cls-exam/` —— 整段命令文本被当候选，normpath 后不在
+    #  命名空间内，属**保守登记**的非路径 span，不是物理债）。
     "start-exam-board": [
-        "fence:/tmp/exam-created-event.json",
-        "fence:/tmp/exam-created-event.json",
         "prose:/tmp",
-        "prose:/tmp/exam-created-event.json",
-        "prose:/tmp/exam-created-event.json",
+        "prose:Bash: mkdir -p /tmp/cls-exam",
         "prose:Bash: mkdir -p /tmp/cls-exam",
     ],
     "study-question": [],
@@ -2065,9 +2080,11 @@ SUSPICIOUS_TMP_LINES_BASELINE: dict[str, list[int]] = {
     "node-chat": [],
     # :98 的 `..` 来自散文省略号(误报友好项); r3 后 `$` 也触发, 但该行无 `$`。
     "quiz-answer": [98],
-    # :577 = 本卡「变更记录」行, 含 `${CLS_BACKEND_URL:-…}` —— 无害展开, 照样登记
+    # 第十三批 U4 的「变更记录」行, 含 `${CLS_BACKEND_URL:-…}` —— 无害展开, 照样登记
     # (r3 MEDIUM-3 起 `$` 任意位置触发; 保守面换零漏报)。
-    "start-exam-board": [577],
+    # ⛔ 行号随 CARD-SEB-WRITER-SUBSTRING-TMP(第十五批)的写规修复整体下移: 577 → 603
+    # (Step 6.5 查重段由 5 行展开成 31 行 ⇒ 其后每一行 +26)。值为实测。
+    "start-exam-board": [603],
     "study-question": [],
 }
 
@@ -2102,10 +2119,15 @@ OPAQUE_TMP_BASELINE: dict[str, list[str]] = {
     # 空白)——因为任何标点都可能是合法 shell 词的一部分。方向取舍: 漏检不可接受,
     # 误报可以登记。⛔ 登记项带**内容指纹**(r11 HIGH-3), 16 位、不 strip(r14)。
     "quiz-answer": ["98:918de56473d5be1b", "205:44b7655dd97c27b7"],
+    # ⛔ CARD-SEB-WRITER-SUBSTRING-TMP(第十五批)实测重算: `:430` 的内容变了(Step 6.5 prose
+    # 新增 `mkdir -p` 与命名空间路径)⇒ 指纹换; `:577` 行号下移到 `:603`(指纹不变, 该行
+    # 一个字节没动); 新增 `:604` = 本次追加的变更记录条目。四条都是**保守误报登记**
+    # (backtick span 紧贴中文标点/粗体), 不是物理债。
     "start-exam-board": [
         "188:65b99234f2075b8f",
-        "430:6df0e9ca43fe93e0",
-        "577:249fe6bc3d886700",
+        "430:d55b9d2e64fff5a7",
+        "603:249fe6bc3d886700",
+        "604:3380562d248d9528",
     ],
     "study-question": [],
 }
@@ -2149,13 +2171,22 @@ TMP_BLOCK_BASELINE: dict[str, list[str]] = {
         "S96:b55afbca27229028",
         "S205:44b7655dd97c27b7",
     ],
+    #: 2026-09-18 CARD-SEB-WRITER-SUBSTRING-TMP(第十五批): Step 6.5 落账块的查重段
+    #: 从「整本有损解码 + 子串命中」改成「切 bytes + 逐行严格解码 + parsed-field 等值」,
+    #: 同时把 `exam-created-event` 临时路径迁进 `/tmp/cls-exam/` 命名空间 ⇒
+    #:   `B433` 整块哈希变 `abad2417…` → `1fe4ec49…`(块起始行不变, 块在 `:433`);
+    #:   `S430` 散文行改写(新增 `mkdir -p` 与命名空间路径)⇒ 指纹 `6df0e9ca…` → `d55b9d2e…`;
+    #:   `S577` → `S603` 只是行号下移(查重段 5 行 → 31 行, 其后每行 +26), 指纹一字未变;
+    #:   `S604` 新增 = 本次追加的变更记录条目。
+    #: ⛔ 值全部由 `tmp_block_fingerprints()` 实测后贴入, 不是手写推算。
     "start-exam-board": [
         "B195:49bbb79cdd7750a1",
-        "B433:abad24172c59e1c3",
+        "B433:1fe4ec494f0e8996",
         "S128:3d332975e351d095",
         "S188:35c02f61a9f9604b",
-        "S430:6df0e9ca43fe93e0",
-        "S577:249fe6bc3d886700",
+        "S430:d55b9d2e64fff5a7",
+        "S603:249fe6bc3d886700",
+        "S604:3380562d248d9528",
     ],
     "study-question": [],
 }
@@ -3210,7 +3241,8 @@ MANAGED_FILE_DIGESTS: dict[str, str] = {
     "skills/exam-quick/SKILL.md": "eb30e407a14145477710cbf439e7e85705afeb157c98c5993ee0b3616c324853",
     "skills/node-chat/SKILL.md": "3b15bc91dabea7e7b3876b75c2c0973e7a9284d48081e5d1b864623258b40fb7",
     "skills/quiz-answer/SKILL.md": "6ae2558f1def3e94588bf0a043bb2d9e4b5904a618de5ec4b5260f5c206601b0",
-    "skills/start-exam-board/SKILL.md": "0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce",
+    # CARD-SEB-WRITER-SUBSTRING-TMP（第十五批）：Step 6.5 写规修复 + 临时路径解耦后重算。
+    "skills/start-exam-board/SKILL.md": "c3c0434d385c66f33c097c051d4aac2d05f908a881bc1471785beeaf52493473",
     "skills/study-question/SKILL.md": "0142b7833ff3ab54c9307227d59ebaa7d5ff3f9c18a76b07344d0ab295fa22e4",
     "scripts/decay_beta.py": "3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90",
     "scripts/fsrs_bridge.py": "a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0",

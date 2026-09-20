@@ -1,0 +1,5 @@
+=== ruff 补跑：新增未跟踪文件（git diff 看不见它，必须显式加）===
+All checks passed!
+rc=0
+=== 验伪锚 rc（不走管道，避免管道吃 rc）===
+probe_rc=1 (须=1)

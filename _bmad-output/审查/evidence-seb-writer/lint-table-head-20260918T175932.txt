@@ -1,0 +1,37 @@
+[BASELINE] tmp_all=8 tmp_ns=8 bare=0 p8011_all=1 p8011_ns=1 ask=4 mcp=3 claude_dir=3
+
+[ESCAPING_TMP_BASELINE]
+        'prose:/tmp',
+        'prose:Bash: mkdir -p /tmp/cls-exam',
+        'prose:Bash: mkdir -p /tmp/cls-exam',
+
+[SUSPICIOUS_TMP_LINES_BASELINE]
+    [603]
+      # 603: - **CARD-SKILL-PORT-LINT**（BATCH-2026-09-07-第十三批，可移植性最小整改）：候选池临时文件改用固定命名空间 `/tmp/cls-exam/`（Step 3 降
+
+[DYNAMIC_TMP_JOIN_BASELINE]
+    []
+
+[OPAQUE_TMP_BASELINE]
+        (188, '4. 把剩余候选写到 `/tmp/cls-exam/exam-candidates.json`（⛔ 先 `Bash: mkdir -p /tmp/cls-exam/` 建这个命名空间目录——它首次运行时尚不存在，而下一步是用 `Write` 落文件）：'),
+        (430, '白板写入成功后，⛔ 先 `Bash: mkdir -p /tmp/cls-exam/` 建这个命名空间目录（**不能靠 Step 3 那次**——`node` 参数命中时 Step 3 整步跳过，那条路径上这个目录尚不存在，`Write` 会落到不存在的目录），再用 `Write` 写 `/tmp/cls-exam/exam-created-event.json`：`{"vault_root": "<vault 绝对路径>", "exam_board": "检验白板/<文件名>.md", "node": "<target>", "ts": "<Step 6 用的 ISO 时间戳>"}`，然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄；写失败不阻断出题，回执照发）：'),
+        (603, '- **CARD-SKILL-PORT-LINT**（BATCH-2026-09-07-第十三批，可移植性最小整改）：候选池临时文件改用固定命名空间 `/tmp/cls-exam/`（Step 3 降级块第 4 步落文件、第 5 步选点 python 读同一路径；写之前先 `mkdir -p` 建目录）；跨节点针对素材那步的后端地址改 `${CLS_BACKEND_URL:-…}` 缺省形态，不再写死端口——环境变量没设时行为与改前完全一致。Step 6.5 落账块的 `exam-created-event` 路径**未动**：该字面量被 `backend/tests/regression/` 两个文件的模块级断言逐字钉死，解耦归后续卡。本文件的可移植性指标由 `backend/tests/skills/test_skill_portability_lint.py` 逐项钉住（新增一处临时路径或写死端口即报红）。'),
+        (604, '- **CARD-SEB-WRITER-SUBSTRING-TMP**（BATCH-2026-09-18-第十五批，Step 6.5 落账块写规 + 临时路径解耦）：查重从**子串**改成 **parsed-field 等值**——历史行里任意非 event_id 字段的值恰等于本次 evid 时，旧写法把它当成重复证据，一条真实的考察事实**零次落账**永久丢失；同时把整本有损解码改成切 bytes、逐行严格解码，解不开的坏行只吃掉它自己那一行（既不构成重复证据，也不中止整次追加）。写规形态与另外三个写者（backend `append_event` / quiz-answer / ai-linked-doc）就此统一。原 `:430/:435` 两处裸路径迁入固定命名空间 `/tmp/cls-exam/`；⛔ 本步自带 `mkdir -p`，因为 `node` 参数命中时 Step 3 整步跳过、不能依赖那一次建目录。行为由 `backend/tests/skills/test_seb_writer_exact_match.py` 五条门钉住（两条先红门 + 三条对照门）。'),
+
+[TMP_BLOCK_BASELINE]
+        'B195:49bbb79cdd7750a1',
+        'B433:1fe4ec494f0e8996',
+        'S128:3d332975e351d095',
+        'S188:35c02f61a9f9604b',
+        'S430:d55b9d2e64fff5a7',
+        'S603:249fe6bc3d886700',
+        'S604:3380562d248d9528',
+
+[URL_OVERRIDE_BASELINE]
+    []
+
+[PARENT_DIR_PROSE_BASELINE]
+    []
+
+[MANAGED_FILE_DIGESTS]
+    "skills/start-exam-board/SKILL.md": "c3c0434d385c66f33c097c051d4aac2d05f908a881bc1471785beeaf52493473",

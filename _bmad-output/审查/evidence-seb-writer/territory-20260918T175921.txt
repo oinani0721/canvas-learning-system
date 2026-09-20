@@ -1,0 +1,17 @@
+=== 地盘门 @ HEAD=13ab1b37 （(l) / §二.11）===
+--- diff --stat 9c4e7e82 HEAD -- . ':(exclude)_bmad-output' ---
+ backend/tests/regression/test_g3_3_cas.py          |   4 +-
+ .../test_learning_events_schema_contract.py        |   4 +-
+ backend/tests/skills/skill_portability_lint.py     | 106 +++++---
+ .../tests/skills/test_seb_writer_exact_match.py    | 296 +++++++++++++++++++++
+ .../tests/skills/test_skill_portability_lint.py    |  56 ++--
+ .../.claude/skills/start-exam-board/SKILL.md       |  41 ++-
+ 6 files changed, 440 insertions(+), 67 deletions(-)
+--- schema 改动行数（须 4）---
+4
+--- cas 改动行数（须 4）---
+4
+--- fsrs_bridge / decay_beta 出现在本卡 6 文件 diff 行里的次数（须 0）---
+0
+--- 验伪锚: 去掉 exclude 后应出现 _bmad-output/ 路径（commit 后此锚才非空洞）---
+36

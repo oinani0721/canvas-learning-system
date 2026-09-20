@@ -427,12 +427,12 @@ questions:
 
 ## Step 6.5 · 学习事件落日志（批次3' 2-4，MEM-FLYWHEEL）
 
-白板写入成功后，用 `Write` 写 `/tmp/exam-created-event.json`：`{"vault_root": "<vault 绝对路径>", "exam_board": "检验白板/<文件名>.md", "node": "<target>", "ts": "<Step 6 用的 ISO 时间戳>"}`，然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄；写失败不阻断出题，回执照发）：
+白板写入成功后，⛔ 先 `Bash: mkdir -p /tmp/cls-exam/` 建这个命名空间目录（**不能靠 Step 3 那次**——`node` 参数命中时 Step 3 整步跳过，那条路径上这个目录尚不存在，`Write` 会落到不存在的目录），再用 `Write` 写 `/tmp/cls-exam/exam-created-event.json`：`{"vault_root": "<vault 绝对路径>", "exam_board": "检验白板/<文件名>.md", "node": "<target>", "ts": "<Step 6 用的 ISO 时间戳>"}`，然后 **`Bash` 运行下面这段静态 python**（⛔ 逐字照抄；写失败不阻断出题，回执照发）：
 
 ```bash
 python3 - <<'PYEOF'
 import json, os, fcntl, time
-P = "/tmp/exam-created-event.json"
+P = "/tmp/cls-exam/exam-created-event.json"
 p = json.load(open(P, encoding="utf-8"))
 EV = os.path.join(p["vault_root"], "learning_events.jsonl")
 evid = "exam:" + os.path.splitext(os.path.basename(p["exam_board"]))[0]
@@ -470,11 +470,37 @@ try:
         # 账本某行的字符串值里 —— 一条合法记录被切成碎片后查重就漏命中,
         # 同一个 event_id 会被写第二遍 (2026-09-05 独立复核实测: 建板名含 U+2028 时
         # 基线两次执行累计 1 行, splitlines 版变成 2 行同 ID)。
-        _txt = b"".join(_chunks).decode("utf-8", "replace")
-        _lines = _txt.split("\n")
-        if _txt.endswith("\n"):
-            _lines = _lines[:-1]
-        seen = any(json.dumps(evid, ensure_ascii=False) in ln for ln in _lines)
+        raw = b"".join(_chunks)
+        # ⛔ 切的是 **bytes**、逐行**严格**解码, 不是整本 decode(..., "replace"):
+        # 有损解码会把非法字节换成 U+FFFD, 于是一条**无法解码的**历史行摇身变成
+        # 「有效 JSON」; 它的 event_id 若恰好等于本次 evid, 新事件就被判 duplicate
+        # 而零次落账 —— 与子串查重同一个后果, 只是换了条路径。
+        # ⛔ 也不能改成整本严格解码: 那样一条坏行会中止整次追加, 方向更坏。
+        _blines = raw.split(b"\n")
+        if raw.endswith(b"\n"):
+            _blines = _blines[:-1]
+        # parsed-field 相等查重。⛔ 禁用原来的子串写法 `json.dumps(evid) in line`:
+        # 历史行里任意**非 event_id** 字段的值 (node_id / payload 里的字符串) 恰好
+        # 等于新 evid 时, 带引号的 JSON token 在该行里命中 ⇒ 新事件被误判 duplicate
+        # ⇒ **零次落账**, 一条真实的考察事实就此永久丢失。
+        # 无法解析的行不算命中 (坏行不构成 duplicate 证据)。
+        seen = False
+        for _bl in _blines:
+            if not _bl.strip():
+                continue
+            try:
+                # ⛔ 严格解码: 非法字节 = 坏行, 不是 duplicate 证据。
+                # (UnicodeDecodeError 是 ValueError 的子类, 下面那条一并接住。)
+                _rec = json.loads(_bl.decode("utf-8"))
+            except (ValueError, RecursionError):
+                # ⛔ 不只捕 ValueError: 深度嵌套的坏行 (如上千层 '[') 在部分 Python
+                # 版本上抛的是 RecursionError (T7-B 独立复核实测 3.9.6 复现 /
+                # 3.14.4 不复现)。它一旦逸出到外层 except, 整次事件就**不落账**了 ——
+                # 而坏行的代价必须只限于它自己那一行, 不能吃掉一次真实派生。
+                continue
+            if isinstance(_rec, dict) and _rec.get("event_id") == evid:
+                seen = True
+                break
         if not seen:
             rec = {"event_id": evid, "event_version": 1, "event_type": "exam_created",
                    "node_id": p["node"], "recorded_at": p["ts"], "effective_at": p["ts"],
@@ -575,3 +601,4 @@ PYEOF
 ## 变更记录
 
 - **CARD-SKILL-PORT-LINT**（BATCH-2026-09-07-第十三批，可移植性最小整改）：候选池临时文件改用固定命名空间 `/tmp/cls-exam/`（Step 3 降级块第 4 步落文件、第 5 步选点 python 读同一路径；写之前先 `mkdir -p` 建目录）；跨节点针对素材那步的后端地址改 `${CLS_BACKEND_URL:-…}` 缺省形态，不再写死端口——环境变量没设时行为与改前完全一致。Step 6.5 落账块的 `exam-created-event` 路径**未动**：该字面量被 `backend/tests/regression/` 两个文件的模块级断言逐字钉死，解耦归后续卡。本文件的可移植性指标由 `backend/tests/skills/test_skill_portability_lint.py` 逐项钉住（新增一处临时路径或写死端口即报红）。
+- **CARD-SEB-WRITER-SUBSTRING-TMP**（BATCH-2026-09-18-第十五批，Step 6.5 落账块写规 + 临时路径解耦）：查重从**子串**改成 **parsed-field 等值**——历史行里任意非 event_id 字段的值恰等于本次 evid 时，旧写法把它当成重复证据，一条真实的考察事实**零次落账**永久丢失；同时把整本有损解码改成切 bytes、逐行严格解码，解不开的坏行只吃掉它自己那一行（既不构成重复证据，也不中止整次追加）。写规形态与另外三个写者（backend `append_event` / quiz-answer / ai-linked-doc）就此统一。原 `:430/:435` 两处裸路径迁入固定命名空间 `/tmp/cls-exam/`；⛔ 本步自带 `mkdir -p`，因为 `node` 参数命中时 Step 3 整步跳过、不能依赖那一次建目录。行为由 `backend/tests/skills/test_seb_writer_exact_match.py` 五条门钉住（两条先红门 + 三条对照门）。

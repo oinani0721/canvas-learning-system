@@ -1015,11 +1015,11 @@ def test_real_producer_start_exam_board_writer(tmp_path):
     skill 并发运行相撞); writer 逻辑字节原样。"""
     text = (SKILLS / "start-exam-board" / "SKILL.md").read_text(encoding="utf-8")
     blocks = re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", text, re.DOTALL)
-    matches = [b for b in blocks if 'P = "/tmp/exam-created-event.json"' in b]
+    matches = [b for b in blocks if 'P = "/tmp/cls-exam/exam-created-event.json"' in b]
     assert len(matches) == 1, f"SKILL.md 应恰有 1 个账本写点 PYEOF 块 (exam-created-event), 实见 {len(matches)}"
     code = matches[0]
     event_json = tmp_path / "exam-created-event.json"
-    code = code.replace('"/tmp/exam-created-event.json"', json.dumps(str(event_json)))
+    code = code.replace('"/tmp/cls-exam/exam-created-event.json"', json.dumps(str(event_json)))
     payload = {
         "vault_root": str(tmp_path),
         "exam_board": "检验白板/测试节点-检验.md",

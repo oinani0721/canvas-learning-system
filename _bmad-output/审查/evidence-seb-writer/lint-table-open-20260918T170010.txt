@@ -1,0 +1,11 @@
+counts tmp_all=6 tmp_ns=4 bare=2
+escaping (normpath 端, 多重集):
+    'fence:/tmp/exam-created-event.json'
+    'fence:/tmp/exam-created-event.json'
+    'prose:/tmp'
+    'prose:/tmp/exam-created-event.json'
+    'prose:/tmp/exam-created-event.json'
+    'prose:Bash: mkdir -p /tmp/cls-exam'
+digest 0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce
+quiz-answer tmp_all=4 tmp_ns=0 bare=4
+DEFAULT_ROOT /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w/canvas-vault/.claude

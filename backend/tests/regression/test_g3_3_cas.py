@@ -46,7 +46,7 @@ SEB_SKILL = WT / "canvas-vault" / ".claude" / "skills" / "start-exam-board" / "S
 _SEB_BLOCKS = [
     b
     for b in re.findall(r"python3 - <<'PYEOF'\n(.*?)\nPYEOF", SEB_SKILL.read_text(encoding="utf-8"), re.DOTALL)
-    if 'P = "/tmp/exam-created-event.json"' in b
+    if 'P = "/tmp/cls-exam/exam-created-event.json"' in b
 ]
 assert len(_SEB_BLOCKS) == 1, f"start-exam-board 应恰有 1 个落账块, 实见 {len(_SEB_BLOCKS)}"
 SEB_CODE = _SEB_BLOCKS[0]
@@ -141,7 +141,7 @@ def _exam_board_code(vault: Path, board: str) -> str:
         ),
         encoding="utf-8",
     )
-    return SEB_CODE.replace('"/tmp/exam-created-event.json"', json.dumps(str(pf)))
+    return SEB_CODE.replace('"/tmp/cls-exam/exam-created-event.json"', json.dumps(str(pf)))
 
 
 def _rows_of(ledger: Path) -> list[dict]:

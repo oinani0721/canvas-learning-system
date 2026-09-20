@@ -1,0 +1,16 @@
+=== struct-judge @ 9c4e7e82 2026-09-18T16:54:58+08:00 ===
+--- (f)4 裸字面量 / 命名空间字面量（三文件成对）---
+canvas-vault/.claude/skills/start-exam-board/SKILL.md bare=2 ns=0
+backend/tests/regression/test_g3_3_cas.py bare=2 ns=0
+backend/tests/regression/test_learning_events_schema_contract.py bare=2 ns=0
+--- (f)1 2 3 7 写规结构 ---
+in_ln=1
+replace=1
+eq=0
+card=0
+--- 计数两端 + digest ---
+tmp_all=6 tmp_ns=4
+0f2c085a1bae12446dd74ab89cc1e6aa5c8bc34901dd3be7ac5d8521310d0dce  canvas-vault/.claude/skills/start-exam-board/SKILL.md
+--- 验伪锚: 六个 grep 模式各喂一条已知为真的独立正例（证明模式本身能命中，非文件真为零）---
+anchorfile=/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p6-skills-w/8f681424-1ad3-4818-9f2f-09ee36507cf1/scratchpad/struct-anchor-probe.txt
+anchor in_ln=1 replace=1 eq=1 card=1 bare=1 ns=1 (六项均须=1)

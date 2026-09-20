@@ -40,10 +40,12 @@
 仍含 `8011` —— 只数总数则整改在指标上**不可见**。也不得在这里另写一套正则(口径分叉)。
 
 ⛔⛔ **但基线钉的是 `tmp_all` / `tmp_ns` / `p8011_all` / `p8011_ns` 四个数, 不是两个差值。**
-只钉差值有一个真实的假绿面 —— 差值对「一增一减」完全失明。2026-09-08 实测:
-把 `:435` 那处裸 `/tmp/exam-created-event.json` 改进命名空间(ns +1), 同时另加一行
-全新的裸 `/tmp/attacker-new-file.json`(all +1), 则 `all=7 ns=5 ⇒ bare 仍 = 2`,
-门**照绿**, 而新增的那处裸 `/tmp/` 完全不可见。那正是本门存在的理由被击穿。
+只钉差值有一个真实的假绿面 —— 差值对「一增一减」完全失明。2026-09-08 于
+start-exam-board 实测: 把一处裸 `/tmp/…` 改进命名空间(ns +1), 同时另加一行全新的裸
+`/tmp/attacker-new-file.json`(all +1), 则 `bare = all − ns` **不变**, 门**照绿**,
+而新增的那处裸 `/tmp/` 完全不可见。那正是本门存在的理由被击穿。
+⚠️ CARD-SEB-WRITER-SUBSTRING-TMP(第十五批)把 start-exam-board 的裸 `/tmp/` 清到 0 之后,
+该负控的**靶**改挂 quiz-answer(它仍有 4 处裸 `/tmp/`, 归 U5-B/P6-B); 攻击形态与结论不变。
 
 钉住两端 ⇒ 自动钉住它们的差, 反之不成立。`bare_tmp()` / `bare_8011()` 保留为派生
 算式, 供断言消息与「对账卡文 §二.2 裸值」那条用例引用。
@@ -80,9 +82,12 @@ Python 时逐行降级到单行 `ast` → `shlex.split(posix=True)`; 裸 token �
 ⚠️ 两条判据对同一输入可以给出**不同**结论, 那是分工不是矛盾: `/tmp/a/../cls-exam/z`
 在计数下报红(写法不是钦定形态), 在越界判据下放行(规范化后确实落在命名空间内)。
 
-越界基线现状(2026-09-08 v2 实测) 全是「只钉不改」的已知项: start-exam-board 的
-exam-created-event(被 tests/regression 钉死)、`:128` 裸 `/tmp` 提法、`:188` 变更行
-backtick 命令 span; quiz-answer 两形态(E-2 归 U5-B); board-recap `:58` 裸 `/tmp` 提法。
+越界基线现状(2026-09-18 第十五批重测) 全是「只钉不改」的已知项: start-exam-board 的
+`:128` 裸 `/tmp` 提法 + Step 3 / Step 6.5 各一条 backtick 命令 span(`mkdir -p` 整段命令
+文本被当候选, 属保守登记的非路径 span); quiz-answer 两形态(E-2 归 U5-B);
+board-recap `:58` 裸 `/tmp` 提法。
+⚠️ 原先在列的 exam-created-event 四条(fence ×2 + prose ×2)已由
+CARD-SEB-WRITER-SUBSTRING-TMP 迁入命名空间而消失 —— 那是**整改**不是漂移。
 
 ## 第五条判据: 可疑行(不依赖解析的兜底) + 已知的保守误报方向
 
@@ -145,10 +150,13 @@ v3 之后越界判据已走真解析, 但**运行期展开静态不可判**: `P=
   `AskUserQuestion`、改 `mcp__` 名: 全是 Claude Code 行为面(E-1 一线不得损失可用性),
   且对字符串形态 `allowed-tools` 的解析无本地证据 ⇒ 只钉不改, 二线转正后再议。
 - `quiz-answer/SKILL.md` 的 `harness_tree` 解析(E-2)归 U5-B, 本门只钉它的现状计数。
-- start-exam-board `:430/:435` 的 `/tmp/exam-created-event.json`: 该字面量被
-  `backend/tests/regression/test_g3_3_cas.py:49`(**模块级** assert, 改了整个文件
-  collect 期 ERROR)、`:144`、`test_learning_events_schema_contract.py:1013/:1017`
-  逐字钉死 ⇒ 只钉不改, 归第十四批 `tests/regression` 解耦卡。
+- ✅ start-exam-board Step 6.5 的 exam-created-event 临时路径: 曾被
+  `backend/tests/regression/test_g3_3_cas.py`(`_SEB_BLOCKS` 过滤 + 其后的**模块级**
+  assert, 改了整个文件 collect 期 ERROR; 另一处在 `_exam_board_code()` 函数体内)、
+  `test_learning_events_schema_contract.py::test_real_producer_start_exam_board_writer`
+  (函数体内, 运行期断言红) 逐字钉死 ⇒ 第十三/十四批「只钉不改」。
+  CARD-SEB-WRITER-SUBSTRING-TMP(BATCH-2026-09-18-第十五批)扩地盘后**同批**改齐
+  4 处钉点并解耦, 本门的 `bare_tmp(seb)` 期望值随之 2 → **0**。
 """
 
 from __future__ import annotations
@@ -244,13 +252,16 @@ def test_bare_values_match_card_expectations():
     """与卡文 §二.2 / 验收单的**裸值**口径对账 —— 那两份文档以裸值叙述, 这里把
     派生算式显式钉一次, 免得「基线钉的是四端」与「文档写的是裸值」两套说法漂开。
 
-    整改目标: start-exam-board 裸 `/tmp/` 4 → **2**(剩 `:430/:435`)、裸 8011 1 → **0**。
+    整改目标: start-exam-board 裸 `/tmp/` 4 → 2(第十三批 U4) → **0**
+    (CARD-SEB-WRITER-SUBSTRING-TMP 第十五批把 Step 6.5 剩的那两处也迁进了命名空间)、
+    裸 8011 1 → **0**。
     """
     skills_dir = DEFAULT_ROOT / "skills"
     seb = _body_counts((skills_dir / "start-exam-board" / "SKILL.md").read_text(encoding="utf-8"))
-    assert bare_tmp(seb) == 2, (
-        f"start-exam-board 裸 /tmp/ 期望=2 实测={bare_tmp(seb)} "
-        f"(all={seb['tmp_all']} ns={seb['tmp_ns']}); 剩的两处是 :430/:435 的 exam-created-event"
+    assert bare_tmp(seb) == 0, (
+        f"start-exam-board 裸 /tmp/ 期望=0 实测={bare_tmp(seb)} "
+        f"(all={seb['tmp_all']} ns={seb['tmp_ns']}); Step 6.5 的 exam-created-event 已于"
+        f"第十五批迁入 /tmp/cls-exam/ 命名空间, 这份文件不该再有任何裸 /tmp/"
     )
     assert bare_8011(seb) == 0, (
         f"start-exam-board 裸 8011 期望=0 实测={bare_8011(seb)} (all={seb['p8011_all']} ns={seb['p8011_ns']})"
@@ -2074,21 +2085,28 @@ def test_negative_control_equal_count_swap_must_redden(sandbox: Path):
     攻击形态: 把一处原本裸的 `/tmp/` 改进命名空间(ns +1), 同时另加一处全新的裸
     `/tmp/`(all +1)。此时 `bare = all − ns` **不变**, 只钉差值的门会照绿, 而实际上
     新增了一处裸 `/tmp/` —— 那正是本门存在的理由被击穿。基线钉两端就能抓到。
+
+    ⛔ **靶由 start-exam-board 改挂 quiz-answer**(CARD-SEB-WRITER-SUBSTRING-TMP,
+    BATCH-2026-09-18-第十五批): 本用例需要一处**仍然裸着**的 `/tmp/` 来做「搬进命名
+    空间」那一半, 而第十五批已把 start-exam-board 的裸 `/tmp/` 清到 0 ⇒ 原来的
+    `text.replace(...)` 会一处都换不到, `swapped != text` 那条预置断言先炸, 本门就
+    不再测「一增一减」而是测「靶还在不在」。quiz-answer 的 4 处裸 `/tmp/` 归 U5-B/P6-B,
+    本卡对它**只读**。⚠️ 交接: U5-B/P6-B 若把 quiz-answer 也迁进命名空间, 本门需再改靶。
     """
-    f = sandbox / "skills" / "start-exam-board" / "SKILL.md"
+    f = sandbox / "skills" / "quiz-answer" / "SKILL.md"
     text = f.read_text(encoding="utf-8")
-    swapped = text.replace('P = "/tmp/exam-created-event.json"', 'P = "/tmp/cls-exam/exam-created-event.json"', 1)
+    swapped = text.replace('P = "/tmp/quiz-answer-payload.json"', 'P = "/tmp/cls-exam/quiz-answer-payload.json"', 1)
     assert swapped != text, "预置失败: 没找到要搬进命名空间的那处裸 /tmp/"
     f.write_text(swapped + "\n临时缓存写到 /tmp/attacker-new-file.json 再读回。\n", encoding="utf-8")
 
     counts = _body_counts(f.read_text(encoding="utf-8"))
-    assert bare_tmp(counts) == BASELINE["start-exam-board"]["tmp_all"] - BASELINE["start-exam-board"]["tmp_ns"], (
+    assert bare_tmp(counts) == QUIZ_ANSWER_BASELINE["tmp_all"] - QUIZ_ANSWER_BASELINE["tmp_ns"], (
         "本用例的前提是**裸值不变**(否则抓到的是别的东西, 不是这个假绿面): "
         f"实测裸值={bare_tmp(counts)} all={counts['tmp_all']} ns={counts['tmp_ns']}"
     )
     problems = check_body(sandbox, _merged_body_baseline())
     joined = "\n".join(problems)
-    assert any("start-exam-board" in p and "tmp_all" in p for p in problems), (
+    assert any("quiz-answer" in p and "tmp_all" in p for p in problems), (
         f"一增一减必须被 tmp_all 那一端抓到(裸值此时不变), 实得: {joined}"
     )
 

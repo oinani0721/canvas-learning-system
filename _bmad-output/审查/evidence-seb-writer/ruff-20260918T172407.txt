@@ -1,0 +1,17 @@
+=== ruff 自证（commit 前：工作树 vs B15_BASE；commit 后按 §2.9 再跑一次绑 HEAD）===
+files=4
+backend/tests/regression/test_g3_3_cas.py
+backend/tests/regression/test_learning_events_schema_contract.py
+backend/tests/skills/skill_portability_lint.py
+backend/tests/skills/test_skill_portability_lint.py
+All checks passed!
+rc=0
+F821 Undefined name `undefined_name_xyz`
+ --> backend/tests/skills/_f821_probe.py:1:7
+  |
+1 | print(undefined_name_xyz)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_rc=0
