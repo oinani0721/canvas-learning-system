@@ -108,6 +108,14 @@ source "$HOME/.codex/zai.env" && codex exec --profile zai --sandbox read-only -m
 - **牙齿**：缺 `sessionId`（或 JSON 解析失败）该轮**不计入**轮次配额；其余轮次/绑定规则同 §2.1 / §2.2。
 - **通道分工**：开发复核默认 codex+zai（§2.4）；补审走本通道；同一卡同一轮只走一条通道，轮次编号沿用 `-rN`（接既有最大轮次之后）。
 
+**§2.4.3 Jev 审查分诊（2026-09-19 起）**——送审前风险排序（用户裁定全批采用）：
+
+- 工具：`scripts/jev_review_triage.py`（Typesafe System One，jev-1.13.0；对卡级 diff 按文件出 urgency/REVIEW/TEST/risk；8 卡校准基线：高危召回 7/7）。
+- 包装：`bash ~/.b15b-drive/jev_triage.sh <git-ref> <outdir>`（source `~/.config/jev/env`；在 feature 树运行，lane SHA 同库可解析；产出 `jev-triage-<short>.json`）。
+- 用法：**送审前**对「本卡末 commit / 审SHA」跑一次；分诊表按 urgency 降序嵌入审查 prompt ③ 问题清单排序；JSON 落该卡 evidence 目录。
+- 校准：每 20-30 张卡跑一次 `scripts/jev_triage_calibration.py` 复校阈值。
+- harness 接线：Claude Code=fast-jev-compaction 插件；OpenCode=`jev-review` MCP；Codex=`mcp_servers.jev-review`（env_vars 透传）；ZCode=`setting.json` `mcp.servers`。
+
 **历史保留**：§2 / §2.1 的 `gpt-6-astra + ultra` 记录**不改写**（第十五批前半段史实）；自本条生效起新送审一律走 GLM。启用属批级事件 ⇒ 已记手册 §零。
 
 ## 3. 车道裁判的最低覆盖
