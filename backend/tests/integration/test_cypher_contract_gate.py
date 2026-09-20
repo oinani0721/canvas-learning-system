@@ -584,15 +584,37 @@ async def test_fallback_replay_write_identity_dual_vault(gate_client, monkeypatc
         (GID_B, GID_B, 61),
     ], f"fallback replay merged across vaults: {rows}"
 
+    # 直接按名 + 组计节点 (LOW-2): 上面那行 LEARNED 边只能**间接**证明每组恰一个
+    # Concept —— 一个组里多出来的孤儿 Concept (无 LEARNED 边) 在边行里不可见。
+    # 下面三条把「每组恰一节点、无孤儿/多余 Concept」直接钉住。
+    # 负控思路: 把 per_group 的断言放宽成 >= 0 (或删掉) ⇒ 多节点/孤儿节点全绿而漏网;
+    # 把第三条 distinct 断言放宽成 >= 0 ⇒ 两组合成单节点 (跨组合并) 也绿而漏网。
+    per_group = {}
+    for gid in (GID_A, GID_B):
+        counted = await gate_client.run_query(
+            "MATCH (c:Concept) WHERE c.name = $name AND c.group_id = $gid RETURN count(c) AS c",
+            name=concept,
+            gid=gid,
+        )
+        per_group[gid] = int(counted[0]["c"])
+    distinct = await gate_client.run_query(
+        "MATCH (c:Concept) WHERE c.name = $name RETURN count(DISTINCT c) AS c",
+        name=concept,
+    )
+    assert per_group == {GID_A: 1, GID_B: 1}, f"每组应恰一个 Concept (多余/孤儿?): {per_group}"
+    # 若实现退化回单键 MERGE (跨组合并), distinct 会塌成 1 —— 本条是它唯一直接红灯。
+    assert int(distinct[0]["c"]) == 2, f"两组应合计两个不同 Concept: {distinct}"
+
     # 新契约反面 (CARD-REPLAY-REWRITE 有意行为): 条目无 group_id、无 vault_id
     # = 无任何来源线索 ⇒ quarantined 拒写返 False, 不猜 vault、不写图。
     # delenv 让本断言不依赖运行环境是否点名了 legacy vault; 概念名独立, 万一
     # 回归写出也只由本断言与文件级清理处理 (不污染上面的身份断言)。
     monkeypatch.delenv("CLS_REPLAY_LEGACY_NOSCOPE_VAULT", raising=False)
     unscoped_concept = f"{GATE_PREFIX}_replay_unscoped_concept"
+    unscoped_rid = f"{GATE_PREFIX}_replay_unscoped_rid"
     refused = await svc._replay_scoring_entry_to_neo4j(
         {**base_entry, "concept": unscoped_concept, "score": 50},
-        record_id=f"{GATE_PREFIX}_replay_unscoped_rid",
+        record_id=unscoped_rid,
     )
     assert refused is False, "无来源线索条目未被隔离: 新契约要求拒写 (quarantined)"
     written = await gate_client.run_query(
@@ -600,6 +622,17 @@ async def test_fallback_replay_write_identity_dual_vault(gate_client, monkeypatc
         name=unscoped_concept,
     )
     assert written[0]["n"] == 0, f"quarantined 条目仍被写图: {written}"
+
+    # 零写面不止 Concept (LOW-1): 真正落分走 record_score_history_by_record_id
+    # ⇒ MERGE (e:Episode {record_id, group_id})。Episode 也是写侧, quarantined
+    # 不得留痕 —— 此前只验 Concept, Episode 侧零写入无断言。
+    # 负控思路: 让拒写分支在解析失败前就把 record_id 传下去 (或放宽成 >= 0),
+    # 这条会红 —— 它是「拒写 = 整条零写」而非「只挡 Concept」直接证据。
+    episodes = await gate_client.run_query(
+        "MATCH (e:Episode) WHERE e.record_id = $rid RETURN count(e) AS c",
+        rid=unscoped_rid,
+    )
+    assert int(episodes[0]["c"]) == 0, f"quarantined 条目仍写了 Episode: {episodes}"
 
 
 async def test_group_unresolvable_fail_closed_no_500(gate_client, caplog):
