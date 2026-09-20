@@ -1,0 +1,12 @@
+ℹ️  dirty 门覆盖面: dirty 取自 git status --porcelain --untracked-files=all, 覆盖面 = git 跟踪面。
+ℹ️  dirty 门覆盖面: 不覆盖 .gitignore / .git/info/exclude 忽略掉的文件(构建产物、本地配置、venv)。
+ℹ️  dirty 门覆盖面: 不覆盖 assume-unchanged / skip-worktree 标记过的文件。
+ℹ️  dirty 门覆盖面: 不覆盖仓外状态(容器镜像、named volume 内的索引、宿主环境变量)。
+── 校验器 --all (rc=0) ──
+✅ PASS docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+✅ 已冻结 rc-20260918-5cd1cae1
+    落点   /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/rrc-out/rc-20260918-5cd1cae1
+    sha    5cd1cae1e749411197148bfc4319fa9e24685f3f
+    树     linked-worktree @ .claude/worktrees/card-p10-docs

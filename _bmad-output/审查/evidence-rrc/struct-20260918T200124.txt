@@ -1,0 +1,39 @@
+### (f)① git grep 命中（改前 0 / 改后 ≥3）
+backend/scripts/freeze_release_candidate.py
+backend/tests/unit/test_freeze_release_candidate.py
+docs/release-evidence/README.md
+       3
+### (f)① 验伪锚：去掉 pathspec 限定应更大
+       5
+### (f)② AST 门
+porcelain 4 untracked 4 allow_dirty 0
+### (f)③ 无 from app / import app / import 校验器
+backend/scripts/freeze_release_candidate.py:0
+backend/tests/unit/test_freeze_release_candidate.py:0
+-- 脚本不 import 校验器 --
+0
+-- 验伪锚：裁判确实 import 了它（(d)13 允许） --
+1
+### (f)④ 正则字面量两处各 1
+backend/scripts/freeze_release_candidate.py:1
+backend/scripts/validate_release_manifest.py:1
+### (f)⑤ README 关键词 + 只追加
+3
+-- 删改行数（须 0） --
+0
+-- 验伪锚 新增行数（须 ≥20） --
+53
+### (f)⑥ 校验器 + schema + 其裁判 零改动（须空）
+[上面若无输出 = 空 = 零改动]
+### (l) 地盘（须恰三行）
+backend/scripts/freeze_release_candidate.py
+backend/tests/unit/test_freeze_release_candidate.py
+docs/release-evidence/README.md
+-- 验伪锚：不排除 _bmad-output 应多出条目 --
+0
+-- 不得出现任何 <rc>/ 或 journeys --
+0
+### (m) 现网只读
+       0
+-- 验伪锚：同 grep 喂 docker-compose.yml 应 ≥1 --
+       5

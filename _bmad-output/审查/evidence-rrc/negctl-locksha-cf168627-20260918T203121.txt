@@ -1,0 +1,12 @@
+== 负控 locksha ==
+--- shasum 改前 ---
+7cb620467f0ed491ee07a3b7f722cac03783f67f1a7d02126f95f8c585dbde37  backend/scripts/freeze_release_candidate.py
+替换次数 n=1 (须恰为 1, 否则本段负控是空跑)
+--- shasum 改后 ---
+1b9e9240293c9e58479c14a354306d9610787f3e4115117a1bc0d8c0d47aa044  backend/scripts/freeze_release_candidate.py
+FAILED tests/unit/test_freeze_release_candidate.py::test_clean_freeze_writes_manifest_and_skeleton
+1 failed, 21 passed in 19.64s
+--- 期望红: test_clean_freeze_writes_manifest_and_skeleton ---
+--- shasum 还原后 ---
+7cb620467f0ed491ee07a3b7f722cac03783f67f1a7d02126f95f8c585dbde37  backend/scripts/freeze_release_candidate.py
+rc=0

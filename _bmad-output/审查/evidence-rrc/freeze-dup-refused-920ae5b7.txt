@@ -1,0 +1,8 @@
+ℹ️  dirty 门覆盖面: dirty 取自 git status --porcelain --untracked-files=all, 覆盖面 = git 跟踪面。
+ℹ️  dirty 门覆盖面: 不覆盖 .gitignore / .git/info/exclude 忽略掉的文件(构建产物、本地配置、venv)。
+ℹ️  dirty 门覆盖面: 不覆盖 assume-unchanged / skip-worktree 标记过的文件。
+ℹ️  dirty 门覆盖面: 不覆盖仓外状态(容器镜像、named volume 内的索引、宿主环境变量)。
+ℹ️  dirty 门覆盖面: 不覆盖未 checkout 的 gitlink 路径下的内容(git 拒绝跟踪, 也无法枚举)。
+ℹ️  dirty 门覆盖面: 不保证 HEAD 事后可达: rebase/merge 进行中时工作树可以干净, abort 后该 SHA 可能失联。
+⛔ [reject] 同一个 SHA 已经冻结过: rc-20260919-920ae5b7 (candidate.sha = 920ae5b7b12c02691ccaed3c6897149795553e76)。 一个 SHA 一个 RC —— 要新 rc 就先产生新 SHA; 想往旧 rc 补 journey 证据无需再冻结。
+rc=1

@@ -1,0 +1,33 @@
+### 绑定  PREV=ef8ace4a73b346790672a61e5308458fbfbcec4f  HEAD=920ae5b7b12c02691ccaed3c6897149795553e76
+### (f)① git grep（≥3）/ 验伪锚（更大）
+       3
+       5
+### (f)② AST 门
+porcelain 6 untracked 4 allow_dirty 0 ignore_submodules 1
+### (f)③ from app/import app 各 0；脚本不 import 校验器 0；裁判 import 1（验伪锚）
+backend/scripts/freeze_release_candidate.py:0
+backend/tests/unit/test_freeze_release_candidate.py:0
+0
+1
+### (f)④ 共享正则字面量各 1
+backend/scripts/freeze_release_candidate.py:1
+backend/scripts/validate_release_manifest.py:1
+### (f)⑤ README 关键词 / 删改 0 / 新增（验伪锚）
+3
+0
+74
+### (f)⑥ 校验器+schema+其裁判 零改动（下方须空）
+[空 = 零改动]
+### (l) 地盘 恰三行
+backend/scripts/freeze_release_candidate.py
+backend/tests/unit/test_freeze_release_candidate.py
+docs/release-evidence/README.md
+### (l) 不得有 <rc>/ 或 rc-manifest.json 入库
+0
+### (m) 现网只读 0 / 验伪锚 ≥1
+       0
+       5
+### 裁判条数（AST 顶层 test_ 函数）
+32
+### stdlib only（非 stdlib 须空）
+[]

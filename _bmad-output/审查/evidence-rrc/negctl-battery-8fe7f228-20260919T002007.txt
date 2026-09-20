@@ -1,0 +1,77 @@
+=== 负控战役 v2 · HEAD=8fe7f228200b464cfe8a87ac984a384a9005dde4 ===
+工作树 sha256 = 6e5e9a16033a712966421bb42341e45ce22c49f49e51140f7f62d04683512720
+HEAD   sha256 = 6e5e9a16033a712966421bb42341e45ce22c49f49e51140f7f62d04683512720
+✅ 前置守卫通过：工作树 == HEAD，trap 还原安全
+
+───── [N1-空串门] 期望红: test_blank_string_args_refused
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_blank_string_args_refused
+  1 failed, 31 passed in 25.70s
+  还原 ✅
+
+───── [N2-rc名逃逸] 期望红: test_rc_name_dot_and_dotdot_refused_no_escape
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_rc_name_dot_and_dotdot_refused_no_escape
+  1 failed, 31 passed in 51.50s
+  还原 ✅
+
+───── [N3-同SHA重冻] 期望红: test_same_sha_different_rc_name_refused
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_same_sha_different_rc_name_refused
+  1 failed, 31 passed in 33.26s
+  还原 ✅
+
+───── [N4-TOCTOU复核] 期望红: test_candidate_key_set_pinned
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_candidate_key_set_pinned
+  1 failed, 31 passed in 44.21s
+  还原 ✅
+
+───── [N5-main_root来源] 期望红: test_main_root_comes_from_worktree_list
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_main_root_comes_from_worktree_list
+  1 failed, 31 passed in 23.88s
+  还原 ✅
+
+───── [N6-check的cwd遮蔽] 期望红: test_check_name_resolved_via_out_root_not_cwd
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_check_name_resolved_via_out_root_not_cwd
+  1 failed, 31 passed in 26.57s
+  还原 ✅
+
+───── [N7-非dict崩溃] 期望红: test_check_handles_non_dict_candidate
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_check_handles_non_dict_candidate
+  1 failed, 31 passed in 60.89s (0:01:00)
+  还原 ✅
+
+───── [N8-check自陈边界] 期望红: test_check_declares_what_it_did_not_verify
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_check_declares_what_it_did_not_verify
+  1 failed, 31 passed in 36.62s
+  还原 ✅
+
+───── [N9-校验器非0不拦] 期望红: test_validator_nonzero_blocks_all_writes
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_validator_nonzero_blocks_all_writes
+  1 failed, 31 passed in 36.05s
+  还原 ✅
+
+───── [N10-dirty恒干净] 期望红: 两条 dirty 用例
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_dirty_untracked_refused_exit_1_zero_write
+  1 failed, 31 passed in 25.39s
+  还原 ✅
+
+───── [N11-journey_sha比对] 期望红: test_check_detects_journey_sha_mismatch
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_check_detects_journey_sha_mismatch
+  1 failed, 31 passed in 22.21s
+  还原 ✅
+
+───── [N12-锁sha常量] 期望红: test_clean_freeze_writes_manifest_and_skeleton
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_clean_freeze_writes_manifest_and_skeleton
+  1 failed, 31 passed in 18.13s
+  还原 ✅
+

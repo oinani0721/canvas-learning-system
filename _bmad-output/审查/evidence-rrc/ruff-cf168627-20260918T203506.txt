@@ -1,0 +1,8 @@
+files=2
+backend/scripts/freeze_release_candidate.py backend/tests/unit/test_freeze_release_candidate.py
+All checks passed!
+rc=0
+2 files already formatted
+fmt_rc=0
+1
+probe_rc=1

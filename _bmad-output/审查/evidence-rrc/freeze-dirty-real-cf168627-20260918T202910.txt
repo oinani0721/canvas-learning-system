@@ -1,0 +1,23 @@
+    ?? _bmad-output/审查/codex-review-CARD-R-RC-resend.md
+    ?? _bmad-output/审查/codex-review-CARD-R-RC.md
+    ?? _bmad-output/审查/evidence-rrc/base.nodeids
+    ?? _bmad-output/审查/evidence-rrc/check-real-20260918T195621.txt
+    ?? _bmad-output/审查/evidence-rrc/check-real-20260918T202707.txt
+    ?? _bmad-output/审查/evidence-rrc/close.nodeids
+    ?? _bmad-output/审查/evidence-rrc/deploy-vault-solo-20260918T194246.txt
+    ?? _bmad-output/审查/evidence-rrc/freeze-dirty-real-20260918T195234.txt
+    ?? _bmad-output/审查/evidence-rrc/freeze-green-conftest-20260918T195925.txt
+    ?? _bmad-output/审查/evidence-rrc/freeze-green-noconftest-20260918T195832.txt
+    ?? _bmad-output/审查/evidence-rrc/freeze-real-20260918T195604.txt
+    ?? _bmad-output/审查/evidence-rrc/freeze-real-20260918T202706.txt
+    ?? _bmad-output/审查/evidence-rrc/freeze-red-20260918T192434.txt
+    ?? _bmad-output/审查/evidence-rrc/negctl-checksha-20260918T195745.txt
+    ?? _bmad-output/审查/evidence-rrc/negctl-dirty-20260918T195712.txt
+    ?? _bmad-output/审查/evidence-rrc/negctl-locksha-20260918T195819.txt
+    ?? _bmad-output/审查/evidence-rrc/open.nodeids
+    ?? _bmad-output/审查/evidence-rrc/rc-manifest-rc-20260918-5cd1cae1.json
+    ?? _bmad-output/审查/evidence-rrc/rc-manifest-real-rc-20260918-5cd1cae1.json
+    ?? _bmad-output/审查/evidence-rrc/readme-claims-20260918T195925.txt
+    … 另有 10 条未列出
+⛔ [reject] dirty tree (30 条未提交条目), 拒绝冻结。 脏树上跑出来的证据不成立(README/S17), 本脚本没有跳过开关: 先提交或清理, 再冻结。
+rc=1

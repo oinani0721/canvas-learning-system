@@ -1,0 +1,364 @@
+FFFFFFFFFFF..FFFFFFFF                                                    [100%]
+=================================== FAILURES ===================================
+________________ test_dirty_untracked_refused_exit_1_zero_write ________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_dirty_untracked_refused_e0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_dirty_untracked_refused_e0')
+
+    def test_dirty_untracked_refused_exit_1_zero_write(repo: Path, tmp_path: Path) -> None:
+        """未跟踪文件也算脏 (--untracked-files=all), 且拒绝路径上 out-root 根本不该被建出来。"""
+        out_root = tmp_path / "out"
+        (repo / "stray-note.txt").write_text("未提交的草稿\n", encoding="utf-8")
+    
+        proc = _freeze(repo, out_root, *_NULL_REASON)
+    
+>       assert proc.returncode == 1, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:194: AssertionError
+_____________________ test_dirty_modified_tracked_refused ______________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_dirty_modified_tracked_re0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_dirty_modified_tracked_re0')
+
+    def test_dirty_modified_tracked_refused(repo: Path, tmp_path: Path) -> None:
+        """已跟踪文件改了没提交同样拒 —— 与未跟踪面各拆一层。"""
+        out_root = tmp_path / "out"
+        (repo / _LOCK_RELS[0]).write_text("pytest==9.9.9\n", encoding="utf-8")
+    
+        proc = _freeze(repo, out_root, *_NULL_REASON)
+    
+>       assert proc.returncode == 1, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:208: AssertionError
+________________ test_clean_freeze_writes_manifest_and_skeleton ________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_clean_freeze_writes_manif0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_clean_freeze_writes_manif0')
+
+    def test_clean_freeze_writes_manifest_and_skeleton(repo: Path, tmp_path: Path) -> None:
+        out_root = tmp_path / "out"
+        proc = _freeze(repo, out_root, *_NULL_REASON)
+>       assert proc.returncode == 0, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:219: AssertionError
+__________________________ test_rerun_same_rc_refused __________________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_rerun_same_rc_refused0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_rerun_same_rc_refused0')
+
+    def test_rerun_same_rc_refused(repo: Path, tmp_path: Path) -> None:
+        out_root = tmp_path / "out"
+        first = _freeze(repo, out_root, *_NULL_REASON, "--rc-name", "rc-fixed")
+>       assert first.returncode == 0, _both(first)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:285: AssertionError
+__________________________ test_index_sha_xor_reason ___________________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_index_sha_xor_reason0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_index_sha_xor_reason0')
+
+    def test_index_sha_xor_reason(repo: Path, tmp_path: Path) -> None:
+        """镜像 schema「禁止省略字段冒充无关」: 值与理由必须恰给一个。"""
+        neither = _freeze(repo, tmp_path / "o1")
+>       assert neither.returncode == 1, _both(neither)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:302: AssertionError
+__________________________ test_ci_run_id_precedence ___________________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_ci_run_id_precedence0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_ci_run_id_precedence0')
+
+    def test_ci_run_id_precedence(repo: Path, tmp_path: Path) -> None:
+        explicit = _freeze(
+            repo, tmp_path / "o1", *_NULL_REASON, "--ci-run-id", "7", env={"GITHUB_RUN_ID": "9"}
+        )
+>       assert explicit.returncode == 0, _both(explicit)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:320: AssertionError
+_________________________ test_detached_head_recorded __________________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_detached_head_recorded0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_detached_head_recorded0')
+
+    def test_detached_head_recorded(repo: Path, tmp_path: Path) -> None:
+        """tmp 仓内的 detach (与 §三「禁 checkout-HEAD 还原形态」无关, 那条约束的是本仓)。"""
+        _git(repo, "checkout", "-q", "--detach")
+        proc = _freeze(repo, tmp_path / "out", *_NULL_REASON)
+    
+>       assert proc.returncode == 0, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:344: AssertionError
+____________________ test_linked_worktree_dual_tree_fields _____________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_linked_worktree_dual_tree0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_linked_worktree_dual_tree0')
+
+    def test_linked_worktree_dual_tree_fields(repo: Path, tmp_path: Path) -> None:
+        """双树消歧: 先在主仓冻结 ('.', False), 再在 linked worktree 冻结 ('wt', True)。
+    
+        顺序不能反 —— `git worktree add <repo>/wt` 之后主仓会多出一个未跟踪的 wt/,
+        那时再在主仓冻结会被 dirty 门 (正确地) 拒掉。
+        """
+        main_out = tmp_path / "out-main"
+        main_proc = _freeze(repo, main_out, *_NULL_REASON, "--rc-name", "rc-main")
+>       assert main_proc.returncode == 0, _both(main_proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:359: AssertionError
+______________________ test_vault_root_recorded_readonly _______________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_vault_root_recorded_reado0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_vault_root_recorded_reado0')
+
+    def test_vault_root_recorded_readonly(repo: Path, tmp_path: Path) -> None:
+        """第二棵树 (vault) 只读记账: 记 HEAD 与脏条目数, 不动它一个字节。"""
+        vault = tmp_path / "vault"
+        _init_repo(vault)
+        (vault / "note.md").write_text("# 已提交\n", encoding="utf-8")
+        _git(vault, "add", "-A")
+        _commit(vault, "vault base")
+        (vault / "untracked.md").write_text("# 未提交\n", encoding="utf-8")
+    
+        before = sorted(
+            (p.relative_to(vault).as_posix(), hashlib.sha256(p.read_bytes()).hexdigest())
+            for p in vault.rglob("*")
+            if p.is_file() and ".git/" not in p.relative_to(vault).as_posix()
+        )
+    
+        proc = _freeze(repo, tmp_path / "out", *_NULL_REASON, "--vault-root", str(vault))
+>       assert proc.returncode == 0, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:396: AssertionError
+____________________ test_vault_absent_records_null_reason _____________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_vault_absent_records_null0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_vault_absent_records_null0')
+
+    def test_vault_absent_records_null_reason(repo: Path, tmp_path: Path) -> None:
+        """不传 --vault-root 时不许省略字段, 要 null + 理由 (与索引 SHA 同口径)。"""
+        proc = _freeze(repo, tmp_path / "out", *_NULL_REASON)
+>       assert proc.returncode == 0, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:416: AssertionError
+________________________ test_missing_lockfile_refused _________________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_missing_lockfile_refused0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_missing_lockfile_refused0')
+
+    def test_missing_lockfile_refused(repo: Path, tmp_path: Path) -> None:
+        """锁文件缺一即拒 —— 不写 null 冒充「本项目无锁」。"""
+        _git(repo, "rm", "-q", _LOCK_RELS[1])
+        _commit(repo, "drop package-lock")
+    
+        proc = _freeze(repo, tmp_path / "out", *_NULL_REASON)
+    
+>       assert proc.returncode == 1, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:432: AssertionError
+___________________ test_check_detects_journey_sha_mismatch ____________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_detects_journey_sha0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_detects_journey_sha0')
+
+    def test_check_detects_journey_sha_mismatch(repo: Path, tmp_path: Path) -> None:
+        out_root = tmp_path / "out"
+>       assert _freeze(repo, out_root, *_NULL_REASON).returncode == 0
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+E        +    where CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n") = _freeze(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_detects_journey_sha0/code'), PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_detects_journey_sha0/out'), *('--index-sha-null-reason', '裁判用 tmp 仓, 不涉检索索引'))
+
+tests/unit/test_freeze_release_candidate.py:480: AssertionError
+___________________ test_check_rejects_tampered_rc_manifest ____________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_rejects_tampered_rc0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_rejects_tampered_rc0')
+
+    def test_check_rejects_tampered_rc_manifest(repo: Path, tmp_path: Path) -> None:
+        """check 也守 rc-manifest 自身: dirty 被改成 true / rc 与目录名不符都要红。"""
+        out_root = tmp_path / "out"
+>       assert _freeze(repo, out_root, *_NULL_REASON).returncode == 0
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+E        +    where CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n") = _freeze(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_rejects_tampered_rc0/code'), PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_rejects_tampered_rc0/out'), *('--index-sha-null-reason', '裁判用 tmp 仓, 不涉检索索引'))
+
+tests/unit/test_freeze_release_candidate.py:500: AssertionError
+____________________ test_check_missing_rc_manifest_exit_1 _____________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_missing_rc_manifest0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_check_missing_rc_manifest0')
+
+    def test_check_missing_rc_manifest_exit_1(repo: Path, tmp_path: Path) -> None:
+        empty = tmp_path / "empty-rc"
+        empty.mkdir()
+        proc = _run(repo, "check", str(empty))
+>       assert proc.returncode == 1, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:523: AssertionError
+___________________ test_rc_name_regex_shared_with_validator ___________________
+
+    def test_rc_name_regex_shared_with_validator() -> None:
+        """rc 名正则必须与校验器 _RC_NAME_RE 逐字同 —— 否则冻结出来的目录名校验器不认。
+    
+        脚本本体**不** import 校验器 (走 subprocess 保证校验器零改动), 两处各持一份字面量;
+        这条裁判就是那两份字面量之间唯一的机械纽带。
+        """
+        sys.path.insert(0, str(_SCRIPTS_DIR))
+>       import freeze_release_candidate as frc
+E       ModuleNotFoundError: No module named 'freeze_release_candidate'
+
+tests/unit/test_freeze_release_candidate.py:537: ModuleNotFoundError
+________________________ test_rc_name_rejects_path_like ________________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_rc_name_rejects_path_like0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_rc_name_rejects_path_like0')
+
+    def test_rc_name_rejects_path_like(repo: Path, tmp_path: Path) -> None:
+        """rc 名只许目录名, 不许路径 —— 与校验器 check_rc_completeness 的红队整改同口径。"""
+        proc = _freeze(repo, tmp_path / "out", *_NULL_REASON, "--rc-name", "../escape")
+>       assert proc.returncode == 1, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 1
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:547: AssertionError
+______________________ test_no_allow_dirty_switch_exists _______________________
+
+    def test_no_allow_dirty_switch_exists() -> None:
+        """dirty 门没有跳过开关 —— 源码里 0 处 allow-dirty, 也不接受该 flag。"""
+>       source = _FREEZE.read_text(encoding="utf-8")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_freeze_release_candidate.py:557: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:787: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py'
+
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: FileNotFoundError
+__________________ test_gitignored_file_does_not_block_freeze __________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_gitignored_file_does_not_0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_gitignored_file_does_not_0')
+
+    def test_gitignored_file_does_not_block_freeze(repo: Path, tmp_path: Path) -> None:
+        """**已知盲区如实钉住**: `.gitignore` 忽略的文件不进 porcelain, 冻结照过。
+    
+        这不是 bug 而是 dirty 门的覆盖面边界 (git 的 porcelain 语义)。脚本必须把这条边界
+        打印出来, 让读冻结件的人知道「dirty=false」到底保证了什么、没保证什么 —— 本条断言
+        钉的就是「边界被声明」, 而不是「边界不存在」。
+        """
+        (repo / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+        _git(repo, "add", "-A")
+        _commit(repo, "add gitignore")
+        (repo / "ignored").mkdir()
+        (repo / "ignored" / "blob.bin").write_text("x", encoding="utf-8")
+    
+        proc = _freeze(repo, tmp_path / "out", *_NULL_REASON)
+    
+>       assert proc.returncode == 0, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:577: AssertionError
+__________________________ test_environment_recorded ___________________________
+
+repo = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_environment_recorded0/code')
+tmp_path = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-394/test_environment_recorded0')
+
+    def test_environment_recorded(repo: Path, tmp_path: Path) -> None:
+        proc = _freeze(repo, tmp_path / "out", *_NULL_REASON)
+>       assert proc.returncode == 0, _both(proc)
+E       AssertionError: /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python: can't open file '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory
+E         
+E       assert 2 == 0
+E        +  where 2 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...m/.claude/worktrees/card-p10-docs/backend/scripts/freeze_release_candidate.py': [Errno 2] No such file or directory\n").returncode
+
+tests/unit/test_freeze_release_candidate.py:586: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_freeze_release_candidate.py::test_dirty_untracked_refused_exit_1_zero_write
+FAILED tests/unit/test_freeze_release_candidate.py::test_dirty_modified_tracked_refused
+FAILED tests/unit/test_freeze_release_candidate.py::test_clean_freeze_writes_manifest_and_skeleton
+FAILED tests/unit/test_freeze_release_candidate.py::test_rerun_same_rc_refused
+FAILED tests/unit/test_freeze_release_candidate.py::test_index_sha_xor_reason
+FAILED tests/unit/test_freeze_release_candidate.py::test_ci_run_id_precedence
+FAILED tests/unit/test_freeze_release_candidate.py::test_detached_head_recorded
+FAILED tests/unit/test_freeze_release_candidate.py::test_linked_worktree_dual_tree_fields
+FAILED tests/unit/test_freeze_release_candidate.py::test_vault_root_recorded_readonly
+FAILED tests/unit/test_freeze_release_candidate.py::test_vault_absent_records_null_reason
+FAILED tests/unit/test_freeze_release_candidate.py::test_missing_lockfile_refused
+FAILED tests/unit/test_freeze_release_candidate.py::test_check_detects_journey_sha_mismatch
+FAILED tests/unit/test_freeze_release_candidate.py::test_check_rejects_tampered_rc_manifest
+FAILED tests/unit/test_freeze_release_candidate.py::test_check_missing_rc_manifest_exit_1
+FAILED tests/unit/test_freeze_release_candidate.py::test_rc_name_regex_shared_with_validator
+FAILED tests/unit/test_freeze_release_candidate.py::test_rc_name_rejects_path_like
+FAILED tests/unit/test_freeze_release_candidate.py::test_no_allow_dirty_switch_exists
+FAILED tests/unit/test_freeze_release_candidate.py::test_gitignored_file_does_not_block_freeze
+FAILED tests/unit/test_freeze_release_candidate.py::test_environment_recorded
+19 failed, 2 passed in 1.82s
+rc=1

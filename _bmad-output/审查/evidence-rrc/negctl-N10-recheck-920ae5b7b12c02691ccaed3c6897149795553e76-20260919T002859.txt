@@ -1,0 +1,7 @@
+✅ 前置守卫: 工作树 == HEAD
+改前 sha256 = 6e5e9a16033a712966421bb42341e45ce22c49f49e51140f7f62d04683512720
+n=1
+FAILED tests/unit/test_freeze_release_candidate.py::test_dirty_untracked_refused_exit_1_zero_write
+FAILED tests/unit/test_freeze_release_candidate.py::test_dirty_modified_tracked_refused
+2 failed, 30 passed in 37.28s
+还原后 sha256 = 6e5e9a16033a712966421bb42341e45ce22c49f49e51140f7f62d04683512720

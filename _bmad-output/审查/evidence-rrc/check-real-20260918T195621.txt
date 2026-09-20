@@ -1,0 +1,3 @@
+✅ check 通过 (rc-20260918-5cd1cae1): 在场的 0 条 journey 全部绑同一个 candidate.sha
+    sha 5cd1cae1e749411197148bfc4319fa9e24685f3f
+ℹ️  尚缺 10 条 journey: J01 J02 J03 J04 J05 J06 J07 J08 J09 J10

@@ -1,0 +1,8 @@
+✅ 前置守卫: 工作树 == HEAD (3d95c512bf8f3dd4953dfd74c27fe7fc5e2220dd1f927cfedf7ecb073bd334e5)
+=== N13c: 判重扫描对读不出来的旧件改回 continue（fail-open） ===
+  n=1
+  n2=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_duplicate_scan_fails_closed_on_unreadable_manifest
+  FAILED tests/unit/test_freeze_release_candidate.py::test_duplicate_scan_fails_closed_on_non_dict_candidate
+  2 failed, 38 passed in 13.87s
+  还原后 sha256 = 3d95c512bf8f3dd4953dfd74c27fe7fc5e2220dd1f927cfedf7ecb073bd334e5

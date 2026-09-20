@@ -24,6 +24,7 @@ docs/release-evidence/
 ├── README.md                  ← 本文件
 ├── manifest.schema.json       ← 结构契约（改它必须同步校验器里的 SHA 常量）
 └── <rc>/                      ← 一个 release candidate 一个目录
+    ├── rc-manifest.json       ← CARD-R-RC 冻结件（candidate.sha 的唯一来源）
     └── journeys/
         ├── J01/
         │   ├── manifest.json  ← 必需，本规范的核心
@@ -35,6 +36,96 @@ docs/release-evidence/
 - `<rc>` 目录名 = manifest 里的 `rc` 字段（S6 规则强制一致）；
 - `Jxx` 目录名 = manifest 里的 `journey_id`（同上）；
 - 现有示例：[`example-backfill-d5/journeys/J08/`](example-backfill-d5/journeys/J08/)——用已归档的 CARD-D5 board-recap 盲测证据回填的**格式演示件**。它自陈 `provenance.mode = reconstructed`，因此被 S10/S13 锁死在 E2、禁止签字、且不计入任何 RC 完整性门。
+
+## RC 冻结与重跑规则（CARD-R-RC）
+
+`candidate.sha` 与 `candidate.dirty` 是本规范最硬的两个字段，但校验器只验格式不验来源（见"已知边界"）。
+生成端是 `backend/scripts/freeze_release_candidate.py`——**先冻结，再往 `<rc>/journeys/` 里填旅程证据**：
+
+```bash
+backend/.venv/bin/python backend/scripts/freeze_release_candidate.py freeze \
+  --index-sha-null-reason "冻结当刻索引在 named volume canvas-lancedb-data 内，宿主 bind 路径核不到（见下节双树声明）" \
+  [--ci-run-id 123456] [--vault-root /path/to/vault]
+```
+
+产物是 `<rc>/rc-manifest.json`（冻结回执）+ `<rc>/journeys/`（空骨架）。冻结脚本会真调本校验器
+`--all`，不通过就不写；落点在证据树内时还会跑 `--require-complete <rc>`，**冻结当刻它必然 FAIL**
+（缺 J01–J10），这是预期状态，不是错误。
+
+**硬规则五条**
+
+1. **脏树拒绝，且拒绝路径零写入**。`git status --porcelain --untracked-files=all` 非空即退 1，
+   连 `<out-root>/` 都不会被建出来。没有跳过开关——脏树上跑出来的证据不成立（S17）。
+   注意 `dirty=false` 的准确含义是"**git 跟踪面**上没有未提交改动"：`.gitignore` 忽略的文件、
+   `assume-unchanged` / `skip-worktree` 标记过的文件、仓外状态（容器镜像、named volume 里的索引）
+   都不在这道门的覆盖面内；还有两类容易漏想的：**未 checkout 的 gitlink 路径下的内容**（git 既不
+   跟踪也无法枚举，独立审查在本仓 `_reference/obsidian-sample-plugin` 上实测过），以及 **rebase/merge
+   进行中时的干净树**（此刻的 HEAD 在 abort 后可能从所有 ref 不可达）。这几条 caveat 会原样写进
+   `rc-manifest.json` 的 `candidate.dirty_scope_caveats`，别把它读成更强的保证。
+2. **`candidate.sha` = 冻结当刻的 `git rev-parse HEAD`**。因此"归档 `<rc>/` 的那个提交"**必然晚于**
+   `candidate.sha`——上面"字段速查"里警告的那个最常见错误，在生成端被结构性排除了：脚本取的是执行期
+   HEAD，那个 commit 此刻就存在，而归档提交此刻还不存在。
+3. **一个 SHA 一个 rc**，并且是**按 SHA 机械判的**：冻结前会扫 `--out-root` 下已有的
+   `*/rc-manifest.json`，只要有一份的 `candidate.sha` 与本次相同就退 1，不管它叫什么名字。
+   （只按目录名判是不够的——换个 `--rc-name`、或让默认名 `rc-<YYYYMMDD>-<sha[:8]>` 里的日期跨一天，
+   同一个 SHA 就能再冻一个。独立审查实测过这个洞。）同名落点已存在同样退 1，不覆盖。
+4. **代码任何改动（含只改文档）= 新 SHA = 新 rc**。旧 rc 下已落盘的 journey 证据**不迁移**到新 rc，
+   按 S11「换 SHA 须重开 dogfood 窗口」处理。这条与第 3 条合起来的代价要提前知道：**dogfood 窗口期内
+   代码不能动**，否则窗口重开。要在窗口期改代码，就得接受这个 rc 作废、证据重跑。
+5. **`--require-complete` 由人在发布前显式跑到 PASS**。冻结脚本只记录它当刻的结果，不拿它当自己的
+   退出码；`--all` 长绿不等于"这个 RC 的证据齐了"。
+
+**冻结之后怎么往 `<rc>/` 里加证据（执行树怎么保持干净）**
+
+这里有个自指的坑：冻结本身会在树里产生未跟踪的骨架，而下一次冻结又要求树干净。规则是——
+
+- **冻结只做一次**。`<rc>/` 建好之后，往里加 journey 证据**不需要再冻结**，所以「追加证据」
+  和「树是否干净」没有关系。别为了加一条 J07 又去跑一次 freeze。
+- **骨架和证据都要提交**，提交它们**不改变 `candidate.sha`**：回执里记的是冻结当刻 checkout 的那个
+  commit，而归档动作产生的 commit 必然晚于它（硬规则 2）。所以「归档提交让 HEAD 前进了」不构成
+  证据失效，也不触发硬规则 4 的换 rc——硬规则 4 管的是**被验证的代码**变了，不是证据目录变了。
+- **执行旅程时**才需要干净树，而且要求更强：执行树必须 checkout 在 `candidate.sha` 上且干净，
+  否则 `candidate.sha` 这个字段就名不副实（schema 要求它是"执行期 checkout 的那个 commit"）。
+  实操上：把执行树 checkout 到候选 SHA → 跑旅程 → 产物先落在树外（`$TMPDIR`）→ 跑完再拷进
+  `<rc>/journeys/Jxx/` 并提交。**产物直接落在树里会让执行树变脏**，这一点冻结脚本自己也踩过。
+
+**谁在哪棵树上冻结**
+
+真 `<rc>/` 由主 session 在**合并候选树的候选 SHA** 上冻结，不在任何车道树上冻结——车道 commit 会被
+squash，冻结在车道 SHA 上的回执，那个 SHA 在主干根本不存在，等于假证据。车道只证明冻结脚本本身可用
+（跑 `--out-root` 到树外）。
+
+## 双树声明：worktree 代码 + 主仓 vault 缝合体（CARD-R-RC，供 R-J* 引用）
+
+线上运行的不是一棵树，是**两棵树缝起来的**。填 journey manifest 时如果把它当一棵树，`candidate.worktree`
+与 `environment.index_sha` 两个字段都会填错。实测拓扑（`docker-compose.yml` + 仓根 `.env`）：
+
+| 容器内路径 | 来自 | 说明 |
+|---|---|---|
+| `/app` | `./backend`（**worktree** 的 backend/） | 代码树。本仓有 106 个 linked worktree，"哪棵"必须显式写 |
+| `/vaults` | `VAULTS_ROOT`（= **主仓根**），`rw` | vault 树。`CANVAS_BASE_PATH=/vaults/${ACTIVE_VAULT}` |
+| `/lancedb` | named volume `canvas-lancedb-data`（`external: true`） | 检索索引。**没有宿主 bind 路径**，跨 worktree project 复用同一份 |
+
+⚠️ 一条容易抄错的历史：`- ./data:/app/data` 这行**已于 2026-08-17 移除**（R11-BATCH2-2026-08-17），
+原因正是它被父挂载 `./backend:/app` 遮蔽。现在 `/app/data` 恒等于 worktree 的 `backend/data/`，没有
+第二个来源。旧文档里"`./data` 子挂载遮蔽 `backend/data`"的说法已不成立，别照抄。
+
+**三条填写规则**
+
+1. **`candidate.worktree` 填「旅程实际在哪棵树上执行」**，写成**相对主仓根**的路径
+   （linked worktree 如 `.claude/worktrees/feature-obsidian-hybrid-dev`；在主仓自己跑就写 `.`）。
+   ⚠️ **不要不加判断地抄 `rc-manifest.json` 的 `worktree_rel_to_main`**：那个值记的是**冻结进程
+   所在的树**，而按上面「谁在哪棵树上冻结」，冻结发生在合并候选树上。两者只有在**你就在冻结出这个 rc
+   的那棵树上跑旅程**时才相同；在别的树上跑就填你实际跑的那棵。校验器对这个字段没有任何语义门
+   （schema 只要求是字符串），填错不会有人拦你——所以它值得多看一眼。
+   判断方法：容器里 `/app` 是从哪棵树 bind 进去的（`docker inspect <容器> --format '{{json .Mounts}}'`），
+   那棵就是要填的树。
+2. **`environment.index_sha` 取不到时填 `null`，理由写"索引在 named volume `canvas-lancedb-data` 内，
+   宿主 bind 路径核不到"**——不要写成"本旅程不涉索引"。两者语义完全不同：前者是"有索引但这层拓扑下测不到"，
+   后者是"这条旅程压根不走检索"。schema 之所以强制 `index_sha_null_reason`，挡的就是用省略字段冒充"无关"。
+3. **旅程涉及 vault 数据时，在 `notes` 里写明 vault 树来自主仓 `canvas-vault/`**，不是你所在 worktree 里的
+   那个 `canvas-vault/`。worktree 内那份是**陈旧的 git 快照**（本 worktree 实测 66 个 tracked 文件），
+   容器读的从来不是它。不写这一句，后人复现时会在错误的树上找数据。
 
 ## 新增一条 Jxx 证据的三步操作
 

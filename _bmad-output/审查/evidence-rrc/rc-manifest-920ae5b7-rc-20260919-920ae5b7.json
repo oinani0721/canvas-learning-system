@@ -1,0 +1,75 @@
+{
+  "candidate": {
+    "branch": "card/p10-docs",
+    "detached": false,
+    "dirty": false,
+    "dirty_scope_caveats": [
+      "dirty 取自 git status --porcelain --untracked-files=all, 覆盖面 = git 跟踪面。",
+      "不覆盖 .gitignore / .git/info/exclude 忽略掉的文件(构建产物、本地配置、venv)。",
+      "不覆盖 assume-unchanged / skip-worktree 标记过的文件。",
+      "不覆盖仓外状态(容器镜像、named volume 内的索引、宿主环境变量)。",
+      "不覆盖未 checkout 的 gitlink 路径下的内容(git 拒绝跟踪, 也无法枚举)。",
+      "不保证 HEAD 事后可达: rebase/merge 进行中时工作树可以干净, abort 后该 SHA 可能失联。"
+    ],
+    "git_common_dir": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.git",
+    "is_linked_worktree": true,
+    "main_root": "/Users/Heishing/Desktop/canvas/canvas-learning-system",
+    "main_root_source": "worktree-list",
+    "rechecked_before_write": true,
+    "sha": "920ae5b7b12c02691ccaed3c6897149795553e76",
+    "worktree": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs",
+    "worktree_rel_to_main": ".claude/worktrees/card-p10-docs"
+  },
+  "ci_run_id": null,
+  "ci_run_id_null_reason": "本地冻结, 无 CI 运行 (未给 --ci-run-id, 环境亦无 GITHUB_RUN_ID)。",
+  "dependency_locks": [
+    {
+      "bytes": 7488,
+      "path": "backend/requirements.txt",
+      "sha256": "db5461ddbb16e47d0680426d3a384f771ac9f969c61ee70f9627e7e4208da857"
+    },
+    {
+      "bytes": 19381,
+      "path": "frontend/obsidian-plugin/package-lock.json",
+      "sha256": "7f9ba4a5cf2eac88823eb1cc26a637a701f93a15e5b08c0e160d7cae570d2cc0"
+    }
+  ],
+  "environment": {
+    "git_version": "git version 2.50.1 (Apple Git-155)",
+    "host_os": "macOS-26.5-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.4"
+  },
+  "frozen_at": "2026-09-19T00:32:41.049312-07:00",
+  "index_sha": null,
+  "index_sha_null_reason": "冻结当刻索引在 named volume canvas-lancedb-data 内，宿主 bind 路径核不到（README 双树声明）",
+  "journeys_expected": [
+    "J01",
+    "J02",
+    "J03",
+    "J04",
+    "J05",
+    "J06",
+    "J07",
+    "J08",
+    "J09",
+    "J10"
+  ],
+  "notes": "candidate.sha 是被冻结的代码 SHA, 不是归档本目录的那个提交 —— 归档提交必然晚于它(见 docs/release-evidence/README.md「RC 冻结与重跑规则」)。",
+  "rc": "rc-20260919-920ae5b7",
+  "rc_manifest_version": "1.0.0",
+  "trees": {
+    "code": {
+      "kind": "linked-worktree",
+      "path": "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs"
+    },
+    "vault": null,
+    "vault_null_reason": "本次冻结未声明 vault 树 (--vault-root 未给)。线上拓扑是「worktree 代码 + 主仓 vault」缝合体, 涉及 vault 数据的旅程须显式声明, 见 README 双树声明。"
+  },
+  "validator": {
+    "all_exit_code": 0,
+    "require_complete": null,
+    "require_complete_skip_reason": "--out-root (/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/rrc-o9) 不是校验器钉死的证据根 (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/docs/release-evidence), --require-complete 看不见本 rc, 故未跑。冻结当刻本就缺 J01–J10, 预期清单见 journeys_expected (10 条)。",
+    "schema_sha256": "4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f940327922c547",
+    "script": "backend/scripts/validate_release_manifest.py"
+  }
+}

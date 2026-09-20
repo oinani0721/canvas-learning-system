@@ -1,0 +1,19 @@
+--- shasum 改前 ---
+185e14636a56a5ba20219d1ed1698e9150b130d471ec3dd8d4c6cbdd92cec8f6  backend/scripts/freeze_release_candidate.py
+[negctl-3] 替换次数 n=1  (必须恰为 1)
+--- shasum 改后 ---
+09a61c4ec6f751481ed78c42c4715b08f867a025c0fa6396033023313c55f5b4  backend/scripts/freeze_release_candidate.py
+        for item in locks:
+            raw = (repo / item["path"]).read_bytes()
+>           assert item["sha256"] == hashlib.sha256(raw).hexdigest()
+E           AssertionError: assert '000000000000...0000000000000' == '165658830576...1d974375c8118'
+E             
+E             - 1656588305765e14f68b5322c40d2764f83a0d7141995e7a2d41d974375c8118
+E             + 0000000000000000000000000000000000000000000000000000000000000000
+
+tests/unit/test_freeze_release_candidate.py:265: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_freeze_release_candidate.py::test_clean_freeze_writes_manifest_and_skeleton
+1 failed, 20 passed in 11.29s
+--- shasum 还原后 ---
+185e14636a56a5ba20219d1ed1698e9150b130d471ec3dd8d4c6cbdd92cec8f6  backend/scripts/freeze_release_candidate.py

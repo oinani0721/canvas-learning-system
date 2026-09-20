@@ -1,0 +1,23 @@
+=== 负控补跑（合并后的 rc 名门 + 重写的 N13） · HEAD=5abcff162de43153d71c2dde84a0226a040918e2 ===
+✅ 前置守卫: 工作树 == HEAD (3d95c512bf8f3dd4953dfd74c27fe7fc5e2220dd1f927cfedf7ecb073bd334e5)
+
+───── [N2b-合并后的rc名门] 期望红: rc_name_dot_and_dotdot + rc_name_leading_dot
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_rc_name_leading_dot_refused
+  1 failed, 39 passed in 12.58s
+  还原 ✅
+
+───── [N13b-判重改fail-open] 期望红: 两条 duplicate_scan_fails_closed
+  n=2  ⛔ 作废
+Traceback (most recent call last):
+  File "<stdin>", line 7, in <module>
+AssertionError
+  40 passed in 12.79s
+  还原 ✅
+
+───── [N15b-非dict(rc)改放行] 期望红: check_rejects_non_dict_candidate_in_rc_manifest
+  n=1
+  FAILED tests/unit/test_freeze_release_candidate.py::test_check_rejects_non_dict_candidate_in_rc_manifest
+  1 failed, 39 passed in 12.42s
+  还原 ✅
+

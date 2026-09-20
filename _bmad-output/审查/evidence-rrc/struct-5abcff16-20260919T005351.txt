@@ -1,0 +1,35 @@
+### 绑定 PREV=ef8ace4a73b346790672a61e5308458fbfbcec4f HEAD=5abcff162de43153d71c2dde84a0226a040918e2
+### (f)① 命中 / 验伪锚
+       3
+       5
+### (f)② AST 门
+porcelain 6 untracked 4 allow_dirty 0 ignore_submodules 1 no_optional_locks 1
+### (f)③ from/import app 各 0；脚本 import 校验器 0；裁判 1
+backend/scripts/freeze_release_candidate.py:0
+backend/tests/unit/test_freeze_release_candidate.py:0
+0
+1
+### (f)④ 共享正则各 1
+backend/scripts/freeze_release_candidate.py:1
+backend/scripts/validate_release_manifest.py:1
+### (f)⑤ README 关键词 / 删改 0 / 新增
+3
+0
+74
+### (f)⑥ 校验器+schema+其裁判 零改动（须空）
+[空=零改动]
+### (l) 地盘恰三行
+backend/scripts/freeze_release_candidate.py
+backend/tests/unit/test_freeze_release_candidate.py
+docs/release-evidence/README.md
+### (l) 无 <rc>/ 入库
+0
+### (m) 只读 0 / 验伪锚
+       0
+       5
+### 裁判：函数数 / nodeid 数
+functions 39
+### stdlib only（须空）
+[]
+### 禁 mock 自证：裁判里 mock/monkeypatch/autouse 命中数（须 0）
+1

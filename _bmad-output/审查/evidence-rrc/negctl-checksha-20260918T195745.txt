@@ -1,0 +1,32 @@
+--- shasum 改前 ---
+185e14636a56a5ba20219d1ed1698e9150b130d471ec3dd8d4c6cbdd92cec8f6  backend/scripts/freeze_release_candidate.py
+[negctl-2] 替换次数 n=1  (必须恰为 1, 否则本段负控是空跑)
+--- shasum 改后 ---
+1115e2fc5828c724a974e490802ee42eba351ad73bdd4b901dc72c2dbcce1cf1  backend/scripts/freeze_release_candidate.py
+505:        if False:
+
+    def test_check_detects_journey_sha_mismatch(repo: Path, tmp_path: Path) -> None:
+        out_root = tmp_path / "out"
+        assert _freeze(repo, out_root, *_NULL_REASON).returncode == 0
+        rc_dir = _only_rc_dir(out_root)
+        rc_sha = _manifest(rc_dir)["candidate"]["sha"]
+    
+        _write_journey(rc_dir, "J01", _OTHER_SHA)
+        bad = _run(repo, "check", str(rc_dir))
+>       assert bad.returncode == 1, _both(bad)
+E       AssertionError: ✅ J01 candidate.sha 与 rc-manifest 一致
+E         ✅ check 通过 (rc-20260918-16f20e31): 在场的 1 条 journey 全部绑同一个 candidate.sha
+E             sha 16f20e31c1c2fe42fc1bba6d4c93a7a7a8728ec3
+E         ℹ️  尚缺 9 条 journey: J02 J03 J04 J05 J06 J07 J08 J09 J10
+E         
+E       assert 0 == 1
+E        +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...   sha 16f20e31c1c2fe42fc1bba6d4c93a7a7a8728ec3\nℹ️  尚缺 9 条 journey: J02 J03 J04 J05 J06 J07 J08 J09 J10\n', stderr='').returncode
+
+tests/unit/test_freeze_release_candidate.py:496: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_freeze_release_candidate.py::test_check_detects_journey_sha_mismatch
+1 failed, 20 passed in 14.26s
+--- shasum 还原后 ---
+185e14636a56a5ba20219d1ed1698e9150b130d471ec3dd8d4c6cbdd92cec8f6  backend/scripts/freeze_release_candidate.py
+--- git 树状态（还原应使树干净） ---
+       0

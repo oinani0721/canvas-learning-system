@@ -1,0 +1,13 @@
+== 负控 dirty ==
+--- shasum 改前 ---
+7cb620467f0ed491ee07a3b7f722cac03783f67f1a7d02126f95f8c585dbde37  backend/scripts/freeze_release_candidate.py
+替换次数 n=1 (须恰为 1, 否则本段负控是空跑)
+--- shasum 改后 ---
+1c6a30ed3a1652d2bb006854c14d108234d11197dcea30fc79bf884170ed2363  backend/scripts/freeze_release_candidate.py
+FAILED tests/unit/test_freeze_release_candidate.py::test_dirty_untracked_refused_exit_1_zero_write
+FAILED tests/unit/test_freeze_release_candidate.py::test_dirty_modified_tracked_refused
+2 failed, 20 passed in 45.89s
+--- 期望红: test_dirty_untracked_refused_exit_1_zero_write + test_dirty_modified_tracked_refused ---
+--- shasum 还原后 ---
+7cb620467f0ed491ee07a3b7f722cac03783f67f1a7d02126f95f8c585dbde37  backend/scripts/freeze_release_candidate.py
+rc=0

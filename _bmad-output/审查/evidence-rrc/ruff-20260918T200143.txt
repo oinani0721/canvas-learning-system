@@ -1,0 +1,16 @@
+files=2
+backend/scripts/freeze_release_candidate.py backend/tests/unit/test_freeze_release_candidate.py
+All checks passed!
+rc=0
+2 files already formatted
+fmt_rc=0
+F821 Undefined name `undefined_name_xyz`
+ --> /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/_ruff_probe_rrc.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_xyz
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_rc=1

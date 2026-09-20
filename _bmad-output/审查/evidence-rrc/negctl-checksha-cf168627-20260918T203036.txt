@@ -1,0 +1,12 @@
+== 负控 checksha ==
+--- shasum 改前 ---
+7cb620467f0ed491ee07a3b7f722cac03783f67f1a7d02126f95f8c585dbde37  backend/scripts/freeze_release_candidate.py
+替换次数 n=1 (须恰为 1, 否则本段负控是空跑)
+--- shasum 改后 ---
+f5b8721489b3dada0d682737b7ad6c5bf0c8eced1c74d1d5c12184316e4156da  backend/scripts/freeze_release_candidate.py
+FAILED tests/unit/test_freeze_release_candidate.py::test_check_detects_journey_sha_mismatch
+1 failed, 21 passed in 38.72s
+--- 期望红: test_check_detects_journey_sha_mismatch ---
+--- shasum 还原后 ---
+7cb620467f0ed491ee07a3b7f722cac03783f67f1a7d02126f95f8c585dbde37  backend/scripts/freeze_release_candidate.py
+rc=0

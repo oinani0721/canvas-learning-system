@@ -1,0 +1,5 @@
+✅ check 通过 (rc-20260919-920ae5b7): rc-manifest 自洽; 在场 0 条 journey, 本次未比对任何 candidate.sha
+    sha 920ae5b7b12c02691ccaed3c6897149795553e76
+ℹ️  本命令只核 candidate.sha 绑定一致, **未验** journey manifest 的 schema 结构、未验 symlink 冒充、未判 RC 完整性(那是校验器 --all / --require-complete 的事)。
+ℹ️  尚缺 10 条 journey: J01 J02 J03 J04 J05 J06 J07 J08 J09 J10
+rc=0

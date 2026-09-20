@@ -1,0 +1,26 @@
+PREV=ef8ace4a73b346790672a61e5308458fbfbcec4f
+HEAD=2747ce384e32f2291da0e824cb8acbcab91fd212
+代码 commit ① = 5abcff162de43153d71c2dde84a0226a040918e2
+--- commit 数 ---
+2
+--- 两个 header 的 wc -m（字符，非字节） ---
+  75  <- docs(release): CARD-R-RC evidence + 验收单 [BATCH-2026-09-18-第十五批 / CARD-R-RC]
+  79  <- feat(release): RC 冻结脚本 + 39 条裁判 + README 两段 [BATCH-2026-09-18-第十五批 / CARD-R-RC]
+--- 均含卡号 ---
+2
+--- stderr 入库（数文件路径） ---
+0
+--- 0 字节 Codex 存档入库 ---
+0
+--- 地盘恰三行 ---
+backend/scripts/freeze_release_candidate.py
+backend/tests/unit/test_freeze_release_candidate.py
+docs/release-evidence/README.md
+--- 地盘验伪锚（带 quotepath=false） ---
+73
+--- 对照：不带 quotepath=false（会假 0） ---
+0
+--- docs/release-evidence 下无 <rc>/ ---
+0
+--- 工作树干净 ---
+       1

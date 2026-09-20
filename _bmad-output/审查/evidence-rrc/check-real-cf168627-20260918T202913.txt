@@ -1,0 +1,4 @@
+✅ check 通过 (rc-20260918-cf168627): rc-manifest 自洽; 在场 0 条 journey, 本次未比对任何 candidate.sha
+    sha cf168627bf54cd77dee91317cc7d37ff713ead42
+ℹ️  尚缺 10 条 journey: J01 J02 J03 J04 J05 J06 J07 J08 J09 J10
+rc=0
