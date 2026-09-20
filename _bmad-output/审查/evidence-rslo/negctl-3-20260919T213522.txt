@@ -1,0 +1,71 @@
+### 负控 3（配对演示 · v3 输入侧证据版；绑 = e4ef1ebf）2026-09-19T21:35:22-0700
+设计：同一生成器两阶段 A/B；唯一差异 = 5 个 not_measured 项的 meets（A=false, B=true）；result 均为 partial（pre-assert 强制）。
+pre-assert OK: result=partial (未改)；wrote /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/_bmad-output/审查/evidence-rslo/negctl-3-inputs-A-20260919T213522.json (phase A)
+pre-assert OK: result=partial (未改)；wrote /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/_bmad-output/审查/evidence-rslo/negctl-3-inputs-B-20260919T213522.json (phase B)
+--- 输入 sha256 ---
+988301d1773173d3419cfb78d13b9655807a7c98f5984b5b7557ae2a0f12e11a  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/_bmad-output/审查/evidence-rslo/negctl-3-inputs-A-20260919T213522.json
+aab8d9c4d784300cc2390c9666fa63b27af7ba5b65ec36223d006f878cf53c5c  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/_bmad-output/审查/evidence-rslo/negctl-3-inputs-B-20260919T213522.json
+--- 归一化逐字段 diff（应恰好 5 处 measurements[i].meets false->true，其余零差异）---
+  DIFF slo.measurements[2].meets: False -> True
+  DIFF slo.measurements[5].meets: False -> True
+  DIFF slo.measurements[6].meets: False -> True
+  DIFF slo.measurements[7].meets: False -> True
+  DIFF slo.measurements[8].meets: False -> True
+  diff_assert=OK  changed=['slo.measurements[2].meets', 'slo.measurements[5].meets', 'slo.measurements[6].meets', 'slo.measurements[7].meets', 'slo.measurements[8].meets']
+--- A 腿：validate ---
+❌ FAIL /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+    [S9] slo.measurements[2] (rag_query_cold_p95_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[5] (first_index_seconds) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[6] (graphiti_ack_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[7] (graphiti_replay_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[8] (recovery_time_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+
+合计 1 份 manifest, 失败 1 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+A_rc=1
+A_S9_count=5
+--- B 腿：validate ---
+✅ PASS /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+B_rc=0
+B_S9_count=0
+
+--- [附录] 生成器全文（/tmp/rslo-p10c/make_negctl3_inputs.py）---
+"""CARD-R-SLO 负控 3（配对演示）输入生成器。
+用途：阶段 A/B 各生成一份 J08 注入件；两阶段唯一差异 = not_measured 项的 meets（A=false, B=true）。
+其余字段（含 result=partial）逐字相同，pre-assert 强制。"""
+import io, json, re, sys
+import yaml
+
+phase = sys.argv[1]
+out_path = sys.argv[2]
+assert phase in ("A", "B"), phase
+
+y = yaml.safe_load(open("docs/release-evidence/slo-manifest.yaml", encoding="utf-8"))
+items = []
+for m in y["metrics"]:
+    th = m["threshold"]
+    if th["locked"] is not None:
+        thr = th["locked"]
+    elif th["candidate"] is not None:
+        thr = f'{th["candidate"]} (candidate)'
+    else:
+        thr = "(未定)"
+    ms = m["measured"]
+    if ms["status"] == "measured":
+        measured = f"p95={ms['p95']}{m['unit']} (n={ms['n']})"
+        cap = re.search(r"≤\s*([0-9.]+)", str(m["threshold"]["candidate"]))
+        meets = bool(cap) and float(ms["p95"]) <= float(cap.group(1))
+    else:
+        measured = "not_measured"
+        meets = (phase == "B")   # <<< 唯一变量
+    items.append({"metric": m["metric"], "threshold": thr, "measured": measured,
+                  "method": m["method"]["command"], "meets": meets})
+
+j = json.load(open("docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json", encoding="utf-8"))
+j["slo"] = {"manifest_revision": y["revision"], "measurements": items}
+assert j["result"] == "partial", j["result"]  # pre-assert：result 不变量
+json.dump(j, open(out_path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+print(f"pre-assert OK: result={j['result']} (未改)；wrote {out_path} (phase {phase})")

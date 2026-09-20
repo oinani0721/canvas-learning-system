@@ -1,0 +1,14 @@
+### 负控 1: revision 对照门敏感性（绑 = e4ef1ebf）2026-09-19T21:35:22-0700
+--- 跑前 shasum ---
+ca5a2d5eb9dbe8306fa92f9a2b8c232ecb734d57f6a560fcec9519fc4cfe07a0  docs/release-evidence/slo-manifest.yaml
+mutated r1->r7
+6:revision: "slo-manifest@2026-09-19-r7"
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import yaml,json,sys; y=yaml.safe_load(open('docs/release-evidence/slo-manifest.yaml')); m=json.load(open(sys.argv[1])); r=m['slo']['manifest_revision']; assert r==y['revision'], ('revision 不在 yaml', r, y['revision']); names={x['metric'] for x in y['metrics']}; bad=[x['metric'] for x in m['slo']['measurements'] if x['metric'] not in names]; assert not bad, ('metric 不在 yaml', bad); print('rev_check=OK', r, len(names))
+                                                                                                                                                                     ^^^^^^^^^^^^^^^^
+AssertionError: ('revision 不在 yaml', 'slo-manifest@2026-09-19-r1', 'slo-manifest@2026-09-19-r7')
+mid_rc=1
+--- 跑后 shasum（应逐字同）---
+ca5a2d5eb9dbe8306fa92f9a2b8c232ecb734d57f6a560fcec9519fc4cfe07a0  docs/release-evidence/slo-manifest.yaml
+--- 还原后 status（应 0 行）---

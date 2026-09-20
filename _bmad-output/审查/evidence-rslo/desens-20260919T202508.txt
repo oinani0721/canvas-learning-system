@@ -1,0 +1,5 @@
+### (m) 脱敏门 首版（已重写）
+首版标签里写了敏感字段名的字面（含等号），导致逐行 grep 判据把本文件自身当命中（计数=1，自指污染，非泄漏）。
+本文件已就地重写去 needle；最终版判据见 desens-<后续时间戳>.txt（标签不再含字面 needle）。
+首版其余判据输出（除自指那一条外的结论不变）：
+- yaml /Users/ 命中 0；fsrs_bridge/decay_beta 命中 0；live outputs 前后逐字同；measure-*.txt 写端点字样 0；INTERNAL_API_KEY 实测不在 backend/.env。

@@ -1,0 +1,4 @@
+### close4 diff（修正版；前一次提取为空表故重出）2026-09-19T21:42:07-0700
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff_rc=1

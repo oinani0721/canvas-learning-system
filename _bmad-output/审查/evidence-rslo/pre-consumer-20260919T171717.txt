@@ -1,0 +1,19 @@
+### (b)⑤ 消费契约先红 CARD-R-SLO 2026-09-19T17:17:17-0700
+tmp: $TMP=/tmp/rslo-p10c/consumer ；j08.json 为 symlink → /tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+（卡文 §二.5 用 $TMP/j08.json 裸路径——实测校验器 S6 要求 <rc>/journeys/<Jxx>/ 目录结构，裸文件按 [S6] 必红；
+ 故文件实体放在结构合规路径，j08.json symlink 指入；resolve() 跟 symlink ⇒ S6 通过。此为主路径之外的唯一形状修正。）
+
+--- A. validator（本卡新增 rev-check 尚不存在；校验器对该 tmp 件应绿）---
+✅ PASS /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+A_rc=0
+
+--- B. 本卡新增对照脚本（yaml 尚不存在 → 必红 FileNotFoundError）---
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import yaml,json,sys; y=yaml.safe_load(open('docs/release-evidence/slo-manifest.yaml')); m=json.load(open(sys.argv[1])); r=m['slo']['manifest_revision']; assert r==y['revision'], ('revision 不在 yaml', r, y['revision']); names={x['metric'] for x in y['metrics']}; bad=[x['metric'] for x in m['slo']['measurements'] if x['metric'] not in names]; assert not bad, ('metric 不在 yaml', bad); print('rev_check=OK', r, len(names))
+                                           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'docs/release-evidence/slo-manifest.yaml'
+B_rc=1

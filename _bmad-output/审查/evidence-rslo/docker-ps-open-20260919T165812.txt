@@ -1,0 +1,4 @@
+canvas-learning-system-backend Up 4 minutes (healthy)
+canvas-learning-system-neo4j-test Up 4 minutes (healthy)
+canvas-learning-system-neo4j Up 4 minutes (healthy)
+rc=0

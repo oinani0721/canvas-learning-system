@@ -1,0 +1,86 @@
+### (g)① 消费契约门 E2（整改后重跑）2026-09-19T21:15:40-0700
+exported items: 9
+--- measurements.json（完整五键导出；供审对照）---
+[
+  {
+    "metric": "review_overview_first_paint_p95_ms",
+    "threshold": "p95 ≤ 500ms (candidate)",
+    "measured": "p95=39.1ms (n=20)",
+    "method": "B=http://127.0.0.1:8011/api/v1; for i in $(seq 20); do curl -s -o /dev/null -m 60 -w \"%{http_code} %{time_total} %{size_download}\\n\" \"$B/review/overview/page\"; sleep 0.2; done",
+    "meets": true
+  },
+  {
+    "metric": "rag_query_warm_p95_ms",
+    "threshold": "p95 ≤ 5000ms (candidate)",
+    "measured": "p95=1866.5ms (n=20)",
+    "method": "B=http://127.0.0.1:8011/api/v1; Q=$(head -1 \"$EV/rag-queries.txt\"); VID=<live vault_id>; for i in $(seq 20); do curl -s -o /dev/null -m 120 -w \"%{http_code} %{time_total} %{size_download}\\n\" -H \"Content-Type: application/json\" -X POST \"$B/rag/query\" -d \"{\\\"query\\\":\\\"$Q\\\",\\\"vault_id\\\":\\\"$VID\\\"}\"; sleep 0.2; done",
+    "meets": true
+  },
+  {
+    "metric": "rag_query_cold_p95_ms",
+    "threshold": "(未定)",
+    "measured": "not_measured",
+    "method": "B=http://127.0.0.1:8011/api/v1; VID=<live vault_id>; while read -r Q; do curl -s -o /dev/null -m 120 -w \"%{http_code} %{time_total} %{size_download}\\n\" -H \"Content-Type: application/json\" -X POST \"$B/rag/query\" -d \"{\\\"query\\\":\\\"$Q\\\",\\\"vault_id\\\":\\\"$VID\\\"}\"; sleep 0.2; done < \"$EV/rag-queries.txt\"",
+    "meets": false
+  },
+  {
+    "metric": "kg_read_p95_ms",
+    "threshold": "p95 ≤ 500ms (candidate)",
+    "measured": "p95=27.1ms (n=20)",
+    "method": "B=http://127.0.0.1:8011/api/v1; for i in $(seq 20); do curl -s -o /dev/null -m 30 -w \"%{http_code} %{time_total} %{size_download}\\n\" \"$B/health/knowledge-graph\"; sleep 0.2; done",
+    "meets": true
+  },
+  {
+    "metric": "review_rebuild_p95_s",
+    "threshold": "p95 ≤ 30s (candidate)",
+    "measured": "p95=0.05s (n=5)",
+    "method": "TMP=<tmp>; rsync -a --exclude \".obsidian/plugins\" <live>/ \"$TMP/vaults/canvas-vault/\"; (cd backend && for i in 1 2 3 4 5; do /usr/bin/time -p .venv/bin/python ../scripts/daily_review_pick.py --vault \"$TMP/vaults/canvas-vault\" --now \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" --write; done)",
+    "meets": true
+  },
+  {
+    "metric": "first_index_seconds",
+    "threshold": "(未定)",
+    "measured": "not_measured",
+    "method": "LANCEDB_DATA_PATH=<隔离目录>（独立进程/隔离实例）; B=http://127.0.0.1:<隔离实例端口>/api/v1; curl -s -o /dev/null -w \"%{http_code} %{time_total}\\n\" -X POST \"$B/index/refresh-changed\" -H \"Content-Type: application/json\" -d \"{}\"  # ⛔ 现网 8011 不打写端点；指定环境=G2-10 千笔记 fixture；method sketch：实例启动与实参由 G2-10 补全（本卡现网只读，不可执行）",
+    "meets": false
+  },
+  {
+    "metric": "graphiti_ack_ms",
+    "threshold": "(未定)",
+    "measured": "not_measured",
+    "method": "B=http://127.0.0.1:<实例>/api/v1; curl -s -o /dev/null -w \"%{http_code} %{time_total}\\n\" -X POST \"$B/memory/episodes\" -H \"Content-Type: application/json\" -d \"<episode 请求体见端点契约>\"  # ⛔ 现网 7691 写端点不打；指定环境=7692（G4-14）；method sketch：请求体由 G4-14 按端点契约补全",
+    "meets": false
+  },
+  {
+    "metric": "graphiti_replay_s",
+    "threshold": "(未定)",
+    "measured": "not_measured",
+    "method": "B=http://127.0.0.1:<实例>/api/v1; curl -s -o /dev/null -w \"%{http_code} %{time_total}\\n\" -X POST \"$B/traces/replay-fallbacks\" -H \"Content-Type: application/json\" -d \"{}\"  # ⛔ 现网 7691 写端点不打；指定环境=7692（R-J10 恢复演练）；method sketch：实例与实参由 R-J10 补全",
+    "meets": false
+  },
+  {
+    "metric": "recovery_time_s",
+    "threshold": "(未定)",
+    "measured": "not_measured",
+    "method": "time (docker restart <cls 实例容器>; until curl -sf \"http://127.0.0.1:<实例端口>/api/v1/health\" >/dev/null; do sleep 0.5; done)  # 指定环境=R-J10 恢复演练（需用户授权重启；本卡零起停）；method sketch：容器名与端口由 R-J10 补全",
+    "meets": false
+  }
+]
+--- 对照输入 A：保持 partial ---
+❌ FAIL /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+    [S9] slo.measurements[2] (rag_query_cold_p95_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[5] (first_index_seconds) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[6] (graphiti_ack_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[7] (graphiti_replay_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[8] (recovery_time_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+
+合计 1 份 manifest, 失败 1 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+A_rc=1
+--- 对照输入 B：result=fail（§12.5 出口）---
+result -> fail
+✅ PASS /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+B_rc=0

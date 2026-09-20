@@ -1,0 +1,9 @@
+### (f)①② 结构判据 2026-09-19T17:19:03-0700
+--- (f)① test -e slo-manifest.yaml; echo rc
+rc=0
+--- (f)② grep -c 'slo-manifest.yaml' README
+2
+--- (f)⑤ schema 指纹 vs 校验器常量
+4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f940327922c547
+SCHEMA_SHA256 = "4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f940327922c547"
+rc=0

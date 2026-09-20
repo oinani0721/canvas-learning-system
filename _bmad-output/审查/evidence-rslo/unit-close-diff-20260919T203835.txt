@@ -1,0 +1,6 @@
+### unit 目录级 close vs 基线 diff 2026-09-19T20:38:35-0700
+base.nodeids=33 close.nodeids=32
+--- diff base close （只允许 < 行）---
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+diff_rc=1

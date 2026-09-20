@@ -1,0 +1,8 @@
+### (m) 脱敏与只读门（A4 重跑）2026-09-19T21:35:33-0700
+(m)1 yaml 主目录绝对路径=0
+(m)2 fsrs 引用=0
+(m)3=0（INTERNAL_API_KEY 不在 backend/.env ⇒ 不适用）
+(m)3b NEO4J=0 GOOGLE=0
+(m)4 敏感字段名字面=0
+(m)5=identical
+(m)6 measure 写端点字样=0

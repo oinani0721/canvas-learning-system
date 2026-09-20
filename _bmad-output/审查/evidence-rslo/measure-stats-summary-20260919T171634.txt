@@ -1,0 +1,23 @@
+### 实测统计汇总 CARD-R-SLO 2026-09-19T17:16:55-0700
+（本文件首版为 2026-09-19T17:16 的脚本误跑：zsh 不展开变量内 glob 导致空文件名 → traceback；
+ 已就地重写为修正版汇总，未改动任何测量样本、未剔除样本。）
+
+--- review_overview_first_paint: measure-review_overview_first_paint-20260919T171124.txt ---
+rows=20 ok200=20 non200=[]
+p50=0.0099 p95(quantiles n=20 [18])=0.0391 max=0.0396
+--- rag_warm: measure-rag_warm-20260919T171144.txt ---
+rows=20 ok200=20 non200=[]
+p50=1.6687 p95(quantiles n=20 [18])=1.8665 max=1.8702
+--- rag_cold: measure-rag_cold-20260919T171226.txt ---
+rows=20 ok200=19 non200=[['000', '120.003677', '0']]
+p50=3.2870 p95(quantiles n=20 [18])=5.3628 max=5.3628
+--- kg_read: measure-kg_read-20260919T171134.txt ---
+rows=20 ok200=20 non200=[]
+p50=0.0036 p95(quantiles n=20 [18])=0.0271 max=0.0278
+--- review_rebuild: measure-review_rebuild-20260919T171556.txt ---
+n=5 raw=[0.05, 0.05, 0.05, 0.04, 0.04]
+p50=0.0500 p95(quantiles n=20 [18])=0.0500 max=0.0500
+
+--- live outputs before/after 逐字同 ---
+identical=YES
+rc=0

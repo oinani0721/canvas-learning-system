@@ -1,0 +1,18 @@
+### (f)③ revision 对照脚本（改后）2026-09-19T17:19:08-0700
+--- 主判据 ---
+rev_check=OK slo-manifest@2026-09-19-r1 9
+main_rc=0
+
+--- 验伪锚: tmp revision 改成 slo-manifest@1999-01-01-r9 ---
+anchor patched
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import yaml,json,sys; y=yaml.safe_load(open("docs/release-evidence/slo-manifest.yaml")); m=json.load(open(sys.argv[1])); r=m["slo"]["manifest_revision"]; assert r==y["revision"], ("revision 不在 yaml", r, y["revision"]); names={x["metric"] for x in y["metrics"]}; bad=[x["metric"] for x in m["slo"]["measurements"] if x["metric"] not in names]; assert not bad, ("metric 不在 yaml", bad); print("rev_check=OK", r, len(names))
+                                                                                                                                                                     ^^^^^^^^^^^^^^^^
+AssertionError: ('revision 不在 yaml', 'slo-manifest@1999-01-01-r9', 'slo-manifest@2026-09-19-r1')
+anchor_rc=1
+
+--- 还原 tmp revision 为 …-r1 ---
+restored
+rev_check=OK slo-manifest@2026-09-19-r1 9
+restored_rc=0

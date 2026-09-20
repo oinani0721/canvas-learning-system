@@ -1,0 +1,33 @@
+### (g)① 消费契约门 E2 2026-09-19T20:23:40-0700
+--- 导出（export_shape → 五键；落 $TMP/measurements.json）---
+exported 9 items -> $TMP/measurements.json; slo written into tmp j08
+   review_overview_first_paint_p95_ms meets= True
+   rag_query_warm_p95_ms meets= True
+   rag_query_cold_p95_ms meets= False
+   kg_read_p95_ms meets= True
+   review_rebuild_p95_s meets= True
+   first_index_seconds meets= False
+   graphiti_ack_ms meets= False
+   graphiti_replay_s meets= False
+   recovery_time_s meets= False
+
+--- 对照输入 A：J08 result 保持 partial（卡文原状）---
+❌ FAIL /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+    [S9] slo.measurements[2] (rag_query_cold_p95_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[5] (first_index_seconds) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[6] (graphiti_ack_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[7] (graphiti_replay_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[8] (recovery_time_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+
+合计 1 份 manifest, 失败 1 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+A_rc=1
+
+--- 对照输入 B：按 §12.5「未达标只能判失败」把 result 改 fail 后 ---
+result -> fail
+✅ PASS /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+B_rc=0
+grep_S_count=0

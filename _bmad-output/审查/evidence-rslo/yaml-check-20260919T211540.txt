@@ -1,0 +1,3 @@
+### (f)④ yaml 自检（整改后重跑）2026-09-19T21:15:40-0700
+yaml_ok metrics=9 measured=4 not_measured=5 status=draft
+rc=0

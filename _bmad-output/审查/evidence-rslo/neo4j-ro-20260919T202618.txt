@@ -1,0 +1,19 @@
+### 7691 只读口径 CARD-R-SLO 2026-09-19T20:26:18-0700
+
+本卡对 7691（现网 Neo4j）的全部触达 = 经 8011 只读 GET：
+  GET /api/v1/health/knowledge-graph ×20（measure-kg_read-20260919T171134.txt）+ 环境探针 1 次（env-probe-20260919T201108*.txt 同形态）
+  ⇒ 白名单直连语句【未使用】（不需要）。
+
+白名单两条 execute_read 语句原文（如需直连复跑，形态如下；密码来自 backend/.env，⛔ 不 echo）：
+  1) RETURN 1
+  2) MATCH (n) RETURN count(n) AS c
+
+driver 形态（只读访问模式）：
+  from neo4j import GraphDatabase
+  driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))  # 值来自 backend/.env，不落档
+  with driver.session(database=NEO4J_DATABASE, default_access_mode=neo4j.READ_ACCESS) as s:
+      s.execute_read(lambda tx: tx.run("RETURN 1").single())
+  driver.close()
+
+禁连：7687（未触达）/ 7692（本卡不用）。写端点（POST /memory/episodes、/traces/replay-fallbacks、/index/refresh-changed、/overview/refresh）一个未打。
+rc=0

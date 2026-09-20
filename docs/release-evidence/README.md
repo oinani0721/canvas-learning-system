@@ -189,6 +189,16 @@ CI 侧由 `.github/workflows/release-evidence.yml` 在证据目录/校验器/sch
 | `evidence_level` | E0–E5（§12.5）。文件名含 e2e、CI 绿、fixture 都**不**自动升级 |
 | `result` | 整体判定 pass·fail·partial；任一断言非 pass、或回滚 fail 时不得写 pass |
 
+### SLO manifest（CARD-R-SLO）
+
+阈值本体的唯一真相源是 [`slo-manifest.yaml`](slo-manifest.yaml)（CARD-R-SLO 起草；`revision` 形态 `slo-manifest@<YYYY-MM-DD>-r<N>`）。J manifest 的 `slo.manifest_revision` **逐字**填它的 `revision` 值。⚠️ 校验器只检查该字段非 null（S9），**不核该 revision 是否存在、也不核 draft/locked**——把 revision 与实测对齐是消费卡的义务。
+
+- **锁版规则**：`status: draft` 的 revision 只可被 ≤E2 的 J manifest 引用；E3+ 引用的 revision 必须 `status: locked` 且 `decision.locked_by` 非 null。draft→locked 只在用户口令「R-SLO 授权锁版」+ 逐项阈值裁定后发生（`threshold.locked` 填实、revision 升 `r<N+1>`、`decision.locked_at` 带时区）。这条**没有机器门**，见「已知边界」。
+- **版本化**：改阈值 = 新 `r<N+1>`；旧 revision 不删，只标 `superseded_by` 指向新值。
+- **现网只读口径**（本文件实测沿此）：8011 只打 GET + `/rag/query` 一个读查询；7691 只经 8011 GET 或白名单两条只读语句（`RETURN 1` / `MATCH (n) RETURN count(n) AS c`，`driver.session(default_access_mode=READ_ACCESS)`；不经 pytest、不写）。写侧指标（首次索引 / Graphiti ACK / replay / 恢复时间）在只读约束下不可测，如实 `not_measured` + 指定 owner 卡与可复跑命令，⛔ 不填估计值。⚠️ 此「只读」= **发起命令面（GET/读查询）+ 已核对锚点（live outputs 前后逐字同）**的只读；**不证明 service 层零副作用**（记账/日志等未审）——需要更强保证的消费卡应做跑前/跑后全量 data SHA。
+- **导出**：本文件的 `export_shape` 写死到 J manifest `slo.measurements[]` 的五键映射（`metric` / `threshold`（locked 原样；candidate 带 `(candidate)` 标记；两者皆空导出 `(未定)` 占位）/ `measured`（`p95=<…>` 或字符串 `not_measured`）/ `method` / `meets`；可选 `unit`）。schema 的 `additionalProperties:false` 只认这五键 + `unit`/`waiver`。
+- **J08 示例件**的 `"manifest_revision": null` 是 ≤E2 的合法形态（reconstructed 演示件，S10/S13 已把它锁在 E2），不是「欠一个 revision」。
+
 ## 语义与产物规则（校验器实施，schema 表达不了的部分）
 
 | ID | 规则 | 依据 |
@@ -257,3 +267,5 @@ CI 侧由 `.github/workflows/release-evidence.yml` 在证据目录/校验器/sch
 - **skip/mock 的命令扫描是启发式**：S16 只按已知开关模式（`*_MOCK=1` / `SKIP_*=1` / `--ignore=` / `-m "not ..."` 等）在 E3+ 上报警，换个措辞就能躲开。它拦的是"命令里明摆着写了 mock 却声明零 mock"这种自相矛盾，不是所有 mock。
 - SLO 的 `threshold` / `measured` 是自由文本（如 `"≤ 2.5s"` / `"1.8s"`），校验器**不做数值比较**，`meets` 由填写者判定。机械门只保证"阈值、实测、达标结论、采集方法四者都在场，且未达标时不能悄悄判 pass"。数值口径的正确性归 R-SLO 与审计链。
 - `jsonschema` 目前不在 `backend/requirements.txt` 里（现为传递依赖，venv 内实测 4.26.0）。校验器缺它时**退出 2 报错，不降级放行**；CI workflow 显式安装。**交接项**：requirements.txt 该显式声明它——本卡开跑期间 CARD-DEBT-9 正在重建 venv 并独占该文件族，故不代改。
+- **R-SLO 锁版状态没有机器门**（CARD-R-SLO 实测，非红队清单）：校验器 S9 只查 `slo.manifest_revision` 非 null——**不查**它指向的 `slo-manifest.yaml` 是否存在、不查 revision 与 yaml `revision` 是否一致、也不查 yaml 的 `status: draft` 被 E3+ 引用。draft/locked 的引用规则（见「字段速查」后小节）由 G1-6 审计链与 R-J0x 人工核；`slo-manifest.yaml` 自身 `status`/`decision` 字段是唯一可核面。
+- **SLO 导出纪律没有全量机器门**（CARD-R-SLO 实测，非红队清单）：`not_measured ⇒ meets 必须 false` 与「导出应含全部指标」都是**消费纪律**——校验器 S9 在 `meets=true` 时直接放行（不回头检查 `measured="not_measured"`），且只要求 `measurements` ≥1 条、不检查覆盖集。未被拦下的输入演示见 `_bmad-output/审查/evidence-rslo/negctl-3-*.txt`（该存档随本卡 commit B 入库）。本页上方「三步操作」第 2 步既有句「至少一条实测」同旨（机器只查非空）；该句为既有行、本卡受「纯新增」约束不改动——歧义以本处与 `slo-manifest.yaml` 的 `consumption_note` 为准。

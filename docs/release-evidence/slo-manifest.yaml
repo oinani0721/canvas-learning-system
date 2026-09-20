@@ -1,0 +1,269 @@
+# SLO manifest — versioned benchmark/SLO 的唯一定义 owner（CARD-R-SLO）
+# 上游: 计划书 §12.5 L592（E3 前锁定用户批准的 SLO，不得事后降门槛；J manifest 必须记录阈值与实测）
+#       + 总账 v2 :405-410（schema 字段唯一定义 owner = CARD-R-SLO；G8-8/G2-10/G4-14/G6-11 一律复用）
+# 消费: J manifest 的 slo.manifest_revision 逐字引用本文件 revision；五键导出映射见 export_shape。
+# 本版 status=draft（等用户「R-SLO 授权锁版」口令 + 逐项阈值裁定后才可改 locked 或升 r2）。
+revision: "slo-manifest@2026-09-19-r1"
+status: "draft"
+schema_version: "1.0.0"
+source:
+  - "计划书 §12.5 L592（阈值、参考环境、数据规模和降级规则写入 versioned benchmark/SLO manifest；J manifest 必须记录阈值与实测）"
+  - "总账 v2 :405-410 owner 裁定（本卡是 schema 字段的唯一定义 owner；G8-8/G2-10/G4-14/G6-11 复用不另造格式）"
+decision:
+  locked_by: null
+  locked_at: null
+  note: "锁版流程：用户在本车道说「R-SLO 授权锁版」并逐项裁定阈值 → threshold.locked 填实 / status 改 locked / revision 升 r<N+1> / locked_by、locked_at 填实（带时区）。未授权前一律 draft —— 本版本即 draft。"
+environment:
+  machine: "Apple M5 Max（sysctl -n machdep.cpu.brand_string；memsize=137438953472 bytes）"
+  os: "macOS 26.5（sw_vers -productVersion；arch=arm64）"
+  runtimes:
+    python: "3.14.4（backend/.venv/bin/python --version）"
+    git: "2.50.1 (Apple Git-155)"
+  models:
+    - "ollama：unreachable（OLLAMA_HOST 默认 http://localhost:11434/api/tags → HTTP 000；开工实测）"
+    - "GET /api/v1/health/ai 自报：model=gemini-3.1-flash-lite-preview provider=google status=error error_code=LLM_AUTH_FAILED（AI client not configured）"
+    - "local llama-server：http://127.0.0.1:12341/v1/models → name=qwen3.5-35b-a3b-q4_k_s digest=（空串自报）Q4_K - Small n_params=35505251456"
+    - "local reranker：http://127.0.0.1:18012/v1/models → name=bge-reranker-v2-m3 digest=（空串自报）Q8_0 n_params=567753729"
+    - "GET /api/v1/health/lancedb 自报：embedding_model=text-embedding-3-small table_count=4 total_vectors=53"
+  data_scale:
+    live_vault_md_files: 214
+    index_stats: {}
+    kg: {node_count: 0, edge_count: 0, episode_count: 0, last_episode_timestamp: null}
+  data_sha: "df036977f3d220b10d6be95c16cd83b1ff5241d066884e4b09e9060397551907（find <live> -name '*.md' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256）"
+  code_sha: null
+  code_sha_null_reason: "主 session 未在 evidence-b15/ 公布 8011 进程代码树 SHA（该目录实测仅 docker-ps / lanes-created / unit-red-baseline 三件，无 code_sha 记录）；8011 运转的代码树与本车道树的对应关系未证明。"
+  lane_sha: "a03f0ce34de9a9c4652310d45eae283f78d11451（本车道树 HEAD = P10-B CARD-R-RC 末 commit；入库后为 P10-C 卡片自身 commit）"
+  cache_state: "warm=seed 第 1 条同串重复 20 次；cold=seed 全 20 条互异串各一次（其中第 1 条已被 warm 预跑 20 次 ⇒ 19 条未由本卡 warm 环节预跑+1 条已暖；其余 19 条在进程历史中是否曾被命中未证——只读约束下拿不到查询历史）；均为进程未重启口径；真冷启=重启后首查，不在本卡只读范围"
+  concurrency: 1
+  timezone: "PDT (America/Los_Angeles)"
+  seed: "rag-queries.txt sha256=4dd05b33342dfdcad3ddaa4de89834592fa45631b451b404b2f26676c91e2afa（evidence-rslo/rag-queries.txt；20 条互异串=live 节点×14 + 原白板×6 文件名）"
+  repeats: {http_metrics: 20, review_rebuild: 5}
+  statistic: "p50 = statistics.median(xs)；p95 = statistics.quantiles(xs, n=20)[18]（Python 3.14 statistics；review_rebuild 项 n=5 用同一公式）"
+  adjudicator: null
+metrics:
+  - id: review_overview_first_paint
+    metric: "review_overview_first_paint_p95_ms"
+    unit: "ms"
+    description: "GET /api/v1/review/overview/page 服务端首屏整页返回耗时（内联 HTML；body=30187B 非空锚）"
+    threshold:
+      locked: null
+      candidate: "p95 ≤ 500ms"
+      threshold_source: "实测 p95=39.1ms × ≈12.8 余量（本地服务端渲染页；本卡起草，待用户锁版）"
+    method:
+      command: 'B=http://127.0.0.1:8011/api/v1; for i in $(seq 20); do curl -s -o /dev/null -m 60 -w "%{http_code} %{time_total} %{size_download}\n" "$B/review/overview/page"; sleep 0.2; done'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "environment（本机参考环境；8011 现网只读）"
+    measured:
+      status: "measured"
+      value: "p95=39.1ms p50=9.9ms（n=20；http 20/20=200）"
+      p50: 9.9
+      p95: 39.1
+      n: 20
+      at: "2026-09-19T17:11:24-07:00"
+      evidence: "measure-review_overview_first_paint-20260919T171124.txt"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "G6-11（复习链性能面在其环境正式测）；R-J0x 消费本 revision"
+  - id: rag_query_warm
+    metric: "rag_query_warm_p95_ms"
+    unit: "ms"
+    description: "POST /api/v1/rag/query 同一查询串重复 20 次的端到端耗时（warm=同串重复口径）"
+    threshold:
+      locked: null
+      candidate: "p95 ≤ 5000ms"
+      threshold_source: "实测 p95=1866.5ms × ≈2.7 余量（RAG 检索含 rerank；本卡起草，待用户锁版）"
+    method:
+      command: 'B=http://127.0.0.1:8011/api/v1; Q=$(head -1 "$EV/rag-queries.txt"); VID=<live vault_id>; for i in $(seq 20); do curl -s -o /dev/null -m 120 -w "%{http_code} %{time_total} %{size_download}\n" -H "Content-Type: application/json" -X POST "$B/rag/query" -d "{\"query\":\"$Q\",\"vault_id\":\"$VID\"}"; sleep 0.2; done'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "environment（本机参考环境；8011 现网只读）"
+    measured:
+      status: "measured"
+      value: "p95=1866.5ms p50=1668.7ms（n=20；http 20/20=200）"
+      p50: 1668.7
+      p95: 1866.5
+      n: 20
+      at: "2026-09-19T17:11:44-07:00"
+      evidence: "measure-rag_warm-20260919T171144.txt"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "G4-14（gold-set 指标在其指定环境正式测）；R-J0x 消费本 revision"
+  - id: rag_query_cold
+    metric: "rag_query_cold_p95_ms"
+    unit: "ms"
+    description: "POST /api/v1/rag/query 的 20 条互异串各一次端到端耗时（其中第 1 条与 warm 同串、已被本卡 warm 环节预跑 20 次；其余 19 条的历史命中未证；进程未重启口径；真冷启=重启后首查，不在本卡范围）"
+    threshold:
+      locked: null
+      candidate: null
+      threshold_source: "本次运行无有效 cold 样本（见 measured.reason）⇒ 无数据依据；待复测后按 p95×余量起草，或由 G4-14 建议值。"
+    method:
+      command: 'B=http://127.0.0.1:8011/api/v1; VID=<live vault_id>; while read -r Q; do curl -s -o /dev/null -m 120 -w "%{http_code} %{time_total} %{size_download}\n" -H "Content-Type: application/json" -X POST "$B/rag/query" -d "{\"query\":\"$Q\",\"vault_id\":\"$VID\"}"; sleep 0.2; done < "$EV/rag-queries.txt"'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "environment（本机参考环境；8011 现网只读）"
+    measured:
+      status: "not_measured"
+      value: null
+      p50: null
+      p95: null
+      n: null
+      at: "2026-09-19T17:12:26-07:00"
+      reason: "20 条互异串各一次的第 4 条 120s 超时（curl -m 120 → http_code=000、120.0037s；样本不剔除）；其余 19/20=200（p50≈3.29s、p95≈5.36s，仅作描述不给结论）；同串复打一次 1.67s 通过（probe-cold4-replay-20260919T171547.txt）⇒ 瞬态挂起。按规则（任一非 200 ⇒ 整项 not_measured）整项 not_measured。"
+      evidence: "measure-rag_cold-20260919T171226.txt"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "G4-14（gold-set 环境复测并定 candidate）；R-J0x 消费本 revision"
+  - id: kg_read
+    metric: "kg_read_p95_ms"
+    unit: "ms"
+    description: "GET /api/v1/health/knowledge-graph 图统计只读快照耗时（8011 → 7691 只读路径）"
+    threshold:
+      locked: null
+      candidate: "p95 ≤ 500ms"
+      threshold_source: "实测 p95=27.1ms × ≈18 余量（只读统计快照；本卡起草，待用户锁版）"
+    method:
+      command: 'B=http://127.0.0.1:8011/api/v1; for i in $(seq 20); do curl -s -o /dev/null -m 30 -w "%{http_code} %{time_total} %{size_download}\n" "$B/health/knowledge-graph"; sleep 0.2; done'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "environment（本机参考环境；8011→7691 只读）"
+    measured:
+      status: "measured"
+      value: "p95=27.1ms p50=3.6ms（n=20；http 20/20=200）"
+      p50: 3.6
+      p95: 27.1
+      n: 20
+      at: "2026-09-19T17:11:34-07:00"
+      evidence: "measure-kg_read-20260919T171134.txt"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "G6-11（万节点量级复测）；R-J0x 消费本 revision"
+  - id: review_rebuild
+    metric: "review_rebuild_p95_s"
+    unit: "s"
+    description: "scripts/daily_review_pick.py --write 在 live vault 的 tmp rsync 副本上整次重建耗时（写只落副本；live outputs/今日复习.json 前后 shasum 同）"
+    threshold:
+      locked: null
+      candidate: "p95 ≤ 30s"
+      threshold_source: "实测 p95=0.05s × ≈600 余量（先例宽松起草，待用户锁版收紧/放宽）"
+    method:
+      command: 'TMP=<tmp>; rsync -a --exclude ".obsidian/plugins" <live>/ "$TMP/vaults/canvas-vault/"; (cd backend && for i in 1 2 3 4 5; do /usr/bin/time -p .venv/bin/python ../scripts/daily_review_pick.py --vault "$TMP/vaults/canvas-vault" --now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --write; done)'
+      repeat: 5
+      statistic: "p95 = quantiles(n=20)[18]（n=5 同公式）"
+      environment_ref: "environment（本机参考环境；live 只读 rsync 副本）"
+    measured:
+      status: "measured"
+      value: "p95=0.05s（n=5；runs=0.05/0.05/0.05/0.04/0.04；5/5 rc=0）"
+      p50: 0.05
+      p95: 0.05
+      n: 5
+      at: "2026-09-19T17:15:56-07:00"
+      evidence: "measure-review_rebuild-20260919T171556.txt"
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "G6-11（复习链性能面在其环境正式测）；R-J0x 消费本 revision"
+  - id: first_index
+    metric: "first_index_seconds"
+    unit: "s"
+    description: "首次索引（new/adopt 配置与激活时间；计划书 L592 单列）总耗时——本卡现网只读约束下不可测"
+    threshold:
+      locked: null
+      candidate: null
+      threshold_source: "无依据（需先在该环境跑出首测）⇒ null；由 G2-10 首测后起草。"
+    method:
+      command: 'LANCEDB_DATA_PATH=<隔离目录>（独立进程/隔离实例）; B=http://127.0.0.1:<隔离实例端口>/api/v1; curl -s -o /dev/null -w "%{http_code} %{time_total}\n" -X POST "$B/index/refresh-changed" -H "Content-Type: application/json" -d "{}"  # ⛔ 现网 8011 不打写端点；指定环境=G2-10 千笔记 fixture；method sketch：实例启动与实参由 G2-10 补全（本卡现网只读，不可执行）'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "指定环境（隔离 LANCEDB_DATA_PATH + 独立进程；G2-10）"
+    measured:
+      status: "not_measured"
+      value: null
+      p50: null
+      p95: null
+      n: null
+      at: null
+      reason: "需写 LanceDB（LANCEDB_DATA_PATH 隔离 + 独立进程），归 G2-10 千笔记 fixture；本卡现网只读约束下不可测，禁填估计值。"
+      evidence: null
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "G2-10（千笔记 fixture 首测并起草 candidate）；R-J0x 消费本 revision"
+  - id: graphiti_ack
+    metric: "graphiti_ack_ms"
+    unit: "ms"
+    description: "写入图记忆的 ACK 往返耗时（POST /api/v1/memory/episodes）——本卡现网只读约束下不可测"
+    threshold:
+      locked: null
+      candidate: null
+      threshold_source: "无依据（需先在 7692 测试环境跑出首测）⇒ null；由 G4-14 首测后起草。"
+    method:
+      command: 'B=http://127.0.0.1:<实例>/api/v1; curl -s -o /dev/null -w "%{http_code} %{time_total}\n" -X POST "$B/memory/episodes" -H "Content-Type: application/json" -d "<episode 请求体见端点契约>"  # ⛔ 现网 7691 写端点不打；指定环境=7692（G4-14）；method sketch：请求体由 G4-14 按端点契约补全'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "指定环境（7692 测试容器；G4-14）"
+    measured:
+      status: "not_measured"
+      value: null
+      p50: null
+      p95: null
+      n: null
+      at: null
+      reason: "需 POST /memory/episodes 写 7691，归 G4-14 在 7692；本卡现网只读约束下不可测，禁填估计值。"
+      evidence: null
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "G4-14（在 7692 正式测并起草 candidate）；R-J0x 消费本 revision"
+  - id: graphiti_replay
+    metric: "graphiti_replay_s"
+    unit: "s"
+    description: "死信回放（POST /api/v1/traces/replay-fallbacks，T6-B）单轮耗时——本卡现网只读约束下不可测"
+    threshold:
+      locked: null
+      candidate: null
+      threshold_source: "无依据（恢复演练在 7692 首测后起草）⇒ null；归 R-J10。"
+    method:
+      command: 'B=http://127.0.0.1:<实例>/api/v1; curl -s -o /dev/null -w "%{http_code} %{time_total}\n" -X POST "$B/traces/replay-fallbacks" -H "Content-Type: application/json" -d "{}"  # ⛔ 现网 7691 写端点不打；指定环境=7692（R-J10 恢复演练）；method sketch：实例与实参由 R-J10 补全'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "指定环境（7692；R-J10 恢复演练）"
+    measured:
+      status: "not_measured"
+      value: null
+      p50: null
+      p95: null
+      n: null
+      at: null
+      reason: "需 POST /traces/replay-fallbacks（T6-B）写 7691，归 R-J10 / 恢复演练在 7692；本卡现网只读约束下不可测，禁填估计值。"
+      evidence: null
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "R-J10（恢复演练在 7692 正式测并起草 candidate）；R-J0x 消费本 revision"
+  - id: recovery_time
+    metric: "recovery_time_s"
+    unit: "s"
+    description: "backend 重启到 /health 恢复可用的耗时——本卡现网只读约束下不可测（禁起停容器）"
+    threshold:
+      locked: null
+      candidate: null
+      threshold_source: "无依据（恢复演练需授权重启）⇒ null；归 R-J10。"
+    method:
+      command: 'time (docker restart <cls 实例容器>; until curl -sf "http://127.0.0.1:<实例端口>/api/v1/health" >/dev/null; do sleep 0.5; done)  # 指定环境=R-J10 恢复演练（需用户授权重启；本卡零起停）；method sketch：容器名与端口由 R-J10 补全'
+      repeat: 20
+      statistic: "p95 = quantiles(n=20)[18]"
+      environment_ref: "指定环境（R-J10 恢复演练）"
+    measured:
+      status: "not_measured"
+      value: null
+      p50: null
+      p95: null
+      n: null
+      at: null
+      reason: "需重启 backend，归 R-J10 恢复演练；本卡现网只读约束下不可测，禁填估计值。"
+      evidence: null
+    degrade_rule: "未达标只能判失败，或经用户事前/书面 waiver 降级为限制（README 字段速查 slo 行；§12.5 L592）。candidate 锁版前不构成发布判据。"
+    owner_consumer: "R-J10（恢复演练正式测并起草 candidate）；R-J0x 消费本 revision"
+export_shape:
+  target: "J manifest 的 slo.measurements[]（manifest.schema.json :475-530；required 五键 = metric/threshold/measured/method/meets；additionalProperties:false，另有可选 unit/waiver）"
+  mapping: |
+    metric    ← metrics[].metric
+    threshold ← threshold.locked（已锁版原样）或 threshold.candidate 并追加 " (candidate)" 标记；两者皆 null ⇒ "(未定)"（占位, minLength=1；本版 cold 与写侧四项即此三态）
+    measured  ← measured.status=measured 时填 "p95=<p95><unit> (n=<n>)"；status=not_measured 时填字符串 "not_measured"
+    method    ← method.command
+    meets     ← 填写者判定（阈值与实测为同单位数字时校验器 S9 做尽力而为交叉核对，meets 必须与自身数字一致；not_measured 项 meets 只能填 false——⚠️ 此为填写纪律：校验器在 meets=true 时直接放行、不检查 measured=not_measured，见 evidence-rslo/negctl-3-*.txt）
+    覆盖纪律  ← 导出应含全部 9 项；校验器 S9 只要求 ≥1 条，不强制覆盖（门未覆盖的路径，登记于 README 已知边界）
+    unit      ← 可选；本卡导出不附加，保持恰五键
+  consumption_note: "not_measured 项被导出（meets=false）会在校验器 S9 触发未达标链：整体 result=fail、或获用户 waiver（并写 known_limitations）、或改为全测后再引用，三选一；E3+ 另需 revision 非 null 且 measurements 非空——「至少一条真实实测（measured≠not_measured）」是消费纪律、非机器门（机器不检查该项）（见 evidence-rslo/validate-export-e3-*.txt 实证）。反向缺口：not_measured 项误填 meets=true 时 S9 不拦（未被拦下的输入，配对实证见 negctl-3-*.txt；README 已知边界同登）。"
+not_in_scope:
+  - "索引 freshness 阈值 — 归 G2-10 / G4-14（/index/stats 与 /health/lancedb 已暴露时间戳）"
+  - "gold-set 七指标 — 归 G4-14（本文件只承载候选舱位，不代测）"

@@ -1,0 +1,5 @@
+### data_sha CARD-R-SLO 2026-09-19T17:17:54-0700
+cmd: find <live> -name '*.md' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256
+df036977f3d220b10d6be95c16cd83b1ff5241d066884e4b09e9060397551907  -
+md_count=214
+rc=0

@@ -1,0 +1,17 @@
+### (m) 脱敏与只读门（整改后重跑）2026-09-19T20:57:13-0700
+--- (m)1 yaml 内主目录绝对路径命中
+0
+--- (m)2 fsrs_bridge/decay_beta 命中
+0
+--- (m)3 内部 API key 口径
+0（INTERNAL_API_KEY 不在 backend/.env ⇒ 不适用；补充检查见下）
+--- (m)3b 敏感值命中
+NEO4J_PASSWORD（值）命中=0
+GOOGLE_API_KEY（值）命中=0
+--- (m)4 敏感字段名字面命中
+0
+--- (m)5 live outputs before/after
+identical=YES
+--- (m)6 measure-*.txt 写端点字样
+0
+rc=0

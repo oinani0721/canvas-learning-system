@@ -1,0 +1,9 @@
+### CARD-R-SLO 先红 (b)①-③  落档 2026-09-20T00:02:57Z
+--- (b)① git grep -n 'slo-manifest' -- docs backend/scripts scripts | wc -l
+       0
+--- (b)① 验伪锚: 同命令 -- backend/tests
+       2
+--- (b)② test -e docs/release-evidence/slo-manifest.yaml; echo rc
+rc=1
+--- (b)③ grep -c 'slo-manifest.yaml' docs/release-evidence/README.md
+0

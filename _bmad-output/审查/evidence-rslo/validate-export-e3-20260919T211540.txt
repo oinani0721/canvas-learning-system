@@ -1,0 +1,22 @@
+### (g) E3 对照输入（整改后重跑）2026-09-19T21:15:41-0700
+--- A：卡文清单字面 ---
+E3-literal patched
+❌ FAIL /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+    [schema] provenance: {'mode': 'live', 'reconstructed_from': '_bmad-output/审查/d5-evidence-2026-08-27/ (D5-结案报告.md + before.txt + after-check.txt, 归档于 commit c823a35fa9cd91fae29b409ba7e000834b09f726) + 主仓 .git/worktrees/feature-obsidian-hybrid-dev/logs/HEAD 第 251-252 行 (执行期 HEAD 的直接证据) + 上述三份归档文件在 worktree .claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/d5-evidence-2026-08-27/ 下的 birth time (本仓 checkout 的副本 mtime 已是 checkout 时刻, 不可用)', 'unproven_fields': [], 'note': '本 manifest 是 CARD-R-EVD 的格式演示件, 由既有 D5 归档事后回填。语义规则 S10/S13/S17 因此把它锁在 E2、禁止签字、不计入 RC 门。真正的 RC 证据必须在执行期实录 (provenance.mode=live, unproven_fields 为空, dirty=false)。本文件经一轮红队 example-fidelity 审计逐条核对归档与 git 事实后重写, 修正了 11 处 overclaim (详见 known_limitations 与 _bmad-output/审查/revd-redteam-2026-08-28.md)。'} should not be valid under {'required': ['reconstructed_from']}
+
+合计 1 份 manifest, 失败 1 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+A_rc=1
+--- B：清理 live 化残留 ---
+E3-clean patched
+❌ FAIL /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+    [S3] result=pass 与断言实况矛盾 — 非 pass 断言: D5-6
+    [S9] slo.measurements[2] (rag_query_cold_p95_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=pass 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[5] (first_index_seconds) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=pass 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[6] (graphiti_ack_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=pass 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[7] (graphiti_replay_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=pass 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[8] (recovery_time_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=pass 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+
+合计 1 份 manifest, 失败 1 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+B_rc=1

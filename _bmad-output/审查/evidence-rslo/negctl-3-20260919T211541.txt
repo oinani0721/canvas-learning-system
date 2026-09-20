@@ -1,0 +1,22 @@
+### 负控 3（配对演示；固定 result=partial，唯一变量 = 5 个 not_measured 项的 meets）（绑 = 9b2089fb）2026-09-19T21:15:41-0700
+设计：同一导出两次跑；A 腿 meets=false（预期 [S9]×5 / rc=1）；B 腿 meets=true（预期 0 条 [S9] / rc=0）。
+A 腿: 9 items 导出, 5 个 not_measured meets=false, result=partial（未改）
+❌ FAIL /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+    [S9] slo.measurements[2] (rag_query_cold_p95_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[5] (first_index_seconds) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[6] (graphiti_ack_ms) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[7] (graphiti_replay_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+    [S9] slo.measurements[8] (recovery_time_s) 未达标 (阈值 (未定) vs 实测 not_measured), 而整体 result=partial 且无用户 waiver — §12.5: 未达标只能判失败, 或经用户事前/书面接受后降级为限制。
+
+合计 1 份 manifest, 失败 1 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+A_rc=1
+A_S9_count=5
+B 腿: 同上，唯一改动 = 5 个 not_measured 项 meets: false -> true；result 仍 partial
+✅ PASS /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+B_rc=0
+B_S9_count=0
+（结论：唯一变量 meets ⇒ false 出 [S9]×5、true 出 0 条 [S9]；该缺口归因于 meets=true 放行路径。首版设计缺陷已由 r2 指出并在此修正。）

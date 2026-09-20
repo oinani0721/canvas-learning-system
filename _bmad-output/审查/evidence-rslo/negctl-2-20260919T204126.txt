@@ -1,0 +1,25 @@
+### 负控 2: 导出五键契约敏感性 2026-09-19T20:41:26-0700
+--- 跑前 shasum ---
+fadac9867f260deca2e6365263155d717ab711dd8648f635e94a244cead9db22  docs/release-evidence/slo-manifest.yaml
+--- 变异: export_shape.mapping 加一行 note（示意）+ 导出实际多带 note 键 ---
+export_shape mutated (+note)
+265:    note      ← <对照输入：临时多加的键>
+--- 重建 tmp J08（fresh）并写入带 note 的导出 ---
+exported 9 items WITH extra key note; result=fail
+--- 校验器（应为 schema 拒收 note：rc=1，非 [load]/rc=2）---
+❌ FAIL /private/tmp/rslo-p10c/consumer/example-backfill-d5/journeys/J08/manifest.json
+    [schema] slo/measurements/0: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/1: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/2: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/3: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/4: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/5: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/6: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/7: Additional properties are not allowed ('note' was unexpected)
+    [schema] slo/measurements/8: Additional properties are not allowed ('note' was unexpected)
+
+合计 1 份 manifest, 失败 1 份。
+⚠️  已弃权 artifact checksum 真验 (--skip-artifact-verify)。
+mid_rc=1
+--- 跑后 shasum（应逐字同）---
+fadac9867f260deca2e6365263155d717ab711dd8648f635e94a244cead9db22  docs/release-evidence/slo-manifest.yaml

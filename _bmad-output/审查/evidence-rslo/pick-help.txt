@@ -1,0 +1,13 @@
+usage: daily_review_pick.py [-h] --vault VAULT [--state STATE] [--now NOW]
+                            [--write]
+
+每日复习选板
+
+options:
+  -h, --help     show this help message and exit
+  --vault VAULT
+  --state STATE  daily-review.state.json (只读, 取 board_last_recommended /
+                 board_done / snoozed)
+  --now NOW      ISO 时间覆盖 (测试用)
+  --write        写 outputs/今日复习.md+json
+rc=0

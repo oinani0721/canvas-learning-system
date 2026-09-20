@@ -1,0 +1,11 @@
+### (f)④ yaml 自检 2026-09-19T20:23:09-0700
+--- 主判据 ---
+yaml_ok metrics=9 measured=4 not_measured=5 status=draft
+main_rc=0
+
+--- 验伪锚: $TMP 副本删掉一条 reason ---
+removed reason from rag_query_cold
+    assert ms.get("reason"), m["id"]
+           ~~~~~~^^^^^^^^^^
+AssertionError: rag_query_cold
+anchor_rc=1

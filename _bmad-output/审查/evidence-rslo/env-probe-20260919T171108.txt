@@ -1,0 +1,20 @@
+### env-probe CARD-R-SLO 2026-09-20T00:11:08Z
+cpu_brand: Apple M5 Max
+mem_bytes: 137438953472
+os_version: 26.5
+arch: arm64
+python: Python 3.14.4
+git: git version 2.50.1 (Apple Git-155)
+tz_abbr: PDT
+tz_iana: America/Los_Angeles
+date_now: 2026-09-19T17:11:08-0700
+ollama_11434_http: 000
+llama_12341: {"models":[{"name":"qwen3.5-35b-a3b-q4_k_s","model":"qwen3.5-35b-a3b-q4_k_s","modified_at":"","size":"","digest":"","type":"model","description":"","tags":[""],"capabilities":["completion","multimodal"],"parameters":"","details":{"parent_model":"","format":"gguf","family":"","families":[""],"parameter_size":"","quantization_level":""}}],"object":"list","data":[{"id":"qwen3.5-35b-a3b-q4_k_s","aliases":["qwen3.5-35b-a3b-q4_k_s"],"tags":[],"object":"model","created":1789863068,"owned_by":"llamacpp","meta":{"vocab_type":true,"n_vocab":248320,"n_ctx":16384,"n_ctx_train":262144,"n_embd":2048,"n_params":35505251456,"size":21475369472,"ftype":"Q4_K - Small"}}]}
+rerank_18012: {"models":[{"name":"bge-reranker-v2-m3","model":"bge-reranker-v2-m3","modified_at":"","size":"","digest":"","type":"model","description":"","tags":[""],"capabilities":["completion"],"parameters":"","details":{"parent_model":"","format":"gguf","family":"","families":[""],"parameter_size":"","quantization_level":""}}],"object":"list","data":[{"id":"bge-reranker-v2-m3","aliases":["bge-reranker-v2-m3"],"tags":[],"object":"model","created":1789863068,"owned_by":"llamacpp","meta":{"vocab_type":true,"n_vocab":250002,"n_ctx":8192,"n_ctx_train":8192,"n_embd":1024,"n_params":567753729,"size":628833412,"ftype":"Q8_0"}}]}
+health_ai: {"status":"error","model":"gemini-3.1-flash-lite-preview","provider":"google","error":"AI client not configured. Check API key settings.","error_code":"LLM_AUTH_FAILED"}
+health_lancedb: {"status":"ok","table_count":4,"total_vectors":53,"embedding_model":"text-embedding-3-small","error":null}
+index_stats: {}
+kg: {"status":"ok","graph_stats":{"node_count":0,"edge_count":0,"episode_count":0},"last_episode_timestamp":null,"error":null}
+live_md_count: 214
+lane_sha: a03f0ce34de9a9c4652310d45eae283f78d11451
+rc=0

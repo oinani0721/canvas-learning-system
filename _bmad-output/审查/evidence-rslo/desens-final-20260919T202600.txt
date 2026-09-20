@@ -1,0 +1,18 @@
+### (m) 脱敏与只读门（最终版）2026-09-19T20:26:00-0700
+标签不含 needle 字面，避免自指污染；命令体不在档内回显。
+--- (m)1 yaml 内 /Users/ 绝对路径命中
+0
+--- (m)2 fsrs_bridge/decay_beta 命中
+0
+--- (m)3 内部 API key 检查（卡文口径）
+0（INTERNAL_API_KEY 实测不在 backend/.env，0 行 ⇒ 该项不适用；以补充检查代替）
+--- (m)3b 补充：敏感变量值全证据面命中数
+NEO4J_PASSWORD（值）命中=0
+GOOGLE_API_KEY（值）命中=0
+--- (m)4 敏感字段名字面（NEO4J 密码字段+等号）命中
+0
+--- (m)5 live outputs before/after
+identical=YES
+--- (m)6 measure-*.txt 中写端点字样命中
+0
+rc=0

@@ -1,0 +1,35 @@
+### 地盘门 (l) CARD-R-SLO 2026-09-19T21:35:32-0700  PREV=a03f0ce3 HEAD=e4ef1ebf
+--- ① diff --stat（应只列 slo-manifest.yaml 与 README.md）---
+ docs/release-evidence/README.md         |  12 ++
+ docs/release-evidence/slo-manifest.yaml | 269 ++++++++++++++++++++++++++++++++
+ 2 files changed, 281 insertions(+)
+--- ② 验伪锚: 去掉 exclude 后应多出 _bmad-output ---
+ .../evidence-rslo/yaml-check-20260919T202309.txt"  |  11 +
+ .../UAT-CARD-R-SLO-2026-09-19.md"                  | 266 ++++++
+ docs/release-evidence/README.md                    |  12 +
+ docs/release-evidence/slo-manifest.yaml            | 269 ++++++
+ 39 files changed, 2957 insertions(+)
+--- ③ py/schema/openapi/ledger 命中数（应 0）---
+0
+--- ④ README 纯新增核（- 行数应 0；验伪锚 + 行数 ≥ 8）---
+0
+9
+--- ⑤ ruff 判据（9c4e7e82..e4ef1ebf 的 .py 集合）---
+files=2
+backend/scripts/freeze_release_candidate.py
+backend/tests/unit/test_freeze_release_candidate.py
+All checks passed!
+ruff_rc=0
+--- ⑥ ruff 验伪锚: F821 探针（应 rc=1）---
+F821 Undefined name `undefined_name`
+ --> /tmp/rslo-p10c/f821.py:1:7
+  |
+1 | print(undefined_name)
+  |       ^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+rc=0
+--- ⑦ 本卡 PREV..HEAD 的 .py 集合大小（应 0）---
+0
