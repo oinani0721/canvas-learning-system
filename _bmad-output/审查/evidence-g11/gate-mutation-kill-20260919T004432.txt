@@ -1,0 +1,152 @@
+# CARD-G1-1 存活变异体复放：新补的门是否真抓得住
+# HEAD=fbc1fc05c8b64ace3512b23e6cbc901842cc5599 ts=20260919T004432
+# 判据：每个变异体下，**指定的那条新门**必须 FAILED（不是「某处有失败」）
+# pre_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  scripts/annotation_search.py
+
+===== 变异 K  →  期望 test_git_env_is_actually_wired_into_the_subprocess FAILED =====
+--- 变异 K ---
+--- a
++++ b
+@@ -446,3 +446,2 @@
+             errors="replace",
+-            env=git_env(),
+             check=False,
+E     + unknown
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_git_env_is_actually_wired_into_the_subprocess
+============================== 1 failed in 1.35s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+===== 变异 A  →  期望 test_prefix_rule_alone_catches_a_private_root_without_component_name FAILED =====
+--- 变异 A ---
+--- a
++++ b
+@@ -282,7 +282,2 @@
+     real = fold_path(os.path.realpath(path))
+-    for root_id, prefixes in private_paths.items():
+-        for prefix in prefixes:
+-            folded = fold_path(prefix)
+-            if real == folded or real.startswith(folded + os.sep):
+-                return root_id
+     for part in real.split(os.sep):
+E     Use -v to get more diff
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_prefix_rule_alone_catches_a_private_root_without_component_name
+============================== 1 failed in 1.20s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+===== 变异 D  →  期望 test_classify_covers_all_eight_buckets FAILED =====
+--- 变异 D ---
+--- a
++++ b
+@@ -500,2 +500,3 @@
+ def classify(rel):
++    return "其他"
+     if rel.startswith("验收单/批注回复/"):
+FAILED tests/unit/test_annotation_search.py::test_classify_covers_all_eight_buckets[\u7814\u7a76/x.md-\u7814\u7a76]
+FAILED tests/unit/test_annotation_search.py::test_classify_covers_all_eight_buckets[implementation-artifacts/goal-cards/x.md-goal-cards]
+FAILED tests/unit/test_annotation_search.py::test_classify_covers_all_eight_buckets[planning-artifacts/x.md-planning-artifacts]
+FAILED tests/unit/test_annotation_search.py::test_classify_covers_all_eight_buckets[\u51b3\u7b56\u6279\u6ce8/x.md-\u51b3\u7b56\u6279\u6ce8]
+========================= 8 failed, 3 passed in 1.04s ==========================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+===== 变异 E  →  期望 test_multiple_markers_on_one_line_all_reported FAILED =====
+--- 变异 E ---
+--- a
++++ b
+@@ -626,3 +626,3 @@
+     hits.sort(key=lambda item: (item[0], item[1]))
+-    return [(name, text, end) for _, name, text, end in hits]
++    return [(name, text, end) for _, name, text, end in hits][:1]
+ 
+E     Use -v to get more diff
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_multiple_markers_on_one_line_all_reported
+============================== 1 failed in 2.01s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+===== 变异 H  →  期望 test_context_zero_shows_only_the_marker_line FAILED =====
+--- 变异 H ---
+--- a
++++ b
+@@ -603,3 +603,3 @@
+ 
+-    return [line] + collected[:context], rest, len(collected) > 0
++    return [line] + collected, rest, len(collected) > 0
+ 
+E     Use -v to get more diff
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_context_zero_shows_only_the_marker_line
+============================== 1 failed in 1.33s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+===== 变异 G  →  期望 test_stderr_summary_is_deterministic_across_runs FAILED =====
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p8-backend/6daa9617-4a7c-40c8-958d-675724eafadd/scratchpad/mutate_gates.py", line 42, in <module>
+    assert src.count(old) == 1, f"锚点 {which} 命中 {src.count(old)} 次"
+           ^^^^^^^^^^^^^^^^^^^
+AssertionError: 锚点 G 命中 0 次
+
+tests/unit/test_annotation_search.py .                                   [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 2.41s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+===== 变异 F  →  期望 test_tool_writes_nothing_anywhere_in_the_repo FAILED =====
+--- 变异 F ---
+--- a
++++ b
+@@ -739,2 +739,4 @@
+ 
++    with open(os.path.join(REPO_ROOT, 'scripts', '__init__.py'), 'a', encoding='utf-8') as _h:
++        _h.write('# NEGCTL-F stray write\n')
+     records.sort(key=lambda rec: (sort_key_path(rec["path"]), rec["line"], rec["marker"]))
+E       ?? _bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_tool_writes_nothing_anywhere_in_the_repo
+============================== 1 failed in 8.09s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+# final_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  scripts/annotation_search.py
+# scripts/__init__.py 状态（应干净）=        0
+
+===== 变异 G 重跑（首轮锚点命中 0 次 = 变异未应用 = 未测出，不是阴性）=====
+# ts=20260919T004634
+  pre_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+--- 变异 G ---
+--- a
++++ b
+@@ -793,3 +793,3 @@
+         "unreadable={unreadable} unwalkable={unwalkable_count} "
+-        "excluded_private_roots={excluded_private_roots}".format(unwalkable_count=len(stats["unwalkable"]), **stats)
++        "excluded_private_roots={excluded_private_roots} pid={pid}".format(pid=os.getpid(), unwalkable_count=len(stats["unwalkable"]), **stats)
+     )
+
+tests/unit/test_annotation_search.py .                                   [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================== 1 passed in 1.49s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+
+===== 变异 G 第三跑（门已改成跨进程比对）=====
+# ts=20260919T004718
+# 第二跑如实记录：变异**已应用**（diff 在上），测试**仍绿** —— 因为旧门在同一进程内
+#   调两次 main()，os.getpid() 相同，per-process 的不确定性从这个缝里漏过去。
+#   门已改为起两个子进程 + 不同 PYTHONHASHSEED。下面是改后重放。
+  pre_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+         "unreadable={unreadable} unwalkable={unwalkable_count} "
+-        "excluded_private_roots={excluded_private_roots}".format(unwalkable_count=len(stats["unwalkable"]), **stats)
++        "excluded_private_roots={excluded_private_roots} pid={pid}".format(pid=os.getpid(), unwalkable_count=len(stats["unwalkable"]), **stats)
+     )
+E       # privat
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_output_is_deterministic_across_separate_processes
+============================== 1 failed in 1.28s ===============================
+  post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py

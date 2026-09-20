@@ -1,0 +1,20 @@
+# CARD-G1-1 先红③：*.py/*.sh 排除 /tests/ 三形态扫描（卡文 §〇「清单 evidence → 实测更正」行）
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260918T224438
+./backend/app/services/wikilink_context_service.py ['[!question]+', '[!error]+']
+./backend/lib/agentic_rag/clients/lancedb_client.py ['[!question]+']
+total_files= 2
+--- 卡文点名的三个 0 命中文件复核 ---
+scripts/validate-env.sh User：count= 0 []
+scripts/census_worktree_assets.py User：count= 0 []
+_bmad-output/审查/phase0a-annotation-truth/GOV-01-static-acquisition-hostile-fixtures-v2.py User：count= 0 []
+
+=== 第三文件差异复核（卡文说 3 文件，本扫描 2）——实测 ===
+check_skill_trigger_matrix.py 存在？ backend/scripts/check_skill_trigger_matrix.py
+  grep -cF 'User：'   = 1
+  grep -cF '**User：' = 0
+  命中行（裸 User：）：
+73:USER_ATTRIBUTION_MARKERS = frozenset({"User：", "你的真实原话", "留过一句疑问"})
+
+归因：卡文 §〇 该行的实测命令列写的是 grep -cF 'User：'（裸形态），本扫描用的是 '**User：'（粗体形态）。
+该文件含裸 'User：' 但不含 '**User：' ⇒ 两个口径下分别是 3 / 2 文件，皆非错误，是口径差。
+结论方向不变：三者都是文案/正则，仓内无批注检索脚本（先红成立）。

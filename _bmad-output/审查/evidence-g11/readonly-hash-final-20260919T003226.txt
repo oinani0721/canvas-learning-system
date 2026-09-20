@@ -1,0 +1,18 @@
+# CARD-G1-1 只读 hash 门 @ 4bf7d055914d5b7aefc68174cb8801b3ac13838d  ts=20260919T003226
+# 被测 sha256 = 9bf9258d986ec98dbf6580c4849fd4b62bf2b40f83f2f06524be76f5dc31c637  scripts/annotation_search.py
+跑前 H = 5277f23cfb2d8fd212798fc817545d9481f501966934b8ddfea478a67bf8171b  -
+run_rc=0
+  命中行数 = 15
+# files_scanned=1982 marker_hits=1331 shown=15 empty=32 fenced=169 html_comment=26 unreadable=0 unwalkable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# private_roots_without_path=['ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']（A01 声明为私人，但仓内无落地路径可拦——不等于那里没有批注）
+跑后 H = 5277f23cfb2d8fd212798fc817545d9481f501966934b8ddfea478a67bf8171b  -
+--- 验伪锚：H 对内容敏感 ---
+  改前 = 7c0209306d30251ae338005d823626fa9acb106d4638f74bcd79320f688e5e5d  -
+  改后 = 2707d818cb45ea7c4456fda1866762d5f2209ec4a523ab117365e576ca555d67  -
+--- git status(_bmad-output 排除 evidence-g11) 行数 =        1
+
+=== git status 那 1 行的归因（实测，不是推断）===
+?? "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G1-1.md"
+↑ = 本车道自己新建的 Codex prompt 文件（卡文 §四 要求的产物），不是被测脚本写的。
+证据：该路径不在脚本任何写调用里（零写 AST 门 write_calls=0），且它在只读 hash 的
+输入面内——跑前跑后 H 仍逐字同，说明脚本运行期间它没被动过。

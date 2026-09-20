@@ -1,0 +1,6 @@
+# CARD-G1-1 H1 整改 承重行为门（format 后定稿）ts=20260919T234938
+# 跑法: ( cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -p no:cacheprovider -rfE tests/unit/test_annotation_search.py )
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 85 passed, 10 warnings in 27.52s =======================
+rc=0

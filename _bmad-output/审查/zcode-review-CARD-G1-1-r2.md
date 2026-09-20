@@ -1,0 +1,71 @@
+> 批次: BATCH-2026-09-18-第十五批 · 车道 P8（card-p8-backend）· 卡 CARD-G1-1 · 补审 round-2（ZCode 通道，协议 §2.4.2）
+> 模型: `glm-5.3`（provider_config.defaultModelSelection）
+> 工具: `zcode-app-cli 3.12.3-26 / runtime 0.16.5`
+> 命令: `zcode --prompt "$(cat _bmad-output/审查/prompts/zcode-review-prompt-CARD-G1-1-r2.md)" --cwd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G1-1-r2.md 2> _bmad-output/审查/zcode-review-CARD-G1-1-r2.stderr`
+> 审查绑定: `4a6524aa12f4c247245afda099bfa19d60dc510c`（本卡文件面：`git --no-pager diff --stat --no-color 4a6524aa HEAD -- backend/tests/unit/test_annotation_search.py scripts/annotation_search.py` 输出为空；HEAD=`16fd1e4e9c8514e9e09858281c99dac1d031f79b`）
+> 自证（`--json` 原文）: `sessionId=sess_01ab0c7d-fabf-4488-a438-f1dd2e788dc2` · `traceId=062b11ee-b1f8-46a4-a306-a899a54ae193` · `turnId=turn_5b261b9e-0bc6-4066-8830-a005a4c71859`（usage: modelRequestCount=21 / totalTokens=3203962；原始 JSON 全文见 evidence-g11/zcode-review-r2-rawjson-20260919T172210.json）
+
+---
+
+核验全部完成，出具补审结论。
+
+---
+
+# CARD-G1-1 补审复核结论（ZCode/GLM-5.3 · round-2 · 绑定 SHA `4a6524aa`）
+
+**环境实况声明（与送审前提的差异）**：送审文称 build 模式「Bash 与 Write 全被阻断」。实测：Bash **部分可用**——`git`（rev-parse/diff/log/grep 类）与 `grep`/`sed`/`cut` 通过权限层，`python3`、`git apply`、`shasum`、`cd` 复合命令被「No permission client configured」拦截。本轮因此做到：① `git diff --stat 4a6524aa HEAD -- <两被审文件>` 实跑=**空**（零 diff 确认，当前 HEAD `16fd1e4e`）；② 树内两文件全文读取与附录 A 逐字一致；③ 对真数据的多组 grep 实证；④ 未能实跑的部分（工具端到端负控、`git apply --check` 复放）以静态推演 + 存档交叉证替代，逐条标注。本轮**未写工作树任何文件**、未跑 pytest（避免 `.pytest_cache`/`__pycache__` 写入）。
+
+**总评**：只读、fail-closed、确定性、私人 root 网、协议 patch「只加一条只加 §5」均独立核实成立；七变异体七杀、四段负控、78/78 绿均与存档一致。发现 **HIGH ×1 / MEDIUM ×2 / LOW ×8**。按协议 §1 口径无阻断级（无数据丢失、无 live 写、无裁判假绿），但 HIGH-1 建议整改或由主 session 裁定登记后合并。
+
+---
+
+## HIGH
+
+### H1 · 中文 T1 粗体容器形态漏召回，且验收单据此做出的「不覆盖」决定建立在一个模式过窄的假阴性 census 上
+- **位置**：`scripts/annotation_search.py:69-82`（MARKERS 表，无任何中文形态）；矛盾面 `scripts/annotation_search.py:7-8`（docstring 自称覆盖「契约 §4.1 的 T1 全部」）vs `_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:98-101`（§3.2 声明中文 T1 不覆盖）。
+- **事实链（grep 实测，2026-09-19 于本树）**：契约 `:130`（T1 含「明确中文‘用户批注/反馈/修正/原话’」）与 `:134`（至少覆盖清单）把该形态列在 **T1 高精度层，不是 T3**，故不在本卡 §⑤ 豁免面内。本树 `**用户(批注|反馈|原话|修正)` 粗体形态实有 **12 行 / 10 文件**，其中至少两处是真正的用户原话容器头：`_bmad-output/审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md:23`（`**用户批注原文（这是本轮要回答的靶心）：**`）与 `_bmad-output/验收单/Story-2.1-Phase1-成熟度升级-2026-05-03.md:429`（`> **用户批注（步骤 1，line 125）**：`）。前者**整文件没有任何其他形态 marker**（`**User`/callout grep 计数 = 0，实测）——即该文件在工具视角下 marker_hits=0、「没有任何批注」，而它的全部存在意义就是回答那条批注。
+- **为什么验收单的豁免不成立**：UAT §3.2 已如实声明「中文 T1 形态未覆盖」（纪律上 ✓），但其依据「**粗体形态 `**用户批注：` 0 处**」的 census 模式只测了「用户批注」**紧跟冒号**这一子形；`**用户批注原文（…）：**`、`**用户批注（步骤 1, line 125）**：` 这类带插入语的容器头全部漏测——数字为假，决定的前提不成立。内部对抗复核（`internal-review-20260919T003425.txt` review:recall 第 1 条）当时以同样的两处实例评为 HIGH，车道用窄模式 census 把它降了级。
+- **危害路径**：新协议条款把本工具的命中数/file:line 落档为「开卡找过用户意见」的依据；对 2026-08-02 这类文件，存档会记成 `marker_hits=0`，读作「用户没说过相关意见」。
+- **负控输入**（未实跑，python 被权限层阻断；由 MARKERS 正则只含字面 `User` + 同文件其他形态计数 0 直接可推）：`python3 scripts/annotation_search.py --root _bmad-output/审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md --a01 <真A01> --keyword 靶心` → 观察到 `marker_hits=0 shown=0`、rc=1。**对照输入**：把 ：23 改写成 `**User：` 即命中——缺的是 marker 表项，不是别的环节。
+- **分类**：marker 表**未被拦下的输入**（T1 层）。修法二选一：加一条高精度中文粗体容器正则（如 `\*\*用户(批注|反馈|原话|修正)[^*]{0,30}[：:]`——只认「粗体+冒号」容器头，恰好避开 UAT 担心的裸转述混入）；或订正 UAT §3.2 的 census 数字并把 docstring「T1 全部」改为「T1 除中文容器形态」。二者必居其一，现状是「声明说没有、实际有」。
+
+## MEDIUM
+
+### M1 · `--context` 同时决定显示面与**关键词检索面**，默认 5 行之外的批注尾部静默不可检索
+- **位置**：`scripts/annotation_search.py:563`（`limit = max(context, 1)` 同时是扫描上限）+ `:708-715`（关键词只对 `block_text` 匹配）。
+- **负控输入**（静态推演，机制与内部复核 review:recall 第 6 条自认一致）：fixture 写 `**User2：**` + 7 行连续非空续写、关键词只落在第 7 续行 → 默认参数 rc=1 / shown=0（漏检）；同一文件关键词挪到第 5 续行 → 命中。帮助文案 `:782` 称该参数是「摘录续行上限」，未提它同时缩小检索面。
+- **权重理由**：协议新条款的命令**不带 `--context`**（用默认 5）——批次纪律存档会系统性地少看 6 行以上批注的尾部。门未覆盖的路径：`test_context_limit_caps_continuation_lines` 只断言 excerpt 行数，没有任何一条门断言「--context 不改变命中集合」。
+
+### M2 · 非 JSON 人读输出分支零断言——删掉整段逻辑后 78 条测试仍全绿，而协议条款依赖的恰好是这条分支
+- **位置**：`scripts/annotation_search.py:834-839`（`main()` 的 else 分支 + `EXCERPT_LINE_LIMIT :171`）。
+- **核验**（静态，逐条过了测试文件全部 78 条）：所有对 `out` **内容**的断言都在 `--json` 跑下；不带 `--json` 的用例（三条 A01 fail-closed、root/symlink 拒扫、`test_no_keyword_and_no_story_exits_2`、两条 readonly、`test_tool_writes_nothing_anywhere_in_the_repo`）只断言 rc/err 或完全不看 stdout。删掉 `:834-839` 整段，套件仍全绿——这正是本卡变异猎杀方法论（七杀七）要抓的门缺口，这一条存活。
+- **权重理由**：协议条款命令 `…--story … --keyword … 2>&1 | tee` **不含 `--json`**——条款规定落档的 file:line 行格式（`path:line | category | date(source) | marker | head`）与 200 字截断全部只活在无门分支里。门未覆盖的路径。
+
+## LOW
+
+- **L1 · 形态 A 粗体奇偶配对的两个残余越界面**（`scripts/annotation_search.py:574-591`）：① 闭合批注同行后再有成对粗体会被误判未闭合（真触发例 `research/obsidian-qa-round2-claude-answers-2026-04-14.md:382`，尾缀 `****` 使 pairs=3 为奇）→ 向下吞并续行；本例恰好被下一空行挡住，未成案（静态）。② 表格行内同线混排：`研究/语料快照-G5-1/2026-08-16-学生使用场景报告-…md:99` 的 User 批注与 Claude 整段 R7-Q1 回复在同一表格行（grep 实测在场），只出现在回复段的关键词（如「Forte 铁律」）会命中一条 marker=`**User：` 的记录——单行粒度的固有限制，摘录含双方文字，属「把别人的话算进用户命中面」同类残余。均静态定级 LOW：机制已核、未观测到跨行吞并成案。
+- **L2 · HTML 注释状态机同行「先关后开」丢状态**（`scripts/annotation_search.py:686-693`）：`elif closes: commented=False` 会盖掉同行尾部的重新开启。负控输入（静态）：`<!-- a --> x <!--\n[!error]+ kw\n-->` → 第 2 行 `in_html_comment` 误标 False、`html_comment` 计数偏差。仅标注面，不丢召回。
+- **L3 · `.md` 后缀的 FIFO/设备文件会让 `read_text` 无限阻塞**（`scripts/annotation_search.py:355-359`，`open` 无 O_NONBLOCK、无 stat 过滤）：扫描面里一个命名管道即挂起整次「开卡第 0 分钟」检索。仓内难出现，可用性缺口（静态）。
+- **L4 · 扫描树内指向非私人目录的目录软链默认不跟进也不报告**（`os.walk` followlinks=False，`scripts/annotation_search.py:322`）：该子树的 .md 静默缩出面，不进任何桶。反方向（软链目录/软链文件/root 软链指进私人面）已被拦并有实测（`private-root-adversarial` B/D/E 段）。
+- **L5 · `scripts/annotation_search.py:64` 注释失真**：写「len(MARKERS) == 9 / 八个 callout」，实际 10 项 / 9 个 callout（close-judges 实测 len=10，test:921 断 10）。文档注释级。
+- **L6 · patch 条款的落档命令不建目录**（`protocol-s5-annotation-search.patch:24`）：`tee _bmad-output/审查/evidence-<卡短名>/annotation-search-<ts>.txt` 在目录不存在时直接失败，条款未写先 `mkdir -p`。执行者须知。
+- **L7 · 锚点行号脆性是设计选择，建议给登记口径**：`:494`/`:163` 上游编辑即红（红得诚实、不是假绿）。建议登记为：锚点变红 → 重跑工具钉新行号 + 验收单记一行「锚点漂移」，不得删断言或放宽为子串匹配。
+- **L8 · frontmatter 解析与 YAML 语义的三处小差**（`scripts/annotation_search.py:404-413`）：缩进嵌套键（`meta:\n  date:`）被当顶层键、重复键取首个、多日期键按出现序而非优先级。真语料 0 实例（内部复核实测），静态登记。
+
+---
+
+## §③ 问题逐答
+
+**⓪ 只读是否真只读**：成立。代码面唯二 `open` 均读模式；唯一子进程 `git log -1 --format=%cs`：`git log` 不触发 hook（hook 面在 commit/merge/receive）、不走 clean/smudge filter、stdout 为管道不起 pager；`git_env()` 剃净全部 `GIT_*`（含 `GIT_TRACE*` 落盘向量与 `GIT_DIR` 换仓向量，变异 K 负控七杀之一实测接线成立）+ `GIT_OPTIONAL_LOCKS=0`。cwd 取被扫文件目录的最坏情形是发现嵌套/外层仓库，路径不在该仓时 git 报错 rc≠0 → 降级 unknown，不会答错仓日期。残余（均非本卡缺陷）：`.git` 内部写对 tree_digest 与 `git status --porcelain` 两道门都不可见——但 git log 只读且环境已剃净，内部复核的 fsmonitor 实测亦证不写；import 期 `.pyc` 已在 docstring 如实声明且 `.gitignore:2` 覆盖、裁判一律带 `-B`；读取不改 mtime（摘要也是内容口径）。**未被拦下的输入**：未发现新类——root 软链、`..`、大小写变体、NFD、嵌套私有目录、`.gdr/_external` 孤前缀全有实测或代码路径覆盖；唯一例外是 hardlink（路径口径原理上够不着，UAT §3.5 已如实登记）。反方向误私有化：祖先基点只生成不存在的前缀（no-op），组件/basename 安全网是刻意的 fail-safe 且剔除项落 `pruned_private_paths` 不静默。
+**① 空槽/不可读静默当 0**：否。`empty=`/`unreadable=`/`unwalkable=` 三桶都计数并落 stderr（close-judges 汇总行 `empty=32 … unreadable=0 unwalkable=0` 与三条专项门实证），契约 ：142 口径满足。
+**② 关键词匹配整块还是首行**：块内（marker 行 + ≤context 续行）——窗口内不漏、窗口外漏（M1）；越界面见 L1。
+**③ date_source**：恒随日期输出，git 档如实标 `git`，docstring 明示「文件级 ≠ 落笔时刻」；frontmatter 有闭合+200 行上界+日历校验三门，残余 YAML 细节差见 L8。
+**④ 确定性**：`sort_key_path` NFC 双键 + 全 set 落输出前 sorted + `sort_keys=True` JSON；跨进程、异 `PYTHONHASHSEED`、stdout+stderr 同比的门实测绿（变异 G 三跑存档）。成立。
+**⑤ 真数据与门的成色**：DD-03 无违反——无文件系统 mock，唯一 monkeypatch 是 GIT_DIR 负控注入；真 A01/真 `_bmad-output` 直读。锚点脆弱性见 L7。**点名回答「删整段逻辑仍全绿」：人读输出分支（M2）**；同类小存活变异体：`PRUNE_DIRS` 条目、frontmatter `...` 收尾、同行注释开合（并入 M2/L2/L8 不单列）。
+**⑥ patch**：只加一条、只加 §5、§1-§4 不可能被改——单 hunk 单增行（存档实证新增 1/删除 0 + 验伪锚红），hunk 上下文三行与我读到的当前 140 行版 `:138-140` **逐字一致**（我的 `git apply --check` 复放被权限层拦，此为替代核验）。措辞可执行：v2 对 v1 三处不可执行的修正自洽，`2>&1`/`$pipestatus[1]` 与 §2.2 既有 zsh 口径一致，0 命中路径不撞「0 字节不入库」（dogfood 两路径存档实证）；残余小缺口 = L6。
+
+## 作者自述核对（§② 七条）
+
+1 零写 ✅（AST 门 0+验伪锚 2、只读 hash 前后同且验伪锚翻转、全仓 git status 门、变异 F/K 复放）；2 stdlib-only 无目标目录 import ✅（import 面代码可证）；3 私人名单从 A01 派生 ✅（变异 A/D 复放 + 降级测试）；4 A01 三态 fail-closed rc=2 ✅（三条门）；5 真数据锚必命中 ✅（小抄 ：494/:163 实录，category/date_source/date 全符；三主题非空；两树数字差 UAT :29 已归因）；6 目标目录前后逐字同 ✅（close-judges hash 同+探针敏感）；7 协议零改动、条款以 patch 交付 ✅（见 ⑥）。另：自述/测试把总账判据的「复习/FSRS」落为 FSRS 等三主题——判据方向未改，已在 UAT 记录归因，不算偏差。
+
+**结语**：本卡工程面（只读、fail-closed、确定性、变异猎杀方法论）是我在这条产线上见过最扎实的一档；唯一的 HIGH 不是「没做」，而是「做了如实的豁免声明、但支撑声明的 census 模式太窄导致前提为假」——修 census 数字与 docstring 措辞是十分钟的事，加中文容器正则是半小时的事，建议合并前处理。

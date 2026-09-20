@@ -1,0 +1,13 @@
+# CARD-G1-1 零写 AST 门 @ 4bf7d055914d5b7aefc68174cb8801b3ac13838d
+# ts=20260919T003217
+# 被测 sha256 = 9bf9258d986ec98dbf6580c4849fd4b62bf2b40f83f2f06524be76f5dc31c637  scripts/annotation_search.py
+# 工作树 == HEAD ? yes
+--- 被测（期望 write_calls= 0）---
+write_calls= 0
+--- 验伪锚（期望 write_calls= 2）---
+write_calls= 2
+  line 1: open(mode='w')
+  line 3: remove
+--- 子进程调用点自证 ---
+406:        proc = subprocess.run(
+416:    except (OSError, subprocess.SubprocessError, UnicodeDecodeError, ValueError):

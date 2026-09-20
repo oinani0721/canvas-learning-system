@@ -1,0 +1,40 @@
+# CARD-G1-1 H1R 负控③：摘除定位符分支 (?:\s?L\d+)?（只拆 r3 补漏这一层）——期望 L128 相关测试红
+# HEAD=8c546e72（还原源）+worktree ts=20260919T234821
+pre_sha  = ed6b8e8111c5b104b84144eba36e5013eb929242c1e3b904a9004dd128b724df  scripts/annotation_search.py
+--- 变异 diff（单点）---
+mutated: locator branch removed
+-* 中文容器头族（H1 整改，2026-09-19；ZCode r2 复核发现）：契约 ``:130/:134`` 的
++* 中文容器头族（H1 整改，2026-09-19；ZCode r2 → r3 两轮复核）：契约 ``:130/:134`` 的
+-  （``**用户批注（步骤 1，line 125）**：``）——外加限定词（原文/触发）与括注（≤30 字符）。
+-  真数据 3 处真容器头：``_bmad-output/审查/2026-08-02-…:23``、
+-  ``_bmad-output/验收单/Story-2.1-…:429``、``_bmad-output/research/round-23-…:13``。
++  （``**用户批注（步骤 1，line 125）**：``）——外加限定词（原文/触发）、定位符
++  （``**用户批注 L128**:``）与括注（≤30 字符）。
++  真数据 4 处真容器头：``_bmad-output/审查/2026-08-02-…:23``、
++  ``_bmad-output/验收单/Story-2.1-…:429``、``_bmad-output/research/round-23-…:13``、
++  ``_bmad-output/implementation-artifacts/epic-1/1-8-vault-switch-runtime-api.md:174``。
+-    # H1 整改（ZCode r2 HIGH-1）：中文粗体容器头。两形态 = 冒号在粗体内
++    # H1 整改（ZCode r2 HIGH-1 → r3 HIGH-1R）：中文粗体容器头。两形态 = 冒号在粗体内
+-    # 限定词只收真数据出现过的「原文 / 触发」；括注 ≤30 字符覆盖 `（步骤 1，line 125）`
+-    # 这类行号引用。⚠️ 刻意**不**收 Claude 自述语（`**用户原话 3 个 callout…**` 这类
+-    # 关键词与冒号间夹长正文、无括注的形态）与裸中文转述（T3 面）。
+-    # 真数据 3 处真容器头：审查/2026-08-02-…:23、验收单/Story-2.1-…:429、research/round-23-…:13。
+-    "user_bold_zh": re.compile(r"\*\*用户(?:批注|反馈|原话|修正)(?:原文|触发)?(?:[（(][^*]{0,30}?[）)])?\*{0,2}[：:]"),
++    # 限定词只收真数据出现过的「原文 / 触发」与定位符 ` L<n>`（`**用户批注 L128**:`
++    # 形态，epic-1/1-8 真数据）；括注 ≤30 字符覆盖 `（步骤 1，line 125)` 这类行号引用。
++    # ⚠️ 刻意**不**收 Claude 自述语（`**用户原话 3 个 callout…**` 这类关键词与冒号间
++    # 夹长正文、无括注的形态）与裸中文转述（T3 面）。
++    # 真数据 4 处真容器头：审查/2026-08-02-…:23、验收单/Story-2.1-…:429、
++    # research/round-23-…:13、implementation-artifacts/epic-1/1-8-…:174。
++    "user_bold_zh": re.compile(
++        r"\*\*用户(?:批注|反馈|原话|修正)(?:原文|触发)?(?:[（(][^*]{0,30}?[）)])?\*{0,2}[：:]"
++    ),
+pytest_rc=1
+--- FAILED 清单 ---
+FAILED tests/unit/test_annotation_search.py::test_zh_container_heads_hit_with_exact_lines
+FAILED tests/unit/test_annotation_search.py::test_zh_precision_controls_do_not_fire
+FAILED tests/unit/test_annotation_search.py::test_real_anchor_zh_locator_line_174
+FAILED tests/unit/test_annotation_search.py::test_contract_t1_t2_variants_are_matched[3. **\u7528\u6237\u6279\u6ce8 L128**: \u786e\u8ba4 Claudian \u5e94\u81ea\u52a8\u68c0\u6d4b vault \u53d8\u5316-**\u7528\u6237\u6279\u6ce8 L128**:]
+================== 4 failed, 83 passed, 10 warnings in 28.01s ==================
+post_sha = ed6b8e8111c5b104b84144eba36e5013eb929242c1e3b904a9004dd128b724df  scripts/annotation_search.py
+post_status_lines=1

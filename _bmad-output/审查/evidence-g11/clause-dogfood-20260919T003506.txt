@@ -1,0 +1,16 @@
+# CARD-G1-1 协议新条款自证：按条款逐字跑，两条路径都跑
+# HEAD=4bf7d055914d5b7aefc68174cb8801b3ac13838d ts=20260919T003506
+
+=== 路径 A：有命中（条款要求引用命中数 + 至少一条 file:line）===
+  存档字节数 = 126025
+  末行 = rc=0
+  汇总行在存档里？ 1
+  可引用的第一条 file:line = _bmad-output/.claude/CLAUDE.md:13
+
+=== 路径 B：0 命中（条款要求仍落档、rc=1、引用 rc 与 files_scanned/marker_hits）===
+  存档字节数 = 394  （> 0 ⇒ 不撞 §2.2「0 字节不入库」）
+  末行 = rc=1
+  汇总行 = # files_scanned=1982 marker_hits=1331 shown=0 empty=32 fenced=169 html_comment=26 unreadable=0 unwalkable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+
+=== 对照：若按 v1 写法只重定向 stdout，0 命中会得到什么 ===
+  rc=1  字节数 = 0  ⇒ 0 字节，正是 v2 要避开的那个冲突

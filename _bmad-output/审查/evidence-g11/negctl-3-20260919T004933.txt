@@ -1,0 +1,30 @@
+# CARD-G1-1 负控3：A01 读不到即空名单继续 —— 期望 test_a01_missing_is_fail_closed FAILED
+# HEAD=4a6524aa12f4c247245afda099bfa19d60dc510c ts=20260919T004933
+pre_sha  = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+--- 变异 3 的 diff ---
+--- a/scripts/annotation_search.py
++++ b/scripts/annotation_search.py
+@@ -189,5 +189,5 @@
+             data = json.load(handle)
+     except FileNotFoundError as exc:
+-        raise A01Error(f"A01 边界声明读不到：{a01_path}") from exc
++        return set(), []  # NEGCTL-3
+     except OSError as exc:
+         raise A01Error(f"A01 边界声明打不开：{a01_path}（{exc}）") from exc
+============================= test session starts ==============================
+collected 78 items
+
+tests/unit/test_annotation_search.py .........................F......... [ 44%]
+...........................................                              [100%]
+
+=================================== FAILURES ===================================
+_______________________ test_a01_missing_is_fail_closed ________________________
+tests/unit/test_annotation_search.py:453: in test_a01_missing_is_fail_closed
+    assert code == 2
+E   assert 0 == 2
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_a01_missing_is_fail_closed
+======================== 1 failed, 77 passed in 16.57s =========================
+pytest_rc=1
+post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py

@@ -1,0 +1,22 @@
+# CARD-G1-1 结构判据「改后」半边（(f)①② / §二.3①②）
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260918T230234
+--- ① 三产物存在（改前半边见 red-artifacts-absent-*.txt）---
+_bmad-output/审查/evidence-g11/protocol-s5-annotation-search.patch
+backend/tests/unit/test_annotation_search.py
+scripts/annotation_search.py
+rc=0
+--- ② marker 表可数 ---
+len(MARKERS)= 9
+['callout_BMAD-ANNO', 'callout_error', 'callout_hint', 'callout_info', 'callout_note', 'callout_question', 'callout_tip', 'callout_warning', 'user_bold']
+grep -c 'BMAD-ANNO' scripts/annotation_search.py = 2
+callout 族类型名个数 = 8
+--- 附：stdlib-only 自证（import 列表）---
+32:from __future__ import annotations
+34:import argparse
+35:import json
+36:import os
+37:import re
+38:import subprocess
+39:import sys
+40:import unicodedata
+41:from pathlib import Path

@@ -1,0 +1,50 @@
+{
+  "commit": "fix(scripts): CARD-G1-1 H1 整改 中文容器头召回+空行跨行引用 [BATCH-2026-09-18-第十五批 / CARD-G1-1]",
+  "ref": "8c546e72",
+  "sha": "8c546e72569271fdd1e1c2af81f7c7b46e7c9bb8",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T00:00:56-0700",
+  "code_files": [
+    "backend/tests/unit/test_annotation_search.py",
+    "scripts/annotation_search.py"
+  ],
+  "files": [
+    {
+      "file": "scripts/annotation_search.py",
+      "added": 32,
+      "removed": 1,
+      "runtime": 0.85,
+      "risk": "logic",
+      "risk_conf": 0.99,
+      "urgency": 2.6,
+      "urgency_conf": 0.66,
+      "review": 0.77,
+      "test": 0.56,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/unit/test_annotation_search.py",
+      "added": 99,
+      "removed": 2,
+      "runtime": 0.19,
+      "risk": "test_or_docs",
+      "risk_conf": 0.92,
+      "urgency": 1.68,
+      "urgency_conf": 0.27,
+      "review": 0.65,
+      "test": 0.93,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 6000,
+    "output_tokens": 314
+  },
+  "latency_ms": {
+    "min": 215,
+    "median": 313,
+    "max": 313
+  }
+}

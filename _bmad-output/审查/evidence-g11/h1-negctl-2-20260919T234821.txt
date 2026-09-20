@@ -1,0 +1,16 @@
+# CARD-G1-1 H1 整改 负控②：停用「空行跨行收引用」层（只拆第二层）——期望 08-02 布局相关断言红，f8/f9 与表结构不红
+# HEAD=8c546e72 ts=20260919T234821
+pre_sha  = f553e223113309d3ffb0bfcd2352e65119f158d7b87212c2ece5d8136dba3ffa  scripts/annotation_search.py
+--- 变异 diff（条件改名，单点）---
+mutated: blank-cross condition disabled
+-        if not collected and marker_name == "user_bold_zh":
++        if not collected and marker_name == "user_bold_zh_layer2_disabled":
+pytest_rc=1
+--- FAILED 清单 ---
+FAILED tests/unit/test_annotation_search.py::test_zh_container_heads_hit_with_exact_lines
+FAILED tests/unit/test_annotation_search.py::test_zh_container_blank_line_then_quote_is_not_empty
+FAILED tests/unit/test_annotation_search.py::test_zh_precision_controls_do_not_fire
+FAILED tests/unit/test_annotation_search.py::test_real_anchor_zh_container_line_23
+================== 4 failed, 81 passed, 10 warnings in 27.09s ==================
+post_sha = f553e223113309d3ffb0bfcd2352e65119f158d7b87212c2ece5d8136dba3ffa  scripts/annotation_search.py
+post_status_lines=0

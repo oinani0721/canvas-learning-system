@@ -1,0 +1,10 @@
+# CARD-G1-1 H1 整改 真数据小抄 ts=20260920T000041
+$ python3 scripts/annotation_search.py --root _bmad-output/审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md --a01 <真A01> --keyword 靶心  （评审 H1 负控输入原文命令）
+# files_scanned=1 marker_hits=1 shown=1 empty=0 fenced=0 html_comment=0 unreadable=0 unwalkable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# private_roots_without_path=['ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']（A01 声明为私人，但仓内无落地路径可拦——不等于那里没有批注）
+_bmad-output/审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md:23 | 审查 | 2026-08-02(filename) | **用户批注原文（这是本轮要回答的靶心）： | **用户批注原文（这是本轮要回答的靶心）：**
+rc=0
+
+$ python3 scripts/annotation_search.py --keyword 靶心 --json | shasum x2
+5bc3decc5b554970bf2a185983383788bfcf3476b7e1c90f80dc55c24b560943  -
+5bc3decc5b554970bf2a185983383788bfcf3476b7e1c90f80dc55c24b560943  -

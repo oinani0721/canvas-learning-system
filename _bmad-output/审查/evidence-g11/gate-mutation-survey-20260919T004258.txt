@@ -1,0 +1,78 @@
+# CARD-G1-1 门的变异存活面（内部对抗复核 review:gates 维度产出，原样抄录）
+#
+# 来源：本车道自跑的内部对抗复核 workflow（wf_62ab542c-ee0）的 gates 维度 agent。
+# 该 agent 在 scratchpad 的镜像树上对被测脚本做单点变异，逐个跑本卡单测看能否被抓。
+# ⚠️ 三条如实声明：
+#  1) 它跑在 sha 9bf9258d（即 commit fbc1fc05 之前）的冻结副本上，不是最终 HEAD；
+#  2) 我在它作业期间改了 5 次代码，它因此反复重新冻结重跑——这是我违反「审查对象须冻结」的代价；
+#  3) 我在提取到下面这张表之后**主动停掉**了该 workflow，它的结构化结论未产出。
+#     按「没跑完的探针不产出阴性结论」：下表中未列出的变异体一律按**未测出**处理，不按阴性。
+#
+# 用法：`56 passed` = 该变异**存活**（没有任何一条测试抓到它）= 门有缺口。
+
+----- tool_result #1 -----
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=======================
+
+----- tool_result #2 -----
+================== 24 failed, 14 passed, 10 warnings in 3.14s ==================
+^^^ CONTROL (expect 38 passed)
+1
+================== 24 failed, 14 passed, 10 warnings in 2.83s ==================
+^^^ FALSIFICATION ANCHOR (expect many failed)
+
+----- tool_result #3 -----
+test sha BEFORE: 227367de17a11eb2  (frozen=227367de17a11eb2)
+======================= 41 passed, 10 warnings in 22.07s =======================
+test sha AFTER:  227367de17a11eb2
+
+----- tool_result #4 -----
+1	test sha BEFORE all: 227367de17a11eb2
+2	A_no_prefix            ======================= 41 passed, 10 warnings in 53.28s =======================
+3	B_dead_callouts        ================== 1 failed, 40 passed, 10 warnings in 29.51s ==================
+4	C_no_xiuzheng          ================== 8 failed, 41 passed, 10 warnings in 38.94s ==================
+5	D_thin_classify        ================== 6 failed, 43 passed, 10 warnings in 38.09s ==================
+6	E_first_marker_only    ================== 6 failed, 43 passed, 10 warnings in 23.76s ==================
+7	F_writes_outside       ============= 6 failed, 43 passed, 10 warnings in 72.15s (0:01:12) =============
+8	G_nondet_stderr        ================== 6 failed, 43 passed, 10 warnings in 31.27s ==================
+9	H_no_display_slice     ================= 13 failed, 43 passed, 10 warnings in 35.89s ==================
+10	
+
+----- tool_result #5 -----
+........................................................                 [100%]
+56 passed in 21.77s
+
+----- tool_result #6 -----
+CONTROL = 56 passed (frozen2, sha 9bf9258d…)
+A_no_prefix              56 passed in 33.68s
+A2_no_component_net      1 failed, 55 passed in 61.18s (0:01:01)
+B_dead_callouts          4 failed, 52 passed in 59.95s
+D_thin_classify          56 passed in 22.88s
+D2_thin_classify_all     56 passed in 22.61s
+E_first_marker_only      56 passed in 16.73s
+
+----- tool_result #7 -----
+F_writes_outside         56 passed in 27.33s
+G_nondet_stderr          56 passed in 27.78s
+H_no_display_slice       56 passed in 32.57s
+K_git_env_unwired        56 passed in 25.34s
+L_no_html_state          1 failed, 55 passed in 25.23s
+M_no_fence_flag          1 failed, 55 passed in 14.16s
+

@@ -1,0 +1,17 @@
+# CARD-G1-1 只读 hash 门（目标目录 _bmad-output，排除 evidence-g11/ 与 __pycache__）（§二.7）
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260918T230340
+# 被测脚本 sha256 = a460309be070b27bbd09d7089f643fc695ea11267fe6b88364213b6840d57e64  scripts/annotation_search.py
+--- 跑前 H ---
+500502fba3b89e179712a4720e2b5b7521683ce66a8f929d207d53256eff3679  -
+--- 真跑（stdout/stderr 落 EV，EV 在排除面内）---
+run_rc=0
+  命中行数 = 16
+  汇总行 =
+# files_scanned=1981 marker_hits=1315 shown=16 empty=15 unreadable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD', 'ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']
+--- 跑后 H（须与跑前逐字同）---
+500502fba3b89e179712a4720e2b5b7521683ce66a8f929d207d53256eff3679  -
+--- 验伪锚：同一 H 口径对两文件小目录，改一字节应变 ---
+  probe 改前 = bb09ac3c2ecb36fc39bb2cb1f7d3c0206e694c62a3bc1885557aae67b4aa79e6  -
+  probe 改后 = eb1b13687bb63b0cb29871c2ce5df7c353ad4fab0715bd14150f56185fe43791  -
+--- git status（_bmad-output 排除 evidence-g11 应空）---
+  status 行数 = 0

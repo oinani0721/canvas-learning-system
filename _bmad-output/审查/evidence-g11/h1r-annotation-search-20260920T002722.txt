@@ -1,0 +1,17 @@
+# CARD-G1-1 H1R 真数据小抄 ts=20260920T002722
+
+$ python3 scripts/annotation_search.py --root '_bmad-output/implementation-artifacts/epic-1/1-8-vault-switch-runtime-api.md' --keyword L128  （r3 HIGH-1R 原复现输入）
+# files_scanned=1 marker_hits=1 shown=1 empty=0 fenced=0 html_comment=0 unreadable=0 unwalkable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# private_roots_without_path=['ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']（A01 声明为私人，但仓内无落地路径可拦——不等于那里没有批注）
+_bmad-output/implementation-artifacts/epic-1/1-8-vault-switch-runtime-api.md:174 | 其他 | 2026-04-17(git) | **用户批注 L128**: | 3. **用户批注 L128**: 确认 Claudian 应自动检测 vault 变化
+rc=0
+
+$ python3 scripts/annotation_search.py --root '_bmad-output/审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md' --keyword 靶心  （r2 输入回归）
+# files_scanned=1 marker_hits=1 shown=1 empty=0 fenced=0 html_comment=0 unreadable=0 unwalkable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# private_roots_without_path=['ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']（A01 声明为私人，但仓内无落地路径可拦——不等于那里没有批注）
+_bmad-output/审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md:23 | 审查 | 2026-08-02(filename) | **用户批注原文（这是本轮要回答的靶心）： | **用户批注原文（这是本轮要回答的靶心）：**
+rc=0
+
+$ --keyword 靶心 --json | shasum ×2 （确定性回归）
+47236446053376a8ef25896c5e2a96444719b8ff130006efd0e3169174bc5c0d  -
+47236446053376a8ef25896c5e2a96444719b8ff130006efd0e3169174bc5c0d  -

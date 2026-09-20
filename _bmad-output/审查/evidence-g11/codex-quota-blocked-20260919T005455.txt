@@ -1,0 +1,32 @@
+# CARD-G1-1 Codex 复核受阻记录（配额耗尽，两次均 0 字节存档）
+# HEAD=4a6524aa12f4c247245afda099bfa19d60dc510c  ts=20260919T005455
+# 模型: gpt-6-astra · reasoning_effort: ultra · codex: codex-cli 0.153.3
+
+## 归因（实测，逐条排除）
+1. **不是未登录**（0 字节的另一大同形原因）：`codex login status` → `Logged in using ChatGPT`，rc=0。
+2. **不是静默挂起**：round-1 的 stderr 有 3598 行、196026 字节，Codex 确实读了两个新文件、
+   跑了 git ls-tree / rev-parse / diff --numstat、算出两文件 sha256 与 git blob、并进入 AST 对比阶段，
+   在 **60,512 tokens** 处被服务端切断。
+3. **真因 = 配额耗尽**，服务端原话（stderr 末两行，逐字抄录）：
+   `ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 23rd, 2026 11:05 AM.`
+
+## 处置（按协议 §2「0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额」）
+- 零成本探针（`reasoning_effort=low` + 一句话 prompt）同样被拒 ⇒ 确认此刻不是瞬时抖动。
+- 正式重发一次（存档 `-r1b`）⇒ 仍 0 字节。
+- 两份 0 字节 .md **均不入库**（已挪至 scratchpad）；`*.stderr*` 按 .gitignore:264 本就不入库。
+- ⇒ 本卡 (n) 的「Codex 多轮直到 BLOCKER/HIGH=0」**未完成**，交主 session 人审替代。
+
+## ⚠️ 这是批级事件（协议 §2.3）
+第十五批其余车道同样会撞上这堵墙。请主 session 在手册 §零 追加一行通告并通知在跑车道。
+⚠️ 但**不要把「9-23 恢复」当成不变量**——协议 §2.3 已记过一次同型撤回：
+`dcaaaef9` 的「配额耗尽至 09-15」通告被 `f8dd5903` 实测推翻（24 分钟后即恢复）。
+接手本卡的人请先花几千 token 用同样的零成本探针复测，别继承这个时间点。
+
+## 已就位的替代证据（供人审直接用）
+本卡在送 Codex 之前自跑了一轮内部对抗复核（六维 + 每条三重反驳）与一轮门的变异测试，
+抓到并修掉 8 类缺陷、补了 7 个存活变异体的门。落档：
+  - internal-review-*.txt        六维复核结论（⚠️ 在被审文件改动期间进行，不作验收依据，仅供复查）
+  - gate-mutation-survey-*.txt   门的变异存活面（七个变异体原本存活）
+  - gate-mutation-kill-*.txt     补门后逐个复放（七杀七；G 走了三跑，过程如实）
+  - negctl-1..4-*.txt            卡文 (k) 的四段负控
+  - close-judges-*.txt           收工全套快裁判

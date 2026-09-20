@@ -1,0 +1,22 @@
+_bmad-output/research/obsidian-qa-round4-claude-answers-2026-04-14.md:205 | 其他 | 2026-04-14(frontmatter) | **User： | > **Q6. FSRS 复习排期 — 是否按 group_id 隔离**   **User：是**
+_bmad-output/research/obsidian-translation-qa-2026-04-14.md:656 | 其他 | 2026-04-14(frontmatter) | **User： | > **User：依旧你引用的文档不存在，然后请你查看一下之前我的 后端 FSRS 是怎么设计的？**
+_bmad-output/research/round-15-bkt-fsrs-multihop-tauri-prd-deep-explore-2026-05-05.md:91 | 其他 | 2026-05-05(frontmatter) | **User： | **User： Anki 的 FSRS 难道不是根据你对每个单词卡片回答记得还是不记得，从而推算出掌握程度，然后再来推算出你的复习时间吗？我的 Canvas learning systeam 的检验白板一开始也是根据我对 这个原白板中各个节点的实际掌握情况，精确推算精确的复习时间，然后生成精确的检验白板来最大限度的回顾起我原白板的一切内容。**
+_bmad-output/research/round-15-bkt-fsrs-multihop-tauri-prd-deep-explore-2026-05-05.md:155 | 其他 | 2026-05-05(frontmatter) | **User： | **User：我们要不要直接 先在这个 https://github.com/HKUDS/DeepTutor 来改造，我觉得额外我需要的能力是：1，我学习是会以一个 vault  文件夹作为核心，那么我需要 ai 在给我解释讲解题目的时候，能精确返回我储存在笔记库里的笔记片段；2，就是我对于知识点的掌握度分析，我在学习知识的时候是以题目以及笔记片段为核心来分析，在分析的过程中我是会不停的打批注，那…
+_bmad-output/research/round-16-deeptutor-canvas-flow-deep-explore-2026-05-06.md:494 | 其他 | 2026-05-06(frontmatter) | [!error] | | **Phase 2** | T+5 ~ T+12d | **能力 2.1 callout 注入**（4-6d）+ **能力 3 FSRS**（4-5d）**并行**。目标：学习闭环成型 — 讲解时感知 `[!error]`，答题后算 next_due | 中。callout post-filter 需实测 recall 效果；FSRS notebook schema 扩展需保向下兼容 |
+_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md:494 | 审查 | 2026-08-20(filename) | **User： | **User：我需要让 codex 审查明确知道我之前的所有批注（最重要的是 User：），从而明确知道当前我聚焦的 Canvas learning systeam 是要实现什么，我们 Canvas learning systeam 在部署到不同 vault 快速使用，并且最终我需要你 goal 再进行大规模改进后，我要你给我一个 完整的产品 readme。我才能得知是否目前的 Canvas le…
+_bmad-output/审查/prompts/codex-prompt-CARD-G1-1.md:27 | 审查 | unknown(unknown) | **User： | 这个脚本要解决的问题：294 条 `**User：` 与 348 条 `[!question]+` 形态的用户批注散在两千多个 Markdown
+_bmad-output/审查/prompts/codex-prompt-CARD-G1-1.md:27 | 审查 | unknown(unknown) | [!question]+ | 这个脚本要解决的问题：294 条 `**User：` 与 348 条 `[!question]+` 形态的用户批注散在两千多个 Markdown
+_bmad-output/审查/rag-scale_pack_2026-08-02.md:7241 | 审查 | 2026-08-02(filename) | [!info]+ | > [!info]+ FSRS 调度已上线（FSRS-V2 2026-07-30）
+_bmad-output/验收单/Story-CARD-C1a-复习管道vault命名空间化.md:13 | 验收单批注区 | 2026-08-25(frontmatter) | [!info]+ | > [!info]+ 这是什么
+_bmad-output/验收单/Story-CARD-C2-跨库复习总览页.md:13 | 验收单批注区 | 2026-08-25(frontmatter) | [!info]+ | > [!info]+ 这是什么
+_bmad-output/验收单/Story-CARD-C3-fsrs历史状态0拆雷.md:13 | 验收单批注区 | 2026-08-25(frontmatter) | [!info]+ | > [!info]+ 这是什么
+_bmad-output/验收单/Story-CARD-C3-fsrs历史状态0拆雷.md:74 | 验收单批注区 | 2026-08-25(frontmatter) | [!warning]+ | > [!warning]+ 这一步 Claude 故意没做，等你点头
+_bmad-output/验收单/Story-CARD-C4-假Graphiti镜像下线.md:13 | 验收单批注区 | 2026-08-25(frontmatter) | [!info]+ | > [!info]+ 这是什么
+_bmad-output/验收单/Story-MVP-α-end-to-end-learning-loop.md:366 | 验收单批注区 | 2026-05-20(frontmatter) | [!info]+ | > [!info]+ 为什么有这个 section
+_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:28 | 验收单批注区 | 2026-09-19(filename) | **User： | | 2 | **先红②** marker 面基线 | 本树实测 `**User：` 225/97、`[!question]+` 302/126、`[!error]+` 193/95；FSRS 37/18、跨vault 9/6、README 3/3。与卡文 §〇 数字不同，**归因已实测**（两树 `_bmad-output` 差 102 个 md），判据方向未改 | `marker-baselin…
+_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:28 | 验收单批注区 | 2026-09-19(filename) | [!error]+ | | 2 | **先红②** marker 面基线 | 本树实测 `**User：` 225/97、`[!question]+` 302/126、`[!error]+` 193/95；FSRS 37/18、跨vault 9/6、README 3/3。与卡文 §〇 数字不同，**归因已实测**（两树 `_bmad-output` 差 102 个 md），判据方向未改 | `marker-baselin…
+_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:28 | 验收单批注区 | 2026-09-19(filename) | [!question]+ | | 2 | **先红②** marker 面基线 | 本树实测 `**User：` 225/97、`[!question]+` 302/126、`[!error]+` 193/95；FSRS 37/18、跨vault 9/6、README 3/3。与卡文 §〇 数字不同，**归因已实测**（两树 `_bmad-output` 差 102 个 md），判据方向未改 | `marker-baselin…
+_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:94 | 验收单批注区 | 2026-09-19(filename) | **User： | `**User：` 294/122 → **225/97**，`[!question]+` 348/137 → **302/126**，`[!error]+` 216/102 → **193/95**，
+_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:94 | 验收单批注区 | 2026-09-19(filename) | [!error]+ | `**User：` 294/122 → **225/97**，`[!question]+` 348/137 → **302/126**，`[!error]+` 216/102 → **193/95**，
+_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:94 | 验收单批注区 | 2026-09-19(filename) | [!question]+ | `**User：` 294/122 → **225/97**，`[!question]+` 348/137 → **302/126**，`[!error]+` 216/102 → **193/95**，
+_bmad-output/验收单/UAT-CARD-G1-1-2026-09-19.md:99 | 验收单批注区 | 2026-09-19(filename) | **User： | 得 3 文件；按粗体形态 `**User：` 扫描得 2 文件（`check_skill_trigger_matrix.py` 只含裸形态）。

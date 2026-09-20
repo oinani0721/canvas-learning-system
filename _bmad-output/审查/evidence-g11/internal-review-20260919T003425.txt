@@ -1,0 +1,266 @@
+# CARD-G1-1 内部对抗复核落盘（六维找缺陷 + 每条三重反驳）
+#
+# ⚠️ 两条如实声明，读者先看这两条再看结论：
+# 1) 本轮复核**在被审文件被改动期间进行**——我一边读结论一边改代码，违反「审查对象须冻结」。
+#    因此它的每一条都只当线索：下面标 [已整改] 的，都是我另行用真数据计数复测后才动的手；
+#    标 [不整改] 的，附实测数字说明为什么不动。
+# 2) 按协议 §1「不入库的复核不作依据」，本轮**不作为验收依据**；验收依据是 evidence-g11/ 里
+#    各自独立的计数存档与回归门。这份落盘只为让后人能复查我当时看到了什么。
+#
+# 反驳规则：每条发现由 3 个不同视角（correctness / reproducibility / scope）独立尝试推翻，
+# 默认立场 refuted=true；「存活」= 至少 2 票没能推翻。
+
+## review:patch —— 5 条
+- [MEDIUM] protocol-s5-annotation-search.patch:14 条款自相矛盾：0 命中（rc=1）时不存在可引用的 file:line
+  说明：新条款同一句里既写「0 命中也落档、rc=1 如实记」（承认 0 命中是合法结果），又写「卡文 §〇 / 验收单须引用该存档的命中数与至少一条 file:line」。脚本 scripts/annotation_search.py:661 是 `return 0 if records else 1`——rc=1 恰恰等价于 records 为空、stdout 一个 file:line 都没有。于是落在 0 命中这条路径上的车道无法同时满足两条要求，只能二选一：要么违反「须引用至少一条 file:line」，要么反复放宽 --keyword 直到凑出命中——而后半句「不得为凑命中加 --include-private」正是在禁止同一类凑数动机，条款内部方向相反。门未覆盖的路径：协议没有给 0 命中时的引用替代口径（例如「0 命中则引用 rc 与 files_scanned/marker_hits」）。
+  验证思路：在 card-p8-backend 树跑 `python3 scripts/annotation_search.py --root .claude/rules/card-batch-protocol.md --keyword zzzz-no-such-token-zzzz`（这是一条负控输入：主题词确定不存在）。实测 stdout 长度 0、rc=1。此时按条款要求去卡文里「引用至少一条 file:line」没有任何可引用对象。
+
+- [MEDIUM] protocol-s5-annotation-search.patch:14 「输出落 …txt」未含 2>&1／末行 rc，与 §2.2 的 0 字节禁入库条款直接冲突
+  说明：条款只写「输出落 `_bmad-output/审查/evidence-<卡短名>/annotation-search-<ts>.txt`」，既没说 `2>&1`，也没说 §2.2 要求的「末行写 rc=$?」。但条款要求引用的「命中数」只在 stderr 上：scripts/annotation_search.py:656 `print(format_summary(stats), file=sys.stderr)`，records 走 stdout。按条款字面做一个 `> …txt` 重定向，存档里没有命中数；更要命的是条款明确预期的 0 命中场景下，stdout 为空 ⇒ 存档是 0 字节文件，而 §2.2（主干树协议 :58）写着「入库前自检本次新增存档：0 字节…的一律不入库」。于是新条款命令「0 命中也落档」，既有条款命令「0 字节不入库」，两条在同一个输入上给出相反指令。§2.2:49 同时还警告 `tee` 会吞 rc——条款说「rc=1 如实记」却没给记法。
+  验证思路：`python3 scripts/annotation_search.py --root .claude/rules/card-batch-protocol.md --keyword zzzz-no-such-token-zzzz > /tmp/zero.txt 2>/dev/null; echo rc=$?; wc -c < /tmp/zero.txt` → rc=1、字节数 0。再去掉 `2>/dev/null` 可看到 `# files_scanned=1 marker_hits=0 shown=0 …` 这行命中数只出现在终端、不在 /tmp/zero.txt 里。对照主干树协议 `sed -n '49p;58p' .claude/rules/card-batch-protocol.md`。
+
+- [MEDIUM] protocol-s5-annotation-search.patch:14 「自第十五批起」对第十五批本身不可执行：主干无该脚本，且排批早于脚本一天
+  说明：条款要求「主 session 排批写卡文前…各跑一次 python3 scripts/annotation_search.py」，生效面写「自第十五批起」。但该脚本由 G1-1 这张第十五批的卡本身产出，patch 又是在集成期才套到主干树；主干树（feature-obsidian-hybrid-dev）当前没有 scripts/annotation_search.py，按条款原样跑只会得到 `No such file or directory`。时间上也对不上：第十五批排批 commit 0034c226 是 2026-09-18，脚本首个 commit c924e6b1 是 2026-09-19——排批侧的义务在第十五批上物理不可能被履行。这同时撞上 §5 既有条款（主干树 :94）「卡文事实必须在**当前主干**实测」：在脚本进主干前，主 session 无法在主干上实测这条事实。生效面写成「自第十六批起」或把排批侧义务与车道侧义务分别标注生效批次即可消解。
+  验证思路：`cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev && python3 scripts/annotation_search.py --story CARD-X --keyword y` → `can't open file …/scripts/annotation_search.py: [Errno 2] No such file or directory`。再对照 `git log -1 --format='%h %cs' -- scripts/annotation_search.py`（2026-09-19）与 `git log -1 --format='%h %cs' 0034c226`（2026-09-18）。
+
+- [LOW] protocol-s5-annotation-search.patch:14 `--story <card_id 与 src_id>` 的 src_id 全仓未定义，且按字面写法恒 0 命中
+  说明：条款给出的命令模板是 `--story <card_id 与 src_id>`。「src_id」在协议全文 0 次出现（`grep -c src_id` 主干树协议 = 0），在 _bmad-output/implementation-artifacts/goal-cards/ 整棵树也 0 次出现——读条款的人无从知道该填什么。写法本身也有歧义：`--story` 是 `action="append"` 的单值参数（scripts/annotation_search.py:568-570），匹配逻辑是 `story in block_text or story in shown_path` 的大小写敏感子串包含，所以把「card_id 与 src_id」当一个值传进去，传的是一个含「与」的字面串，永远匹配不到任何块。想表达「两个 --story」就要写成 `--story <card_id> --story <src_id>` 并给出 src_id 的定义。
+  验证思路：对照输入两条：`python3 scripts/annotation_search.py --root '_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md' --story 'CARD-G6-2'` → 5 行、rc=0；把参数换成条款字面的 `--story 'CARD-G6-2 与 G6-2'` → 0 行、rc=1。同一份文件、同一条命令，只因按模板字面拼参数就从 5 命中掉到 0。
+
+- [LOW] protocol-s5-annotation-search.patch:14 「需要时按 A01 走授权」在 A01 与脚本里都没有对应机制
+  说明：条款写「私人 root 默认排除，需要时按 A01 走授权」，但 A01 里没有任何可走的授权流程：A01-source-boundary-draft.json:42-108 的八条 source_roots，authorization_state 分别是 boundary-approval-pending / export-unauthorized / unauthorized / not-scanned，没有一条处于已授权态，`authorization_receipt_commitment` 八条全是 null；A01 也没有描述如何从 pending 迁到已授权。脚本这一侧同样不看这个字段——`grep -c authorization_state scripts/annotation_search.py` = 0，私人 root 集合只由 privacy_ceiling(P3/P4) 与 proposed_action 含 private-locator 算出（:168-171）。所以「按 A01 走授权」既没有可执行的动作，改了 A01 的 authorization_state 也不会改变脚本行为，真正能改变行为的只有条款同时禁止滥用的 `--include-private`。建议把这半句改成指向真实的授权面（用户当次显式授权 + 落 evidence），或明说「本卡范围内不提供授权通道，私人 root 一律不扫」。
+  验证思路：`sed -n '42,108p' '_bmad-output/审查/phase0a-annotation-truth/A01-source-boundary-draft.json' | grep -c '"authorization_state": "' ` = 8，其中 `grep -o '"authorization_state": "[^"]*"' | sort -u` 只有 pending/unauthorized/export-unauthorized/not-scanned 四种，无已授权态；再 `grep -c authorization_state scripts/annotation_search.py` = 0，说明把任一 root 的 authorization_state 改成任意值，脚本的排除集合都不变。
+
+## review:recall —— 8 条
+- [HIGH] annotation_search.py:59 中文 T1 marker（**用户批注：/**用户原话：/**用户反馈：）完全不在 MARKERS，整份文件 marker_hits=0
+  说明：契约 :131 的 T1 明文包含「明确中文『用户批注/反馈/修正/原话』」，:134 的「至少覆盖」清单也列了「用户批注/反馈/原话」。脚本 docstring:7-8 自称覆盖「§4.1 的 T1 全部」，但 MARKERS 只有 user_bold（要求字面 `**User`）与 8 个 callout，中文形态一条没有——这不是 T3 broad discovery（不涉及 user/USer 异常大小写、role 字段、转述、无冒号编号），是 T1 本层的未被拦下的输入。真数据实测：`_bmad-output/` 内 `**用户(批注|反馈|原话|修正)` 共 11 处，其中至少 3 处是用户原话的容器头——`审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md:23` 是 `**用户批注原文（这是本轮要回答的靶心）：**`，用户逐字原话在 :25；`验收单/Story-2.1-Phase1-成熟度升级-2026-05-03.md:429` 是 `> **用户批注（步骤 1，line 125）**：`，原话在 :430。整份 2026-08-02 文件的 marker_hits = 0，即该文件在本工具视角下「没有任何批注」。协议 patch 要求卡文/验收单引用该工具的命中数与 file:line，0 命中会被读成「这张卡没有相关用户意见」。
+  验证思路：对照输入：`python3 scripts/annotation_search.py --root '_bmad-output/审查/2026-08-02-规模化结构检索-审查请求-给ChatGPT.md' --a01 '_bmad-output/审查/phase0a-annotation-truth/A01-source-boundary-draft.json' --keyword 靶心`。观察到 stderr `marker_hits=0 shown=0`、rc=1；而 `sed -n '23,25p'` 同一文件显示 :23 的中文批注头与 :25 的用户原话引用。负控输入：把同一段改成 `**User：` 即命中，证明缺的是 marker 形态不是别的环节。
+
+- [MEDIUM] annotation_search.py:427 续行遇到任意 ** 即 break，同一批注区剩余正文成为检索不到的面
+  说明：extract_block 的非 callout 分支把「续行里出现 `**`」当成批注结束。但用户批注里加粗是常态，`**` 更常是正文中的强调而非收尾符。后果不只是摘录短了一截：search() :512 用 `block_text` 做关键词匹配，块外的行没有任何其他 marker 锚点，于是整段正文对 --keyword 不可见。真数据实测（排除表格行后）28 处属此形态。实例 `_bmad-output/研究/2026-07-20-V2未实现功能全景盘点-代码实况裁决版.md:178-183` 是一个 `> [!todo]+ 📝 批注区`：:179 是待拍板第 1 条，:180 第 2 条，:181 第 3 条。锚在 :178 的记录只含 178-179（:179 含 `**波次 1 是否开跑**` 触发 break），:180/:181 两条待用户拍板的事项永久检索不到。
+  验证思路：对照输入三连（同一文件同一批注区，只换关键词）：`--keyword '波次 1 是否开跑'`（:179）→ shown=1，锚点 178；`--keyword 三个灵魂设计空洞`（:180）→ shown=0；`--keyword 决策性放弃`（:181）→ shown=0。三个词都在同一个 `[!todo]+ 批注区` 里，`grep -c` 各为 1，差别只在是否落在第一条 `**` 之前。
+
+- [MEDIUM] annotation_search.py:421 块会吞进 Claude 的回复，工具把它当作「用户说过的话」返回在 **User 行上
+  说明：续行扫描只在空行或含 `**` 的行处停，不区分续行的说话人。真数据里批注区的标准写法是 `> **User：** …` 紧跟 `>` 空行再跟 `> **Claude（日期）：** …`，于是 Claude 回复行会被 append 进 User 记录的块（append 在 break 判定之前，:426-428）。`_bmad-output/研究/2026-07-22-下一步开发计划-稳定记忆与越老越准.md` 实测：锚在 :147（marker `**User：`）的块 = [147, 148, 149]，其中 :149 是 `> **Claude（2026-07-23 追记）：** ChatGPT 第二意见已回收…`。一个只出现在 Claude 回复里的关键词会返回一条 marker=`**User：`、excerpt 首行是用户原话的记录——按协议 patch 这条 file:line 会被抄进卡文当成用户意见的依据，但触发命中的文字不是用户写的。该文件里锚点 :146 同样把 :147 吞进去（另一重复计）。
+  验证思路：输入：`--root '_bmad-output/研究/2026-07-22-下一步开发计划-稳定记忆与越老越准.md' --keyword 第二意见已回收`（`grep -c` = 1，只在 :149 出现）。观察到输出是 `…:147 | 研究 | … | **User： | > **User：** 请你直接开始执行计划…`——命中行号与 marker 都指向用户，命中词却在 Claude 的回复里。
+
+- [MEDIUM] annotation_search.py:501 无容器状态机：HTML 注释里的模板与行内代码里的 callout 字面量都进召回，且记录里无任何标记
+  说明：契约 :134 的「至少覆盖」清单含「HTML 注释、模板/示例/引用」，:137 要求用状态机识别 HTML comment / fenced code；search() 的行循环对这两者零感知。实测 `_bmad-output/验收单/Story-2.5.X-progressive-confirmation.md:781-787` 是一段 `<!-- … -->` 注释掉的填写模板，工具把 :782 与 :783 当成两条 `验收单批注区` 的 `[!error]+` 批注返回，excerpt 里是 `> 你的原批注：[verbatim]` 这种占位符；同一模板在 Story-2.5.Y:665 与 Story-2.5-error-extraction:469 复制了三份。行内代码同理：`_bmad-output/research/round-23-study-question-skill-design-2026-05-10.md:225` 是一行讲 callout 优先级的散文 `- callout 优先级: \`[!error]+\` > \`[!question]+\` > \`[!tip]+\``，工具从这一行产出 3 条记录。记录里没有 in_code / in_comment 字段，下游按协议引用 file:line 时无从分辨。注：工作区未提交改动已加了 FENCE_RE 围栏计数（只计入 stderr 的 fenced=N，记录仍照发），HTML 注释与行内代码仍未覆盖。
+  验证思路：输入：`--root '_bmad-output/验收单/Story-2.5.X-progressive-confirmation.md' --keyword 你的原批注`。观察到两行 stdout 记录，category=验收单批注区、date=2026-05-05(frontmatter)；再 `sed -n '781,787p'` 同一文件，可见这段整体包在 `<!--` / `-->` 之间。对照输入：把关键词换成 `callout 优先级` 跑 round-23 那份，一行散文产出 3 条记录。
+
+- [MEDIUM] annotation_search.py:58 [!todo]+ 批注区 不在 MARKERS，而它正是真数据里 9 处批注区的容器
+  说明：MARKERS 的 callout 族固定 8 类（question/error/tip/note/warning/hint/info/BMAD-ANNO）。真数据里 `[!todo]` 共 10 处，其中 9 处标题逐字是 `> [!todo]+ 📝 批注区（直接写 **User：**）`——这是 07-20~07-24 一整批研究文档的标准批注容器。这 9 处目前只是「碰巧」被召回：它们的标题字符串里含字面 `**User：`，命中的是 user_bold 而不是容器本身；标题不含该字样的那一处 `_bmad-output/验收单/UAT-未验证功能上手验收-2026-07-13.md:562`（`> [!todo]+ 🚦 总验收结果（等你回填）`）对本工具完全不可见。这也是上一条 `**` 截断之所以伤到批注区的原因：若 `[!todo]` 走 callout 分支，整段 `>` 续行会被完整取走。
+  验证思路：输入：`--root '_bmad-output/验收单/UAT-未验证功能上手验收-2026-07-13.md' --keyword 总验收结果`。观察到 shown=0（该行是一个等用户回填的 `[!todo]+` 批注槽）。对照输入：`grep -rn -F '[!todo]' _bmad-output` 共 10 行，`| grep -c 批注` = 9。
+
+- [LOW] annotation_search.py:422 --context 名义是「摘录续行上限」，实际同时决定关键词检索面
+  说明：CLI 帮助文案（:576）把 --context 描述成「摘录续行上限」，但 block 被截断后 :512 的 block_text 也随之变短，关键词匹配面一起缩。调小 --context 不是「显示少一点」而是「找不到了」，rc 也从 0 翻成 1。门未覆盖这条路径：test_context_limit_caps_continuation_lines（backend/tests/unit/test_annotation_search.py:460）只断言 excerpt 行数 ≤ 2，没有任何一条断言「--context 不改变命中集合」。同源第二态：HEAD 版 `--context 0` 会让所有换行续写的批注 block 长度恒为 1，is_empty_slot（:435 的 `len(block) == 1`）于是把它们全判成空槽、默认不列，empty 计数虚高。（工作区未提交改动已用 has_continuation + limit=max(context,1) 修掉 context=0 这一态；检索面随 --context 缩这一态仍在。）
+  验证思路：同一输入只改一个参数：`--root '_bmad-output/研究/2026-07-22-下一步开发计划-稳定记忆与越老越准.md' --keyword 第二意见已回收 --context 5` → 1 条记录；换成 `--context 1` → 0 条记录、rc=1。文件与关键词都没变。
+
+- [LOW] annotation_search.py:60 callout 类型正则大小写敏感，[!NOTE] / [!WARNING] 形态漏召回
+  说明：八条 callout 正则写死小写（BMAD-ANNO 写死大写），无 re.IGNORECASE。Obsidian 本身对 callout 类型不区分大小写，真数据里已有 3 处大写形态：`_bmad-output/验收单/UAT-CARD-G1-4-README诚实止血横幅-2026-08-27.md:77`、`_bmad-output/验收单/Story-1.17-ai-linked-doc.md:536`、`_bmad-output/审查/codex-review-CARD-G1-4.md:59`。数量小故记 LOW，但性质上属 marker 表未覆盖的输入，不是 T3——T3 的排除项说的是 user/USer 这类 User 词本身的大小写，callout 类型名的大小写是另一回事。
+  验证思路：输入：`python3 -c` 里 `import annotation_search as m; m.find_markers('> [!NOTE]+ x')` → 返回空列表；`m.find_markers('> [!note]+ x')` → 返回 1 条。对照：`grep -rno -E '\[!(NOTE|WARNING|Note|Question)\]' _bmad-output` 命中 3 行。
+
+- [LOW] annotation_search.py:59 **User**： 这类「marker 被粗体符号拆开」的 T2 形态未覆盖
+  说明：user_bold 正则要求 `**User` 之后直接是可选数字/空格/修正/Comment 再接冒号，`**User**：` 里冒号前多出的两个星号让整条不匹配。契约 :130 把「marker 被粗体符号拆开」归在 T2，脚本 docstring:8 自称覆盖「T2 的粗体 / blockquote / 行内三形态」，所以这是声明范围内的未覆盖输入。真数据 1 处：`_bmad-output/验收单/Story-2.1-Phase1-成熟度升级-2026-05-03.md:279`（`**User**：**输出：看起来你的问题部分还是模板占位符…**`），是一条真实用户批注。同文件 :429 的中文形态也漏（见第 1 条），该文件实际命中 7 条、都不含 279/429。
+  验证思路：输入：`m.find_markers('**User**：内容')` → 空列表；`m.find_markers('**User：内容')` → 1 条。端到端：跑该文件 `--keyword 的 --json`，把命中的 line 集合打出来，279 与 429 均不在内。
+
+## review:privacy —— 6 条
+- [HIGH] annotation_search.py:207 6 个 A01 私人 root 里只有 2 个有路径映射，另 4 个（含 P4-secret）零拦截，汇总行却把它们一并报成「已排除」
+  说明：绑定 sha256 fe9b911f68b36ecbae00f5b0e282395d08b20431ccfc7745e130e6a8f7a92e46（工作树未提交态，2026-09-19 00:18:35）。
+
+load_private_root_ids(:144) 从真 A01 算出 6 个私人 root_id（实测：ROOT-ACTIVE-VAULT / ROOT-ANCHORED-PRD / ROOT-EXTERNAL-PRIVATE-01 / ROOT-GRAPHITI-MEMORY / ROOT-OTHER-BACKUPS / ROOT-TRANSCRIPTS），但 PRIVATE_RELATIVE_PATHS(:101) 与 PRIVATE_ABSOLUTE_PATHS(:108) 只给了前两个 id 路径。build_private_paths 在 :207 对没有映射的 id 直接写 mapping[root_id] = []，既不报错也不告警。实测前缀数：ACTIVE-VAULT=10、ANCHORED-PRD=21、EXTERNAL-PRIVATE-01=0、GRAPHITI-MEMORY=0、OTHER-BACKUPS=0、TRANSCRIPTS=0。
+
+于是这 4 个 root 对应的输入完全没被拦下：既不触发 :516 的 PrivateRootRefused，也不进 iter_markdown_files 的 pruned。实测（tmp fixture，A01 声明 ROOT-TRANSCRIPTS=P3-high-sensitive）：`--root <tmp>/transcripts --keyword kw-tr --json` → rc=0，stdout 原样返回 `**User：对话导出里的原话 kw-tr**`，而同一次 stderr 写的是 excluded_private_roots=['ROOT-ACTIVE-VAULT','ROOT-ANCHORED-PRD','ROOT-OTHER-BACKUPS','ROOT-TRANSCRIPTS']。ROOT-OTHER-BACKUPS(P4-secret) 同样：`--root <tmp>/backups` → rc=0 返回 old.md。
+
+危害面不是理论的：本卡 patch 把「开卡必跑批注检索 + 输出落 evidence-<卡短名>/」写进协议 §5，而 ROOT-TRANSCRIPTS / ROOT-GRAPHITI-MEMORY 恰恰是「用户原话」最密集的地方（例如 ~/.claude/projects/<slug>/memory/*.md 就是 Markdown），操作者最有动机把 --root 指过去；stderr 那行会让他相信这些 root 已被排除，结果私人正文进了会被 commit 的存档。
+
+单测无覆盖：现有私人 root 用例全部只打 canvas-vault 一条路径；test_private_root_ids_are_derived_from_a01_not_hardcoded(:560) 还断言 len(real_private)==6，等于把「6 个私人 root」写进门，却没有任何一条门问「这 6 个里有几个真能拦」。
+
+建议（不改语义、最小）：stats 里把 excluded_private_roots 拆成 enforced / unenforced 两栏，对 unenforced 的 root 在 stderr 打一行显式告警（「本脚本没有 <id> 的路径映射，无法拦截」）。真正的 fail-closed 做不到（A01 没有 path 字段，脚本无从知道这些 root 在哪），所以正确解是如实报告而不是继续声称已排除。
+  验证思路：tmp 里建 <tmp>/transcripts/session.md 写一条 **User：… kw-tr**，A01 只给 ROOT-TRANSCRIPTS=P3-high-sensitive；跑 --root <tmp>/transcripts --keyword kw-tr --json：观察 rc=0 且 stdout 返回该批注，同时 stderr 的 excluded_private_roots 里列着 ROOT-TRANSCRIPTS。对照输入：把同一条内容放进 <tmp>/repo/canvas-vault/ 再扫 <tmp>/repo → rc=1、stdout 为 []。
+
+- [HIGH] annotation_search.py:175 privacy_ceiling 的大小写/前后空白/未知更高级别取值一律静默当成「非私人」，是 fail-open 而不是承诺的退出码 2
+  说明：绑定 sha256 fe9b911f…（同上）。
+
+:175 的判定是精确集合成员 `ceiling in PRIVATE_CEILINGS`（PRIVATE_CEILINGS=:118，只有 'P3-high-sensitive' / 'P4-secret' 两个字面量），:177 的兜底 elif 只认 proposed_action 里的 'private-locator'。而 ROOT-ACTIVE-VAULT 的 action 是 'private-layer-only-after-authorization'，不含该 token，所以一旦 ceiling 字面量对不上，这个 root 就直接掉出私人集合。:162 的校验只查「是不是非空字符串」，认不出的取值一律放行。
+
+实测（同一 fixture，只改 A01 里 ROOT-ACTIVE-VAULT 的 privacy_ceiling 一个字段，其余逐字不变）：
+  'P3-high-sensitive'（对照输入）→ rc=1，leaked=[]，excluded 含 ROOT-ACTIVE-VAULT
+  'P3-High-Sensitive'            → rc=0，leaked=['x.md']，excluded 里 ROOT-ACTIVE-VAULT 消失
+  ' P3-high-sensitive'（前导空格）→ rc=0，leaked=['x.md']
+  'P3-high-sensitive\n'（尾换行）→ rc=0，leaked=['x.md']
+  'p3-high-sensitive'            → rc=0，leaked=['x.md']
+  'P4-Secret'                    → rc=0，leaked=['x.md']
+  'P5-ultra-secret'（将来更高级别）→ rc=0，leaked=['x.md']
+leaked 的正文就是 canvas-vault/x.md 里的 `**User：私人 kw-ceil**`，即私人面内容被打到 stdout。
+
+这直接顶掉脚本 docstring 与 :619 自称的「A01 结构不合约一律退出码 2（fail-closed），不降级成『当作没有私人 root 继续扫』」——认不出的 ceiling 恰恰被降级成了「没有私人 root」。触发条件不需要恶意：A01 文件名就叫 -draft.json、schema_version 是 '2.0-draft'，手改/再生成时的大小写漂移、尾随空白、或未来新增一档更敏感级别，都会静默关掉排除，而唯一的信号是 stderr 那行少了一个 id。
+
+建议：把已知 ceiling 全集（P1-project-internal / P2-personal / P3-high-sensitive / P4-secret）做成白名单，比较前 strip()+casefold()；不在白名单的取值按「结构不合约」抛 A01Error → 退出码 2（这正是 :162 已有的 fail-closed 通道），不要让它落进「不是 P3/P4 所以是公开」。
+  验证思路：复制 MINIMAL A01，只把 ROOT-ACTIVE-VAULT 的 privacy_ceiling 从 'P3-high-sensitive' 改成 'P3-High-Sensitive'，其余一字不动；对同一个含 <tmp>/repo/canvas-vault/x.md 的 fixture 跑两次 --keyword kw-ceil --json：对照输入 rc=1/stdout=[]，改过的那次 rc=0 并把 x.md 正文打出来，且 stderr 的 excluded_private_roots 少了 ROOT-ACTIVE-VAULT。
+
+- [LOW] annotation_search.py:227 hardlink 别名把私人文件的正文带出私人子树：路径口径的守卫看不见 inode
+  说明：绑定 sha256 fe9b911f…（同上）。
+
+private_root_of(:227) 的三层判据（fold_path 后的前缀比较 / 组件名 canvas-vault / basename PRD）全部只看路径字符串。hardlink 与原件共享 inode 但路径上没有任何私人痕迹，所以三层全不命中。
+
+实测：<tmp>/repo/canvas-vault/x.md 写 `**User：私人 vault 原件 kw-hard**`，再 os.link 出 <tmp>/repo/alias.md（实测 st_ino 相同）；跑 `--root <tmp>/repo --keyword kw-hard --json` → rc=0，stdout 返回 alias.md 及其完整正文，同一次 stderr 还写着 excluded_private_roots=['ROOT-ACTIVE-VAULT',…] 与 pruned_private_paths=[…/repo/canvas-vault]——即守卫「以为」自己挡住了，内容却从别名出去了。
+
+如实定性：这与「有人把 vault 笔记 cp 一份进仓库」是同一类，路径口径的守卫在原理上够不着（要挡只能对每个候选文件 stat 出 (st_dev, st_ino) 再与私人子树的 inode 集合比，而那要求先遍历私人子树——恰恰是本工具拒绝做的事）。现实触发面很窄：本仓没有任何流程会往 _bmad-output 建 hardlink。所以建议不是去修，而是在脚本 docstring 的「**不做**（如实声明，非遗漏）」段落里补一句：私人 root 排除是路径口径，hardlink / 复制件不在覆盖面。写下来比留着「以为全挡住了」更安全。
+  验证思路：在 tmp fixture 里 os.link(canvas-vault/x.md, repo/alias.md)（先确认两者 st_ino 相同），扫 repo：观察 stdout 返回 alias.md 且正文就是 vault 原件那句，而 stderr 同时报 pruned_private_paths 含 canvas-vault。
+
+- [LOW] annotation_search.py:262 os.walk 默认吞掉目录级 OSError：整棵子树静默消失，不进 unreadable 桶也不改退出码
+  说明：绑定 sha256 fe9b911f…（同上）。
+
+:262 用 os.walk(real_root) 且没传 onerror，默认行为是把 scandir 的 OSError 直接丢掉。unreadable 桶（:284 read_text 返回 None 的那条路径）只覆盖「文件打开/解码失败」，覆盖不到「目录列不出来」。结果是一整棵子树从扫描面消失，files_scanned 只是变小，unreadable 仍是 0，rc 不变——没有任何一处说「这里有东西我没看到」。
+
+实测：<tmp>/repo/{visible.md, locked/hidden.md} 两条批注，chmod 前 `files_scanned=2 … unreadable=0`、两条都返回；对 locked/ chmod 000 后同一条命令 `files_scanned=1 … unreadable=0`、只返回 visible.md，rc 同为 0。
+
+与契约 §4.2（:139 一带）「NUL/非法编码不能静默当 0」「解析失败必须进入失败分桶，不得被 Markdown 计数静默遮蔽」同一条精神，只是漏在目录这一级。实际触发面小（_bmad-output 下没有不可读目录），所以 LOW；但这条脚本的输出要进 evidence 并被当成「找过了」的依据，静默少看一棵子树比少看一个文件更难发现。
+
+建议：os.walk(real_root, onerror=lambda e: unwalkable.append(e.filename))，并在 stats 里加一个 unwalkable 计数 + stderr 的 `# unwalkable_paths=` 行，与既有 unreadable 同形。
+  验证思路：tmp 里放 repo/visible.md 与 repo/locked/hidden.md 各一条批注，先扫一次记下 files_scanned=2；chmod 000 repo/locked 后原样再扫：观察 files_scanned=1、unreadable 仍为 0、rc 仍为 0，hidden.md 无任何痕迹地消失（跑完记得 chmod 回去）。
+
+- [LOW] annotation_search.py:115 组件名/basename 安全网是全局无条件的（且 casefold 后更宽）：今日实测零误伤，但未来往 _bmad-output 放 PRD 快照会被排除
+  说明：绑定 sha256 fe9b911f…（同上）。这条是对「build_private_paths 拿各级祖先当基点会不会反过来误伤」的回答，结论分两半。
+
+(a) 祖先基点本身不误伤。build_private_paths(:182) 把仓根 ∪ 每个扫描根的各级祖先都当基点拼私人相对路径，实测 ROOT-ACTIVE-VAULT 由此得到 10 条前缀（/canvas-vault、/Users/canvas-vault、/Users/Heishing/canvas-vault … 直到真 vault），其中只有真 vault 一条在磁盘上存在，其余都是不存在的路径，startswith 永远不命中任何真实路径，没有可观测的误伤。ROOT-ANCHORED-PRD 的 21 条同理（<各级祖先>/.gdr/_external 之类）。
+
+(b) 真正无条件的是 PRIVATE_COMPONENT_ROOTS(:115) 与 PRIVATE_BASENAME_ROOTS(:116) 这两张安全网：它们不看扫描根、不看是不是声明过的那一份，任何深度上只要有一段目录名 fold 后等于 canvas-vault、或任何文件 basename fold 后等于 14-scheme-a-implementation-prd.md，就判私人。00:16 加的 fold_path 让它连 Canvas-Vault / CANVAS-VAULT / 大小写变体 PRD 文件名一起吃下（作者已在 fold_path docstring 里把这个代价声明为刻意的 fail-safe 方向，所以不按缺陷报）。
+
+今日实测无误伤实例：整棵工作树 `find . -type d -iname canvas-vault` 只有 ./canvas-vault（就是那个 vault 本身），`find . -type f -iname 14-scheme-a-implementation-prd.md` 只有 ./docs/scheme-a-planning/14-scheme-a-implementation-prd.md（正是 PRIVATE_RELATIVE_PATHS 声明的那条）。
+
+潜在面（只提醒，不当缺陷）：本批工作流常把参考件快照进 _bmad-output/审查/evidence-*/，一旦某次落档带进一份 PRD 同名副本，那份副本里的 §12 用户批注就会从检索面上消失——而这个工具的存在意义正是「找回用户说过的话」。缓解已有：被剔的路径会进 pruned_private_paths 并打到 stderr，不是全然静默，所以只需操作者看一眼那行。
+
+另外这一维度下已复核为「拦得住」的输入，一并如实记：firmlink 拼法（/System/Volumes/Data/Users/... 前缀，真 vault 与真 PRD 四种拼法实测 verdict 均为对应 root_id）、NFD/NFC 形态（fold_path 的 NFC 归一两侧同口径，且当前两个私人名都是纯 ASCII）、os.sep 以外的分隔符（POSIX 下无第二分隔符）、循环软链（realpath 解不动即原样返回，随后 os.walk/isfile 双双 ELOOP 失败 ⇒ 实测 rc=1、files_scanned=0，fail-closed 不泄漏）。
+  验证思路：在工作树跑 `find . -type d -iname 'canvas-vault'` 与 `find . -type f -iname '14-scheme-a-implementation-prd.md'`，确认各只有 1 条且都是声明过的那条（= 今日零误伤）；再在 tmp 里建 <tmp>/docs/14-scheme-a-implementation-prd.md 写一条批注扫 <tmp>：观察它被剔除并出现在 stderr 的 pruned_private_paths 里，尽管它跟声明的那份 PRD 毫无关系。
+
+- [LOW] annotation_search.py:1 审查绑定：被审两文件在本次审查期间被改了两轮，任何「绑 SHA」结论都得重打
+  说明：流程项，不是代码缺陷，但会让本轮结论失去绑定，故登记。
+
+时间线（实测 mtime）：本轮读入时两文件 == commit c924e6b1；scripts/annotation_search.py 于 00:16:41 与 00:18:35 各被改一次，backend/tests/unit/test_annotation_search.py 于 00:16:51 与 00:18:58 各被改一次；本轮收工时刻 00:19。第一轮改动加了 fold_path()（NFC+casefold 路径归一）并补 3+1 条大小写门，第二轮加了 fenced code 标注（FENCE_RE、in_fenced_code、stats.fenced_hits，汇总行多出 fenced= 字段）与 2 条门。
+
+实际后果：我按初版读出的一条「大小写不敏感文件系统上 Canvas-Vault 不被拦」在探针阶段就复现不出来了——00:16 那轮已经修掉（实测 private_root_of('<repo>/Canvas-Vault') 现返回 ROOT-ACTIVE-VAULT），所以未作为缺陷上报。反过来说，本报告全部结论只对 sha256 fe9b911f68b36ecbae00f5b0e282395d08b20431ccfc7745e130e6a8f7a92e46（script）/ 227367de17a11eb2be261e662bf608960fb8a1f28331c542bb84afa1dbb9b1b6（test）成立，且这两份都是**未提交**的工作树态，不等于 c924e6b1。
+
+按协议 §1（终审绑定看代码树）与「审查对象必须在审查期间冻结」：主 session 复核时须先核当前 HEAD/工作树 sha 是否仍是上面两个；不是就当本轮未绑定，并按 D-15 重送一轮。
+  验证思路：跑 `shasum -a 256 scripts/annotation_search.py backend/tests/unit/test_annotation_search.py` 与 `stat -f '%Sm' -t '%F %T' <两文件>`：若 sha 不是 fe9b911f… / 227367de…，说明本报告引用的行号（:115 :175 :207 :227 :262）可能已漂移，需重定位后再判。
+
+## review:readonly —— 8 条
+- [MEDIUM] annotation_search.py:338 git 子进程继承 GIT_DIR，同一输入的 date/date_source 会换成另一个仓库的答案
+  说明：`subprocess.run([...], cwd=workdir, ...)` 没有传 `env=`，整份调用方环境原样继承给 git。`GIT_DIR` 一旦存在，git 的仓库发现就不再看 `cwd`（cwd 只剩下当 work-tree 用），于是绝对 pathspec 被换算成那个外来仓库里的相对路径，`git log -1 --format=%cs` 返回的是**毫不相干的仓库**的提交日期，而 `date_source` 照样写 "git"。这同时打破承诺 4（日期溯源）与承诺 5（同一输入逐字确定）。触发面不是人为构造：git 给 hook 子进程、`git rebase --exec`、`git bisect run`、lefthook 都会导出 GIT_DIR——协议 patch 要求「开卡第 0 分钟必跑」，一旦哪天挂进 hook 就是常态路径。门未覆盖的路径：两条 readonly 门与确定性门 `test_json_output_is_byte_identical_across_runs` 都在同一个进程环境里跑两遍，永远看不到「换个环境同一输入换个答案」。修法：传一份剃过的 `env=`（至少剔掉 GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE/GIT_TRACE*），并加 `--no-optional-locks`。
+  验证思路：建两棵树：decoy 仓里 commit 一个 `p.md`（committer date 2001-02-03），另建一个不在任何仓内的 scan 目录也放 `p.md`（无 frontmatter、文件名无日期）。对照输入 `python3 scripts/annotation_search.py --root <scan> --a01 <真A01> --keyword kw-x --json` → `"date":"unknown","date_source":"unknown"`；负控输入同一条命令前面加 `GIT_DIR=<decoy>/.git` → `"date":"2001-02-03","date_source":"git"`。实测已复现。
+
+- [MEDIUM] annotation_search.py:346 except 子句漏掉 UnicodeDecodeError：git stderr 含非 ASCII 时整个工具崩溃，且 rc/stdout 与「真 0 命中」完全同形
+  说明：`except (OSError, subprocess.SubprocessError)` 接不住 `UnicodeDecodeError`——`subprocess.run(..., text=True)`（:342）用 `locale.getpreferredencoding(False)` 严格解码 stdout **和 stderr**，preferred encoding 不是 UTF-8 时，git 只要在 stderr 回显一个非 ASCII 路径就直接抛出，从 `subprocess._translate_newlines` 一路穿出 `git_commit_date`、穿出 `main()`。:333 的 docstring 写的是「任何失败都降级返回 None」，这条对该失败类是假的。本仓被扫面遍地中文路径段（`_bmad-output/审查/...`），「git 错误消息里带非 ASCII」在这里是常态，剩下的唯一前提只是 locale。后果比崩溃本身更坏：异常穿出后 `raise SystemExit(main())` 从没执行，解释器以 **rc=1 + 空 stdout** 收场——而协议 patch 规定的落档形态是非 JSON 输出重定向到 txt，真 0 命中恰好也是 rc=1 + 空 stdout。于是「0 命中也落档、rc=1 如实记」会把一次崩溃如实记成一次诚实的零。修法：`errors="replace"`（或干脆 `text=False` 自己 decode），并把 except 放宽到 `Exception`。
+  验证思路：造一个坏 gitdir 指针：`printf 'gitdir: /nope/缺失\n' > <T>/审查/.git`，在 `<T>/审查/prompts/a.md` 放一条 `**User：kw-c**`。未被拦下的输入：`LC_ALL=C PYTHONUTF8=0 PYTHONCOERCECLOCALE=0 python3 scripts/annotation_search.py --root '<T>/审查/prompts' --a01 <真A01> --keyword kw-c`。观察到 `UnicodeDecodeError: 'ascii' codec can't decode byte 0xe5 in position 192` 的 traceback，rc=1，stdout 为空；同目录下换个绝不存在的关键词跑一次真 0 命中，rc 与 stdout 逐字相同。实测已复现。
+
+- [MEDIUM] annotation_search.py:262 os.walk 无 onerror：列不动的目录整棵静默消失，files_scanned 缩水而 unreadable 仍为 0
+  说明：`os.walk(real_root)` 没传 `onerror=`，Python 默认把 `scandir` 的错误**直接吞掉**。于是一个权限不足（或挂载点掉线、符号链接环、路径过长）的子目录连同它下面所有 .md 一起从输入面消失：`files_scanned` 变小，`unreadable=0` 不动，stderr 一个字都不说，rc 不变。脚本对**文件级**失败是认真分桶的（`read_text` :295 把 NUL / 非法编码计进 `unreadable`），唯独**目录级**失败没有桶——这正是契约 :82「未知容器或解析失败必须进入失败分桶，不得被 Markdown 计数静默遮蔽」要挡的那类。叠加协议 patch 的「0 命中也落档、rc=1 如实记」，一次被权限遮蔽的扫描会产出一个看起来完全诚实的零，而下游卡文/验收单要拿这个数当「用户没说过这事」的依据。修法：`os.walk(real_root, onerror=errors.append)`，并在 `stats` 里与 `unreadable=` 并列吐一个 `walk_errors=`。
+  验证思路：`mkdir -p <T>/scan/ok <T>/scan/locked`，两边各放一条含 `kw-s` 的 `**User：` 批注。对照输入：`python3 scripts/annotation_search.py --root <T>/scan --a01 <真A01> --keyword kw-s` → stderr `files_scanned=2 ... unreadable=0`，两条都列出。负控输入：`chmod 000 <T>/scan/locked` 后原样重跑 → `files_scanned=1 ... unreadable=0`，只剩一条，stderr 无任何提示。实测已复现。
+
+- [MEDIUM] annotation_search.py:339 git 子进程未剃环境：GIT_TRACE 之类变量能让「唯一子进程」在被扫目录里真落盘，零写 AST 门看不见
+  说明：模块 docstring :21 写死「本脚本除 stdout / stderr 外零写——不建目录、不落缓存、不改被扫文件」，但这条承诺只覆盖 Python 源码里的写调用，覆盖不了它 fork 出去的 git。`subprocess.run` 没有 `env=`，git 的 `GIT_TRACE` / `GIT_TRACE2` / `GIT_TRACE2_EVENT` / `GIT_TRACE_PACKET` 只要是绝对路径就会被 git **追加写入**该文件——包括写进正在被扫描的那棵树里。门未覆盖的路径有两层：(a) `_bmad-output/审查/evidence-g11/ast-zero-write-HEAD-*.txt` 这道 AST 门只数源码里 `open(mode='w')` / `os.remove` 这类语法形态（存档里 `write_calls= 0`，并只是把子进程调用点**列出来**自证「唯一子进程」），完全不建模子进程干了什么；(b) 两条 `tree_digest` 只读门跑在干净环境里，从不设这类变量。另附实测澄清（避免夸大）：`git log` 本身不写 `.git`——我在 scratch 仓开 `core.fsmonitor=true` + `core.untrackedCache=true` 跑过，`.git` 目录列表与 `index` 的 sha256 前后不变，也没有 `fsmonitor--daemon` 被拉起；落盘风险只来自未剃的环境。修法：传最小 `env=`，顺带 `--no-optional-locks`、`stdin=subprocess.DEVNULL`。
+  验证思路：scratch 仓里 commit 一个 `scan/p.md`（内容含 `**User：kw-t**`），跑 `GIT_TRACE=<scan>/SIDE-EFFECT.txt python3 scripts/annotation_search.py --root <scan> --a01 <真A01> --keyword kw-t`。跑前 `ls <scan>` 只有 `p.md`，跑后多出 520 字节的 `SIDE-EFFECT.txt`（首行 `trace: resolved executable path ...`，第三行正是 `trace: built-in: git log -1 '--format=%cs' -- <被扫文件>`）——即 `tree_digest` 口径下的树已变。实测已复现。
+
+- [LOW] test_annotation_search.py:416 只读门数的是 _bmad-output，而子进程唯一可能写的地方 .git 在这棵树之外
+  说明：`test_readonly_on_real_bmad_output` 是**唯一**一条让 git 子进程的 cwd 真的落在一个 git 仓库里的门（我按它同样的 argv `--keyword codex --story CARD-G1-1` 插桩实测：恰好 1 次 git 调用，cwd = `_bmad-output/审查/prompts`，rc=0、stdout 空）。但它 `tree_digest(REAL_BMAD, ...)` 只摘要 `<worktree>/_bmad-output`，而本 worktree 的 `git rev-parse --git-common-dir` = `/Users/Heishing/Desktop/canvas/canvas-learning-system/.git`，与被摘要的树完全不相交。也就是说：这道门**跑到了**风险路径上，却量在了另一棵树上——git 若真在 `.git/` 下写任何东西（index.lock、commit-graph、fsmonitor socket），门结构上就看不见。同形问题在 `test_readonly_on_fixture_tree`(:409)：它摘要 `tmp_path/"tree"`，而 `--a01` 指的 `tmp_path/"a01.json"` 在摘要面之外，A01 被改写也不会红。承重存档 `readonly-hash-HEAD-*.txt` 的 `git status` 判据同样只取 `_bmad-output`。这是门覆盖缺口，不是已证实的写（见上一条的 fsmonitor 实测）。
+  验证思路：跑 `git rev-parse --git-common-dir` 与 `python3 -c "from pathlib import Path; print(Path('backend/tests/unit/test_annotation_search.py').resolve().parents[3]/'_bmad-output')"`，两条路径无前缀包含关系即证明 `.git` 在摘要面外。补法：把 `git rev-parse --git-common-dir` 的返回目录也纳入 `tree_digest`，或在门里加一条全 worktree 的 `git status --porcelain` 前后对比。
+
+- [LOW] test_annotation_search.py:89 tree_digest 只对「文件路径+内容」敏感，mtime / 空目录 / 权限位 / 软链目标都不在它的输入面
+  说明：`tree_digest` 的 `rows` 只从 `filenames` 收，摘要内容是 `sha256(相对路径) + sha256(文件字节)`。因此四类副作用它一概看不见：新建**空目录**（不产生任何 row）、改 **mtime/atime**、改**权限位**、改**软链目标**（`open(full,'rb')` 读的是目标内容，链本身换指向而目标内容不变时摘要不动）。承诺 1 的「零写」在口语里包含「不改 mtime」，而门只锁住了内容。我没有在脚本里找到会做这四件事的路径（无 `mkdir` / `chmod` / `os.utime` / `os.symlink`），所以这是门未覆盖的路径，不是缺陷——但「零写」的措辞比门实际锁住的性质要宽。
+  验证思路：在 `test_readonly_on_fixture_tree` 的两次 `tree_digest` 之间插一句 `(base / "brand-new-empty-dir").mkdir()` 或 `os.utime(base / "f1-single.md", (0, 0))`，断言仍然通过 —— 证明这两类改动不在判据的输入面内。
+
+- [LOW] annotation_search.py:21 docstring 承诺「不落缓存」，但门自己走的 import 路径会往 scripts/ 写 .pyc
+  说明：模块 docstring 明写「不建目录、不落缓存」。以 `python3 scripts/annotation_search.py` 方式跑时这话成立（`__main__` 模块不写字节码缓存）。但单测是 `sys.path.insert(0, REPO_ROOT/"scripts")` 后 `import annotation_search`（`test_annotation_search.py:22-24`），**import 就会落缓存**：当前树上 `scripts/__pycache__/annotation_search.cpython-314.pyc` 已实际存在（32510 字节）。即：唯一验证「零写」的那条路径本身在往被测脚本所在目录写文件。影响很小（`.gitignore:2:__pycache__/` 覆盖，`git check-ignore` rc=0，不进版本面），但措辞与门的行为对不上。修法：docstring 把「不落缓存」限定为「以脚本方式执行时」，或在测试模块顶部 `sys.dont_write_bytecode = True`。
+  验证思路：`ls -la scripts/__pycache__/` 看到 `annotation_search.cpython-314.pyc`；再对比 `PYTHONDONTWRITEBYTECODE=1 python3 scripts/annotation_search.py ...` 与 `python3 -c "import sys; sys.path.insert(0,'scripts'); import annotation_search"` 各跑一次后该目录的变化。
+
+- [LOW] ast-zero-write-HEAD-20260919T001443.txt:3 零写门与只读门两份承重存档都已不绑当前文件（审后又改了代码）
+  说明：`ast-zero-write-HEAD-20260919T001443.txt:3` 与 `readonly-hash-HEAD-20260919T001516.txt:3` 都把被测文件钉在 `sha256 = feeffa892bdc91fc246dc9bdf51a86f2473d17d792b881e563c976599637ae9d` 并自证「工作树 == HEAD ? yes」。盘上当前是 `fe9b911f68b36ecbae00f5b0e282395d08b20431ccfc7745e130e6a8f7a92e46`（mtime 2026-09-19 00:18:35），且改动不是注释尾巴（D-32 不适用）：新增 `fold_path()` 的 NFC+casefold 归一并改写 `private_root_of`、新增 `FENCE_RE` 围栏代码块处理、`stats` 多出 `fenced=` 字段。按协议 §1 / D-15，这两道承重门须绑最终内容重跑。顺带记录：我读这两个文件时它们正被并发改写（第一次 Read 拿到的还是 HEAD 版，中途一次实测撞上 `NameError: name 'FENCE_RE' is not defined` 的中间态），本报告的全部结论绑 `fe9b911f…`（测试文件绑 `227367de17a11eb2be261e662bf608960fb8a1f28331c542bb84afa1dbb9b1b6`）。
+  验证思路：`shasum -a 256 scripts/annotation_search.py` 与两份存档第 3 行里的 sha 直接比对；再 `git --no-pager diff --no-color -- scripts/annotation_search.py | grep -c '^[+-][^+-]'` 确认非注释行差异不为 0。
+
+## review:metadata —— 6 条
+- [MEDIUM] test_annotation_search.py:563 日期阶梯的 git 档零门覆盖——删掉整条 git 档，56 条测试全绿（负控已绑定）
+  说明：git 档是真数据上占比最大的单一日期来源，却是唯一没有任何断言的一档。
+
+实测口径（脚本 sha256=9bf9258d…）：`python3 scripts/annotation_search.py --keyword 用户 --json` 返回 251 条记录，date_source 分布 = frontmatter 89 / **git 92** / filename 68 / unknown 2，git 占 37%；全语料 1982 个 .md 里 1471 个（74%）既无 frontmatter 日期也无文件名日期，只能落这一档。
+
+门的覆盖面：`grep -c '"git"' backend/tests/unit/test_annotation_search.py` = 0。`test_date_source_priority`(:563) 的三个样本 md 全建在 `tmp_path` 下（不在任何 git 仓），只测到 frontmatter / filename / unknown 三档；两条真数据锚断言的是 `date_source == "filename"`(:488)。也就是说 `git_commit_date`(scripts/annotation_search.py:400) 的返回值从未被任何断言读过。
+
+负控（两跑 PRE/POST sha 一致、BOUND 自证；script 9bf9258d… / test 1db1fbb4…）：基线 `56 passed`；把 `annotation_search.git_commit_date` 换成 `lambda p: None`（= 整条 git 档被删，所有本该 git 的记录退化成 `unknown`）后仍 `56 passed`，一条未红。反向变异（恒返回 `1970-01-01`）只红 `test_date_source_priority` 一条，而且红在「tmp 文件本该是 unknown」这一格上，不是红在「真 git 文件该给出正确日期」上。
+
+就本卡承诺 4 而言：`date_source` 本身确实恒随日期一起输出（JSON 有字段、文本行是 `{date}({date_source})`），我没找到把 git 日期冒充成 frontmatter/filename 的路径——问题是这一档「对不对」完全没人看。
+  验证思路：建一个 pytest 插件（scratchpad 即可）内容为 `import annotation_search as m; m.git_commit_date = lambda p: None`，跑 `PYTHONPATH=<插件目录> backend/.venv/bin/python -m pytest tests/unit/test_annotation_search.py -q -p no:randomly -p <插件名>`，对照不带插件的基线：两边都是 56 passed。补门方向：在 tmp fixture 里 `git init` + commit 一个既无 frontmatter 又无文件名日期的 .md，断言返回 `(<该 commit 的 %cs>, "git")`。
+
+- [MEDIUM] annotation_search.py:469 classify 八类只认中文目录名，research/ 与 review/ 下的真批注整片落进「其他」，--category 筛会全漏
+  说明：`_bmad-output/` 下中文与英文同义目录**并存**：`研究/`(57 md) 与 `research/`(66 md，31 个含 marker)、`审查/`(1348 md) 与 `review/`(8 md，5 个含 marker)，另有 `templates/`(2)、`_status/`(4)。`classify` 只匹配中文前缀，英文那一套全部落 `其他`。
+
+对照输入（最尖的一个）：`python3 scripts/annotation_search.py --keyword FSRS --json` 共 8 条命中，其中 **5 条** 全在 `_bmad-output/research/`（`obsidian-qa-round4-…:205`、`obsidian-translation-qa-…:656`、`round-15-bkt-fsrs-…:91` 与 `:155`、`round-16-deeptutor-…:494`），category 均为 `其他`；改跑 `--keyword FSRS --category 研究` 输出 `[]`、rc=1 —— 按类别筛把这 5 条真研究批注全筛没了，而 FSRS 恰恰是本仓最典型的研究主题。
+
+规模：`--keyword 用户` 的 251 条记录里 109 条判 `其他`，逐目录拆开是 research 52 / review 39 / implementation-artifacts 14 / templates 3 / _status 1 —— research+review 合计 91 条 = 全部记录的 36%，同期 `研究` 桶只有 8 条。
+
+同族次要形态：9 份 `*验收单*.md` 物理放在 `审查/` 下（`审查/CARD-G4-1b-验收单.md` 等），判 `审查` 而非 `验收单批注区`（`用户` 样本里 2 条）。这一条按「路径前缀口径」的声明勉强算 by design，前一条（同义目录换个语言就换桶）不算。
+
+门未覆盖的路径：单测只断言过 `审查`(:488 附近) 与 `goal-cards`(test_category_filter :596 只查 goal-cards) 两个桶，`研究` / `批注回复` / `planning-artifacts` / `决策批注` / `其他` 五个桶一次都没被断言过，`relative_label`(:455) 也没有直接单测。
+  验证思路：`python3 scripts/annotation_search.py --keyword FSRS --json`，看 5 条 `_bmad-output/research/…` 记录的 `category` 字段是 `其他`；再跑 `python3 scripts/annotation_search.py --keyword FSRS --category 研究 --json` 得 `[]` 且 rc=1。规模复现：`--keyword 用户 --json` 后按 `category=='其他'` 分组统计路径首段。
+
+- [LOW] annotation_search.py:363 frontmatter 扫描无下界：首行 --- 只要不闭合，正文（含围栏代码块）里的 date: 会被标成 date_source=frontmatter
+  说明：`frontmatter_date` 的启动条件是 `lines[0].strip() == "---"`，此后一路扫到 EOF，只有遇到某行 `strip() == "---"` 才停。三类未被拦下的输入，全部在当前脚本（sha 9bf9258d…）上实跑过：
+
+(a) 首行 `---` 其实是正文分隔线（或 frontmatter 用 `...`／`-----` 收尾）⇒ 扫描直接进正文。输入 `thematic-break.md` = `---\n# 标题\n\n```yaml\ndate: 1999-01-01\n```\n\n**User：这条批注是 2026 年写的**` → 输出 `date=1999-01-01 date_source=frontmatter`。那行 1999 在**围栏代码块里**：脚本已经为 marker 加了 `FENCE_RE`，但 `frontmatter_date` 不看围栏状态。
+
+(b) 缩进的嵌套键被当顶层键：`---\nmeta:\n  date: 1998-07-07\ntitle: x\n---` → `date=1998-07-07 date_source=frontmatter`（`line[:index(":")].strip()` 把缩进 strip 掉了，`meta.date` 与顶层 `date` 不可区分）。
+
+(c) 重复键取**第一个**，YAML 语义是取最后一个（或直接报错）：`date: 2020-01-01` + `date: 2026-09-19` → 输出 2020-01-01。
+
+另一条同源的口径问题：块内多个日期键时按**出现顺序**取，不按 `FRONTMATTER_KEYS`(:159) 的排列取。`updated: 2026-09-18` 写在 `date: 2026-01-01` 之前 → 实测输出 2026-09-18，即「编辑时刻」压过「落笔日」，而 `date_source` 只写 `frontmatter`、不说命中的是哪个键。
+
+如实声明真语料现状：261 个 .md 以 `---` 开头，**全部**有闭合 `---`；重复日期键 0 处、缩进日期键 0 处、多日期键 0 处、frontmatter 命中落在块外 0 处。所以这是未被拦下的输入类，不是现网已发生的错——真正会踩的是把 `--root` 指向 `docs/` / vault 之类非本仓约定的树时。
+  验证思路：把上面 (a)(b)(c) 三份 md 连同一份最小 A01（`{"source_roots":[{"root_id":"ROOT-ACTIVE-VAULT","privacy_ceiling":"P3-high-sensitive","proposed_action":"x"}]}`）写进任意临时目录，跑 `python3 scripts/annotation_search.py --root <tmp> --a01 <a01> --keyword <批注里的词> --json`，看每条记录的 `date` / `date_source`。
+
+- [LOW] annotation_search.py:160 DATE_RE 不校验有效性也无边界：ticket-1234-56-7890.md 产出 date=1234-56-78 且压过 git 档
+  说明：`DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")` 既不校验月/日范围，两侧也没有边界断言，`search()` 会从更长的数字串中间抠出子串。
+
+对照输入：`ticket-1234-56-7890.md`（正文一条 `**User：…**`）→ 实测 `date=1234-56-78 date_source=filename`。后果是双重的：一是产出一个不存在的日期（月 56 日 78），二是因为 filename 档排在 git 档之前（`resolve_date` :427），**把本来能给出真实 git 提交日期的那一档整条挡掉了**——报出来的不是「无法定日期」而是一个看起来像日期的假值。
+
+关于题面问的「路径里别处的 8 位数字会不会误抓」：不会。`resolve_date` 只搜 `os.path.basename(path)`，目录段上的日期（例如 `2026-08-20-…/foo.md`）进不来；误抓只可能发生在 basename 内部。
+
+真语料扫描结果（1982 个 .md basename 逐个核过）：月/日越界的匹配 0 处、嵌在更长数字串里的匹配 0 处。属未被拦下的输入类，非现网已发生。
+  验证思路：`python3 -c "import re;print(re.compile(r'(\d{4}-\d{2}-\d{2})').search('ticket-1234-56-7890.md').group(1))"` → `1234-56-78`；端到端把该文件名的 md 放进临时目录按上一条的 fixture 跑法跑一次，看 JSON 里 `date`/`date_source`。
+
+- [LOW] annotation_search.py:455 relative_label 取「最后一个」_bmad-output 段：嵌套归档副本与原件在 rel/category 上无法区分
+  说明：`idx = len(parts) - 1 - parts[::-1].index("_bmad-output")` 是「最后一次出现」口径。题面问的「路径里出现两次该段名时行为如何」：按**内层**那个算。
+
+对 `.../_bmad-output/implementation-artifacts/archive/_bmad-output/审查/x.md` 这类形态（`implementation-artifacts/archive/` 目录已存在，18 个 md），rel = `审查/x.md`、category = `审查`。如实说：这比取第一个（会得到 `implementation-artifacts/archive/_bmad-output/审查/x.md` → `其他`）更像想要的类别，所以我不主张改成「第一个」。
+
+真正的代价是：归档副本与原件会产出**逐字相同的 rel 与 category**，按类别汇总时历史副本被重复计进同一个桶，而 `stats` 里没有任何字段能把它们分开（`path` 字段仍是仓根相对全路径、可以区分，所以不是检索结果失真，只是计数口径会双计）。
+
+真语料现状：1982 个 .md 中路径含两次 `_bmad-output` 段的 0 处。纯属未被拦下的输入类，登记备查即可。
+  验证思路：`python3 -c "import sys;sys.path.insert(0,'scripts');import annotation_search as m;print(m.relative_label('/a/_bmad-output/implementation-artifacts/archive/_bmad-output/审查/x.md',['/a/_bmad-output']))"`（该路径不必真实存在，realpath 对不存在的路径原样返回）→ `审查/x.md`，与真品 `_bmad-output/审查/x.md` 的 rel 相同。
+
+- [LOW] annotation_search.py:1 审查对象在本次复核期间改了 4 次、HEAD 前进 2 次——结论只绑定给定的两个 sha256
+  说明：这不是代码缺陷，是裁定前必须知道的绑定事实（对照 `reference_audit_target_must_be_frozen.md`）。
+
+开工时读到的是 `c924e6b1` 的版本；复核期间 HEAD 走了 `c924e6b1` → `1c26ae98` → `b72ec794`，`scripts/annotation_search.py` 工作树内容至少变了 4 次（sha256 `a15c295a`→`74075096`→`b9918aa5`→`a740170d`→`9bf9258d`），单测从 41 条长到 49 再到 56 条。我最初的一轮负控因此产出过两份互相矛盾、且失败项与变异点无关的结果（`test_marker_table_shape` 红），全部作废重跑。
+
+其中一次改动正落在本维度：新增 `git_env()`（现 :400 上方），把 `GIT_*` 从子进程环境里剃掉——修的正是「`GIT_DIR` 存在时 git 档会答成**另一个仓库**对这条路径的日期而 `date_source` 仍写 `git`」这条。所以我不把它列为缺陷，但它说明本维度在我写结论的同时仍在被改。
+
+本报告全部结论绑定：`scripts/annotation_search.py` sha256 = `9bf9258d986ec98dbf6580c4849fd4b62bf2b40f83f2f06524be76f5dc31c637`，`backend/tests/unit/test_annotation_search.py` sha256 = `1db1fbb40fe6ad48b53dfd3e9b9cfbf3c0908f58a9c255dfe6f420a40d2774ee`（基线跑与负控跑均有 PRE/POST 同 sha 的 BOUND 自证）。对更早或更晚的版本不成立，尤其是发现 1 的「56 passed / 56 passed」。
+  验证思路：`shasum -a 256 scripts/annotation_search.py backend/tests/unit/test_annotation_search.py` 与上面两个值比对；不一致就按「本轮复核已失绑」处理，发现 1 的负控需在新 sha 上重跑（发现 2-5 的输入→输出对照与 sha 无关，可直接复跑 fixture 验证）。
+
+
+## 反驳票统计：共 81 票
+  verify:patch:correctness     票数  5  其中判「推翻」5
+  verify:patch:reproducibility 票数  5  其中判「推翻」4
+  verify:patch:scope           票数  5  其中判「推翻」5
+  verify:privacy:correctness   票数  6  其中判「推翻」3
+  verify:privacy:reproducibility 票数  6  其中判「推翻」3
+  verify:privacy:scope         票数  6  其中判「推翻」3
+  verify:readonly:correctness  票数  8  其中判「推翻」6
+  verify:readonly:reproducibility 票数  8  其中判「推翻」5
+  verify:readonly:scope        票数  8  其中判「推翻」8
+  verify:recall:correctness    票数  8  其中判「推翻」4
+  verify:recall:reproducibility 票数  8  其中判「推翻」3
+  verify:recall:scope          票数  8  其中判「推翻」3
+
+## 未返回的维度（本卡收工时仍在跑，其发现未纳入整改）
+  - review:gates

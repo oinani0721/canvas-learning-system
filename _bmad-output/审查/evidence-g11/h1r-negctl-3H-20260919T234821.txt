@@ -1,0 +1,16 @@
+# CARD-G1-1 H1R 负控③（commit 后版本，EXIT trap = git show HEAD 还原）
+# HEAD=bf3a765c（= bf3a765c，还原源）ts=20260919T234821
+pre_sha  = ed6b8e8111c5b104b84144eba36e5013eb929242c1e3b904a9004dd128b724df  scripts/annotation_search.py
+--- 变异 diff（摘除 (?:\s?L\d+)? 定位符分支，单点）---
+mutated: locator branch removed
+-        r"\*\*用户(?:批注|反馈|原话|修正)(?:原文|触发)?(?:\s?L\d+)?(?:[（(][^*]{0,30}?[）)])?\*{0,2}[：:]"
++        r"\*\*用户(?:批注|反馈|原话|修正)(?:原文|触发)?(?:[（(][^*]{0,30}?[）)])?\*{0,2}[：:]"
+pytest_rc=1
+--- FAILED 清单 ---
+FAILED tests/unit/test_annotation_search.py::test_zh_container_heads_hit_with_exact_lines
+FAILED tests/unit/test_annotation_search.py::test_zh_precision_controls_do_not_fire
+FAILED tests/unit/test_annotation_search.py::test_real_anchor_zh_locator_line_174
+FAILED tests/unit/test_annotation_search.py::test_contract_t1_t2_variants_are_matched[3. **\u7528\u6237\u6279\u6ce8 L128**: \u786e\u8ba4 Claudian \u5e94\u81ea\u52a8\u68c0\u6d4b vault \u53d8\u5316-**\u7528\u6237\u6279\u6ce8 L128**:]
+================== 4 failed, 83 passed, 10 warnings in 22.68s ==================
+post_sha = ed6b8e8111c5b104b84144eba36e5013eb929242c1e3b904a9004dd128b724df  scripts/annotation_search.py
+post_status_lines=0

@@ -1,0 +1,28 @@
+# CARD-G1-1 先红④：新测试在 scripts/annotation_search.py 缺席时的收集期红
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260918T225910
+#
+# ⚠️ 顺序如实声明：卡文 §二.2④ 的意图是「测试先写、脚本未写时跑一次」。
+# 本车道实际顺序是先写脚本再写测试，真树上已无法复现「脚本缺席」态
+# （协议禁 stash / 禁 checkout 式还原 / 禁删除类命令，不得为造红而动真树）。
+# 因此在 scratchpad 搭等价结构复现：同一份测试文件 + 一个空的 scripts/ 目录，
+# REPO_ROOT = parents[3] 落在 fakerepo 上 ⇒ import annotation_search 必失败。
+# 这证明的是「该测试确实依赖被测脚本存在」，不是「真树上曾经红过」。
+#
+--- fakerepo 结构 ---
+<SP>/fakerepo
+<SP>/fakerepo/backend
+<SP>/fakerepo/backend/tests
+<SP>/fakerepo/backend/tests/unit
+<SP>/fakerepo/backend/tests/unit/test_annotation_search.py
+<SP>/fakerepo/scripts
+--- fakerepo/scripts 内容（应无 annotation_search.py）---
+ls_rc=0
+--- pytest 收集 ---
+____________ ERROR collecting tests/unit/test_annotation_search.py _____________
+ImportError while importing test module '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p8-backend/6daa9617-4a7c-40c8-958d-675724eafadd/scratchpad/fakerepo/backend/tests/unit/test_annotation_search.py'.
+tests/unit/test_annotation_search.py:24: in <module>
+    import annotation_search as mod  # noqa: E402
+E   ModuleNotFoundError: No module named 'annotation_search'
+ERROR tests/unit/test_annotation_search.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.11s

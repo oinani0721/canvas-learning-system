@@ -1,0 +1,10 @@
+# CARD-G1-1 ruff @ 4bf7d055914d5b7aefc68174cb8801b3ac13838d  ts=20260919T003217
+files=2
+file_list=backend/tests/unit/test_annotation_search.py scripts/annotation_search.py
+All checks passed!
+check_rc=0
+2 files already formatted
+format_rc=0
+--- F821 验伪锚（根 ruff.toml）---
+1
+probe_root_hit=0

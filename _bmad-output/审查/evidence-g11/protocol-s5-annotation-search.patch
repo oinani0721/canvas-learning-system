@@ -1,0 +1,24 @@
+# CARD-G1-1 [BATCH-2026-09-18-第十五批] —— 协议 §5 追加「开卡必跑批注检索」条款
+#
+# 由主 session 在集成期套用到 feature 树协议 .claude/rules/card-batch-protocol.md；
+# 套用后 §5 排批章多一条 bullet，要求排批与开工各跑一次 scripts/annotation_search.py（本卡新增）。
+# 保留不动：§1-§4 全部条款一字未改；§5 既有五条 bullet（:93-:97）一字未改，新条款只追加在 :97 之后。
+# 本 patch 由车道 card/p8-backend 在 scratch 副本上生成，未在任何工作树直改协议。
+# 基 = 主干树 feature-obsidian-hybrid-dev 版，sha256 accbe747c0a963823cb28b3ce7578fb232be396201e4f15115b765b77c22baf1（97 行）。
+#
+# v2（2026-09-19，本车道内部对抗复核后自改，仍是「只加一条、只加在 §5」）——v1 的三处不可执行已修：
+#   a) v1 要求「须引用至少一条 file:line」却同时承认「0 命中也落档」；脚本 0 命中时 stdout 为空，
+#      两条要求在同一输入上无法同时满足。v2 给出 0 命中的替代引用口径（rc 与 files_scanned/marker_hits）。
+#   b) v1 的落档命令只重定向 stdout，而命中数汇总行走 stderr ⇒ 存档没有命中数，
+#      且 0 命中时是 0 字节文件，撞 §2.2「0 字节不入库」。v2 写死 `2>&1 | tee` 与 `rc=$pipestatus[1]`。
+#   c) v1 写「自第十五批起」，但该脚本正是第十五批 G1-1 的产物、主干树此刻还没有它 ⇒ 对本批不可执行。
+#      v2 改为「自其合入主干之后的下一批起」并写明本批不追溯。
+#   另：v1 的 `<src_id>` 在协议与 goal-cards 全树 0 次定义，改为 `<src 总账条目号>`；
+#   v1 的「按 A01 走授权」在 A01 里没有对应流程，改为「用户当次显式授权」并写明 A01 只声明边界。
+--- a/.claude/rules/card-batch-protocol.md
++++ b/.claude/rules/card-batch-protocol.md
+@@ -95,3 +95,4 @@
+ - 台账是全部卡的共同写入面 → **只有主 session 改**；卡在验收单写「台账待登记条目」。
+ - **tests/unit 既有红基线**：主 session 每批开跑前落一份 nodeid 口径的基线（`_bmad-output/审查/evidence-b<N>/unit-red-baseline-<主干SHA>.txt`），车道开工/收工各跑一次目录级并 `diff`，差集才算本卡引入或修复；「298/289」这类含日志噪音的行数不得作分母。
+ - 每张卡的完成条件含「本卡未证明什么」必填；数字与命令输出一致（`wc -m` 计字符非字节）。
++- **开卡必跑批注检索**（G1-1；自 `scripts/annotation_search.py` 合入主干之后的下一批起——第十五批本身不追溯，该脚本正是本批 G1-1 的产物）：主 session 排批写卡文前、车道开工第 0 分钟各跑一次 `PYTHONDONTWRITEBYTECODE=1 python3 scripts/annotation_search.py --story <卡号> --story <src 总账条目号> --keyword <主题词≥1> 2>&1 | tee _bmad-output/审查/evidence-<卡短名>/annotation-search-<ts>.txt; echo rc=$pipestatus[1] | tee -a 同一文件`（⚠️ 必须 `2>&1`：命中数汇总行走 stderr，只重定向 stdout 会得到一份 0 字节存档，撞 §2.2「0 字节不入库」）。0 命中也落档、rc=1 如实记。引用口径：**有命中**时卡文 §〇 / 验收单引用该存档的命中数与至少一条 `file:line`；**0 命中**时引用该存档的 `rc=1` 与汇总行的 `files_scanned` / `marker_hits`，不得为凑出 file:line 反复放宽 `--keyword`。私人 root 默认排除；`--include-private` 只在用户当次显式授权后使用，不得为凑命中自行加（A01 当前只声明边界、不提供授权流程，授权即用户本人的一次裁定）。替代 A01/A02 全量考古（总账 v2 G1-1）。

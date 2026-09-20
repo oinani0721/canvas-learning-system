@@ -1,0 +1,21 @@
+# CARD-G1-1 地盘门 + pyright 不适用自证（§二.10 / §二.11）
+# HEAD=c924e6b1fb2e92c08c79251f9b25e945ef1560ca PREV=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260919T001433
+--- 地盘：代码面恰两新文件 ---
+ backend/tests/unit/test_annotation_search.py | 491 ++++++++++++++++++++
+ scripts/annotation_search.py                 | 643 +++++++++++++++++++++++++++
+ 2 files changed, 1134 insertions(+)
+--- 禁改面必须为空 ---
+  （以上无输出 = 空）
+  行数 =        0
+--- 验伪锚 A：只看 .claude 应空（已含在上）---
+  .claude 行数 =        0
+--- 验伪锚 B：去掉 exclude 应多出 _bmad-output/ 路径 ---
+backend/tests/unit/test_annotation_search.py
+scripts/annotation_search.py
+  含 _bmad-output 的行数 = fatal: bad revision 'core.quotepath=false'
+0
+--- openapi.json 未被顺带塞入 ---
+  grep -c openapi.json = 0
+--- pyright 不适用自证 ---
+  backend/app 改动文件数 =        0
+  pyright 可执行自证 ok: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright

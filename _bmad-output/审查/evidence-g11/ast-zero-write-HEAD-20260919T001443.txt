@@ -1,0 +1,17 @@
+# CARD-G1-1 零写 AST 门 @ HEAD（(f)③；本份绑 commit c924e6b1 的最终内容）
+# HEAD=c924e6b1fb2e92c08c79251f9b25e945ef1560ca ts=20260919T001443
+# 被测文件 sha256 = feeffa892bdc91fc246dc9bdf51a86f2473d17d792b881e563c976599637ae9d  scripts/annotation_search.py
+# 工作树 == HEAD ? yes
+--- 被测（期望 write_calls= 0）---
+write_calls= 0
+--- 验伪锚：探针文件（期望 write_calls= 2）---
+open("x","w")
+import os
+os.remove("x")
+write_calls= 2
+  line 1: open(mode='w')
+  line 3: remove
+--- 唯一子进程自证：全文件 subprocess 调用点 ---
+38:import subprocess
+309:        proc = subprocess.run(
+317:    except (OSError, subprocess.SubprocessError):

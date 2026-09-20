@@ -1,0 +1,15 @@
+# CARD-G1-1 先红①：三产物不存在 + 协议零条款
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294  ts=20260918T224200
+--- pre-mkdir 抓取（evidence-g11 目录本体缺席）---
+### PRE-MKDIR: evidence-g11 目录本身是否存在
+ls: _bmad-output/审查/evidence-g11: No such file or directory
+ls_dir_rc=1
+--- 三产物 ls ---
+ls: _bmad-output/审查/evidence-g11/protocol-s5-annotation-search.patch: No such file or directory
+ls: backend/tests/unit/test_annotation_search.py: No such file or directory
+ls: scripts/annotation_search.py: No such file or directory
+rc=1
+--- 协议本体零条款（主干树 + 车道树）---
+FEAT grep -c 开卡必跑批注检索 = 0
+LANE grep -c 开卡必跑批注检索 = 0
+FEAT rules/ 全目录 grep -rc 开卡必跑 =        0

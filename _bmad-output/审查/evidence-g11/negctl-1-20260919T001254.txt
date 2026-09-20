@@ -1,0 +1,49 @@
+# CARD-G1-1 负控① 私人 root 前缀判定恒 False（只拆这一层）
+# HEAD=c924e6b1fb2e92c08c79251f9b25e945ef1560ca ts=20260919T001254
+# 期望：test_private_root_excluded_by_default FAILED，且失败正文是命中数断言（不是 rc 断言）
+pre_sha  = feeffa892bdc91fc246dc9bdf51a86f2473d17d792b881e563c976599637ae9d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+--- 变异 1 的 diff ---
+--- a/scripts/annotation_search.py
++++ b/scripts/annotation_search.py
+@@ -201,4 +201,5 @@
+ def private_root_of(path, private_paths):
+     """path（任意形态）落在哪个私人 root 下；不落则返回 None。realpath 口径。"""
++    return None  # NEGCTL-1
+     real = os.path.realpath(path)
+     for root_id, prefixes in private_paths.items():
+============================= test session starts ==============================
+collected 33 items
+
+tests/unit/test_annotation_search.py .......F..FFF....................   [100%]
+
+=================================== FAILURES ===================================
+____________________ test_private_root_excluded_by_default _____________________
+tests/unit/test_annotation_search.py:249: in test_private_root_excluded_by_default
+    assert json.loads(out) == [], "私人 root 的批注默认必须一条都不返回"
+E   AssertionError: 私人 root 的批注默认必须一条都不返回
+E   assert [{'category':...: False, ...}] == []
+E     
+E     Left contains one more item: {'category': '其他', 'date': 'unknown', 'date_source': 'unknown', 'empty': False, ...}
+E     Use -v to get more diff
+_______________ test_root_pointing_into_private_root_is_refused ________________
+tests/unit/test_annotation_search.py:277: in test_root_pointing_into_private_root_is_refused
+    assert code == 2
+E   assert 0 == 2
+__________________ test_symlink_into_private_root_is_refused ___________________
+tests/unit/test_annotation_search.py:286: in test_symlink_into_private_root_is_refused
+    assert code == 2, "realpath 口径：软链指进私人 root 同样拒扫"
+E   AssertionError: realpath 口径：软链指进私人 root 同样拒扫
+E   assert 0 == 2
+______________________ test_nested_private_dir_is_pruned _______________________
+tests/unit/test_annotation_search.py:297: in test_nested_private_dir_is_pruned
+    assert code == 1
+E   assert 0 == 1
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_private_root_excluded_by_default
+FAILED tests/unit/test_annotation_search.py::test_root_pointing_into_private_root_is_refused
+FAILED tests/unit/test_annotation_search.py::test_symlink_into_private_root_is_refused
+FAILED tests/unit/test_annotation_search.py::test_nested_private_dir_is_pruned
+======================== 4 failed, 29 passed in 12.21s =========================
+pytest_rc=1
+post_sha = feeffa892bdc91fc246dc9bdf51a86f2473d17d792b881e563c976599637ae9d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py

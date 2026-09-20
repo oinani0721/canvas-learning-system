@@ -1,0 +1,19 @@
+# CARD-G1-1 真数据小抄 / 开卡必跑 @ 4bf7d055914d5b7aefc68174cb8801b3ac13838d  ts=20260919T003231
+# files_scanned=1982 marker_hits=1331 shown=15 empty=32 fenced=169 html_comment=26 unreadable=0 unwalkable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# private_roots_without_path=['ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']（A01 声明为私人，但仓内无落地路径可拦——不等于那里没有批注）
+_bmad-output/implementation-artifacts/goal-cards/2026-08-25-第二批小goal卡-跨vault与收束.md:163 | goal-cards | 2026-08-25(filename) | **User： | **User：这个网页web，制作建议给 ChatGPT 使用浏览器操作审查一下，就想 anki 一样，我需要清晰看到每个 vault，里面需要我复习哪些白板，然后到期时间是什么，这里还是没有给我一个清晰的显示**
+_bmad-output/implementation-artifacts/goal-cards/2026-08-25-第二批小goal卡-跨vault与收束.md:165 | goal-cards | 2026-08-25(filename) | [!note]+ | > [!note]+ Claude 回复（2026-08-27）：已采纳为第三批头号卡 D1
+_bmad-output/implementation-artifacts/goal-cards/2026-09-01-第八批开跑手册-9车道14卡.md:203 | goal-cards | 2026-09-01(filename) | [!error]+ | 收尾：Codex round-3 冻结命令 `codex exec --sandbox read-only -m gpt-5.6-sol -c model_reasoning_effort="ultra" "$(cat <prompts>/CARD-G5-6b-round3-prompt.md)" …`（逐字模板与限定读取范围见卡文 (g)）；验收单覆盖 UAT-CARD-G5-6-clear-i…
+_bmad-output/research/round-15-bkt-fsrs-multihop-tauri-prd-deep-explore-2026-05-05.md:91 | 其他 | 2026-05-05(frontmatter) | **User： | **User： Anki 的 FSRS 难道不是根据你对每个单词卡片回答记得还是不记得，从而推算出掌握程度，然后再来推算出你的复习时间吗？我的 Canvas learning systeam 的检验白板一开始也是根据我对 这个原白板中各个节点的实际掌握情况，精确推算精确的复习时间，然后生成精确的检验白板来最大限度的回顾起我原白板的一切内容。**
+_bmad-output/审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md:494 | 审查 | 2026-08-20(filename) | **User： | **User：我需要让 codex 审查明确知道我之前的所有批注（最重要的是 User：），从而明确知道当前我聚焦的 Canvas learning systeam 是要实现什么，我们 Canvas learning systeam 在部署到不同 vault 快速使用，并且最终我需要你 goal 再进行大规模改进后，我要你给我一个 完整的产品 readme。我才能得知是否目前的 Canvas le…
+_bmad-output/审查/CARD-TEST-bark-autostub-验收单.md:156 | 审查 | 2026-09-01(frontmatter) | [!error]+ | > 14. **⛔ 待你裁决：终修未经第四轮 Codex 复审**。round-3 终判 FAIL 的 3 条 HIGH 已终修 + 客观裁判全绿（终修明细见下方 [!error]+ 显著声明），但 3 轮续轮预算已尽，终修本身没有再送审。你可选：(a) 接受此收尾，卡随 ② 合中间 commit；(b) 批一轮追加复审再合。
+_bmad-output/审查/CARD-TEST-bark-autostub-验收单.md:161 | 审查 | 2026-09-01(frontmatter) | [!error]+ | > > [!error]+ ⚠️ 显著声明：终修未经第四轮 Codex 复审（3 轮续轮预算已尽，按卡文降级预案收尾）
+_bmad-output/审查/prompts/codex-prompt-CARD-G1-1.md:27 | 审查 | unknown(unknown) | **User： | 这个脚本要解决的问题：294 条 `**User：` 与 348 条 `[!question]+` 形态的用户批注散在两千多个 Markdown
+_bmad-output/审查/prompts/codex-prompt-CARD-G1-1.md:27 | 审查 | unknown(unknown) | [!question]+ | 这个脚本要解决的问题：294 条 `**User：` 与 348 条 `[!question]+` 形态的用户批注散在两千多个 Markdown
+_bmad-output/验收单/UAT-CARD-G4-4-full-RAG-显式VaultScope-2026-09-01.md:148 | 验收单批注区 | 2026-09-01(filename) | [!error]+ | - [!error]+ v1 → v2（Codex round-1 REJECT 整改, commit aaecf696）
+_bmad-output/验收单/UAT-CARD-G4-4-full-RAG-显式VaultScope-2026-09-01.md:162 | 验收单批注区 | 2026-09-01(filename) | [!error]+ | - [!error]+ v2 → v3（Codex round-2 REJECT 整改）
+_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md:95 | 验收单批注区 | 2026-09-01(filename) | [!error]+ | [!error]+ Codex round-1（4 HIGH，已整改 a9410c9f）
+_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md:98 | 验收单批注区 | 2026-09-01(filename) | [!error]+ | [!error]+ Codex round-2（4 HIGH+5 MED，已整改 24912aa6）
+_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md:101 | 验收单批注区 | 2026-09-01(filename) | [!error]+ | [!error]+ Codex round-3 终裁（1 BLOCKER+3 HIGH → 全部整改 7ca194ac）
+_bmad-output/验收单/UAT-CARD-G6-2-交互复习壳-2026-09-01.md:104 | 验收单批注区 | 2026-09-01(filename) | [!error]+ | [!error]+ Codex round-4 定向复审（用户裁决发起；HIGH-3 VERIFIED，HIGH-1/HIGH-4b 反例 → 全部整改 f2a9e5f3，**无第五轮复审**）
+search_rc=0

@@ -1,0 +1,42 @@
+# CARD-G1-1 负控4：git 日期档整条失效 —— 期望 test_date_source_git_on_a_real_git_repo FAILED
+# HEAD=4a6524aa12f4c247245afda099bfa19d60dc510c ts=20260919T004959
+pre_sha  = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+--- 变异 4 的 diff ---
+--- a/scripts/annotation_search.py
++++ b/scripts/annotation_search.py
+@@ -453,5 +453,5 @@
+     if proc.returncode != 0:
+         return None
+-    return find_date(proc.stdout.strip())
++    return None  # NEGCTL-4
+ 
+ 
+============================= test session starts ==============================
+collected 78 items
+
+tests/unit/test_annotation_search.py ................................... [ 44%]
+....F...........F..........................                              [100%]
+
+=================================== FAILURES ===================================
+___________________ test_date_source_git_on_a_real_git_repo ____________________
+tests/unit/test_annotation_search.py:609: in test_date_source_git_on_a_real_git_repo
+    assert records[0]["date_source"] == "git", "该文件只有 git 一档能给出日期"
+E   AssertionError: 该文件只有 git 一档能给出日期
+E   assert 'unknown' == 'git'
+E     
+E     - git
+E     + unknown
+______________ test_git_env_is_actually_wired_into_the_subprocess ______________
+tests/unit/test_annotation_search.py:766: in test_git_env_is_actually_wired_into_the_subprocess
+    assert json.loads(out)[0]["date_source"] == "git"
+E   AssertionError: assert 'unknown' == 'git'
+E     
+E     - git
+E     + unknown
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_date_source_git_on_a_real_git_repo
+FAILED tests/unit/test_annotation_search.py::test_git_env_is_actually_wired_into_the_subprocess
+======================== 2 failed, 76 passed in 16.58s =========================
+pytest_rc=1
+post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py

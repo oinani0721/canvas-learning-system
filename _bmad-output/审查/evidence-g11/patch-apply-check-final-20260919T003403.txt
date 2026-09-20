@@ -1,0 +1,15 @@
+# CARD-G1-1 协议 patch apply --check @ 4bf7d055914d5b7aefc68174cb8801b3ac13838d  ts=20260919T003403
+FEAT grep -c 开卡必跑批注检索 = 0
+LANE grep -c 开卡必跑批注检索 = 0
+patch 内 '^+.*开卡必跑批注检索' = 1
+patch 内新增行总数（^+ 非 +++）= 1
+patch 内删除行总数（^- 非 ---）= 0
+--- apply --check ---
+accbe747c0a963823cb28b3ce7578fb232be396201e4f15115b765b77c22baf1  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/rules/card-batch-protocol.md
+apply_check_rc=0
+FEAT status .claude/rules 行数 =        0
+accbe747c0a963823cb28b3ce7578fb232be396201e4f15115b765b77c22baf1  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/rules/card-batch-protocol.md
+--- 验伪锚：context 改一字 ---
+error: patch failed: .claude/rules/card-batch-protocol.md:95
+error: .claude/rules/card-batch-protocol.md: patch does not apply
+bad_rc=1

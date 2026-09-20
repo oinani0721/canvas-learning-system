@@ -1,0 +1,50 @@
+{
+  "commit": "fix(scripts): CARD-G1-1 H1R 补 L128 定位符形态与 census [BATCH-2026-09-18-第十五批 / CARD-G1-1]",
+  "ref": "bf3a765c",
+  "sha": "bf3a765cebf86081d74232f9b6f14e629eaeb786",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:28:43-0700",
+  "code_files": [
+    "backend/tests/unit/test_annotation_search.py",
+    "scripts/annotation_search.py"
+  ],
+  "files": [
+    {
+      "file": "scripts/annotation_search.py",
+      "added": 16,
+      "removed": 10,
+      "runtime": 0.71,
+      "risk": "logic",
+      "risk_conf": 0.91,
+      "urgency": 2.1,
+      "urgency_conf": 0.71,
+      "review": 0.57,
+      "test": 0.5,
+      "truncated": false,
+      "flag": false
+    },
+    {
+      "file": "backend/tests/unit/test_annotation_search.py",
+      "added": 25,
+      "removed": 6,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.24,
+      "urgency_conf": 0.6,
+      "review": 0.43,
+      "test": 0.95,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 5174,
+    "output_tokens": 314
+  },
+  "latency_ms": {
+    "min": 237,
+    "median": 258,
+    "max": 258
+  }
+}

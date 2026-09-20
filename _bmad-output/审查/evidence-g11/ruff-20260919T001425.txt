@@ -1,0 +1,28 @@
+# CARD-G1-1 ruff（zsh 数组）+ F821 验伪锚（§二.6）
+# HEAD=c924e6b1fb2e92c08c79251f9b25e945ef1560ca PREV=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260919T001425
+files=2
+file_list=backend/tests/unit/test_annotation_search.py scripts/annotation_search.py
+All checks passed!
+check_rc=0
+2 files already formatted
+format_rc=0
+--- 验伪锚 A：根 ruff.toml 对 scripts/ 面真生效（F821 必触发）---
+F821 Undefined name `undefined_name_g11`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p8-backend/6daa9617-4a7c-40c8-958d-675724eafadd/scratchpad/probe_f821.py:1:7
+  |
+1 | print(undefined_name_g11)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_root_rc=1
+--- 验伪锚 B：backend/ruff.toml（测试文件那份配置）---
+F821 Undefined name `undefined_name_g11`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p8-backend/6daa9617-4a7c-40c8-958d-675724eafadd/scratchpad/probe_f821.py:1:7
+  |
+1 | print(undefined_name_g11)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_backend_rc=1

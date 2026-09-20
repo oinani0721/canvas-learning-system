@@ -1,0 +1,50 @@
+# CARD-G1-1 收工全套快裁判 @ 4a6524aa12f4c247245afda099bfa19d60dc510c  ts=20260919T005044
+# 脚本 sha256 = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  scripts/annotation_search.py
+# 单测 sha256 = e235c91ea559ce6732e2e34f4ed30103bde9a0d08f9522d70e0a5232abb7ba8e  backend/tests/unit/test_annotation_search.py
+# 工作树 == HEAD ? yes
+
+--- 1 零写 AST 门（期望 0；验伪锚期望 2）---
+write_calls= 0
+write_calls= 2
+  line 1: open(mode='w')
+  line 3: remove
+
+--- 2 结构：三产物 + marker 表 ---
+_bmad-output/审查/evidence-g11/protocol-s5-annotation-search.patch
+backend/tests/unit/test_annotation_search.py
+scripts/annotation_search.py
+ls_rc=0
+len(MARKERS)= 10
+['callout_BMAD-ANNO', 'callout_error', 'callout_hint', 'callout_info', 'callout_note', 'callout_question', 'callout_tip', 'callout_todo', 'callout_warning', 'user_bold']
+grep -c BMAD-ANNO = 2
+
+--- 3 只读 hash 门 ---
+跑前 H = 80cecc7cdadf1414e30cfe7ea480b7d48cec78ebcc1ff95b8f0a8fea61b1ae33  -
+run_rc=0  命中行数=22
+# files_scanned=1983 marker_hits=1338 shown=22 empty=32 fenced=169 html_comment=26 unreadable=0 unwalkable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# private_roots_without_path=['ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']（A01 声明为私人，但仓内无落地路径可拦——不等于那里没有批注）
+跑后 H = 80cecc7cdadf1414e30cfe7ea480b7d48cec78ebcc1ff95b8f0a8fea61b1ae33  -
+验伪锚 probe 改前 = 7c0209306d30251ae338005d823626fa9acb106d4638f74bcd79320f688e5e5d  -
+验伪锚 probe 改后 = 2707d818cb45ea7c4456fda1866762d5f2209ec4a523ab117365e576ca555d67  -
+
+--- 4 ruff（zsh 数组）---
+files=2  backend/tests/unit/test_annotation_search.py scripts/annotation_search.py
+All checks passed!
+check_rc=0
+2 files already formatted
+format_rc=0
+F821 锚(根 ruff.toml) 命中数 = 1
+
+--- 5 地盘门 ---
+ backend/tests/unit/test_annotation_search.py | 999 +++++++++++++++++++++++++++
+ scripts/annotation_search.py                 | 858 +++++++++++++++++++++++
+ 2 files changed, 1857 insertions(+)
+禁改面行数 =        0
+openapi.json 命中 = 0
+backend/app 改动文件数 =        0
+验伪锚 B（去掉 exclude 应多出 _bmad-output/ 路径）：
+0
+
+--- 6 现网只读 / 禁连库 ---
+neo4j|7691|7687|lancedb 命中 = backend/tests/unit/test_annotation_search.py:0 scripts/annotation_search.py:0 
+fsrs_bridge|decay_beta 命中 =        0

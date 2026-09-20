@@ -1,0 +1,13 @@
+# CARD-G1-1 零写 AST 门（(f)③ / §二.3③）
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260918T225205
+# 被测文件 sha256 = a460309be070b27bbd09d7089f643fc695ea11267fe6b88364213b6840d57e64  scripts/annotation_search.py
+--- 被测：scripts/annotation_search.py（期望 write_calls= 0）---
+write_calls= 0
+--- 验伪锚：scratchpad 探针（两行写调用，期望 write_calls= 2）---
+open("x","w")
+import os
+os.remove("x")
+write_calls= 2
+  line 1: open(mode='w')
+  line 3: remove
+--- grep -c 'BMAD-ANNO' = 2

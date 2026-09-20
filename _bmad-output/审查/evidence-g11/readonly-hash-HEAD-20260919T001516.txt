@@ -1,0 +1,12 @@
+# CARD-G1-1 只读 hash 门 @ HEAD（§二.7）
+# HEAD=c924e6b1fb2e92c08c79251f9b25e945ef1560ca ts=20260919T001516
+# 被测脚本 sha256 = feeffa892bdc91fc246dc9bdf51a86f2473d17d792b881e563c976599637ae9d  scripts/annotation_search.py
+跑前 H = 500502fba3b89e179712a4720e2b5b7521683ce66a8f929d207d53256eff3679  -
+run_rc=0
+  命中行数 = 16
+  汇总 = # files_scanned=1981 marker_hits=1315 shown=16 empty=15 unreadable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD', 'ROOT-EXTERNAL-PRIVATE-01', 'ROOT-GRAPHITI-MEMORY', 'ROOT-OTHER-BACKUPS', 'ROOT-TRANSCRIPTS']
+跑后 H = 500502fba3b89e179712a4720e2b5b7521683ce66a8f929d207d53256eff3679  -
+--- 验伪锚：H 口径对内容敏感 ---
+  probe 改前 = bb09ac3c2ecb36fc39bb2cb1f7d3c0206e694c62a3bc1885557aae67b4aa79e6  -
+  probe 改后 = eb1b13687bb63b0cb29871c2ce5df7c353ad4fab0715bd14150f56185fe43791  -
+--- git status(_bmad-output 排除 evidence-g11) 行数 =        0

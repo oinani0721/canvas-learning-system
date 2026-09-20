@@ -1,0 +1,29 @@
+# CARD-G1-1 私人 root 判定的对抗输入自查（Codex 问题 ⓪ 的作者侧实测）
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260918T231429
+# 被测脚本 sha256 = feeffa892bdc91fc246dc9bdf51a86f2473d17d792b881e563c976599637ae9d  scripts/annotation_search.py
+# fixture: repo/{canvas-vault/secret.md, pub/ok.md, pub/dirlink->canvas-vault, pub/filelink.md->canvas-vault/secret.md}
+# 全部用 --keyword kw-secret（只有私人文件含该词）⇒ shown>0 即泄漏
+--- A 对照输入：--root repo（期望 canvas-vault 被剪、shown=0）
+# files_scanned=1 marker_hits=1 shown=0 empty=0 unreadable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# pruned_private_paths=['<SP>/adv1/repo/canvas-vault', '<SP>/adv1/repo/pub/dirlink', '<SP>/adv1/repo/pub/filelink.md']
+  rc=1
+--- B 未被拦下的输入？--root repo/canvas-vault/..（realpath=repo；期望仍剪、shown=0）
+# files_scanned=1 marker_hits=1 shown=0 empty=0 unreadable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# pruned_private_paths=['<SP>/adv1/repo/canvas-vault', '<SP>/adv1/repo/pub/dirlink', '<SP>/adv1/repo/pub/filelink.md']
+  rc=1
+--- C 未被拦下的输入？--root repo/pub/../canvas-vault（realpath=vault；期望 rc=2）
+annotation_search.py: 按 A01 ROOT-ACTIVE-VAULT 私人 root 拒扫：<SP>/adv1/repo/pub/../canvas-vault；需要请 --include-private 并自负授权
+  rc=2
+--- D 未被拦下的输入？--root repo/pub（内含目录软链与文件软链指进 vault；期望两者都剪、shown=0）
+# files_scanned=1 marker_hits=1 shown=0 empty=0 unreadable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# pruned_private_paths=['<SP>/adv1/repo/pub/dirlink', '<SP>/adv1/repo/pub/filelink.md']
+  rc=1
+--- E 未被拦下的输入？--root 文件软链本身（realpath 落 vault；期望 rc=2）
+annotation_search.py: 按 A01 ROOT-ACTIVE-VAULT 私人 root 拒扫：<SP>/adv1/repo/pub/filelink.md；需要请 --include-private 并自负授权
+  rc=2
+--- 正控：同一 fixture 用 --keyword kw-pub（公开文件）应命中 1 ---
+--- F 正控：--root repo --keyword kw-pub（期望 shown=1、rc=0）
+# files_scanned=1 marker_hits=1 shown=1 empty=0 unreadable=0 excluded_private_roots=['ROOT-ACTIVE-VAULT', 'ROOT-ANCHORED-PRD']
+# pruned_private_paths=['<SP>/adv1/repo/canvas-vault', '<SP>/adv1/repo/pub/dirlink', '<SP>/adv1/repo/pub/filelink.md']
+<SP>/adv1/repo/pub/ok.md:1 | 其他 | unknown(unknown) | **User： | **User：公开内容 kw-pub**
+  rc=0

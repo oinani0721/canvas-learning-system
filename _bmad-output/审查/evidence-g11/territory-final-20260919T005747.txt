@@ -1,0 +1,47 @@
+# CARD-G1-1 收工地盘门（文档 commit 之后，验伪锚 B 此刻才非空洞）
+# PREV=86dc726c9eda76b11792e6793d401bf2dea04294  HEAD=37a1e3e513754dd827ab03b401df5e21b0954329  ts=20260919T005747
+
+--- 代码面：恰两个新文件、零修改既有文件 ---
+ backend/tests/unit/test_annotation_search.py | 999 +++++++++++++++++++++++++++
+ scripts/annotation_search.py                 | 858 +++++++++++++++++++++++
+ 2 files changed, 1857 insertions(+)
+
+--- 禁改面（须空）---
+  行数 = 0
+
+--- 验伪锚 A：只看 .claude 应空 ---
+  行数 = 0
+--- 验伪锚 B：去掉 exclude 应多出 _bmad-output/ 路径（现在 evidence 已入库，不再空洞）---
+  带 exclude 的文件数   = 2
+  不带 exclude 的文件数 = 53
+  其中 _bmad-output/ 路径数 = 51
+
+--- openapi.json / backend/app ---
+  openapi.json 命中 = 0
+  backend/app 改动文件数 = 0
+
+--- _bmad-output 内只允许本卡四类路径 ---
+_bmad-output/验收单
+_bmad-output/审查/evidence-g11
+_bmad-output/审查/prompts
+
+--- 工作树是否干净（车道收官条件）---
+       2
+?? MUTANT_F_LEAK.txt
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g11/territory-final-20260919T005747.txt"
+
+=== 收工时 git status 那条 ?? MUTANT_F_LEAK.txt 的归因（实测）===
+内容 = 'the tool wrote this'（20 字节）；mtime = 2026-09-19 00:41:56。
+该字符串在本卡两个源文件与我自己的两个变异器里 **均 0 命中**（逐个 grep -c 实测）。
+时刻对得上并发的内部复核 gates 维度 agent 跑 F_writes_outside（「让脚本往目标目录之外写」）变异的窗口。
+⇒ 判定：**并发 agent 留在本工作树仓根的残留**，不是被测脚本写的。已挪至 scratchpad（未跟踪路径，未用删除类命令）。
+
+它是否污染了本卡任何判据——逐条核：
+  - test_tool_writes_nothing_anywhere_in_the_repo：在用例内部比对跑前/跑后 git status，
+    预先存在的未跟踪文件在两侧都出现 ⇒ 不影响该判据。
+  - 只读 hash 门：输入面是 _bmad-output，仓根文件不在其中 ⇒ 不影响。
+  - 代码面：close-judges-*.txt 与本次地盘门都实测过「工作树 == HEAD」，两文件 sha 未变 ⇒ 未被改动。
+  - 地盘门本身：它**抓到了**这个文件，这正是该判据应有的行为。
+
+教训（值得进工程坑）：并发的复核 agent 会往被审工作树里写。「审查对象须冻结」不只是
+「我别改」，也包括「别让别人在这棵树上做写实验」——收工的 git status 是抓它的最后一道门。

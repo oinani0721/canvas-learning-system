@@ -1,0 +1,7 @@
+# CARD-G1-1 补审：协议 §5 条款 patch 对当前主干树协议只读复测（git apply --check）
+# ts=20260919T172210；patch 基自证 = accbe747…（97 行，patch 头与 patch-apply-check-final 同源）；当前主干版 = 20aad922…（140 行，commit 90ff4570 追加 §2.4 系列后）
+# 只读证明：跑前跑后协议 sha 逐字同 + FEAT git status .claude/rules = 0 行
+20aad922f5489bb9034f9557770a72fe99ea6e9660691447aa85f1bd651640c6  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/rules/card-batch-protocol.md
+apply_check_rc=0
+       0
+20aad922f5489bb9034f9557770a72fe99ea6e9660691447aa85f1bd651640c6  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/.claude/rules/card-batch-protocol.md

@@ -1,0 +1,43 @@
+# CARD-G1-1 补审（ZCode/GLM-5.3 · round-2）验证存档 — 绑 4a6524aa12f4c247245afda099bfa19d60dc510c
+# ts=20260919T172210 · 车道 card-p8-backend（分支 card/p8-backend）
+# 命令: zcode --prompt "$(cat _bmad-output/审查/prompts/zcode-review-prompt-CARD-G1-1-r2.md)" --cwd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-G1-1-r2.md 2> _bmad-output/审查/zcode-review-CARD-G1-1-r2.stderr
+# zcode_rc=0 · 原始 stdout（JSON）14502 字节 · stderr 528 字节
+
+--- 0 第 0 分钟环境自证（开工时核；本区收档时复跑，值同）---
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend
+branch=card/p8-backend
+git merge-base --is-ancestor 16fd1e4e HEAD → ANCHOR-OK rc=0
+git status --porcelain 行数=0（期望 0）
+zcode --version →
+zcode-app-cli 3.12.3-26
+zcode-runtime 0.16.5
+~/.zcode/v2/provider_config.json → cfg-ok
+
+--- 1 JSON 自证（--json 原文；全文 = _bmad-output/审查/evidence-g11/zcode-review-r2-rawjson-20260919T172210.json）---
+sessionId = sess_01ab0c7d-fabf-4488-a438-f1dd2e788dc2
+traceId   = 062b11ee-b1f8-46a4-a306-a899a54ae193
+turnId    = turn_5b261b9e-0bc6-4066-8830-a005a4c71859
+eventCount = 51418
+projection = {"status": "idle", "turnCount": 1, "totalTokenCount": 3203962, "contextUsed": 184999, "contextWindow": 200000}
+usage      = {"source": "provider", "modelRequestCount": 21, "inputTokens": 3150351, "outputTokens": 53611, "totalTokens": 3203962, "cacheReadTokens": 2982784, "cacheWriteTokens": 0, "reasoningTokens": 0, "webFetchRequests": 0, "webSearchRequests": 0}
+
+--- 2 绑定声明（串行车道口径：本卡文件自本卡末 commit 后零改动）---
+$ git --no-pager diff --stat --no-color 4a6524aa HEAD -- backend/tests/unit/test_annotation_search.py scripts/annotation_search.py
+输出行数=0（期望 0）  HEAD=16fd1e4e9c8514e9e09858281c99dac1d031f79b
+
+--- 3 评审输出分级计数（全文见 _bmad-output/审查/zcode-review-CARD-G1-1-r2.md）---
+BLOCKER 节=0  H 节=1 H 条目=1
+M 节=1 M 条目=2  L 节=1 L 条目=8
+评审判句: HIGH ×1 / MEDIUM ×2 / LOW ×8；按协议 §1 口径无阻断级
+
+--- 4 禁用词扫描（存档全文；期望 0/0/0/0）---
+构造=0
+可复现片段=0
+打穿=0
+绕过=0
+
+--- 5 stderr 摘要（原文件不入库；.gitignore:260-264 覆盖 *.stderr*）---
+  16 ZCode Built-in skipped (not-due)
+
+--- 6 只读性质外部可证（评审运行后、车道落档前的实测）---
+git status --porcelain 仅见本补审自建的 2 个未跟踪文件（prompts/zcode-review-prompt-CARD-G1-1-r2.md 与 zcode-review-CARD-G1-1-r2.md），无其他变化 ⇒ 评审未写工作树

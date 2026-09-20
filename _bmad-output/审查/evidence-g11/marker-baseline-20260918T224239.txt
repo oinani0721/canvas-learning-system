@@ -1,0 +1,51 @@
+# CARD-G1-1 先红②：marker 面基线（对照卡文 §〇）
+# HEAD=86dc726c9eda76b11792e6793d401bf2dea04294 ts=20260918T224239
+md_files= 1981
+unreadable= 0 []
+--- marker 行数 / 文件数 ---
+'**User：'          lines=225 files=97
+'**User:'          lines=8 files=7
+'**User2：'         lines=8 files=3
+'[!question]+'     lines=302 files=126
+'[!error]+'        lines=193 files=95
+'[!tip]+'          lines=109 files=60
+'[!info]+'         lines=113 files=75
+'[!warning]+'      lines=39 files=30
+'[!note]+'         lines=11 files=10
+'[!hint]+'         lines=5 files=4
+'[!BMAD-ANNO]'     lines=2 files=1
+[!question]+ blockquote=198 inline=104
+--- 来源类别 文件/marker行 ---
+其他               files=53 lines=311
+验收单批注区           files=82 lines=193
+审查               files=14 lines=81
+研究               files=35 lines=71
+批注回复             files=8 lines=17
+goal-cards       files=6 lines=6
+决策批注             files=1 lines=3
+planning-artifacts files=2 lines=2
+--- 三主题块/文件 ---
+FSRS       blocks=37 files=18
+跨vault     blocks=9 files=6
+README     blocks=3 files=3
+空槽探针 :426 = '**User：**'
+
+=== 差异归因（卡文 §〇 数字 vs 本树实测）——实测，非推断 ===
+卡文 §〇 勘探树 = feature-obsidian-hybrid-dev @ 67d66672；本卡执行树 = card-p8-backend @ 9c4e7e82+P8-A/B。
+两树 _bmad-output 内容不同（第十五批排批产物只在主干树）：
+  车道树 md(剪 .obsidian/__pycache__) = 1981
+  主干树 md(同口径)                   = 2083
+  git diff --stat 9c4e7e82..67d66672 -- _bmad-output 末行 =
+ 41 files changed, 6573 insertions(+), 3 deletions(-)
+
+三行对照（卡文 §〇 / 主干树今测 / 车道树今测）：
+  **User：     294/122  |  304/124  |  225/97
+  [!question]+ 348/137  |  353/139  |  302/126
+  [!error]+    216/102  |  224/104  |  193/95
+  FSRS块        48/27   |   (未测)  |   37/18
+  跨vault块     16/12   |   (未测)  |    9/6
+  README块       3/3    |   (未测)  |    3/3
+
+结论：数字差 = 两树 _bmad-output 内容差，非扫描口径差（同一脚本跑两树，主干树数字 >= 卡文 >= 车道树，方向单调）。
+按卡文 §二.2② 指令：如实登记新数、不改判据方向。(g)⑤ 断言仍为「三主题各 >=1」+「两锚 :494/:163 必命中」，
+这两类断言在本树均成立（README 最稀 = 3 块 >= 1；两锚已于第 0 分钟 grep -nF 实测命中）。

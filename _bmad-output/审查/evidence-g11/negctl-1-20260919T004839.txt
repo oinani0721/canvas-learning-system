@@ -1,0 +1,91 @@
+# CARD-G1-1 负控1：私人 root 前缀判定恒 False —— 期望 test_private_root_excluded_by_default FAILED，红在命中数断言
+# HEAD=4a6524aa12f4c247245afda099bfa19d60dc510c ts=20260919T004839
+pre_sha  = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+--- 变异 1 的 diff ---
+--- a/scripts/annotation_search.py
++++ b/scripts/annotation_search.py
+@@ -280,4 +280,5 @@
+     realpath 口径 + ``fold_path`` 归一（见该函数 docstring 里的实测理由）。
+     """
++    return None  # NEGCTL-1
+     real = fold_path(os.path.realpath(path))
+     for root_id, prefixes in private_paths.items():
+============================= test session starts ==============================
+collected 78 items
+
+tests/unit/test_annotation_search.py .......F..FFFFFF........F.......... [ 44%]
+..................F........................                              [100%]
+
+=================================== FAILURES ===================================
+____________________ test_private_root_excluded_by_default _____________________
+tests/unit/test_annotation_search.py:250: in test_private_root_excluded_by_default
+    assert json.loads(out) == [], "私人 root 的批注默认必须一条都不返回"
+E   AssertionError: 私人 root 的批注默认必须一条都不返回
+E   assert [{'category':...: False, ...}] == []
+E     
+E     Left contains one more item: {'category': '其他', 'date': 'unknown', 'date_source': 'unknown', 'empty': False, ...}
+E     Use -v to get more diff
+_______________ test_root_pointing_into_private_root_is_refused ________________
+tests/unit/test_annotation_search.py:278: in test_root_pointing_into_private_root_is_refused
+    assert code == 2
+E   assert 0 == 2
+__________________ test_symlink_into_private_root_is_refused ___________________
+tests/unit/test_annotation_search.py:287: in test_symlink_into_private_root_is_refused
+    assert code == 2, "realpath 口径：软链指进私人 root 同样拒扫"
+E   AssertionError: realpath 口径：软链指进私人 root 同样拒扫
+E   assert 0 == 2
+____________ test_case_variant_private_dir_is_pruned[Canvas-Vault] _____________
+tests/unit/test_annotation_search.py:303: in test_case_variant_private_dir_is_pruned
+    assert json.loads(out) == [], f"{dirname} 下的私人批注不得返回"
+E   AssertionError: Canvas-Vault 下的私人批注不得返回
+E   assert [{'category':...: False, ...}] == []
+E     
+E     Left contains one more item: {'category': '其他', 'date': 'unknown', 'date_source': 'unknown', 'empty': False, ...}
+E     Use -v to get more diff
+____________ test_case_variant_private_dir_is_pruned[CANVAS-VAULT] _____________
+tests/unit/test_annotation_search.py:303: in test_case_variant_private_dir_is_pruned
+    assert json.loads(out) == [], f"{dirname} 下的私人批注不得返回"
+E   AssertionError: CANVAS-VAULT 下的私人批注不得返回
+E   assert [{'category':...: False, ...}] == []
+E     
+E     Left contains one more item: {'category': '其他', 'date': 'unknown', 'date_source': 'unknown', 'empty': False, ...}
+E     Use -v to get more diff
+____________ test_case_variant_private_dir_is_pruned[canvas-Vault] _____________
+tests/unit/test_annotation_search.py:303: in test_case_variant_private_dir_is_pruned
+    assert json.loads(out) == [], f"{dirname} 下的私人批注不得返回"
+E   AssertionError: canvas-Vault 下的私人批注不得返回
+E   assert [{'category':...: False, ...}] == []
+E     
+E     Left contains one more item: {'category': '其他', 'date': 'unknown', 'date_source': 'unknown', 'empty': False, ...}
+E     Use -v to get more diff
+______________________ test_case_variant_root_is_refused _______________________
+tests/unit/test_annotation_search.py:314: in test_case_variant_root_is_refused
+    assert code == 2
+E   assert 0 == 2
+______________________ test_nested_private_dir_is_pruned _______________________
+tests/unit/test_annotation_search.py:440: in test_nested_private_dir_is_pruned
+    assert code == 1
+E   assert 0 == 1
+_____ test_prefix_rule_alone_catches_a_private_root_without_component_name _____
+tests/unit/test_annotation_search.py:818: in test_prefix_rule_alone_catches_a_private_root_without_component_name
+    assert names == ["pub.md"], ".gdr/_external 下的内容只能由前缀规则拦住"
+E   AssertionError: .gdr/_external 下的内容只能由前缀规则拦住
+E   assert ['notes.md', 'pub.md'] == ['pub.md']
+E     
+E     At index 0 diff: 'notes.md' != 'pub.md'
+E     Left contains one more item: 'pub.md'
+E     Use -v to get more diff
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_private_root_excluded_by_default
+FAILED tests/unit/test_annotation_search.py::test_root_pointing_into_private_root_is_refused
+FAILED tests/unit/test_annotation_search.py::test_symlink_into_private_root_is_refused
+FAILED tests/unit/test_annotation_search.py::test_case_variant_private_dir_is_pruned[Canvas-Vault]
+FAILED tests/unit/test_annotation_search.py::test_case_variant_private_dir_is_pruned[CANVAS-VAULT]
+FAILED tests/unit/test_annotation_search.py::test_case_variant_private_dir_is_pruned[canvas-Vault]
+FAILED tests/unit/test_annotation_search.py::test_case_variant_root_is_refused
+FAILED tests/unit/test_annotation_search.py::test_nested_private_dir_is_pruned
+FAILED tests/unit/test_annotation_search.py::test_prefix_rule_alone_catches_a_private_root_without_component_name
+======================== 9 failed, 69 passed in 17.25s =========================
+pytest_rc=1
+post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py

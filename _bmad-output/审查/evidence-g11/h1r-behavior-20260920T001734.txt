@@ -1,0 +1,5 @@
+# CARD-G1-1 H1R 承重行为门（r3 HIGH-1R 补漏后）
+# 跑法: ( cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -p no:cacheprovider -rfE tests/unit/test_annotation_search.py )
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 87 passed, 10 warnings in 26.46s =======================
+rc=0

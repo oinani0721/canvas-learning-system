@@ -1,0 +1,41 @@
+# CARD-G1-1 负控2：删掉 MARKERS 里 callout 族的 question —— 期望 six_forms 用例 FAILED，失败正文含 [!question]+
+# HEAD=4a6524aa12f4c247245afda099bfa19d60dc510c ts=20260919T004906
+pre_sha  = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py
+--- 变异 2 的 diff ---
+--- a/scripts/annotation_search.py
++++ b/scripts/annotation_search.py
+@@ -69,5 +69,4 @@
+ MARKERS = {
+     "user_bold": re.compile(r"\*\*User(?:\s?\d)?\s?(?:修正|Comment)?\*{0,2}\s?[：:]"),
+-    "callout_question": re.compile(r"\[!question\][+-]?", re.I),
+     "callout_error": re.compile(r"\[!error\][+-]?", re.I),
+     "callout_tip": re.compile(r"\[!tip\][+-]?", re.I),
+============================= test session starts ==============================
+collected 78 items
+
+tests/unit/test_annotation_search.py F.................................. [ 44%]
+.................................F.........                              [100%]
+
+=================================== FAILURES ===================================
+________________ test_six_forms_hit_first_five_with_exact_lines ________________
+tests/unit/test_annotation_search.py:144: in test_six_forms_hit_first_five_with_exact_lines
+    assert got == {
+E   AssertionError: assert {('f1-single....: '[!error]+'} == {('f1-single....stion]+', ...}
+E     
+E     Omitting 4 identical items, use -vv to show
+E     Right contains 1 more item:
+E     {('f4-blockquote.md', 3): '[!question]+'}
+E     Use -v to get more diff
+___________________________ test_marker_table_shape ____________________________
+tests/unit/test_annotation_search.py:921: in test_marker_table_shape
+    assert len(mod.MARKERS) == 10
+E   AssertionError: assert 9 == 10
+E    +  where 9 = len({'callout_BMAD-ANNO': re.compile('\\[!BMAD-ANNO\\][+-]?', re.IGNORECASE), 'callout_error': re.compile('\\[!error\\][+-...nt': re.compile('\\[!hint\\][+-]?', re.IGNORECASE), 'callout_info': re.compile('\\[!info\\][+-]?', re.IGNORECASE), ...})
+E    +    where {'callout_BMAD-ANNO': re.compile('\\[!BMAD-ANNO\\][+-]?', re.IGNORECASE), 'callout_error': re.compile('\\[!error\\][+-...nt': re.compile('\\[!hint\\][+-]?', re.IGNORECASE), 'callout_info': re.compile('\\[!info\\][+-]?', re.IGNORECASE), ...} = mod.MARKERS
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_annotation_search.py::test_six_forms_hit_first_five_with_exact_lines
+FAILED tests/unit/test_annotation_search.py::test_marker_table_shape - Assert...
+======================== 2 failed, 76 passed in 16.87s =========================
+pytest_rc=1
+post_sha = 502ec9ca72b4546ebce162e5b24a3205637a6ac2edfe67d13e82ae96bf9b3984  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/scripts/annotation_search.py

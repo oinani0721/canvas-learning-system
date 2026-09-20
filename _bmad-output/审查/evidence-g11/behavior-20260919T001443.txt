@@ -1,0 +1,10 @@
+# CARD-G1-1 承重行为门 @ HEAD（§二.4）
+# HEAD=c924e6b1fb2e92c08c79251f9b25e945ef1560ca ts=20260919T001443
+============================= test session starts ==============================
+collected 33 items
+
+tests/unit/test_annotation_search.py .................................   [100%]
+
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================= 33 passed in 12.96s ==============================
+pytest_rc=0
