@@ -1,0 +1,37 @@
+== 地盘门: diff --stat 9c4e7e82 HEAD (exclude _bmad-output) ==
+ backend/app/api/v1/endpoints/review.py             |   6 +-
+ backend/app/core/exception_handlers.py             | 186 +++++++++-
+ backend/app/main.py                                |  19 +-
+ backend/tests/regression/test_production_bugs.py   |  11 +-
+ .../regression/test_u9c_startup_rejection_eval.py  |  87 ++---
+ backend/tests/unit/test_exception_handlers_wire.py | 392 +++++++++++++++++++++
+ 6 files changed, 638 insertions(+), 63 deletions(-)
+== openapi.json diff (应空; 下一行若无输出即为空) ==
+== commit stat 里 openapi.json 命中数 (应 0) ==
+0
+== ruff (zsh 数组) ==
+files=6
+  backend/app/api/v1/endpoints/review.py
+  backend/app/core/exception_handlers.py
+  backend/app/main.py
+  backend/tests/regression/test_production_bugs.py
+  backend/tests/regression/test_u9c_startup_rejection_eval.py
+  backend/tests/unit/test_exception_handlers_wire.py
+All checks passed!
+ruff_rc=0
+6 files already formatted
+fmt_rc=0
+== F821 验伪锚 (stdin, 按 backend/tests/unit/ 路径解析配置; 不落盘不入 commit) ==
+F821 Undefined name `undefined_name_zz`
+ --> backend/tests/unit/_f821_probe.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_zz
+  |            ^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_rc=1
+== 对照：同一命令喂合法代码应 rc=0 ==
+All checks passed!
+control_rc=0

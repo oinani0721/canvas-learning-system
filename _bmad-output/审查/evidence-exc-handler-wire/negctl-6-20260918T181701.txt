@@ -1,0 +1,90 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 15 items
+
+tests/unit/test_cross_canvas_removal.py .......                          [ 46%]
+tests/unit/test_exception_handlers_wire.py .....F..                      [100%]
+
+=================================== FAILURES ===================================
+____________ test_production_app_maps_core_canvas_not_found_to_404 _____________
+live Neo4j port connect attempted —— 本用例期间有 1 次到现网 Neo4j 的连接尝试被拦下。
+（连接处抛出的异常被 app/main.py 的 lifespan try/except 吞掉了，
+  所以由本哨兵把它转成用例失败——否则这道门什么都证明不了。）
+  - ('::1', 7691, 0, 0) on thread asyncio-portal-139695350 (owner=tests/unit/test_exception_handlers_wire.py::test_production_app_maps_core_canvas_not_found_to_404)
+----------------------------- Captured stdout call -----------------------------
+{"event": "Creating MemoryService singleton instance", "request_id": "5258176080", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T10:17:14.136093Z"}
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50", "request_id": "5258176080", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:17:14.136229Z"}
+{"event": "Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). \u53d7\u62e6\u7aef\u53e3 [7687, 7691] \u662f\u73b0\u7f51 Neo4j\uff1b\u6d4b\u8bd5\u8fdb\u7a0b\u4e0d\u5f97\u8fde\u63a5\u3002\u82e5\u8fd9\u662f\u7aef\u70b9\u6d4b\u8bd5\uff0c\u8bf7\u7528 backend/tests/support/lifespan.py::no_lifespan \u5173\u6389 app.main \u7684 lifespan\uff1b\u82e5\u786e\u9700\u771f\u5e93\uff0c\u7528\u6d4b\u8bd5\u5bb9\u5668 NEO4J_TEST_URI(7692) \u5e76\u6253 integration/real_neo4j marker\u3002", "request_id": "5258176080", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:17:14.136928Z"}
+{"event": "Neo4j health check failed during initialization", "request_id": "5258176080", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:17:14.136988Z"}
+{"event": "Falling back to JSON storage mode", "request_id": "5258176080", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:17:14.137017Z"}
+{"event": "Neo4j driver closed", "request_id": "5258176080", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:17:14.137051Z"}
+{"event": "Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/data/neo4j_memory.json", "request_id": "5258176080", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:17:14.137145Z"}
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "request_id": "5258176080", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T10:17:14.137753Z"}
+{"event": "MemoryService initialized successfully", "request_id": "5258176080", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T10:17:14.137807Z"}
+{"event": "MemoryService singleton initialized", "request_id": "5258176080", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T10:17:14.137843Z"}
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "request_id": "5258176080", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-18T10:17:14.138452Z"}
+{"request_id": "5258176080", "error_type": "CanvasNotFoundException", "status_code": 404, "path": "/api/v1/canvas/exc-wire-missing/sync-edges", "event": "core_canvas_exception", "logger": "app.core.exception_handlers", "level": "warning", "timestamp": "2026-09-18T10:17:14.138648Z"}
+{"method": "POST", "path": "/api/v1/canvas/exc-wire-missing/sync-edges", "endpoint": "/api/v1/canvas/exc-wire-missing/sync-edges", "status": 404, "duration_ms": 7.24, "event": "request.completed", "request_id": "5258176080", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T10:17:14.138903Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2922 {'event': 'Creating MemoryService singleton instance', 'request_id': '5258176080', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T10:17:14.136093Z'}
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7691, pool_size=50
+WARNING  app.clients.neo4j_client:neo4j_client.py:531 Neo4j health check failed: live Neo4j port connect attempted: ('::1', 7691, 0, 0). 受拦端口 [7687, 7691] 是现网 Neo4j；测试进程不得连接。若这是端点测试，请用 backend/tests/support/lifespan.py::no_lifespan 关掉 app.main 的 lifespan；若确需真库，用测试容器 NEO4J_TEST_URI(7692) 并打 integration/real_neo4j marker。
+WARNING  app.clients.neo4j_client:neo4j_client.py:407 Neo4j health check failed during initialization
+WARNING  app.clients.neo4j_client:neo4j_client.py:429 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+INFO     app.clients.neo4j_client:neo4j_client.py:450 Loaded 0 relationships from /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/data/neo4j_memory.json
+INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'request_id': '5258176080', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T10:17:14.137753Z'}
+INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'request_id': '5258176080', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T10:17:14.137807Z'}
+INFO     app.services.memory_service:memory_service.py:2927 {'event': 'MemoryService singleton initialized', 'request_id': '5258176080', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T10:17:14.137843Z'}
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+WARNING  app.core.exception_handlers:exception_handlers.py:384 {'request_id': '5258176080', 'error_type': 'CanvasNotFoundException', 'status_code': 404, 'path': '/api/v1/canvas/exc-wire-missing/sync-edges', 'event': 'core_canvas_exception', 'logger': 'app.core.exception_handlers', 'level': 'warning', 'timestamp': '2026-09-18T10:17:14.138648Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/exc-wire-missing/sync-edges', 'endpoint': '/api/v1/canvas/exc-wire-missing/sync-edges', 'status': 404, 'duration_ms': 7.24, 'event': 'request.completed', 'request_id': '5258176080', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T10:17:14.138903Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=1 (blocked=1, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_exception_handlers_wire.py::test_production_app_maps_core_canvas_not_found_to_404
+================== 1 failed, 14 passed, 10 warnings in 1.01s ===================
+rc=1

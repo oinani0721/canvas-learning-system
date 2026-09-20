@@ -49,7 +49,16 @@ def stub_lazy_service_dependencies():
 
 
 @pytest.mark.xfail(
-    reason="Known bug: CanvasNotFoundException at /api/v1/canvas/nonexistent/sync-edges returns 500 instead of 4xx",
+    reason=(
+        "CARD-EXC-HANDLER-WIRE-REDACT 实测更正: 本用例当前红在本文件 autouse fixture 的"
+        "**同步** MagicMock 上 —— 端点 `await canvas_service.sync_all_edges_to_neo4j(...)` "
+        "先抛 TypeError('MagicMock' object can't be awaited), 请求走不到 "
+        "CanvasNotFoundException, 所以它测不到自己声称的那个 bug(原 reason 写的"
+        "'returns 500 instead of 4xx' 已不是当前红的原因)。core 族 → 404 的接线本身已生效, "
+        "证据见 tests/unit/test_exception_handlers_wire.py::"
+        "test_production_app_maps_core_canvas_not_found_to_404(真生产 app + 真接线)。"
+        "把 fixture 换成 AsyncMock 不在本卡地盘, 另立卡。"
+    ),
     strict=True,
 )
 def test_bug_bug_1cbf9ae9(client):

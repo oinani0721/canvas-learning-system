@@ -1,0 +1,12 @@
+# struct-gate @ 2026-09-18T16:55:46 HEAD=9c4e7e82
+register_exception_handlers(app, override_fastapi_defaults=False) => 0
+safe_message[:500] => 1
+"message": "Internal server error" => 0
+最外层，捕获所有异常 => 1
+CORSExceptionMiddleware => 5
+review reason(e) => 1
+review reason(type) => 0
+core handler => 0
+JSONResponse calls in dispatch = 1
+message value node = Subscript
+rc=0

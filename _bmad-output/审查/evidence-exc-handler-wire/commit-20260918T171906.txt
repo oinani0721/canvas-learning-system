@@ -1,0 +1,119 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+6 files already formatted
+[Python] Format OK.
+
+┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/main.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/main.py:641:34 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/main.py:732:20 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+0 errors, 2 warnings, 0 informations
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) name
+│  spec-sync-root (skip) name
+                                      
+  ────────────────────────────────────
+summary: (done in 2.65 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.13 seconds)
+✔️ python-lint (0.03 seconds)
+✔️ python-typecheck (2.47 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+⧗   input: fix(exceptions): core 族接线 + 500/200 体脱敏 [BATCH-2026-09-18-第十五批 / CARD-EXC-HANDLER-WIRE-REDACT]
+
+① register_exception_handlers 生产零调用且绑的是另一套层级 —— 新增
+app.core.exceptions 族处理器(404/400/500 显式映射), 并在 main.py 接线;
+override_fastapi_defaults=False 保留 FastAPI 默认 422/{"detail"} 契约(身份断言锁)。
+② CORSExceptionMiddleware 500 体不再带 safe_message[:500]: 改泛化文案 +
+error_type + bug_id; 原文只进日志[:200] 与 bug_log.jsonl(全文 + 栈)。
+③ /review/fsrs-state 200 体 reason 由 f"error: {e}" 改 f"error: {type(e).__name__}"。
+④ main.py 层序注释与 Starlette insert(0) 语义相反, 已更正并由运行期用例锁住。
+
+新门 backend/tests/unit/test_exception_handlers_wire.py 共 7 组: 接线身份 / 真实层序 /
+500 体脱敏 + 体大小 + 诊断不丢 / core 族 404 / 默认 422 契约 / 生产 app 404 化 /
+fsrs reason。u9c 口径钉随之翻转(用例改名 redacts)。1cbf9ae9 的 xfail **保留**并改
+reason —— 实测它红在本文件 autouse fixture 的同步 MagicMock(TypeError), 请求走不到
+CanvasNotFoundException, 原 reason 已不是当前红的原因。
+
+pyright app = 0 errors(改前改后同)。openapi 再生 diff 只有 x-generated-at,
+本 commit 不含 backend/openapi.json(LEFTHOOK_EXCLUDE=spec-sync-flat,spec-sync-root)。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+⚠   subject must be lower-case [subject-case]
+
+⚠   found 0 problems, 1 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.39 seconds)       
+✔️ commitlint (0.35 seconds)
+✔️ spec-reference (0.04 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/p8-backend 0707be32] fix(exceptions): core 族接线 + 500/200 体脱敏 [BATCH-2026-09-18-第十五批 / CARD-EXC-HANDLER-WIRE-REDACT]
+ 6 files changed, 638 insertions(+), 63 deletions(-)
+ create mode 100644 backend/tests/unit/test_exception_handlers_wire.py
+rc=0

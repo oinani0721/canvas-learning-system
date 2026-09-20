@@ -1,0 +1,105 @@
+== negctl segment 3 @ 20260918T172226  HEAD=0707be32 ==
+== pre-shasum ==
+b20722acfc69b7071d3d093bef52c6fe24a95b15ae9636953c25532bb5ffdd6a  backend/app/api/v1/endpoints/review.py
+MUTATED segment 3: backend/app/api/v1/endpoints/review.py
+== mutant snippet ==
+        )
+
+    except Exception as e:
+        # 服务端保留原文 + 栈: 脱敏只针对响应体, 不减少服务端诊断
+        logger.error(f"Error getting FSRS state for '{concept_id}': {e}", exc_info=True)
+        # Story 32.3 AC-32.3.5: Graceful degradation - return not found instead of error
+        return FSRSStateQueryResponse(
+            concept_id=concept_id,
+            fsrs_state=None,
+            card_state=None,
+            found=False,
+            # CARD-EXC-HANDLER-WIRE-REDACT: 只给类型名, 不给异常原文 (仍以 "error:" 开头)
+            reason=f"error: {e}",
+            # CARD-G3-7: 异常路径同样未完成真相源判定, 显式 None
+            persisted=None,
+            truth_source=None,
+== targeted judges ==
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 7 items / 6 deselected / 1 selected
+
+tests/unit/test_exception_handlers_wire.py F                             [100%]
+
+=================================== FAILURES ===================================
+___________________ test_fsrs_state_error_reason_is_redacted ___________________
+tests/unit/test_exception_handlers_wire.py:390: in test_fsrs_state_error_reason_is_redacted
+    assert data["reason"] == "error: RuntimeError", "fsrs-state 的 reason 仍带异常原文（或类型名口径不符）"
+E   AssertionError: fsrs-state 的 reason 仍带异常原文（或类型名口径不符）
+E   assert 'error: EXCMA...ror_reason_i0' == 'error: RuntimeError'
+E     
+E     - error: RuntimeError
+E     + error: EXCMARK-c75bf5ce89d84b2c9b9d299438465532 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-119/test_fsrs_state_error_reason_i0
+----------------------------- Captured stdout call -----------------------------
+{"event": "Wave-5 Stage B: review endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID", "request_id": "5254981888", "logger": "app.api.v1.endpoints.review", "level": "warning", "timestamp": "2026-09-18T09:22:46.624645Z"}
+{"event": "GET /review/fsrs-state concept_id=exc-wire-probe", "request_id": "5254981888", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-18T09:22:46.624748Z"}
+{"event": "Error getting FSRS state for 'exc-wire-probe': EXCMARK-c75bf5ce89d84b2c9b9d299438465532 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-119/test_fsrs_state_error_reason_i0", "exc_info": ["<class 'RuntimeError'>", "RuntimeError('EXCMARK-c75bf5ce89d84b2c9b9d299438465532 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-119/test_fsrs_state_error_reason_i0')", "<traceback object at 0x13920adc0>"], "request_id": "5254981888", "logger": "app.api.v1.endpoints.review", "level": "error", "timestamp": "2026-09-18T09:22:46.624793Z"}
+{"method": "GET", "path": "/api/v1/review/fsrs-state/exc-wire-probe", "endpoint": "/api/v1/review/fsrs-state/exc-wire-probe", "status": 200, "duration_ms": 1.9, "event": "request.completed", "request_id": "5254981888", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T09:22:46.625420Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.api.v1.endpoints.review:review.py:55 Wave-5 Stage B: review endpoint both vault_id and group_id missing, falling back to DEFAULT_GROUP_ID
+INFO     app.api.v1.endpoints.review:review.py:1456 GET /review/fsrs-state concept_id=exc-wire-probe
+ERROR    app.api.v1.endpoints.review:review.py:1509 Error getting FSRS state for 'exc-wire-probe': EXCMARK-c75bf5ce89d84b2c9b9d299438465532 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-119/test_fsrs_state_error_reason_i0
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/review.py", line 1460, in get_fsrs_state
+    result = await review_service.get_fsrs_state(concept_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/tests/unit/test_exception_handlers_wire.py", line 377, in get_fsrs_state
+    raise RuntimeError(f"{marker} {secret_path}")
+RuntimeError: EXCMARK-c75bf5ce89d84b2c9b9d299438465532 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-119/test_fsrs_state_error_reason_i0
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/review/fsrs-state/exc-wire-probe', 'endpoint': '/api/v1/review/fsrs-state/exc-wire-probe', 'status': 200, 'duration_ms': 1.9, 'event': 'request.completed', 'request_id': '5254981888', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T09:22:46.625420Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_exception_handlers_wire.py::test_fsrs_state_error_reason_is_redacted
+================= 1 failed, 6 deselected, 10 warnings in 1.06s =================
+rc=1
+== post-shasum (after restore) ==
+b20722acfc69b7071d3d093bef52c6fe24a95b15ae9636953c25532bb5ffdd6a  backend/app/api/v1/endpoints/review.py

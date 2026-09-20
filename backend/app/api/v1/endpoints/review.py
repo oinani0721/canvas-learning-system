@@ -1505,14 +1505,16 @@ async def get_fsrs_state(
         )
 
     except Exception as e:
-        logger.error(f"Error getting FSRS state for '{concept_id}': {e}")
+        # 服务端保留原文 + 栈: 脱敏只针对响应体, 不减少服务端诊断
+        logger.error(f"Error getting FSRS state for '{concept_id}': {e}", exc_info=True)
         # Story 32.3 AC-32.3.5: Graceful degradation - return not found instead of error
         return FSRSStateQueryResponse(
             concept_id=concept_id,
             fsrs_state=None,
             card_state=None,
             found=False,
-            reason=f"error: {e}",
+            # CARD-EXC-HANDLER-WIRE-REDACT: 只给类型名, 不给异常原文 (仍以 "error:" 开头)
+            reason=f"error: {type(e).__name__}",
             # CARD-G3-7: 异常路径同样未完成真相源判定, 显式 None
             persisted=None,
             truth_source=None,

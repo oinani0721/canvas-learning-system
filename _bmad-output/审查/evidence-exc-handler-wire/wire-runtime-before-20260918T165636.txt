@@ -1,0 +1,17 @@
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-18T08:56:53.979436Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-18T08:56:54.015046Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-18T08:56:54.015096Z"}
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-18T08:56:54.273644Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-18T08:56:54.302398Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T08:56:54.519264Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T08:56:54.530669Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 210 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T08:56:54.935815Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-18T08:56:54.936695Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-18T08:56:54.936726Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T08:56:54.936790Z"}
+handler keys = ['fastapi.exceptions.RequestValidationError', 'fastapi.exceptions.WebSocketRequestValidationError', 'starlette.exceptions.HTTPException']
+starlette_http_default = True
+rve_default = True
+fastapi_HTTPException_registered = False
+user_middleware = ['MetricsMiddleware', 'CORSMiddleware', 'EncodingValidationMiddleware', 'CORSExceptionMiddleware']
+rc=0

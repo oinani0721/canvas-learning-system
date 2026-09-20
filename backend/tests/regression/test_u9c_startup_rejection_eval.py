@@ -21,10 +21,14 @@
   2. **HTTP 层**（本文件 `TestHttpLayerMasksMessage`，**两条用例分测两个栈
      形态**）：都用真处理器 / 真中间件，无替身。
        - 只挂 `register_exception_handlers` ⇒ 消息被屏蔽（handler 契约）；
-       - 加挂生产的真 `CORSExceptionMiddleware` ⇒ **消息原文进 500 响应体**。
-     后者才是当前生产表征 —— 生产**从未调用** `register_exception_handlers`
-     （运行时自证见该类 docstring）。两条断言方向相反且都成立，差别只在
-     中间件挂没挂。
+       - 加挂生产的真 `CORSExceptionMiddleware` ⇒ 体同样是泛化文案，产出方
+         不同（`error_type` 键在 ⇒ 中间件产出）。
+     ⚠️ **自 CARD-EXC-HANDLER-WIRE-REDACT（第十五批）起本条已翻转**：初版
+     钉的两件事 ——「生产**从未调用** `register_exception_handlers`」与
+     「中间件把消息原文送进 500 体」—— **都不再成立**。生产 `main.py` 现在
+     以 `override_fastapi_defaults=False` 接线（保留 FastAPI 默认 422/`detail`），
+     中间件 500 体也改成了泛化文案 + `error_type` + `bug_id`。两条用例现在
+     方向一致，差别只剩产出方指纹。
   3. **工厂中段**（`get_review_service` 先建 memory / canvas / graphiti 依赖
      再到 `:2996`）：**本文件不覆盖** —— 真工厂会连 Neo4j / LanceDB，本卡
      硬边界禁连。该段由评估文档以只读证据覆盖，并在验收单
@@ -296,8 +300,17 @@ class TestHttpLayerMasksMessage:
          （`:738-741`；`safe_message` 在 `:709-715` 就是 `str(e)` 的 UTF-8
          round-trip，**无脱敏**）。
 
-    ⇒ 生产真实表征与初稿**相反**：**CARD-G3-5 原文会进 500 响应体**。
-    U9-C 设计稿「请求 500 带 CARD-G3-5 消息」在生产栈上其实是**对的**。
+    ⇒ 第十四批的生产真实表征与该文件初稿**相反**：CARD-G3-5 原文会进 500 体。
+
+    ⚠️ **第二次翻转（CARD-EXC-HANDLER-WIRE-REDACT，第十五批）**：上面两条
+    「生产从未调用 `register_exception_handlers`」「中间件把原文送进体」
+    **均已失效**。生产现在接线（`main.py` 调
+    `register_exception_handlers(app, override_fastapi_defaults=False)`，
+    运行期 `app.main.app.exception_handlers` 的键含
+    `app.core.exceptions.CanvasException` 与 `Exception`），且
+    `CORSExceptionMiddleware` 的 500 体改为 `"Internal server error"` +
+    `error_type` + `bug_id`。⇒ 下面第二条用例的断言方向随之翻转
+    （`..._redacts_message`）；`error_type` 作为**产出方指纹**的作用不变。
 
     ⚠️ 本类名里的 `MasksMessage` 是初稿留下的名字，**只对下面第一条用例成立**；
     类整体钉的是「**哪一层接住，就决定消息进不进响应体**」。改名会动到
@@ -308,7 +321,7 @@ class TestHttpLayerMasksMessage:
     | 用例 | 栈形态 | 谁接住 | 响应体 |
     |---|---|---|---|
     | `..._handler_only_masks_message` | 只挂 handler | `generic_exception_handler` | 3 键，**无** `error_type`，消息被屏蔽 |
-    | `..._production_stack_exposes_message` | 加挂真中间件 | `CORSExceptionMiddleware` | 4 键，**有** `error_type`，消息原文在内 |
+    | `..._production_stack_redacts_message` | 加挂真中间件 | `CORSExceptionMiddleware` | 4 键，**有** `error_type`，消息为泛化文案 |
 
     **`error_type` 是两层唯一的区分指纹**。初稿用「`code==500` + 存在
     `bug_id`」做排他判据是**无效的** —— 两层的 body 都有这两个键，它证明
@@ -373,30 +386,30 @@ class TestHttpLayerMasksMessage:
         assert alive.status_code == 200
         assert alive.json() == {"alive": True}
 
-    def test_production_stack_exposes_message_in_500_body(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
-        """**生产栈形态**：真 `CORSExceptionMiddleware` 把 CARD-G3-5 原文送进 500 体。
+    def test_production_stack_redacts_message_in_500_body(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any) -> None:
+        """**生产栈形态**：真 `CORSExceptionMiddleware` 的 500 体只剩泛化文案。
 
-        这条才是用户/运维在当前生产配置下实际看到的东西
-        （Codex r1 HIGH-1 指出、本卡实测确认）。与上一条断言方向**相反**，
-        两者并不矛盾——它们测的是两个不同的栈形态，差别就在
-        `CORSExceptionMiddleware` 挂没挂。
+        这条钉的是用户/运维在**当前**生产配置下实际看到的东西。
 
-        本条同时钉住三件事：
-          1. 中间件确实在 handler 之前接住（`error_type` 键在 ⇒ 产出方是中间件）；
-          2. `safe_message` 未脱敏 ⇒ 指引原文（含迁移脚本名）随 500 返回；
+        ⚠️ **口径翻转（CARD-EXC-HANDLER-WIRE-REDACT，第十五批；评估文档议题 α
+        按默认「脱敏」落地）**：本用例原名 `..._exposes_message_in_500_body`，
+        断的是「CARD-G3-5 原文进 500 体」。该行为已被修复 ——
+        `main.py` 的中间件体改成 `"Internal server error"` + `error_type` +
+        `bug_id`，原文只留在服务端日志与 `bug_log.jsonl`。原用例 docstring
+        写「若将来采纳议题 α，本条断言方向要重新裁定」，这就是那次裁定。
+
+        本条现在钉住三件事：
+          1. 中间件确实在 handler 之前接住（`error_type` 键在 ⇒ 产出方是中间件，
+             这条指纹与翻转前一样重要：没有它，本用例证明不了自己测的是哪一层）；
+          2. 体内**零原文** —— 不只查两个子串，而是拿异常自身的 `str()` 整段比
+             （子串缺席证明不了脱敏，Codex r3 LOW-3 的原话反过来同样成立）；
           3. 进程照常服务后续请求。
 
-        ⚠️ **第 2 条的覆盖边界**：本用例走 `:570` 分支（单个 legacy 键），
-        消息长 311 字符，完整落在 `main.py:739` 的 `safe_message[:500]` 内。
-        **同名冲突分支（`:593`）的消息会随冲突键数量增长而被截断** —— 实算
-        5 个 36 字符 UUID 键时长 538 字符，脚本名被切成 `migrate_f`，
-        且该分支消息本来就不含 `--vault-id`（评估文档 ③.3.5）。
-        故本条证明的是「未脱敏、原文进体」，**不是**「运维总能拿到完整指引」。
-
-        ⚠️ 若将来采纳评估文档议题 α（当前讨论面是**给 `CORSExceptionMiddleware`
-        加脱敏口径**；单纯「补上 `register_exception_handlers`」不改变本响应——
-        本用例自己就是那个反例），本条与上一条的断言方向都要重新裁定
-        ——它们钉的是**当前口径**，不是永久不变量。
+        ⚠️ **不再覆盖的面（如实登记）**：翻转前这条用例顺带钉着
+        `safe_message[:500]` 的截断口径（等式右侧的 `[:500]`）。原文不再进体后，
+        该上限对响应体已无意义；「体有界 + 超长消息不进体」由
+        `tests/unit/test_exception_handlers_wire.py::test_middleware_500_body_is_redacted_and_bounded`
+        用 6000 字符消息覆盖（本文件不重复造那个样本）。
         """
         from fastapi.testclient import TestClient
 
@@ -420,22 +433,14 @@ class TestHttpLayerMasksMessage:
         assert body["code"] == 500
         assert body["error_type"] == "VaultScopeUnresolved"
         assert "bug_id" in body
-        assert body["message"] != "Internal server error"
 
-        # ── 与上一条相反：原文进了响应体，连运维指引一起 ──
-        assert "CARD-G3-5" in body["message"]
-        assert "migrate_fsrs_card_states_vault_key_g35.py" in body["message"]
+        # ── 自 CARD-EXC-HANDLER-WIRE-REDACT 起：体只剩泛化文案 ──
+        assert body["message"] == "Internal server error"
 
-        # ⛔ 子串断言**证明不了「未脱敏」**（Codex r3 LOW-3）：把绝对路径脱敏、
-        # 只保留这两个子串，上面两条照样通过。要钉住「原文逐字进体」，必须拿
-        # 异常自身的 str() 去比。
-        #
-        # ⚠️ 覆盖边界（Codex r4 LOW-3）：本用例的异常只有 311 字符，
-        # 所以这条等式证明的是「**本输入**未被脱敏、逐字进体」，
-        # **不证明** main.py:739 的 500 字符上限——把生产改成
-        # safe_message 或 safe_message[:1000]，本文件五条用例照样全绿。
-        # 截断行为由评估文档 ③.3.5 的实算（538 字符样本）覆盖，不在本用例内。
-        assert body["message"] == str(raised[0])[:500]
+        # ── 原文零泄漏：整段 str() 都不在响应文本里（不是只查两个子串）──
+        assert str(raised[0]) not in resp.text
+        assert "CARD-G3-5" not in resp.text
+        assert "migrate_fsrs_card_states_vault_key_g35.py" not in resp.text
 
         # ── 进程不崩 ──
         assert alive.status_code == 200

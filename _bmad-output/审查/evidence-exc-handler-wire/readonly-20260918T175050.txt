@@ -1,0 +1,21 @@
+== (m) 新测试文件端口/驱动字面量（应 0）==
+1
+== 本卡 6 文件的 fsrs_bridge / decay_beta 命中（应 0）==
+backend/app/core/exception_handlers.py:0
+backend/tests/regression/test_u9c_startup_rejection_eval.py:0
+backend/app/main.py:0
+backend/tests/unit/test_exception_handlers_wire.py:0
+backend/app/api/v1/endpoints/review.py:2
+backend/tests/regression/test_production_bugs.py:0
+== 验伪锚：同一 grep 对已知正例（本文件必含 TestClient）==
+14
+== live vault 是否被本卡碰过（应无输出）==
+(empty above = untouched)
+== 追查 1: 新门文件的端口字面量出处 ==
+49:**不连库**：全部进程内 `TestClient`，不触 7691/7687/7692。
+== 追查 2: review.py 的 fsrs_bridge/decay_beta 出处（既有行，本卡未改）==
+106:# frontmatter fsrs_due (写侧 quiz-answer × fsrs_bridge, 读侧 daily_review_pick)。
+1157:            # (节点 frontmatter, 写侧为 vault 的 quiz-answer × fsrs_bridge 链)。
+== 本卡对 review.py 的改动行（确认与上面行号无交集）==
+@@ -1508 +1508,2 @@ async def get_fsrs_state(
+@@ -1515 +1516,2 @@ async def get_fsrs_state(

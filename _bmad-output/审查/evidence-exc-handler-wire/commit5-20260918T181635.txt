@@ -1,0 +1,109 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+1 file already formatted
+[Python] Format OK.
+
+│  python-typecheck (skip) no files for inspection
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) name
+│  spec-sync-root (skip) name
+                                      
+  ────────────────────────────────────
+summary: (done in 0.09 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.05 seconds)
+✔️ python-lint (0.03 seconds)
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: commit-msg │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+┃  commitlint ❯ 
+
+⧗   input: fix(test): W4 覆盖键改取路由绑定对象 [BATCH-2026-09-18-第十五批 / CARD-EXC-HANDLER-WIRE-REDACT]
+
+上一版(8c4a66a8)的修法无效, 目录级 blocked 仍为 1。根因不是「少覆盖了一个依赖」,
+而是**覆盖键的对象身份漂移**: tests/unit/test_cross_canvas_removal.py:39 会
+importlib.reload(app.dependencies), 字母序在本文件之前 ⇒ 目录级跑里
+app.dependencies.get_canvas_service 已是新对象, 而 canvas.py 的路由在 import 时
+绑定的是旧对象。拿新对象当键 = 覆盖了一个没人要的键, 请求照样走真 CanvasService
+(它读 settings.canvas_base_path, 并在依赖里惰性初始化真 MemoryService 连 7691)。
+断言仍然全过(真 CanvasService 对不存在的白板同样抛 CanvasNotFoundException), 所以
+只有 W4 哨兵看得见 —— 单文件跑两者同一个对象, 这条只在目录级暴露。
+
+两层修法:
+1. 覆盖键改取 canvas.py 路由**自己绑定**的那个函数对象
+   (CanvasServiceDep.__metadata__[0].dependency), 对 reload 免疫;
+2. get_canvas_service 体内是运行时 import + await get_memory_service(), 故再用
+   monkeypatch 换掉模块属性兜底。
+
+最小复现组合(先跑 reload 那个文件, 再跑本文件)实测: 15 passed, blocked=0。
+生产代码零改动。
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+⚠   subject must be lower-case [subject-case]
+
+⚠   found 0 problems, 1 warnings
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+
+┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.31 seconds)       
+✔️ commitlint (0.29 seconds)
+✔️ spec-reference (0.02 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/p8-backend 9e034d60] fix(test): W4 覆盖键改取路由绑定对象 [BATCH-2026-09-18-第十五批 / CARD-EXC-HANDLER-WIRE-REDACT]
+ 1 file changed, 26 insertions(+), 9 deletions(-)

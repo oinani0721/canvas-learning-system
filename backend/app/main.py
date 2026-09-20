@@ -804,7 +804,8 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
                 status_code=500,
                 content={
                     "code": 500,  # Required by JSON Schema
-                    "message": safe_message[:500],  # ✅ Story 12.J.5: 限制长度为 500 字符
+                    # CARD-EXC-HANDLER-WIRE-REDACT: 体不带异常原文 (原文只进日志与 bug_log.jsonl)
+                    "message": "Internal server error",
                     "error_type": type(e).__name__,  # Extension field
                     "bug_id": bug_id,  # ✅ Story 21.5.5 AC-1: 返回 bug_id
                 },
@@ -815,11 +816,17 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
             )
 
 
-# ⚠️ 中间件注册顺序 (先添加的后执行):
-# 1. CORSExceptionMiddleware ← 最外层，捕获所有异常
-# 2. EncodingValidationMiddleware ← Story 12.J.3，验证 UTF-8 编码
-# 3. CORSMiddleware ← CORS 头处理
-# 4. MetricsMiddleware ← 最内层，收集指标
+# CARD-EXC-HANDLER-WIRE-REDACT: 异常处理器接线 (须在首个请求之前完成)。
+# override_fastapi_defaults=False —— 保留 FastAPI 默认 422 + {"detail": ...} 发布契约。
+from app.core.exception_handlers import register_exception_handlers  # noqa: E402
+
+register_exception_handlers(app, override_fastapi_defaults=False)
+
+# ⚠️ 中间件层序 (Starlette 1.0.0: add_middleware = user_middleware.insert(0, …) ⇒ 后 add 的在外层):
+# 外 → 内 = MetricsMiddleware → CORSMiddleware → EncodingValidationMiddleware → CORSExceptionMiddleware,
+# 即下面四次 add 的倒序。CORSExceptionMiddleware 是**最内层**的 user middleware, 它接住路由 /
+# 依赖 / 更内层抛出的异常; 外三层自身抛的异常逸出全部 user middleware 后归 ServerErrorMiddleware
+# + generic_exception_handler (旧注释「CORSExceptionMiddleware ← 最外层」与实况相反, 本卡更正)。
 # [Source: docs/stories/21.5.1.story.md - AC-3]
 # [Source: docs/stories/story-12.J.3-encoding-validation-middleware.md]
 app.add_middleware(CORSExceptionMiddleware)

@@ -1,0 +1,12 @@
+                },
+            )
+
+
+# CARD-EXC-HANDLER-WIRE-REDACT: 异常处理器接线 (须在首个请求之前完成)。
+# override_fastapi_defaults=False —— 保留 FastAPI 默认 422 + {"detail": ...} 发布契约。
+from app.core.exception_handlers import register_exception_handlers  # noqa: E402
+
+
+# ⚠️ 中间件层序 (Starlette 1.0.0: add_middleware = user_middleware.insert(0, …) ⇒ 后 add 的在外层):
+# 外 → 内 = MetricsMiddleware → CORSMiddleware → EncodingValidationMiddleware → CORSExceptionMiddleware,
+# 即下面四次 add 的倒序。CORSExceptionMiddleware 是**最内层**的 user middleware, 它接住路由 /

@@ -1,0 +1,19 @@
+                exc_info=True,
+            )
+
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "code": 500,  # Required by JSON Schema
+                    # CARD-EXC-HANDLER-WIRE-REDACT: 体不带异常原文 (原文只进日志与 bug_log.jsonl)
+                    "message": safe_message[:500],
+                    "error_type": type(e).__name__,  # Extension field
+                    "bug_id": bug_id,  # ✅ Story 21.5.5 AC-1: 返回 bug_id
+                },
+                headers={
+                    "Access-Control-Allow-Origin": allowed_origin,
+                    "Access-Control-Allow-Credentials": "true",
+                },
+            )
+
+
