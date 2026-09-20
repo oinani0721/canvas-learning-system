@@ -106,6 +106,12 @@ _CLEANUP_QUERIES = (
     # Episode 无前缀字段 (id 为 randomUUID) — 按其挂靠的前缀 Node 反向删,
     # 顺带清无 group 的孤儿 scoring Episode。
     f"MATCH (e:Episode)-[:SCORED]->(n:Node) WHERE n.id STARTS WITH '{GATE_PREFIX}' DETACH DELETE e",
+    # LOW-2 (GLM-5.3 max r2): 上一条按 "SCORED → 前缀 Node" 反向删, 但**坏实现**
+    # 可能在写出 Node/SCORED 之前就先落 Episode (或整条拒写却先写 Episode) —— 这类
+    # 孤儿既非 gate 前缀 group, 也没有 SCORED 边, 逃过上面全部清理而永久滞留共享
+    # 7692; 等实现修好重跑时, 按 record_id 的身份探针仍命中旧孤儿 ⇒ 假红 (粘滞)。
+    # 按 record_id 前缀直删补齐这条路径。
+    f"MATCH (e:Episode) WHERE e.record_id STARTS WITH '{GATE_PREFIX}_' DETACH DELETE e",
     "MATCH (e:Episode) WHERE e.type = 'scoring' AND e.group_id IS NULL AND NOT (e)--() DETACH DELETE e",
 )
 
@@ -607,32 +613,167 @@ async def test_fallback_replay_write_identity_dual_vault(gate_client, monkeypatc
 
     # 新契约反面 (CARD-REPLAY-REWRITE 有意行为): 条目无 group_id、无 vault_id
     # = 无任何来源线索 ⇒ quarantined 拒写返 False, 不猜 vault、不写图。
-    # delenv 让本断言不依赖运行环境是否点名了 legacy vault; 概念名独立, 万一
-    # 回归写出也只由本断言与文件级清理处理 (不污染上面的身份断言)。
+    # delenv 让本断言不依赖运行环境是否点名了 legacy vault; 概念名与 canvas 名
+    # 都独立, 万一回归写出也只由本段断言与文件级清理处理 (不污染上面的身份断言)。
     monkeypatch.delenv("CLS_REPLAY_LEGACY_NOSCOPE_VAULT", raising=False)
     unscoped_concept = f"{GATE_PREFIX}_replay_unscoped_concept"
     unscoped_rid = f"{GATE_PREFIX}_replay_unscoped_rid"
+    unscoped_canvas = f"{GATE_PREFIX}_replay_unscoped.canvas"
+
+    # 前缀 delta 探针 (LOW-1 补强): 拒写分支若**提前调旧 API** (record_score_history
+    # 或别的写侧) 把 Node/Canvas 写出图, 前后两次同口径 count 立刻不等 ⇒ 红。
+    # 用独立 canvas 名而非复用上面已 MERGE 过的 base_entry canvas —— 否则 Canvas
+    # MERGE 命中存量节点, 探针退化成空探针。
+    # 负控思路: 把任一 count 比较放宽成 "后 >= 前" (或删掉探针) ⇒ 提前落库的
+    # Node/Canvas 全绿漏网。
+    async def _prefix_counts() -> tuple[int, ...]:
+        """gate 前缀 Node/Canvas 计数 (本段前后各调一次比对)."""
+        counts = []
+        for query in (
+            "MATCH (n:Node) WHERE n.id STARTS WITH $p RETURN count(n) AS c",
+            "MATCH (c:Canvas) WHERE c.path STARTS WITH $p RETURN count(c) AS c",
+        ):
+            rows = await gate_client.run_query(query, p=GATE_PREFIX)
+            counts.append(int(rows[0]["c"]))
+        return tuple(counts)
+
+    counts_before = await _prefix_counts()
     refused = await svc._replay_scoring_entry_to_neo4j(
-        {**base_entry, "concept": unscoped_concept, "score": 50},
+        {**base_entry, "concept": unscoped_concept, "canvas_name": unscoped_canvas, "score": 50},
         record_id=unscoped_rid,
     )
+    counts_after = await _prefix_counts()
     assert refused is False, "无来源线索条目未被隔离: 新契约要求拒写 (quarantined)"
+    assert counts_after == counts_before, (
+        f"quarantined 拒写仍动了 gate 前缀 (Node, Canvas) 计数: before={counts_before} after={counts_after}"
+    )
+
+    # 图面零写逐条探针, 覆盖面如实收窄 (LOW-1, GLM-5.3 max r2 措辞整改):
+    # 本断言覆盖 Concept 与按 record_id 的 Episode 两个探针;
+    # User/Node/Canvas/CONTAINS_NODE/SCORED 的零写未断言 (登记为覆盖盲区) ——
+    # 上面的前缀 delta 只挡 Node/Canvas 的**新增**: 命中存量同键节点后的属性改写,
+    # 以及不改变节点数的边写入 (CONTAINS_NODE/SCORED), 都不在它覆盖面内。
+    # 负控思路: 让拒写分支在解析失败前就把 record_id / concept 传下去 (或把下面
+    # 两条放宽成 >= 0) ⇒ 这两条红; 但它们只证明这两类节点零写, 不等于整条零写。
     written = await gate_client.run_query(
         "MATCH (c:Concept {name: $name}) RETURN count(c) AS n",
         name=unscoped_concept,
     )
     assert written[0]["n"] == 0, f"quarantined 条目仍被写图: {written}"
-
-    # 零写面不止 Concept (LOW-1): 真正落分走 record_score_history_by_record_id
-    # ⇒ MERGE (e:Episode {record_id, group_id})。Episode 也是写侧, quarantined
-    # 不得留痕 —— 此前只验 Concept, Episode 侧零写入无断言。
-    # 负控思路: 让拒写分支在解析失败前就把 record_id 传下去 (或放宽成 >= 0),
-    # 这条会红 —— 它是「拒写 = 整条零写」而非「只挡 Concept」直接证据。
     episodes = await gate_client.run_query(
         "MATCH (e:Episode) WHERE e.record_id = $rid RETURN count(e) AS c",
         rid=unscoped_rid,
     )
     assert int(episodes[0]["c"]) == 0, f"quarantined 条目仍写了 Episode: {episodes}"
+
+
+async def test_replay_entry_group_id_beats_vault_id(gate_client):
+    """LOW-3 ① 优先级矩阵: 条目同时带 group_id 与 vault_id ⇒ group_id 优先 (落 A).
+
+    口径实测 (非猜测): fallback_sync_service._resolve_entry_source (:627-629) ——
+    非空 ``group_id`` 直接 return (reason="entry-group"), 根本不再看 ``vault_id``;
+    vault_id 分支只在 group_id 缺失时才可达。故本用例的 vault_id 故意指向 B 组,
+    期望仍落 A。
+
+    负控思路: 把两条来源的优先级对调 (vault_id 先判) ⇒ Episode/Concept 落到
+    GID_B, 下方两条图上 group_id 断言立刻红。
+    """
+    from app.services.fallback_sync_service import FallbackSyncService
+
+    svc = FallbackSyncService(neo4j_client=gate_client)
+    concept = f"{GATE_PREFIX}_matrix_conflict_concept"
+    canvas = f"{GATE_PREFIX}_matrix_conflict.canvas"
+    rid = f"{GATE_PREFIX}_matrix_conflict_rid"
+    entry = {
+        "concept": concept,
+        "canvas_name": canvas,
+        "score": 77,
+        "timestamp": "2026-08-28T02:00:00",
+        "group_id": GID_A_LOGICAL,  # 期望: 采这条
+        "vault_id": f"{GATE_PREFIX}_b",  # GID_B_LOGICAL 对应的 vault id
+    }
+    assert await svc._replay_scoring_entry_to_neo4j(entry, record_id=rid) is True
+
+    episodes = await gate_client.run_query(
+        "MATCH (e:Episode {record_id: $rid}) RETURN e.group_id AS gid",
+        rid=rid,
+    )
+    assert [r["gid"] for r in episodes] == [GID_A], f"group_id 未压过 vault_id: {episodes}"
+    concepts = await gate_client.run_query(
+        "MATCH (c:Concept {name: $name}) RETURN c.group_id AS gid",
+        name=concept,
+    )
+    assert [r["gid"] for r in concepts] == [GID_A], f"Concept 落错组: {concepts}"
+
+    # 自清理 (不依赖模块级 teardown 时机): 本用例写下的 Episode/Concept/Node/Canvas
+    # 全按已知键直删, 键名带 gate 前缀 + 本用例专名。
+    for query, params in (
+        ("MATCH (e:Episode {record_id: $rid}) DETACH DELETE e", {"rid": rid}),
+        ("MATCH (c:Concept {name: $name}) DETACH DELETE c", {"name": concept}),
+        ("MATCH (n:Node {id: $id}) DETACH DELETE n", {"id": concept}),
+        ("MATCH (c:Canvas {path: $path}) DETACH DELETE c", {"path": canvas}),
+    ):
+        await gate_client.run_query(query, **params)
+
+
+async def test_replay_entry_env_vault_branch(gate_client, monkeypatch):
+    """LOW-3 ② 优先级矩阵: 条目无 group_id / 无 vault_id (仅 canvas_name) ⇒ 按 env 构组.
+
+    口径实测 (非猜测): _resolve_entry_source (:630-644) —— vault_id 缺失时读
+    ``os.environ[LEGACY_NOSCOPE_VAULT_ENV]`` (reason="env-vault"), 再经
+    ``build_vault_group_id(vault_id, canvas_path=<条目的 canvas_name>)`` 构**逻辑**
+    组; 写侧 Concept 过 ``to_physical_group_id``, Episode 过客户端的物理化入口,
+    两条链同口径。故期望组在本用例内用生产同函数现算, 不写死猜测字符串。
+
+    env 走 monkeypatch 设/撤: 不依赖运行环境点名, 也不污染同文件其它用例。
+
+    负控思路: ContextVar 设成 A 组而 env 指 B —— 实现若改读进程 active vault,
+    图上 group_id 会变成 GID_A, 下方断言立刻红。
+    """
+    from app.core.subject_config import _current_subject_id, build_vault_group_id
+    from app.services.fallback_sync_service import FallbackSyncService
+
+    svc = FallbackSyncService(neo4j_client=gate_client)
+    env_vault = f"{GATE_PREFIX}_b"
+    monkeypatch.setenv("CLS_REPLAY_LEGACY_NOSCOPE_VAULT", env_vault)
+    concept = f"{GATE_PREFIX}_matrix_env_concept"
+    canvas = f"{GATE_PREFIX}_matrix_env.canvas"
+    rid = f"{GATE_PREFIX}_matrix_env_rid"
+    entry = {
+        "concept": concept,
+        "canvas_name": canvas,
+        "score": 66,
+        "timestamp": "2026-08-28T03:00:00",
+    }
+    expected_gid = to_physical_group_id(build_vault_group_id(env_vault, canvas_path=entry["canvas_name"]))
+
+    token = _current_subject_id.set(GID_A_LOGICAL)  # 负控: active vault ≠ env
+    try:
+        assert await svc._replay_scoring_entry_to_neo4j(entry, record_id=rid) is True
+    finally:
+        _current_subject_id.reset(token)
+
+    episodes = await gate_client.run_query(
+        "MATCH (e:Episode {record_id: $rid}) RETURN e.group_id AS gid",
+        rid=rid,
+    )
+    assert [r["gid"] for r in episodes] == [expected_gid], (
+        f"env 组期望 {expected_gid} (build_vault_group_id 同口径现算), 实际 {episodes}"
+    )
+    concepts = await gate_client.run_query(
+        "MATCH (c:Concept {name: $name}) RETURN c.group_id AS gid",
+        name=concept,
+    )
+    assert [r["gid"] for r in concepts] == [expected_gid], f"Concept 未按 env 构组: {concepts}"
+
+    # 自清理 (同 ①): 已知键直删, 不依赖模块级 teardown 时机。
+    for query, params in (
+        ("MATCH (e:Episode {record_id: $rid}) DETACH DELETE e", {"rid": rid}),
+        ("MATCH (c:Concept {name: $name}) DETACH DELETE c", {"name": concept}),
+        ("MATCH (n:Node {id: $id}) DETACH DELETE n", {"id": concept}),
+        ("MATCH (c:Canvas {path: $path}) DETACH DELETE c", {"path": canvas}),
+    ):
+        await gate_client.run_query(query, **params)
 
 
 async def test_group_unresolvable_fail_closed_no_500(gate_client, caplog):
