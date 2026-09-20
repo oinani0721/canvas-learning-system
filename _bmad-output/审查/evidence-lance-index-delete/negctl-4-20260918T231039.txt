@@ -1,0 +1,10 @@
+# 负控④: 形态核回退成「四列齐全且无 vector」(Codex r1 HIGH-2 缺陷态)
+# 跑前:
+1dd900c8adf76d865177361fdebf694951a63b67fe3d05b0e0855982bfc1d7bf  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入
+E   assert 'a_canvas' in set()
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_fingerprint_source_keeps_a_real_table_with_an_older_schema
+================== 1 failed, 43 passed, 152 warnings in 1.68s ==================
+pytest_rc=1
+# 跑后(已还原):
+1dd900c8adf76d865177361fdebf694951a63b67fe3d05b0e0855982bfc1d7bf  backend/lib/agentic_rag/clients/lancedb_client.py

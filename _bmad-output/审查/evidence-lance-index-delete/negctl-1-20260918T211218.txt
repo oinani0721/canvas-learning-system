@@ -1,0 +1,37 @@
+# 负控①: index.py 的 refused -> 409 分支改回落 404
+# 跑前:
+381756f86ddf2f527ab976d86831e313e30bf525a2e52ac553fc57ac02aa87e6  backend/app/api/v1/endpoints/index.py
+# 变异已注入: status_code=409 -> 404
+E   AssertionError: 清单降级必须是 409, 实为 404
+E   assert 404 == 409
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1028 [LanceDB vault registry] VAULTS_ROOT 不是目录: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-563/test_registry_degraded_409_kin0/does-not-exist —— 主来源失效, 没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1549 [LanceDB drop_vault_tables] vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; 为避免连带删掉别的 vault 的表, 整次拒绝删除 vault 'a' 的索引
+ERROR    app.api.v1.endpoints.index:index.py:143 {'vault_id': 'a', 'group_id': 'vault:a', 'refusal_kind': 'registry_degraded', 'refusal': "vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; 为避免连带删掉别的 vault 的表, 整次拒绝删除 vault 'a' 的索引", 'ambiguous_tables': [], 'event': 'vault.index_delete_refused', 'logger': 'app.api.v1.endpoints.index', 'level': 'error', 'timestamp': '2026-09-18T13:12:43.803757Z'}
+E   AssertionError: 模糊表名必须是 409, 实为 404
+E   assert 404 == 409
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1620 [LanceDB drop_vault_tables] 删除集合里有表名判不出主人: ['a_x_y'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除
+ERROR    app.api.v1.endpoints.index:index.py:143 {'vault_id': 'a', 'group_id': 'vault:a', 'refusal_kind': 'ambiguous', 'refusal': "删除集合里有表名判不出主人: ['a_x_y'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除", 'ambiguous_tables': ['a_x_y'], 'event': 'vault.index_delete_refused', 'logger': 'app.api.v1.endpoints.index', 'level': 'error', 'timestamp': '2026-09-18T13:12:43.909105Z'}
+_________ test_listing_failed_409_and_is_only_reachable_for_bare_scope _________
+tests/unit/test_index_delete_contract_c101.py:435: in test_listing_failed_409_and_is_only_reachable_for_bare_scope
+E   AssertionError: 枚举失败必须是 409, 实为 404
+E   assert 404 == 409
+E    +  where 404 = HTTPException(status_code=404, detail={'vault_id': 'default', 'refusal_kind': 'listing_failed', 'ambiguous_tables': []}).status_code
+E    +    where HTTPException(status_code=404, detail={'vault_id': 'default', 'refusal_kind': 'listing_failed', 'ambiguous_tables': []}) = <ExceptionInfo HTTPException(status_code=404, detail={'vault_id': 'default', 'refusal_kind': 'listing_failed', 'ambiguous_tables': []}) tblen=3>.value
+{"vault_id": "default", "group_id": "vault:default", "refusal_kind": "listing_failed", "refusal": "\u65e0\u6cd5\u679a\u4e3e\u8868\u540d (RuntimeError: injected io failure while listing tables), \u5224\u4e0d\u51fa\u672c vault \u7684\u8868\u4f1a\u4e0d\u4f1a\u88ab\u62c6\u5f00\u5220\u4e00\u534a; \u6574\u6b21\u62d2\u7edd\u5220\u9664 vault 'default' \u7684\u7d22\u5f15", "ambiguous_tables": [], "event": "vault.index_delete_refused", "logger": "app.api.v1.endpoints.index", "level": "error", "timestamp": "2026-09-18T13:12:43.921958Z"}
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1087 [LanceDB vault registry] 指纹来源的表名列举失败 (RuntimeError: injected io failure while listing tables) —— 主来源之外的补丁也失效, 归属可能退回改前口径
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1566 [LanceDB drop_vault_tables] 无法枚举表名 (RuntimeError: injected io failure while listing tables), 判不出本 vault 的表会不会被拆开删一半; 整次拒绝删除 vault 'default' 的索引
+ERROR    app.api.v1.endpoints.index:index.py:143 {'vault_id': 'default', 'group_id': 'vault:default', 'refusal_kind': 'listing_failed', 'refusal': "无法枚举表名 (RuntimeError: injected io failure while listing tables), 判不出本 vault 的表会不会被拆开删一半; 整次拒绝删除 vault 'default' 的索引", 'ambiguous_tables': [], 'event': 'vault.index_delete_refused', 'logger': 'app.api.v1.endpoints.index', 'level': 'error', 'timestamp': '2026-09-18T13:12:43.921958Z'}
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1087 [LanceDB vault registry] 指纹来源的表名列举失败 (RuntimeError: injected io failure while listing tables) —— 主来源之外的补丁也失效, 归属可能退回改前口径
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1549 [LanceDB drop_vault_tables] vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; 为避免连带删掉别的 vault 的表, 整次拒绝删除 vault 'a' 的索引
+ERROR    app.api.v1.endpoints.index:index.py:143 {'vault_id': 'a', 'group_id': 'vault:a', 'refusal_kind': 'registry_degraded', 'refusal': "vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; 为避免连带删掉别的 vault 的表, 整次拒绝删除 vault 'a' 的索引", 'ambiguous_tables': [], 'event': 'vault.index_delete_refused', 'logger': 'app.api.v1.endpoints.index', 'level': 'error', 'timestamp': '2026-09-18T13:12:43.922468Z'}
+tests/unit/test_index_delete_contract_c101.py::test_partial_failure_207_lists_failed_tables_with_error_type_only
+tests/unit/test_index_delete_contract_c101.py::test_all_failed_500
+tests/unit/test_index_delete_contract_c101.py::test_partial_failure_207_lists_failed_tables_with_error_type_only
+tests/unit/test_index_delete_contract_c101.py::test_all_failed_500
+FAILED tests/unit/test_index_delete_contract_c101.py::test_registry_degraded_409_kind_not_404
+FAILED tests/unit/test_index_delete_contract_c101.py::test_ambiguous_409_exposes_ambiguous_tables
+FAILED tests/unit/test_index_delete_contract_c101.py::test_listing_failed_409_and_is_only_reachable_for_bare_scope
+=================== 3 failed, 6 passed, 20 warnings in 1.25s ===================
+pytest_rc=1
+# 跑后(已还原):
+381756f86ddf2f527ab976d86831e313e30bf525a2e52ac553fc57ac02aa87e6  backend/app/api/v1/endpoints/index.py

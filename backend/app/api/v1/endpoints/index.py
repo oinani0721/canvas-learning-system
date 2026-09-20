@@ -87,7 +87,14 @@ async def get_index_stats():
     return client.get_all_vault_stats()
 
 
-@index_router.delete("/{vault_id}")
+@index_router.delete(
+    "/{vault_id}",
+    responses={
+        207: {"description": "部分表删除失败 — 体内含 tables_failed 清单与已删数"},
+        409: {"description": "为保护其它 vault 的数据整次拒绝删除 — 体内含 refusal_kind"},
+        500: {"description": "名下每一张表都删除失败 — 体内含 tables_failed 清单"},
+    },
+)
 async def delete_vault_index(vault_id: str):
     """Delete all LanceDB tables for a specific vault (Story 1.9 AC #4).
 
@@ -96,6 +103,28 @@ async def delete_vault_index(vault_id: str):
     resolver 调用让 downstream service (audit log / 多 vault 监控 / 未来 ContextVar
     依赖的逻辑) 看到正确 group_id, 与 wave-2 F2 LanceDBClient direct instantiation
     风险同源 — 不破坏当前行为, 但消除未来 silent 串库回归窗口.
+
+    CARD-LANCE-INDEX-DELETE-CONTRACT (BATCH-2026-09-18-第十五批) — 三合一 404 拆成五态:
+
+    改前只看 ``drop_vault_tables`` 的 ``int``, 而 LanceDB 侧的**四道整次拒绝闸**全部返回
+    0、"名下没有表"是 0、CARD-G2-9-F2 之后"每一张都删失败"也是 0 —— 三件性质完全不同的
+    事共用同一个 ``404 No tables found``。部分失败更回 ``200`` 且不带失败清单, 调用方据此
+    认为索引已清, 实际还留着几张。
+
+    现在按 ``DropVaultReport.outcome`` 映射:
+
+    ===========  =====  ====================================================
+    outcome      HTTP   体
+    ===========  =====  ====================================================
+    no_tables    404    文案与改前**逐字**相同 (唯一保留 404 的分支)
+    refused      409    ``{vault_id, refusal_kind, ambiguous_tables}``
+    all_failed   500    ``{vault_id, tables_failed:[{table, error_type}]}``
+    partial      207    ``{vault_id, tables_dropped, tables_failed, partial}``
+    dropped      200    体与改前**逐字**相同
+    ===========  =====  ====================================================
+
+    ⛔ **脱敏**: 体里只许出现表名、``refusal_kind``、``error_type``。完整 refusal 文案
+    (闸② 里嵌着 ``{e}``) 与异常 message 常带 LanceDB 库的**绝对路径**, 只进服务端日志。
     """
     # Wave-5 Stage B 续 follow-up — ContextVar 注入 (vault_id sanitize 由 resolver 内部做)
     derived_group_id = resolve_vault_group_id(vault_id)
@@ -104,20 +133,80 @@ async def delete_vault_index(vault_id: str):
     if client is None:
         raise HTTPException(status_code=503, detail="LanceDB client not available")
 
-    dropped = client.drop_vault_tables(vault_id)
-    if dropped == 0:
+    report = client.drop_vault_tables_report(vault_id)
+    outcome = report.outcome
+    # 只上类型名, 不上 message —— message 里有库路径
+    failed = [{"table": name, "error_type": kind} for name, kind in report.failures]
+
+    if outcome == "refused":
+        # 完整文案只落日志; 调用方拿 refusal_kind + 判不出主人的表名清单即可定位
+        logger.error(
+            "vault.index_delete_refused",
+            vault_id=vault_id,
+            group_id=derived_group_id,
+            refusal_kind=report.refusal_kind,
+            refusal=report.refusal,
+            ambiguous_tables=list(report.ambiguous),
+        )
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "vault_id": vault_id,
+                "refusal_kind": report.refusal_kind,
+                "ambiguous_tables": list(report.ambiguous),
+            },
+        )
+
+    if outcome == "no_tables":
         raise HTTPException(
             status_code=404,
             detail=f"No tables found for vault_id '{vault_id}'",
+        )
+
+    if outcome == "all_failed":
+        logger.error(
+            "vault.index_delete_all_failed",
+            vault_id=vault_id,
+            group_id=derived_group_id,
+            tables_failed=[name for name, _ in report.failures],
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={"vault_id": vault_id, "tables_failed": failed},
+        )
+
+    if outcome == "partial":
+        logger.warning(
+            "vault.index_delete_partial",
+            vault_id=vault_id,
+            group_id=derived_group_id,
+            tables_dropped=len(report.dropped),
+            tables_failed=[name for name, _ in report.failures],
+        )
+        # 与 edges.py / refresh-changed 的半成功语义同族: 非 2xx 会让调用方以为
+        # 什么都没发生, 而这里**确实**删掉了一部分, 必须连清单一起回。
+        # FastAPI 允许路由函数直接返回 Response 子类。⚠️ 这里**不需要**
+        # refresh_changed_paths 末尾那条 reportReturnType 抑制注释: 本函数没有返回注解,
+        # 加了反而会被 pyright 记成 reportUnnecessaryTypeIgnoreComment。
+        # ⛔ 也不要在注释里写出那条指令的字面形态 —— pyright 会把它当成真指令解析
+        # (本卡实测: 只是"提到"它, 警告数就从 80 涨到 81)。
+        return JSONResponse(
+            status_code=207,
+            content={
+                "vault_id": vault_id,
+                "tables_dropped": len(report.dropped),
+                "tables_failed": failed,
+                "partial": True,
+            },
         )
 
     logger.info(
         "vault.index_deleted",
         vault_id=vault_id,
         group_id=derived_group_id,
-        tables_dropped=dropped,
+        tables_dropped=len(report.dropped),
     )
-    return {"vault_id": vault_id, "tables_dropped": dropped}
+    return {"vault_id": vault_id, "tables_dropped": len(report.dropped)}
 
 
 @index_router.post("/refresh-changed", response_model=RefreshChangedResponse)

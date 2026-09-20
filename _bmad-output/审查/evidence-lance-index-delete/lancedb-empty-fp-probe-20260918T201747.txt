@@ -1,0 +1,8 @@
+<stdin>:15: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+lancedb 0.30.2 pyarrow 23.0.1
+created; schema.names = ['file_path', 'content_hash', 'last_indexed', 'chunk_count']
+count_rows = 0
+names = ['a_file_fingerprints']
+after add count_rows = 1
+to_pandas empty on fresh table? -> True
+rc=0

@@ -1,0 +1,26 @@
+PREV=5e0f87b7efc2c08693902dd470d9764974b90b67  HEAD=4ce4b81908a22c8f5dd4a2c9e080f2b499ece1e7
+=== commit 序列 ===
+4ce4b819 test(index): 收 Codex r1 四条 MEDIUM [BATCH-2026-09-18-第十五批 / CARD-LANCE-INDEX-DELETE-CONTRACT]
+3a4c1c35 fix(index): 收 Codex r1 两条 HIGH [BATCH-2026-09-18-第十五批 / CARD-LANCE-INDEX-DELETE-CONTRACT]
+3c45f9ad test(edges): 分页外追加门按其自身指令翻正 [BATCH-2026-09-18-第十五批 / CARD-LANCE-INDEX-DELETE-CONTRACT]
+2e331c49 fix(index): add_documents 单快照漏掉漂移 drop [BATCH-2026-09-18-第十五批 / CARD-LANCE-INDEX-DELETE-CONTRACT]
+d6b7fa42 test(index): 补 listing_failed 闸②门与其可达面对照 [BATCH-2026-09-18-第十五批 / CARD-LANCE-INDEX-DELETE-CONTRACT]
+bbb72916 chore(index): 还原 openapi.json 至 PREV 态 [BATCH-2026-09-18-第十五批 / CARD-LANCE-INDEX-DELETE-CONTRACT]
+db9bf6d1 fix(index): DELETE 五态拆分 + drop 结构化回执 [BATCH-2026-09-18-第十五批 / CARD-LANCE-INDEX-DELETE-CONTRACT]
+=== 地盘门 ===
+backend/app/api/v1/endpoints/index.py
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/tests/unit/test_edge_rationale_fallback.py
+backend/tests/unit/test_index_delete_contract_c101.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py
+=== openapi 净零（期望 0）===
+       0
+=== test_wave5 改动行是否全在 :463 之后 ===
+@@ -466,0 +467,24 @@ class TestSharedResolverImportedByEndpoints:
+@@ -494 +518,2 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -496 +521,3 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -513,2 +540,2 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -519 +546,8 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -528 +562 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -537,0 +572,34 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:

@@ -1,0 +1,235 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 49 items
+
+tests/unit/test_index_delete_contract_c101.py ..FFFFFF                   [ 16%]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py ...................... [ 61%]
+.............FFFFFF                                                      [100%]
+
+=================================== FAILURES ===================================
+______ test_partial_failure_207_lists_failed_tables_with_error_type_only _______
+tests/unit/test_index_delete_contract_c101.py:271: in test_partial_failure_207_lists_failed_tables_with_error_type_only
+    assert isinstance(result, JSONResponse), f"部分失败必须回 JSONResponse, 实为 {type(result)!r}"
+E   AssertionError: 部分失败必须回 JSONResponse, 实为 <class 'dict'>
+E   assert False
+E    +  where False = isinstance({'tables_dropped': 2, 'vault_id': 'a'}, <class 'starlette.responses.JSONResponse'>)
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB drop_vault_tables] vault='a' \u7684\u8868 'a_vault_notes' \u5220\u9664\u5931\u8d25, \u5df2\u8df3\u8fc7 (RuntimeError: injected io failure while dropping a_vault_notes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_partial_failure_207_lists0/db) \u2014\u2014 \u8be5\u8868\u4ecd\u5728\u5e93\u91cc, \u672c\u6b21\u8fd4\u56de\u7684\u5b9e\u5220\u6570\u4e0d\u542b\u5b83", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.635242Z"}
+{"vault_id": "a", "group_id": "vault:a", "tables_dropped": 2, "event": "vault.index_deleted", "logger": "app.api.v1.endpoints.index", "level": "info", "timestamp": "2026-09-18T12:16:05.635368Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1453 [LanceDB drop_vault_tables] vault='a' 的表 'a_vault_notes' 删除失败, 已跳过 (RuntimeError: injected io failure while dropping a_vault_notes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_partial_failure_207_lists0/db) —— 该表仍在库里, 本次返回的实删数不含它
+INFO     app.api.v1.endpoints.index:index.py:114 {'vault_id': 'a', 'group_id': 'vault:a', 'tables_dropped': 2, 'event': 'vault.index_deleted', 'logger': 'app.api.v1.endpoints.index', 'level': 'info', 'timestamp': '2026-09-18T12:16:05.635368Z'}
+_____________________________ test_all_failed_500 ______________________________
+tests/unit/test_index_delete_contract_c101.py:310: in test_all_failed_500
+    assert exc.value.status_code == 500, f"全部删失败必须是 500, 实为 {exc.value.status_code}"
+E   AssertionError: 全部删失败必须是 500, 实为 404
+E   assert 404 == 500
+E    +  where 404 = HTTPException(status_code=404, detail="No tables found for vault_id 'a'").status_code
+E    +    where HTTPException(status_code=404, detail="No tables found for vault_id 'a'") = <ExceptionInfo HTTPException(status_code=404, detail="No tables found for vault_id 'a'") tblen=3>.value
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB drop_vault_tables] vault='a' \u7684\u8868 'a_canvas_nodes' \u5220\u9664\u5931\u8d25, \u5df2\u8df3\u8fc7 (RuntimeError: injected io failure while dropping a_canvas_nodes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_all_failed_5000/db) \u2014\u2014 \u8be5\u8868\u4ecd\u5728\u5e93\u91cc, \u672c\u6b21\u8fd4\u56de\u7684\u5b9e\u5220\u6570\u4e0d\u542b\u5b83", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.778311Z"}
+{"event": "[LanceDB drop_vault_tables] vault='a' \u7684\u8868 'a_vault_notes' \u5220\u9664\u5931\u8d25, \u5df2\u8df3\u8fc7 (RuntimeError: injected io failure while dropping a_vault_notes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_all_failed_5000/db) \u2014\u2014 \u8be5\u8868\u4ecd\u5728\u5e93\u91cc, \u672c\u6b21\u8fd4\u56de\u7684\u5b9e\u5220\u6570\u4e0d\u542b\u5b83", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.778479Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1453 [LanceDB drop_vault_tables] vault='a' 的表 'a_canvas_nodes' 删除失败, 已跳过 (RuntimeError: injected io failure while dropping a_canvas_nodes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_all_failed_5000/db) —— 该表仍在库里, 本次返回的实删数不含它
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1453 [LanceDB drop_vault_tables] vault='a' 的表 'a_vault_notes' 删除失败, 已跳过 (RuntimeError: injected io failure while dropping a_vault_notes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_all_failed_5000/db) —— 该表仍在库里, 本次返回的实删数不含它
+___________________ test_registry_degraded_409_kind_not_404 ____________________
+tests/unit/test_index_delete_contract_c101.py:348: in test_registry_degraded_409_kind_not_404
+    assert exc.value.status_code == 409, f"清单降级必须是 409, 实为 {exc.value.status_code}"
+E   AssertionError: 清单降级必须是 409, 实为 404
+E   assert 404 == 409
+E    +  where 404 = HTTPException(status_code=404, detail="No tables found for vault_id 'a'").status_code
+E    +    where HTTPException(status_code=404, detail="No tables found for vault_id 'a'") = <ExceptionInfo HTTPException(status_code=404, detail="No tables found for vault_id 'a'") tblen=3>.value
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB vault registry] VAULTS_ROOT \u4e0d\u662f\u76ee\u5f55: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_registry_degraded_409_kin0/does-not-exist \u2014\u2014 \u4e3b\u6765\u6e90\u5931\u6548, \u6ca1\u6709\u6307\u7eb9\u8868\u7684 vault \u5176\u5f52\u5c5e\u5c06\u9000\u56de\u6539\u524d\u53e3\u5f84 (\u53ef\u80fd\u88ab id \u66f4\u77ed\u7684 vault \u8ba4\u9886)", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.796462Z"}
+{"event": "[LanceDB drop_vault_tables] vault \u6e05\u5355\u964d\u7ea7 (VAULTS_ROOT \u6216\u6307\u7eb9\u6765\u6e90\u672c\u8f6e\u679a\u4e3e\u5931\u8d25), \u5f52\u5c5e\u5224\u5b9a\u9000\u56de\u6734\u7d20\u524d\u7f00; \u4e3a\u907f\u514d\u8fde\u5e26\u5220\u6389\u522b\u7684 vault \u7684\u8868, \u6574\u6b21\u62d2\u7edd\u5220\u9664 vault 'a' \u7684\u7d22\u5f15", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.797024Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:962 [LanceDB vault registry] VAULTS_ROOT 不是目录: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_registry_degraded_409_kin0/does-not-exist —— 主来源失效, 没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1383 [LanceDB drop_vault_tables] vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; 为避免连带删掉别的 vault 的表, 整次拒绝删除 vault 'a' 的索引
+_________________ test_ambiguous_409_exposes_ambiguous_tables __________________
+tests/unit/test_index_delete_contract_c101.py:378: in test_ambiguous_409_exposes_ambiguous_tables
+    assert exc.value.status_code == 409, f"模糊表名必须是 409, 实为 {exc.value.status_code}"
+E   AssertionError: 模糊表名必须是 409, 实为 404
+E   assert 404 == 409
+E    +  where 404 = HTTPException(status_code=404, detail="No tables found for vault_id 'a'").status_code
+E    +    where HTTPException(status_code=404, detail="No tables found for vault_id 'a'") = <ExceptionInfo HTTPException(status_code=404, detail="No tables found for vault_id 'a'") tblen=3>.value
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB drop_vault_tables] \u5220\u9664\u96c6\u5408\u91cc\u6709\u8868\u540d\u5224\u4e0d\u51fa\u4e3b\u4eba: ['a_x_y'] \u2014\u2014 \u4f59\u540d\u91cc\u8fd8\u6709\u4e0b\u5212\u7ebf\u4e14\u4e0d\u662f\u672c\u5ba2\u6237\u7aef\u4f1a\u62fc\u51fa\u7684\u4efb\u4f55\u903b\u8f91\u540d ['canvas_nodes', 'file_fingerprints', 'vault_notes'], \u5b83\u4eec\u66f4\u50cf\u662f\u67d0\u4e2a**\u672a\u88ab\u53d1\u73b0\u7684**\u957f id vault \u7684\u8868 (\u76ee\u5f55\u88ab\u79fb\u8d70\u4e14\u6ca1\u6709\u6307\u7eb9\u8868\u65f6\u4e24\u6761\u6765\u6e90\u90fd\u8865\u4e0d\u56de\u6765)\u3002\u6574\u6b21\u62d2\u7edd\u5220\u9664 vault 'a' \u7684\u7d22\u5f15; \u8981\u7ee7\u7eed\u8bf7\u5148\u8ba9\u90a3\u4e2a vault \u80fd\u88ab\u53d1\u73b0, \u6216\u4eba\u5de5\u786e\u8ba4\u540e\u5355\u8868\u5220\u9664", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.820373Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1442 [LanceDB drop_vault_tables] 删除集合里有表名判不出主人: ['a_x_y'] —— 余名里还有下划线且不是本客户端会拼出的任何逻辑名 ['canvas_nodes', 'file_fingerprints', 'vault_notes'], 它们更像是某个**未被发现的**长 id vault 的表 (目录被移走且没有指纹表时两条来源都补不回来)。整次拒绝删除 vault 'a' 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除
+___________ test_409_and_500_bodies_carry_no_exception_text_or_paths ___________
+tests/unit/test_index_delete_contract_c101.py:428: in test_409_and_500_bodies_carry_no_exception_text_or_paths
+    assert exc409.value.detail["refusal_kind"] == "registry_degraded"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: string indices must be integers, not 'str'
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB vault registry] VAULTS_ROOT \u4e0d\u662f\u76ee\u5f55: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_409_and_500_bodies_carry_0/nope \u2014\u2014 \u4e3b\u6765\u6e90\u5931\u6548, \u6ca1\u6709\u6307\u7eb9\u8868\u7684 vault \u5176\u5f52\u5c5e\u5c06\u9000\u56de\u6539\u524d\u53e3\u5f84 (\u53ef\u80fd\u88ab id \u66f4\u77ed\u7684 vault \u8ba4\u9886)", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.838118Z"}
+{"event": "[LanceDB drop_vault_tables] vault \u6e05\u5355\u964d\u7ea7 (VAULTS_ROOT \u6216\u6307\u7eb9\u6765\u6e90\u672c\u8f6e\u679a\u4e3e\u5931\u8d25), \u5f52\u5c5e\u5224\u5b9a\u9000\u56de\u6734\u7d20\u524d\u7f00; \u4e3a\u907f\u514d\u8fde\u5e26\u5220\u6389\u522b\u7684 vault \u7684\u8868, \u6574\u6b21\u62d2\u7edd\u5220\u9664 vault 'a' \u7684\u7d22\u5f15", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.838838Z"}
+{"event": "[LanceDB drop_vault_tables] vault='a' \u7684\u8868 'a_canvas_nodes' \u5220\u9664\u5931\u8d25, \u5df2\u8df3\u8fc7 (RuntimeError: injected io failure while dropping a_canvas_nodes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_409_and_500_bodies_carry_0/db) \u2014\u2014 \u8be5\u8868\u4ecd\u5728\u5e93\u91cc, \u672c\u6b21\u8fd4\u56de\u7684\u5b9e\u5220\u6570\u4e0d\u542b\u5b83", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T12:16:05.846748Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:962 [LanceDB vault registry] VAULTS_ROOT 不是目录: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_409_and_500_bodies_carry_0/nope —— 主来源失效, 没有指纹表的 vault 其归属将退回改前口径 (可能被 id 更短的 vault 认领)
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1383 [LanceDB drop_vault_tables] vault 清单降级 (VAULTS_ROOT 或指纹来源本轮枚举失败), 归属判定退回朴素前缀; 为避免连带删掉别的 vault 的表, 整次拒绝删除 vault 'a' 的索引
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1453 [LanceDB drop_vault_tables] vault='a' 的表 'a_canvas_nodes' 删除失败, 已跳过 (RuntimeError: injected io failure while dropping a_canvas_nodes at /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-499/test_409_and_500_bodies_carry_0/db) —— 该表仍在库里, 本次返回的实删数不含它
+______________________ test_openapi_declares_409_207_500 _______________________
+tests/unit/test_index_delete_contract_c101.py:453: in test_openapi_declares_409_207_500
+    assert code in responses, f"openapi 里没有声明 {code}: 实有 {sorted(responses)}"
+E   AssertionError: openapi 里没有声明 409: 实有 ['200', '422']
+E   assert '409' in {'200': {'content': {'application/json': {'schema': {}}}, 'description': 'Successful Response'}, '422': {'content': {'application/json': {'schema': {'$ref': '#/components/schemas/HTTPValidationError'}}}, 'description': 'Validation Error'}}
+____________________ test_drop_report_outcomes_are_disjoint ____________________
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1565: in test_drop_report_outcomes_are_disjoint
+    r1 = c1.drop_vault_tables_report(_SHORT_VAULT)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'LanceDBClient' object has no attribute 'drop_vault_tables_report'. Did you mean: 'drop_vault_tables'?
+_____ test_first_content_table_creates_fingerprint_table_for_scoped_vault ______
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1650: in test_first_content_table_creates_fingerprint_table_for_scoped_vault
+    assert _all_names(db) == {f"{_SHORT_VAULT}_canvas_nodes", fp}, (
+E   AssertionError: 建内容表时没有把指纹表一起建出来: 现存 ['a_canvas_nodes']
+E   assert {'a_canvas_nodes'} == {'a_canvas_no...fingerprints'}
+E     
+E     Extra items in the right set:
+E     'a_file_fingerprints'
+E     Use -v to get more diff
+_ test_index_only_vault_survives_shorter_id_drop_and_heal_when_undiscoverable __
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1700: in test_index_only_vault_survives_shorter_id_drop_and_heal_when_undiscoverable
+    assert names == {
+E   AssertionError: 夹具形态不符: ['a_canvas_nodes', 'a_vault_notes']
+E   assert {'a_canvas_no..._vault_notes'} == {'a_canvas_fi..._vault_notes'}
+E     
+E     Extra items in the right set:
+E     'a_canvas_file_fingerprints'
+E     Use -v to get more diff
+______ test_configured_name_ending_with_fingerprints_does_not_forge_vault ______
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1769: in test_configured_name_ending_with_fingerprints_does_not_forge_vault
+    assert f"{_SHORT_VAULT}_custom" not in known, (
+E   AssertionError: 普通向量表 'a_custom_file_fingerprints' 被按名字后缀反推成了伪 vault a_custom; V = ['a', 'a_b', 'a_custom']
+E   assert 'a_custom' not in frozenset({'a', 'a_b', 'a_custom'})
+___________ test_canonical_logicals_drop_fingerprint_suffixed_config ___________
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1798: in test_canonical_logicals_drop_fingerprint_suffixed_config
+    assert client._canonical_logical_tables() == builtin, "撞指纹后缀的配置名不得并入逻辑名"
+E   AssertionError: 撞指纹后缀的配置名不得并入逻辑名
+E   assert ('canvas_node...fingerprints') == ('canvas_node...fingerprints')
+E     
+E     Left contains one more item: 'custom_file_fingerprints'
+E     Use -v to get more diff
+_________________ test_stats_add_count_see_beyond_default_page _________________
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1857: in test_stats_add_count_see_beyond_default_page
+    assert sum(v["tables"] for v in stats.values()) == 13, (
+E   AssertionError: get_all_vault_stats 只看到默认分页的前 10 张: {'a00': {'tables': 1, 'rows': 1}, 'a01': {'tables': 1, 'rows': 1}, 'a02': {'tables': 1, 'rows': 1}, 'a03': {'tables': 1, 'rows': 1}, 'a04': {'tables': 1, 'rows': 1}, 'a05': {'tables': 1, 'rows': 1}, 'a06': {'tables': 1, 'rows': 1}, 'a07': {'tables': 1, 'rows': 1}, 'a08': {'tables': 1, 'rows': 1}, 'a09': {'tables': 1, 'rows': 1}}
+E   assert 10 == 13
+E    +  where 10 = sum(<generator object test_stats_add_count_see_beyond_default_page.<locals>.<genexpr> at 0x179adc450>)
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_index_delete_contract_c101.py::test_no_tables_404_detail_unchanged
+tests/unit/test_index_delete_contract_c101.py::test_all_dropped_200_body_unchanged
+tests/unit/test_index_delete_contract_c101.py::test_all_dropped_200_body_unchanged
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_index_delete_contract_c101.py:90: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    return set(db.table_names(limit=10_000))
+
+tests/unit/test_index_delete_contract_c101.py: 3 warnings
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py: 67 warnings
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py: 51 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:109: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    return set(db.table_names(limit=10_000))
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_scans_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:355: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(db.table_names()) == 10, (
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_scans_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:359: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "a_t11" not in set(db.table_names()), "前提失效: a_t11 不在默认分页的盲区里"
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:553: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    in_page = table in set(db.table_names())
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_fingerprint_baseline_readable_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1009: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert fp_name not in set(db.table_names()), (
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_first_content_table_creates_fingerprint_table_for_scoped_vault
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_index_only_vault_survives_shorter_id_drop_and_heal_when_undiscoverable
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/lib/agentic_rag/clients/lancedb_client.py:4414: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if data and table_name in self._db.table_names():
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_first_content_table_creates_fingerprint_table_for_scoped_vault
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_index_only_vault_survives_shorter_id_drop_and_heal_when_undiscoverable
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/lib/agentic_rag/clients/lancedb_client.py:4423: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name in self._db.table_names():
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_stats_add_count_see_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1849: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(list(db.table_names())) == 10, "lancedb 默认分页行为变了, 本门需重新校准"
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_stats_add_count_see_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1851: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert target not in set(db.table_names()), "前提失效: 目标表必须落在默认分页**之外**"
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_stats_add_count_see_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/lib/agentic_rag/clients/lancedb_client.py:1312: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    for tname in self._db.table_names():
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_index_delete_contract_c101.py::test_partial_failure_207_lists_failed_tables_with_error_type_only
+FAILED tests/unit/test_index_delete_contract_c101.py::test_all_failed_500 - A...
+FAILED tests/unit/test_index_delete_contract_c101.py::test_registry_degraded_409_kind_not_404
+FAILED tests/unit/test_index_delete_contract_c101.py::test_ambiguous_409_exposes_ambiguous_tables
+FAILED tests/unit/test_index_delete_contract_c101.py::test_409_and_500_bodies_carry_no_exception_text_or_paths
+FAILED tests/unit/test_index_delete_contract_c101.py::test_openapi_declares_409_207_500
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_drop_report_outcomes_are_disjoint
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_first_content_table_creates_fingerprint_table_for_scoped_vault
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_index_only_vault_survives_shorter_id_drop_and_heal_when_undiscoverable
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_configured_name_ending_with_fingerprints_does_not_forge_vault
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_canonical_logicals_drop_fingerprint_suffixed_config
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_stats_add_count_see_beyond_default_page
+================= 12 failed, 37 passed, 150 warnings in 2.87s ==================

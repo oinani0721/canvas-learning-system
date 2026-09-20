@@ -1,0 +1,16 @@
+# Codex r4 配额受阻实录（20260919T005439）
+## 第一次（完整 prompt，绑 f6ea5006）
+stdout = 0 字节（已按协议不入库并删除）；stderr 末行:
+ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 23rd, 2026 11:05 AM.
+tokens used
+
+## 第二次（最小探针复测，model_reasoning_effort=low，仅 'Reply with exactly: PROBE-OK'）
+stdout 无内容；stderr 仍报 usage limit ×2
+ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 23rd, 2026 11:05 AM.
+
+## 结论
+按协议 §2.1「0 字节存档重发一次，再 0 字节 → 主 session 人审替代，不等配额」。
+⛔ D-15 未达成：最后一轮 Codex（r3）绑的是 1610f01b，当前 HEAD 是 f6ea5006（r3 整改后）。
+   没有任何一轮 Codex 绑到最终 HEAD。交主 session 裁定。
+## 复测纪律自证（记忆: 外部服务的重置时间是一次观测不是不变量）
+本次**做了**独立复测，结论是确实限流 —— 不是继承第一次的报错。

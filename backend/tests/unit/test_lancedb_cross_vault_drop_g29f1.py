@@ -1499,3 +1499,771 @@ def test_default_scope_still_heals_when_registry_is_degraded(tmp_path):
     finally:
         mp.undo()
         get_settings.cache_clear()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 门⑨ 族 —— CARD-LANCE-INDEX-DELETE-CONTRACT (BATCH-2026-09-18-第十五批)
+#
+# 三件事各自成门:
+#   (c) drop_vault_tables_report 的五态互斥完备 + int 包装仍是实删数;
+#   (e1) 建表即建指纹表 —— 收口 Codex r7 既有 HIGH「V 缺项且余名恰为规范逻辑名」;
+#   (e2) 指纹来源形态核 + 配置后缀守卫 —— 收口 r5-M2 伪 vault;
+#   (e3) 自愈链默认分页 4 站点归零。
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class _DropAlwaysFails:
+    """真库句柄 + **每一张**表的 ``drop_table`` 都抛 —— all_failed 态用。
+
+    与 ``_DropFailsOn`` 分成两个类而不是把后者的 ``==`` 改成 ``in``: ``in`` 作用在字符串
+    上是**子串**匹配, 会把 ``a_vault`` 这种前缀名一并吃掉, 等于悄悄放宽既有门⑦的注入面。
+    """
+
+    def __init__(self, db):
+        self._db = db
+
+    def __getattr__(self, item):
+        return getattr(self._db, item)
+
+    def drop_table(self, name, *args, **kwargs):
+        raise RuntimeError(f"injected io failure while dropping {name}")
+
+
+@contextlib.contextmanager
+def _config_env_override(**env: str):
+    """接管若干 env 并让 ``get_settings`` 的 lru_cache 进出各清一次。
+
+    与 ``_vaults_root_override`` 同纪律: **独立** MonkeyPatch 实例, 出的时候在 env 恢复
+    **之后**清缓存 (否则本次取值会顺着缓存漏给同进程后跑的其它测试)。
+    """
+    from app.config import get_settings
+
+    mp = pytest.MonkeyPatch()
+    for key, value in env.items():
+        mp.setenv(key, value)
+    get_settings.cache_clear()
+    try:
+        yield
+    finally:
+        mp.undo()
+        get_settings.cache_clear()
+
+
+def test_drop_report_outcomes_are_disjoint(tmp_path):
+    """五态互斥且完备, 且 ``drop_vault_tables`` 的 ``int`` 值仍是**实删数**。
+
+    改前这五种情形在返回值上只有 ``0`` 与非 ``0`` 两档, ``DELETE /index`` 因此把
+    "拒绝 / 全失败 / 没有表"合并成同一个 404。本门把五态一次全建出来, 断言
+    ``outcome`` 两两不同 —— 少了这条, 某两态映射到同一个字符串也能让端点门分别绿。
+
+    ⚠️ **每个场景建两个等价的库** (Codex r1 MEDIUM-6): 一个跑 ``drop_vault_tables_report``,
+    另一个跑 ``int`` 包装 ``drop_vault_tables``。初版对 ``dropped`` / ``partial`` 两格图省事
+    直接写 ``len(report.dropped)``, 于是"int 包装仍是实删数"这条主张在那两格是**空洞**的 ——
+    把包装改成「先跑 report 再恒回 0」, 初版照样绿。删一次表就没了, 所以只能用双库。
+    """
+    from pathlib import Path
+
+    def _plain(path: Path):
+        db = lancedb.connect(str(path))
+        db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A-N"))
+        db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-V"))
+        return _client(path, vault_id=_SHORT_VAULT)
+
+    def _empty(path: Path):
+        lancedb.connect(str(path))
+        return _client(path, vault_id=_SHORT_VAULT)
+
+    def _partial(path: Path):
+        db = lancedb.connect(str(path))
+        db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A-N"))
+        db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-V"))
+        db.create_table(f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}", data=_fingerprint_rows("A"))
+        c = _client(path, vault_id=_SHORT_VAULT)
+        c._db = _DropFailsOn(db, f"{_SHORT_VAULT}_vault_notes")
+        return c
+
+    def _all_fail(path: Path):
+        db = lancedb.connect(str(path))
+        db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A-N"))
+        db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-V"))
+        c = _client(path, vault_id=_SHORT_VAULT)
+        c._db = _DropAlwaysFails(db)
+        return c
+
+    def _refused(path: Path):
+        db = lancedb.connect(str(path))
+        db.create_table(f"{_SHORT_VAULT}_x_y", data=_rows("AXY"))
+        return _client(path, vault_id=_SHORT_VAULT)
+
+    cases = [
+        ("no_tables", _empty, 0),
+        ("dropped", _plain, 2),
+        ("partial", _partial, 2),
+        ("all_failed", _all_fail, 0),
+        ("refused", _refused, 0),
+    ]
+
+    seen: dict[str, int] = {}
+    reports = {}
+    for name, build, expect_int in cases:
+        rep = build(tmp_path / f"db-{name}-report").drop_vault_tables_report(_SHORT_VAULT)
+        client_int = build(tmp_path / f"db-{name}-int")
+        got_int = client_int.drop_vault_tables(_SHORT_VAULT)
+        assert got_int == expect_int, (
+            f"[{name}] int 包装不是实删数: 实得 {got_int}, 预期 {expect_int} (report.dropped={rep.dropped!r})"
+        )
+        assert len(rep.dropped) == expect_int, f"[{name}] 回执实删数不符: {rep.dropped!r}"
+        seen[rep.outcome] = got_int
+        reports[name] = rep
+
+    assert set(seen) == {"no_tables", "dropped", "partial", "all_failed", "refused"}, f"五态没有两两互斥/完备: {seen!r}"
+    assert seen == {"no_tables": 0, "dropped": 2, "partial": 2, "all_failed": 0, "refused": 0}, (
+        f"int 包装不再是实删数: {seen!r}"
+    )
+
+    # 逐态的结构断言
+    assert reports["no_tables"].attempted == () and reports["no_tables"].refusal_kind is None
+    assert reports["dropped"].failures == ()
+    boom = f"{_SHORT_VAULT}_vault_notes"
+    assert reports["partial"].failures == ((boom, "RuntimeError"),), (
+        f"失败回执只许带表名 + 异常类型名: {reports['partial'].failures!r}"
+    )
+    assert len(reports["all_failed"].failures) == 2 and reports["all_failed"].dropped == ()
+    r5 = reports["refused"]
+    assert r5.refusal_kind == "ambiguous" and r5.ambiguous == (f"{_SHORT_VAULT}_x_y",)
+    assert r5.refusal and "整次拒绝" in r5.refusal, "完整 refusal 文案必须留在回执里 (只进日志, 不进响应体)"
+
+    # 既有诊断字段的语义零变化 —— 在 partial 的 int 那一跑上就地核
+    c_diag = _partial(tmp_path / "db-diag")
+    assert c_diag.drop_vault_tables(_SHORT_VAULT) == 2
+    assert [name for name, _ in c_diag._last_drop_failures] == [boom], (
+        f"既有诊断字段 _last_drop_failures 的语义被改动了: {c_diag._last_drop_failures!r}"
+    )
+    assert "RuntimeError: " in c_diag._last_drop_failures[0][1], (
+        f"既有诊断字段仍须带异常**原文**(类型名 + ': ' + message), 与回执的脱敏形态分工不同: "
+        f"{c_diag._last_drop_failures!r}"
+    )
+
+    assert _all_names(lancedb.connect(str(tmp_path / "db-refused-int"))) == {f"{_SHORT_VAULT}_x_y"}, (
+        "整次拒绝时一张都不许删"
+    )
+
+
+def test_first_content_table_creates_fingerprint_table_for_scoped_vault(tmp_path):
+    """(e1) scoped vault 建第一张内容表时, 指纹表**同时**被建出来 (空表, 真 schema)。
+
+    这是 Codex r7 既有 HIGH 的收口手段: ``index_canvas`` 全程不写指纹, 于是"只索引过
+    canvas 且目录不可发现"的 vault 在 ``_known_vault_ids`` 的三条来源里全都看不见 ——
+    它的表就会被 id 更短的 vault 认领。建表即建指纹表之后, 任何写过内容表的 scoped
+    vault 恒有指纹表 ⇒ 来源③ 覆盖它。
+
+    ⚠️ default 必须 **no-op**: ``test_g24_lance_legacy_table_removal.py:246`` 钉死
+    "default vault 不得凭空造 prefixed 表", 且裸 ``file_fingerprints`` 是全局共享面。
+    """
+    db_path = tmp_path / "db"
+    lancedb.connect(str(db_path))
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    assert asyncio.run(client.add_documents("canvas_nodes", _rows("A-NODES"))) == 2
+
+    db = lancedb.connect(str(db_path))
+    fp = f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}"
+    assert _all_names(db) == {f"{_SHORT_VAULT}_canvas_nodes", fp}, (
+        f"建内容表时没有把指纹表一起建出来: 现存 {sorted(_all_names(db))}"
+    )
+    tbl = db.open_table(fp)
+    assert set(tbl.schema.names) == {"file_path", "content_hash", "last_indexed", "chunk_count"}, (
+        f"指纹表 schema 与 _update_fingerprint 的 record 不同列: {tbl.schema.names}"
+    )
+    assert "vector" not in tbl.schema.names, "指纹表不该有 vector 列"
+    assert tbl.count_rows() == 0, "建出来的应是**空**指纹表, 不许伪造基线行"
+    # 建出来就必须能被生产的来源③ 认回来 —— 否则这张表白建
+    assert _SHORT_VAULT in client._vault_ids_from_fingerprint_tables(), (
+        "新建的指纹表没有被 _vault_ids_from_fingerprint_tables 认出来"
+    )
+
+    # default 侧: 一张都不许多建
+    d_path = tmp_path / "db-default"
+    lancedb.connect(str(d_path))
+    dclient = _client(d_path, vault_id="default")
+    assert dclient.active_vault_id in ("", "default"), f"夹具没构成 default 场景: {dclient.active_vault_id!r}"
+    assert asyncio.run(dclient.add_documents("vault_notes", _rows("D"))) == 2
+    assert _all_names(lancedb.connect(str(d_path))) == {"vault_notes"}, (
+        "default vault 被凭空造出了指纹表 (test_g24:246 的同一条契约)"
+    )
+
+
+def test_index_only_vault_survives_shorter_id_drop_and_heal_when_undiscoverable(tmp_path):
+    """**r7 HIGH 锁**: 目录不可发现、只写过内容表的长 id vault 不再被短 id vault 认领。
+
+    场景逐字取自 Codex r7: vault ``a_canvas`` 只索引过 canvas ⇒ 它的表叫
+    ``a_canvas_nodes``, 余名 ``canvas_nodes`` **恰好**是规范逻辑名 ⇒ 闸④ 的模糊名判据
+    看不出问题; 而它的目录不在 ``VAULTS_ROOT`` 下 ⇒ 来源② 也看不见它。改前 V = {a},
+    ``a_canvas_nodes`` 被判给 ``a``, drop 与启动自愈两条路径都会把它删掉。
+
+    (e1) 之后 ``a_canvas`` 写内容表时顺带留下 ``a_canvas_file_fingerprints`` ⇒ 来源③
+    把它补回 V ⇒ 归属回到 ``a_canvas``。两条路径同时闭合, 本门各断一次。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    # vault a 自己的漂移表 —— 自愈侧的正向对照 (证明自愈路径真的跑到了)
+    db.create_table(f"{_SHORT_VAULT}_vault_notes", data=_rows("A-V", dim=_DRIFT_DIM))
+
+    root = tmp_path / "vaults-only-a"
+    with _vaults_root_override(root, (_SHORT_VAULT,)):
+        # vault a_canvas 只走内容表写入 (index_canvas 同型), 全程不写指纹记录
+        ac = _client(db_path, vault_id="a_canvas", dim=_DRIFT_DIM)
+        assert asyncio.run(ac.add_documents("nodes", _rows("AC", dim=_DRIFT_DIM))) == 2
+
+        names = _all_names(lancedb.connect(str(db_path)))
+        assert {f"{_SHORT_VAULT}_vault_notes", "a_canvas_nodes"} <= names, f"夹具形态不符: {sorted(names)}"
+        rows_before = lancedb.connect(str(db_path)).open_table("a_canvas_nodes").count_rows()
+        assert rows_before == 2
+
+        client_a = _client(db_path, vault_id=_SHORT_VAULT)
+        assert "a_canvas" not in client_a._discover_vault_ids_from_root(), (
+            "前提失效: a_canvas 竟然是目录可发现的, 本门锁的就不是 r7 那个场景了"
+        )
+
+        # 路径一: 显式删索引 —— 先断**表还在**, 再断"拒绝是可见的"。
+        # ⛔ 顺序不可换: 把机制断言 (V 里有没有 a_canvas) 放前面, 负控就会红在机制上,
+        # 读不出"锁住的那张表到底有没有被删"。
+        report = client_a.drop_vault_tables_report(_SHORT_VAULT)
+        mid = _all_names(lancedb.connect(str(db_path)))
+        assert "a_canvas_nodes" in mid, (
+            f"删 vault {_SHORT_VAULT} 的索引连带删掉了 vault a_canvas 的表 a_canvas_nodes "
+            f"(它余名恰是规范逻辑名 canvas_nodes, 闸④ 看不出问题); 消失的表 = {sorted(names - mid)}"
+        )
+        assert report.refusal_kind == "collision", (
+            f"a 的 canvas_nodes 逻辑位被 a_canvas 占着, 应当**可见地**整次拒绝而不是静默不作为: {report!r}"
+        )
+        assert report.dropped == (), f"整次拒绝时一张都不许删: {report.dropped!r}"
+        assert "a_canvas" in client_a._known_vault_ids(force_refresh=True), (
+            "指纹来源没把 a_canvas 补回 V —— (e1) 没生效, 归属会退回朴素前缀"
+        )
+
+        # 路径二: 启动维度自愈 (a_canvas_nodes 是 16 维, 对 8 维的 a 来说是漂移表)
+        asyncio.run(client_a._cache_tables())
+
+    after_db = lancedb.connect(str(db_path))
+    after = _all_names(after_db)
+    assert "a_canvas_nodes" in after, (
+        f"vault {_SHORT_VAULT} 认领并删掉了 vault a_canvas 的表 a_canvas_nodes; 现存 = {sorted(after)}"
+    )
+    assert after_db.open_table("a_canvas_nodes").count_rows() == rows_before, (
+        "a_canvas_nodes 还在, 但行数变了 —— 被当成自己的漂移表重建过"
+    )
+    assert f"a_canvas_{LanceDBClient.FINGERPRINT_TABLE}" in after, (
+        f"a_canvas 的变更检测基线被连带删掉了; 现存 = {sorted(after)}"
+    )
+    # 正向对照: a 自己的漂移表仍被自愈 drop —— 否则本门锁的是一条压根没跑到的路径
+    assert f"{_SHORT_VAULT}_vault_notes" not in after, (
+        f"前提失效: 启动自愈没有 drop 掉 {_SHORT_VAULT} 自己的漂移表, 本门需重新校准; 现存 = {sorted(after)}"
+    )
+
+
+def test_configured_name_ending_with_fingerprints_does_not_forge_vault(tmp_path):
+    """**M2 锁**: 配置名撞上指纹表后缀时, 不得凭空反推出一个伪 vault。
+
+    Codex r5-M2: ``LANCEDB_INDEX_TABLE_NAME=custom_file_fingerprints`` 时 vault ``a``
+    的普通向量表叫 ``a_custom_file_fingerprints``, 而来源③ 改前**只看名字后缀**, 于是
+    把 ``a_custom`` 当成一个真 vault 塞进 V ⇒ 删 ``a`` 的索引被闸③ 当成命名碰撞整次拒绝,
+    vault ``a`` 永远删不掉自己的索引。
+
+    改后两件事: 形态核 (有 ``vector`` 列 ⇒ 不是指纹表) 把伪 vault 挡在 V 外; 配置守卫
+    让这个名字不并入逻辑名。⇒ 闸③ 不再误拒。
+
+    ⚠️ 如实声明**终态**（Codex r2 HIGH-B 整改后已变，r3 LOW-1 点名此处说明滞后）:
+    那张占名表带 ``vector``, 形态核排除它时**同时置降级**, 于是落的是**闸①**
+    ``registry_degraded``, 不是闸④ ``ambiguous``。两者都是「整次拒绝」, 而 registry_degraded
+    更准确 —— 问题本来就是「V 不可信」。把"配置名与指纹命名空间撞车"定性为**配置错误**
+    并让它响, 而不是让系统去猜。本门把终态钉死, 不留"以为能删"的错觉。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    forged = f"{_SHORT_VAULT}_custom_{LanceDBClient.FINGERPRINT_TABLE}"
+    db.create_table(forged, data=_rows("A-CUSTOM"))  # **真**向量表, 不是指纹表
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("A-N"))
+    assert "vector" in db.open_table(forged).schema.names, "前提失效: 它必须是带 vector 的普通表"
+
+    with _config_env_override(LANCEDB_INDEX_TABLE_NAME=f"custom_{LanceDBClient.FINGERPRINT_TABLE}"):
+        client = _client(db_path, vault_id=_SHORT_VAULT)
+        known = client._known_vault_ids(force_refresh=True)
+        assert f"{_SHORT_VAULT}_custom" not in known, (
+            f"普通向量表 {forged!r} 被按名字后缀反推成了伪 vault a_custom; V = {sorted(known)}"
+        )
+        assert client._vault_registry_degraded is True, (
+            "形态核排除这张占名表时没有置降级 —— 那会让补建钩子的「名字在就早退」与形态核的"
+            "「按 schema 排除」互相抵消, 该 vault 从 V 里消失而它的内容表还在 (Codex r2 HIGH-B)"
+        )
+        report = client.drop_vault_tables_report(_SHORT_VAULT)
+        assert report.refusal_kind != "collision", f"闸③ 仍在误拒 (r5-M2 症状未消失): {report.refusal!r}"
+        # 终态钉死。⚠️ Codex r2 HIGH-B 整改后它从 `ambiguous` 变成 `registry_degraded`:
+        # 形态核排除这张占名表的同时置降级, 闸① 因此先于闸④ 开火。两者都是「整次拒绝」,
+        # 而 registry_degraded 更准确 —— 问题本来就是「V 不可信」, 不是「某张表判不出主人」。
+        assert report.refusal_kind == "registry_degraded", f"终态变了, 本门需重新校准: {report!r}"
+        assert report.dropped == () and client.drop_vault_tables(_SHORT_VAULT) == 0
+
+    assert _all_names(lancedb.connect(str(db_path))) == {forged, f"{_SHORT_VAULT}_canvas_nodes"}, (
+        "整次拒绝时一张都不许删"
+    )
+
+
+def test_canonical_logicals_drop_fingerprint_suffixed_config(tmp_path):
+    """配置守卫: 撞指纹后缀的配置名不并入逻辑名; 正常配置名照并 (控制组)。
+
+    没有控制组的话, 一个"永远返回内置集"的实现也能让上面两条断言全绿 —— 那会让
+    ``LANCEDB_INDEX_TABLE_NAME`` 配出来的真实表名在闸③/闸④ 里彻底失明。
+    """
+    db_path = tmp_path / "db"
+    lancedb.connect(str(db_path))
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    builtin = LanceDBClient._BUILTIN_LOGICAL_TABLES
+
+    with _config_env_override(LANCEDB_INDEX_TABLE_NAME=f"custom_{LanceDBClient.FINGERPRINT_TABLE}"):
+        assert client._canonical_logical_tables() == builtin, "撞指纹后缀的配置名不得并入逻辑名"
+    # ⚠️ **这一格是空洞的, 如实标注** (Codex r1 MEDIUM-4): `file_fingerprints` 本来就在
+    # `_BUILTIN_LOGICAL_TABLES` 里, 所以"并不并入"对结果毫无影响 —— 把守卫的相等分支整个
+    # 删掉, 下面第一条断言照样绿。它唯一的实际效果是多打一条 logger.error。
+    # 真正有判别力的是上一格(`custom_file_fingerprints`)。
+    # ⛔ 随之更正一条过强表述: 配置恰为 `file_fingerprints` 时**没有** 409 终态 ——
+    # `{vid}_file_fingerprints` 就是本 vault 的规范指纹表, 会被正常删掉并回 200。
+    with _config_env_override(LANCEDB_INDEX_TABLE_NAME=LanceDBClient.FINGERPRINT_TABLE):
+        assert client._canonical_logical_tables() == builtin, "配成裸指纹表名同样不得并入"
+        assert LanceDBClient._fingerprint_namespace_clash(LanceDBClient.FINGERPRINT_TABLE) is True, (
+            "守卫的相等分支被删掉了 —— 它对 logical 集合没有影响, 但那条 logger.error 是运维唯一能看到的信号"
+        )
+    # 控制组: 正常配置名必须并进来
+    with _config_env_override(LANCEDB_INDEX_TABLE_NAME="custom_nodes"):
+        assert "custom_nodes" in client._canonical_logical_tables(), (
+            "守卫写成了恒不并入 —— 配置出来的真实表名会在闸③/闸④ 里失明"
+        )
+
+
+def _indexable_rows(prefix: str, n: int = 2, *, canvas_file: str, dim: int = _DIM):
+    """与 ``add_documents`` 落盘后**同列**的行 —— 供直接建表用。
+
+    列集合必须与 ``add_documents`` 产出的 ``lance_doc`` 逐字一致, 否则后续
+    ``table.add()`` 会因 schema 不符抛错, 本门就测不到"走的是 add 分支"。
+    """
+    from agentic_rag.clients.lancedb_client import _jieba_tokenize
+
+    return [
+        {
+            "doc_id": f"{prefix}-{i}",
+            "content": f"{prefix} content {i}",
+            "content_tokenized": _jieba_tokenize(f"{prefix} content {i}"),
+            "vector": [0.1 * (i + 1)] * dim,
+            "canvas_file": canvas_file,
+            "timestamp": f"2026-09-18T00:00:0{i}",
+            "doc_type": "note",
+        }
+        for i in range(n)
+    ]
+
+
+def test_stats_add_count_see_beyond_default_page(tmp_path):
+    """(e3) 三个默认分页站点的盲区已收口 —— 第 11+ 张表也看得见。
+
+    ``table_names()`` 默认 ``limit=10``。改前 ``get_all_vault_stats`` / ``add_documents``
+    的两处存在性判断 / ``count_documents_by_canvas`` 都走它:
+      - stats 少算整页之外的表 (``GET /index/stats`` 的数字直接不对);
+      - ``add_documents`` 把**已存在**的表判成不存在 ⇒ 走 create_table ⇒ 抛错 ⇒ 静默回 0
+        (写入全丢, 调用方看到的是"加了 0 条");
+      - ``count_documents_by_canvas`` 对页外的表恒答 0 条。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    for i in range(12):
+        db.create_table(f"a{i:02d}_pad", data=[{"k": i}])
+    target = "zz_canvas_nodes"
+    canvas = "notes/z.md"
+    db.create_table(target, data=_indexable_rows("ZZ", canvas_file=canvas))
+
+    # 正向对照: 默认分页确实只给 10 张 (否则本门锁的是个不存在的问题)
+    assert len(list(db.table_names())) == 10, "lancedb 默认分页行为变了, 本门需重新校准"
+    assert len(_all_names(db)) == 13, "夹具没建成 13 张表"
+    assert target not in set(db.table_names()), "前提失效: 目标表必须落在默认分页**之外**"
+
+    client = _client(db_path, vault_id="zz")
+    client._initialized = True  # 不让 count_documents_by_canvas 去 initialize() 加载 bge-m3
+
+    stats = client.get_all_vault_stats()
+    assert sum(v["tables"] for v in stats.values()) == 13, f"get_all_vault_stats 只看到默认分页的前 10 张: {stats!r}"
+    assert stats.get("zz", {}).get("tables") == 1, f"页外那张表没进 stats: {stats!r}"
+
+    counted = asyncio.run(client.count_documents_by_canvas(canvas, table_name=target))
+    assert counted["count"] == 2, f"count_documents_by_canvas 对页外的表答了 0: {counted!r}"
+
+    before_names = _all_names(db)
+    added = asyncio.run(client.add_documents("canvas_nodes", _rows_for_add("ZZ2", canvas_file=canvas)))
+    assert added == 2, "add_documents 把已存在的表判成不存在, 走了 create_table 并静默回 0"
+    after_db = lancedb.connect(str(db_path))
+    assert after_db.open_table(target).count_rows() == 4, (
+        "新行没有落进已存在的那张表 —— 走 create 分支会对同名表抛错, 行数不会变成 4"
+    )
+    # ⚠️ 判据**不能**写成「表数不变」(初版如此): Codex r1 HIGH-1 整改后 (e1) 的钩子挂在
+    # 两个分支之外, 于是这次 add 会顺带补建 zz 的指纹表 —— 表数从 13 变 14 是**预期**的。
+    # 改断「新增集合恰好只有指纹表」: 它同时排除了「多建了一张内容表」。
+    assert _all_names(after_db) - before_names == {f"zz_{LanceDBClient.FINGERPRINT_TABLE}"}, (
+        f"本次写入新增的表不止 (e1) 的指纹表: {sorted(_all_names(after_db) - before_names)}"
+    )
+
+
+def _rows_for_add(prefix: str, *, canvas_file: str, n: int = 2, dim: int = _DIM):
+    """喂给 ``add_documents`` 的入参 —— 不带 ``content_tokenized`` (由它自己补)。"""
+    return [
+        {
+            "doc_id": f"{prefix}-{i}",
+            "content": f"{prefix} content {i}",
+            "vector": [0.1 * (i + 1)] * dim,
+            "canvas_file": canvas_file,
+            "timestamp": f"2026-09-18T01:00:0{i}",
+            "doc_type": "note",
+        }
+        for i in range(n)
+    ]
+
+
+def test_add_documents_recreates_table_dropped_by_drift_guard(tmp_path):
+    """漂移守卫把表 drop 掉之后, ``add_documents`` 必须走 **create** 分支把数据写进去。
+
+    CARD-LANCE-INDEX-DELETE-CONTRACT 的自伤锁: 本卡把 ``add_documents`` 里两次
+    ``table_names()`` 枚举合成一次 ``_all_table_names()`` 快照(为收口默认分页)。但两次枚举
+    **之间**夹着 ``_check_and_fix_dimension_mismatch`` —— 它检测到 schema 漂移时会
+    **把表 drop 掉**(docstring 原话: "True if the table was dropped (caller should create new)")。
+    沿用漂移检查之前的快照 ⇒ 下面去 ``open_table`` 一张刚被删掉的表 ⇒ 异常被 ``add_documents``
+    外层的 ``except`` 吞成**返回 0**, 调用方看到的是"添加了 0 条", 数据静默全丢。
+
+    改前的实现是靠"第二次重新查一遍 ``table_names()``"歪打正着地躲开这一点; 合并枚举之后
+    必须显式接住守卫的返回值。本门就锁这一点。
+
+    ⚠️ 断言必须落在**行数**上: 只断"表还在"不够 —— 走 create 分支和走坏掉的 add 分支
+    最后都可能留下一张同名表, 区别在于**数据有没有进去**。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    # 旧表: 16 维, 对 8 维的客户端来说是漂移 ⇒ 守卫会 drop 它
+    db.create_table(f"{_SHORT_VAULT}_canvas_nodes", data=_rows("OLD", dim=_DRIFT_DIM))
+    _assert_table_shape(db, f"{_SHORT_VAULT}_canvas_nodes", dim=_DRIFT_DIM, has_doc_type=True)
+
+    client = _client(db_path, vault_id=_SHORT_VAULT, dim=_DIM)
+    added = asyncio.run(client.add_documents("canvas_nodes", _rows("NEW", n=3, dim=_DIM)))
+
+    assert added == 3, (
+        "漂移表被守卫 drop 之后, add_documents 仍按旧快照走了 add 分支 —— open_table 一张"
+        f"已删掉的表, 异常被吞成'添加了 0 条', 写入静默全丢。实得 {added}"
+    )
+    after = lancedb.connect(str(db_path))
+    assert f"{_SHORT_VAULT}_canvas_nodes" in _all_names(after), "表没被重建出来"
+    tbl = after.open_table(f"{_SHORT_VAULT}_canvas_nodes")
+    assert tbl.count_rows() == 3, f"新数据没落盘: 实有 {tbl.count_rows()} 行"
+    vectors = tbl.head(1).to_pydict().get("vector", [])
+    assert vectors and len(vectors[0]) == _DIM, (
+        f"重建出来的表维度不对: {len(vectors[0]) if vectors else '无行'}, 预期 {_DIM}"
+    )
+
+
+class _CreateFailsOn:
+    """真库句柄 + 只在**指定表**上让 ``create_table`` 抛的薄包装（故障注入，非 mock）。"""
+
+    def __init__(self, db, boom: str):
+        self._db = db
+        self._boom = boom
+
+    def __getattr__(self, item):
+        return getattr(self._db, item)
+
+    def create_table(self, name, *args, **kwargs):
+        if name == self._boom:
+            raise RuntimeError(f"injected io failure while creating {name}")
+        return self._db.create_table(name, *args, **kwargs)
+
+
+def test_fingerprint_table_is_retried_on_later_writes_after_a_failed_creation(tmp_path):
+    """**Codex r1 HIGH-1 锁**: 指纹表第一次建失败后, 后续写入必须**继续补建**。
+
+    初版把 (e1) 的钩子只挂在 ``add_documents`` 的**建表分支**里。于是:
+    第一次写 ⇒ 建内容表成功 + 建指纹表失败(只记日志不抛) ⇒ 之后每次追加都走 add 分支,
+    **再也不会重试** ⇒ 那个 vault 在 ``_known_vault_ids`` 的三条来源里永久看不见 ⇒
+    它的表被 id 更短的 vault 认领。这是「保护前提没建立起来, 却没有任何后续机会补救」。
+
+    修法: 钩子挂到两个分支**之外**, 每次写入都补一次。已有时的代价是**一次全量表名枚举 +
+    一次 ``open_table`` 读 schema**（Codex r2 HIGH-B 之后早退判据要与形态核同口径,
+    所以不止枚举那一下；r3 LOW-1 点名此处说明滞后）。本门锁「失败之后还会不会补」这一点。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    fp = f"{_SHORT_VAULT}_{LanceDBClient.FINGERPRINT_TABLE}"
+
+    # 第一次写: 内容表建得成, 指纹表建失败
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    client._db = _CreateFailsOn(db, fp)
+    assert asyncio.run(client.add_documents("canvas_nodes", _rows("A1"))) == 2, "内容写入不该被指纹表失败拖垮"
+    assert fp not in _all_names(lancedb.connect(str(db_path))), (
+        "前提失效: 指纹表竟然建出来了, 本门锁的就不是「建失败之后」那个场景"
+    )
+
+    # 第二次写: 走 add 分支(表已存在), 指纹表必须在这里被补上
+    client2 = _client(db_path, vault_id=_SHORT_VAULT)
+    assert asyncio.run(client2.add_documents("canvas_nodes", _rows("A2"))) == 2
+
+    after = lancedb.connect(str(db_path))
+    assert fp in _all_names(after), (
+        "第一次建指纹表失败后就再也没补过 —— 该 vault 在 V 里永久看不见, "
+        f"它的表会被 id 更短的 vault 认领; 现存 = {sorted(_all_names(after))}"
+    )
+    assert after.open_table(fp).count_rows() == 0, "补建出来的应是**空**指纹表"
+    # 正向对照: 内容确实追加了两次 ⇒ 补指纹没有把写入路径搞坏
+    assert after.open_table(f"{_SHORT_VAULT}_canvas_nodes").count_rows() == 4
+
+
+def test_fingerprint_source_keeps_a_real_table_with_an_older_schema(tmp_path):
+    """**Codex r1 HIGH-2 锁**: 列不齐的**真**指纹表不得被形态核排除（漏报方向 = 丢数据）。
+
+    初版形态核的通过条件是「四列齐全 **且** 无 vector」。于是一张 schema 较旧、少一列
+    (这里缺 ``chunk_count``) 的真指纹表会被判成"不是指纹表" ⇒ 它的 vault 从 V 里消失 ⇒
+    表被 id 更短的 vault 认领 ⇒ **丢数据**。这正是本方法 docstring 自己写的
+    「漏报方向才丢数据」, 初版实现自己踩了。
+
+    现在唯一**确凿**的排除理由是「带 ``vector`` 列」(那是普通向量表)。列不齐只报不排。
+
+    ⚠️ 排他断言同时保留: 带 vector 的那张仍必须被排除 —— 否则本门就退化成
+    「形态核被整个拆掉」也能绿。
+    """
+    db_path = tmp_path / "db"
+    db = lancedb.connect(str(db_path))
+    # 旧 schema 的**真**指纹表: 缺 chunk_count, 但没有 vector 列
+    legacy = [
+        {"file_path": f"a_canvas/n{i}.md", "content_hash": f"{i:064x}", "last_indexed": "2026-01-01"} for i in range(2)
+    ]
+    db.create_table(f"a_canvas_{LanceDBClient.FINGERPRINT_TABLE}", data=legacy)
+    # 对照: 名字像指纹表的**普通向量表**, 必须仍被排除
+    forged = f"{_SHORT_VAULT}_custom_{LanceDBClient.FINGERPRINT_TABLE}"
+    db.create_table(forged, data=_rows("FORGED"))
+
+    cols = set(db.open_table(f"a_canvas_{LanceDBClient.FINGERPRINT_TABLE}").schema.names)
+    assert "chunk_count" not in cols and "vector" not in cols, f"夹具形态不符: {sorted(cols)}"
+
+    client = _client(db_path, vault_id=_SHORT_VAULT)
+    derived = client._vault_ids_from_fingerprint_tables()
+
+    assert "a_canvas" in derived, (
+        "列不齐的**真**指纹表被形态核排除了 —— 它的 vault 从 V 里消失, "
+        f"表会被 id 更短的 vault 认领(漏报方向 = 丢数据); 实得 {sorted(derived)}"
+    )
+    assert f"{_SHORT_VAULT}_custom" not in derived, (
+        f"排他断言失败: 带 vector 的普通表仍被反推成伪 vault; 实得 {sorted(derived)}"
+    )
+
+
+def test_content_table_squatting_the_fingerprint_name_degrades_instead_of_losing_the_vault(tmp_path):
+    """**Codex r2 HIGH-B 锁**: 指纹表名被一张带 vector 的内容表占着时, 必须降级而不是丢 vault。
+
+    这条锁的是**本卡引入的回归**。两个判据不同口径 ⇒ 互相抵消:
+
+    - ``_ensure_vault_fingerprint_table`` 的早退看**名字**(``_fingerprint_table_exists``);
+    - ``_looks_like_fingerprint_table`` 的排除看 **schema**。
+
+    vault ``a_canvas`` 若用逻辑名 ``file_fingerprints`` 写过内容, 库里就有一张**带 vector** 的
+    ``a_canvas_file_fingerprints``: 补建钩子看到名字在、恒早退, 真指纹表永远建不出来; 形态核又把
+    ``a_canvas`` 排除出 V。两件事叠加 = ``a_canvas`` 从 V 里消失, 而它的 ``a_canvas_nodes`` 还在
+    ⇒ 短 vault ``a`` 的**启动自愈**把它当自己的规范内容表删掉。
+    ⚠️ 改前的纯后缀反推会**保留** ``a_canvas`` —— 所以这层保护是本卡自己弄丢的。
+
+    修法取 fail-closed: 形态核排除这张占名表时**同时置降级**, 于是 drop 走闸①整次拒绝、
+    启动自愈整段跳过。本门的**承重**断言是「``a_canvas_nodes`` 仍在且行数不变」。
+    """
+    db_path = tmp_path / "db"
+    lancedb.connect(str(db_path))
+
+    root = tmp_path / "vaults-only-a"
+    with _vaults_root_override(root, (_SHORT_VAULT,)):
+        # a_canvas 走**生产写入方法**, 逻辑名就叫 file_fingerprints ⇒ 表名占住指纹命名空间
+        ac = _client(db_path, vault_id="a_canvas", dim=_DRIFT_DIM)
+        assert asyncio.run(ac.add_documents(LanceDBClient.FINGERPRINT_TABLE, _rows("SQUAT", dim=_DRIFT_DIM))) == 2
+        assert asyncio.run(ac.add_documents("nodes", _rows("AC", dim=_DRIFT_DIM))) == 2
+
+        squat = f"a_canvas_{LanceDBClient.FINGERPRINT_TABLE}"
+        names = _all_names(lancedb.connect(str(db_path)))
+        assert {squat, "a_canvas_nodes"} <= names, f"夹具形态不符: {sorted(names)}"
+        assert "vector" in set(lancedb.connect(str(db_path)).open_table(squat).schema.names), (
+            "前提失效: 占名的那张表没有 vector 列, 本门锁的就不是这个形态"
+        )
+        rows_before = lancedb.connect(str(db_path)).open_table("a_canvas_nodes").count_rows()
+
+        client_a = _client(db_path, vault_id=_SHORT_VAULT)
+        assert "a_canvas" not in client_a._discover_vault_ids_from_root(), (
+            "前提失效: a_canvas 目录可发现, 那 V 本来就补得回来, 本门什么都没测"
+        )
+        client_a._known_vault_ids(force_refresh=True)
+        assert client_a._vault_registry_degraded is True, (
+            "形态核排除占名表时没有置降级 —— a_canvas 从 V 里消失而它的表还在, "
+            "短 vault a 的自愈会把 a_canvas_nodes 当自己的规范内容表删掉"
+        )
+
+        report = client_a.drop_vault_tables_report(_SHORT_VAULT)
+        assert report.refusal_kind == "registry_degraded", f"删索引应整次拒绝: {report!r}"
+        assert report.dropped == ()
+
+        # 承重: 启动维度自愈也不许碰 (a_canvas_nodes 是 16 维, 对 8 维的 a 是漂移表)
+        asyncio.run(client_a._cache_tables())
+
+    after_db = lancedb.connect(str(db_path))
+    after = _all_names(after_db)
+    assert "a_canvas_nodes" in after, (
+        f"vault {_SHORT_VAULT} 的启动自愈删掉了 vault a_canvas 的表 a_canvas_nodes; 消失的表 = {sorted(names - after)}"
+    )
+    assert after_db.open_table("a_canvas_nodes").count_rows() == rows_before, "行数变了 —— 被当成漂移表重建过"
+    assert squat in after, f"占名的那张表也被删了; 现存 = {sorted(after)}"
+
+
+def test_rebuild_index_leaves_no_content_table_without_a_fingerprint_table(tmp_path):
+    """**Codex r2 HIGH-A 锁**: 重建之后不得留下「有内容表、没有指纹表」的 vault。
+
+    ``rebuild_index`` 先 ``drop_table(fp_table)`` 再 ``drop_table(table_name)``, 然后调
+    ``index_vault_notes``。若该 vault 下**没有 Markdown**, 它一行都不写 ⇒ 不经
+    ``_update_fingerprint`` ⇒ 指纹表不再存在; 而**别的逻辑名**的内容表(这里
+    ``a_canvas_nodes``, 由 ``index_canvas`` 同型写入产生)压根不在本次删除范围里, 仍在库中。
+    ⇒ 该 vault 变成 r7 那个形态, 而且是一条**正常生命周期路径**走出来的, 不需要故障注入。
+
+    修法: ``rebuild_index`` 返回前无条件补一次。本门的承重断言是重建后指纹表**仍在**,
+    且 ``a_canvas_nodes`` 经短 vault ``a`` 的 drop 与自愈之后**仍在、行数不变**。
+    """
+    db_path = tmp_path / "db"
+    lancedb.connect(str(db_path))
+    empty_vault_dir = tmp_path / "no-markdown-here"
+    empty_vault_dir.mkdir()
+
+    root = tmp_path / "vaults-only-a"
+    with _vaults_root_override(root, (_SHORT_VAULT,)):
+        ac = _client(db_path, vault_id="a_canvas", dim=_DRIFT_DIM)
+        assert asyncio.run(ac.add_documents("nodes", _rows("AC", dim=_DRIFT_DIM))) == 2
+        fp = f"a_canvas_{LanceDBClient.FINGERPRINT_TABLE}"
+        assert fp in _all_names(lancedb.connect(str(db_path))), "前提失效: (e1) 没把指纹表建出来"
+        rows_before = lancedb.connect(str(db_path)).open_table("a_canvas_nodes").count_rows()
+
+        # 重建: vault 目录下没有任何 .md ⇒ index_vault_notes 一行都不写
+        ac._initialized = True  # 不让 rebuild_index 去 initialize() 加载 bge-m3
+        asyncio.run(ac.rebuild_index(vault_path=str(empty_vault_dir)))
+
+        mid = _all_names(lancedb.connect(str(db_path)))
+        assert "a_canvas_nodes" in mid, f"前提失效: 重建把 canvas 内容表也删了, 本门场景不成立: {sorted(mid)}"
+        assert fp in mid, (
+            "重建删掉指纹表后没有补回来 —— 这个 vault 变成「有内容表、没有指纹表」, "
+            f"会被 id 更短的 vault 认领; 现存 = {sorted(mid)}"
+        )
+
+        # 承重: 短 vault a 的两条破坏性路径都不许碰 a_canvas_nodes
+        client_a = _client(db_path, vault_id=_SHORT_VAULT)
+        assert "a_canvas" in client_a._known_vault_ids(force_refresh=True), "补回来的指纹表没把 a_canvas 带回 V"
+        client_a.drop_vault_tables_report(_SHORT_VAULT)
+        asyncio.run(client_a._cache_tables())
+
+    after_db = lancedb.connect(str(db_path))
+    assert "a_canvas_nodes" in _all_names(after_db), (
+        f"重建后的 a_canvas_nodes 被 vault {_SHORT_VAULT} 处理掉了; 现存 = {sorted(_all_names(after_db))}"
+    )
+    assert after_db.open_table("a_canvas_nodes").count_rows() == rows_before, "行数变了"
+
+
+def test_rebuild_index_keeps_the_fingerprint_table_when_the_rebuild_itself_blows_up(tmp_path):
+    """**Codex r3 HIGH 锁**: 重建**中途抛异常**时也不得留下「有内容表、没有指纹表」的 vault。
+
+    r2 的修法只把补建放在**正常返回路径**上 —— Codex r3 指出它覆盖不到:
+
+    - ``progress_callback`` 抛异常 / 任务被取消 ⇒ 直接越过补建;
+    - 即便最终会补, 重建**期间**(向量化有 await 让出点)指纹表也是缺的, 另一个客户端
+      此时跑 drop 或启动自愈就能认领这个 vault 的内容表。
+
+    修法两件: ① 删掉旧指纹表后**立刻**补一张空的(窗口压到最小; 重建本就要清空指纹基线,
+    空表正是它要的状态) ② 整个重建包 ``try/finally``, 退出路径再补一次。
+    本门用 ``progress_callback`` 抛异常制造那条退出路径。
+    """
+    db_path = tmp_path / "db"
+    lancedb.connect(str(db_path))
+    vault_dir = tmp_path / "vault-with-one-md"
+    vault_dir.mkdir()
+    (vault_dir / "note.md").write_text("# hello\n\nsome content\n", encoding="utf-8")
+
+    root = tmp_path / "vaults-only-a"
+    with _vaults_root_override(root, (_SHORT_VAULT,)):
+        ac = _client(db_path, vault_id="a_canvas", dim=_DRIFT_DIM)
+        assert asyncio.run(ac.add_documents("nodes", _rows("AC", dim=_DRIFT_DIM))) == 2
+        fp = f"a_canvas_{LanceDBClient.FINGERPRINT_TABLE}"
+        assert fp in _all_names(lancedb.connect(str(db_path))), "前提失效: (e1) 没把指纹表建出来"
+        rows_before = lancedb.connect(str(db_path)).open_table("a_canvas_nodes").count_rows()
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("injected failure from progress_callback")
+
+        ac._initialized = True  # 不让 rebuild_index 去 initialize() 加载 bge-m3
+        with pytest.raises(Exception) as exc:
+            asyncio.run(ac.rebuild_index(vault_path=str(vault_dir), progress_callback=_boom))
+        assert "injected failure" in str(exc.value) or isinstance(exc.value, RuntimeError), (
+            f"前提失效: 抛出来的不是注入的那个异常, 本门没走到退出路径: {exc.value!r}"
+        )
+
+        mid = _all_names(lancedb.connect(str(db_path)))
+        assert "a_canvas_nodes" in mid, f"前提失效: 重建把 canvas 内容表也删了: {sorted(mid)}"
+        assert fp in mid, (
+            "重建中途抛异常后指纹表没了 —— 这个 vault 变成「有内容表、没有指纹表」, "
+            f"会被 id 更短的 vault 认领; 现存 = {sorted(mid)}"
+        )
+
+        # 承重: 短 vault a 的两条破坏性路径都不许碰 a_canvas_nodes
+        client_a = _client(db_path, vault_id=_SHORT_VAULT)
+        assert "a_canvas" in client_a._known_vault_ids(force_refresh=True), "指纹表没把 a_canvas 带回 V"
+        client_a.drop_vault_tables_report(_SHORT_VAULT)
+        asyncio.run(client_a._cache_tables())
+
+    after_db = lancedb.connect(str(db_path))
+    assert "a_canvas_nodes" in _all_names(after_db), (
+        f"异常退出后的 a_canvas_nodes 被 vault {_SHORT_VAULT} 处理掉了; 现存 = {sorted(_all_names(after_db))}"
+    )
+    assert after_db.open_table("a_canvas_nodes").count_rows() == rows_before, "行数变了"
+
+
+@pytest.mark.asyncio
+async def test_ensure_fingerprint_refuses_a_name_owned_by_another_vault(tmp_path):
+    """归属不是自己的指纹表名 ⇒ **不建也不认领**（独立对抗审查 2026-09-19 HIGH）。
+
+    vault ``a`` 与 ``a_file`` 并存时, ``a`` 拼出的 ``a_file_fingerprints`` 按最长前缀
+    归 ``a_file``（``_fingerprint_table_name`` 只 ``_warn_namespace_collision`` 后照样
+    返回该名）。本卡的建表钩子若照建, 会**新造**两条改前不存在的破坏——改前这张表
+    压根不会被建出来:
+
+    ① ``DELETE /index/a`` 从 200 变**永久 409 collision**: 碰撞预检遍历 ``{a}_{逻辑名}``
+       时这张 owner 非 ``a`` 的表现在"存在"了;
+    ② ``DELETE /index/a_file`` 会把它删掉（``_owns_table`` 为真、模糊闸不拦）,
+       即销毁 vault ``a`` 的指纹基线 —— 正是本钩子要防的那类数据丢失的镜像。
+
+    ⛔ 本门期望"那张表**不存在**"。这类否定式判据必须配**控制组**: 一个不撞名的
+    vault 的指纹表必须**建得出来**, 否则"钩子整个坏掉"也会让本门空洞地绿。
+    """
+    db_path = tmp_path / "db"
+    root = tmp_path / "vaults"
+    with _vaults_root_override(root, ["a", "a_file"]):
+        ca = _client(db_path, vault_id="a")
+        # 前提: 碰撞真的构造出来了 —— 否则下面在证别的东西
+        assert ca._table_owner("a_file_fingerprints", "a") == "a_file", (
+            f"前提不成立: a_file_fingerprints 归 {ca._table_owner('a_file_fingerprints', 'a')!r}, 期望 'a_file'"
+        )
+        await ca.add_documents("canvas_nodes", _rows("a", 2))
+
+        # 控制组: vault a_file 自己的指纹名 a_file_file_fingerprints 归属就是它自己
+        cb = _client(db_path, vault_id="a_file")
+        assert cb._table_owner("a_file_file_fingerprints", "a_file") == "a_file"
+        await cb.add_documents("canvas_nodes", _rows("af", 2))
+
+    db = lancedb.connect(str(db_path))
+    names = _all_names(db)
+
+    assert "a_canvas_nodes" in names, f"被测侧内容写入就失败了, 本门在证别的东西: {sorted(names)}"
+    assert "a_file_canvas_nodes" in names, f"控制组内容写入失败: {sorted(names)}"
+    assert "a_file_file_fingerprints" in names, (
+        f"控制组的指纹表没建出来 ⇒ 建表钩子本身坏了, 本门对归属闸无辨别力。现存 = {sorted(names)}"
+    )
+    assert "a_file_fingerprints" not in names, (
+        "vault a 建出了归属 a_file 的指纹表 ⇒ a 的删索引永久 409 collision, "
+        f"且 a_file 的删索引会销毁 a 的指纹基线。现存 = {sorted(names)}"
+    )

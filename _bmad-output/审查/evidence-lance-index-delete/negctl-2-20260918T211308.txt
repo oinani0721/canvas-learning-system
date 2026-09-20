@@ -1,0 +1,11 @@
+# 负控②: 去掉指纹来源的形态核（还原成纯后缀推导）
+# 跑前:
+7db5d02b627542f9a522d02d42067b7d2b78ee30347bf7c5dc300e3cc52758c3  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入: 形态核短路
+E   AssertionError: 普通向量表 'a_custom_file_fingerprints' 被按名字后缀反推成了伪 vault a_custom; V = ['a', 'a_b', 'a_custom']
+E   assert 'a_custom' not in frozenset({'a', 'a_b', 'a_custom'})
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_configured_name_ending_with_fingerprints_does_not_forge_vault
+================== 1 failed, 40 passed, 142 warnings in 3.96s ==================
+pytest_rc=1
+# 跑后(已还原):
+7db5d02b627542f9a522d02d42067b7d2b78ee30347bf7c5dc300e3cc52758c3  backend/lib/agentic_rag/clients/lancedb_client.py

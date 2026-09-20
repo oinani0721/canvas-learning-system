@@ -1,0 +1,12 @@
+# 负控⑥: 形态核排除占名表时**不置降级**（Codex r2 HIGH-B 缺陷态）
+# 跑前:
+c70df8ce7ca24d95a6b955ea03b0d0c5edec281d1086bfede06c9c86529552af  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入
+E   AssertionError: 形态核排除这张占名表时没有置降级 —— 那会让补建钩子的「名字在就早退」与形态核的「按 schema 排除」互相抵消, 该 vault 从 V 里消失而它的内容表还在 (Codex r2 HIGH-B)
+E   AssertionError: 形态核排除占名表时没有置降级 —— a_canvas 从 V 里消失而它的表还在, 短 vault a 的自愈会把 a_canvas_nodes 当自己的规范内容表删掉
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_configured_name_ending_with_fingerprints_does_not_forge_vault
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_content_table_squatting_the_fingerprint_name_degrades_instead_of_losing_the_vault
+================== 2 failed, 44 passed, 158 warnings in 4.75s ==================
+pytest_rc=1
+# 跑后(已还原):
+c70df8ce7ca24d95a6b955ea03b0d0c5edec281d1086bfede06c9c86529552af  backend/lib/agentic_rag/clients/lancedb_client.py

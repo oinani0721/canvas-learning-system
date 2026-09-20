@@ -1,0 +1,21 @@
+files=12
+backend/app/api/v1/endpoints/edges.py
+backend/app/api/v1/endpoints/index.py
+backend/app/clients/neo4j_client.py
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/tests/integration/test_edges_dual_write_neo4j_t5b.py
+backend/tests/unit/test_edge_rationale_fallback.py
+backend/tests/unit/test_index_delete_contract_c101.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+backend/tests/unit/test_mock_degradation_transparency.py
+backend/tests/unit/test_neo4j_client.py
+backend/tests/unit/test_review_mode_support.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py
+All checks passed!
+rc=0
+--- 本卡面 (PREV..HEAD) ---
+backend/app/api/v1/endpoints/index.py
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/tests/unit/test_index_delete_contract_c101.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py

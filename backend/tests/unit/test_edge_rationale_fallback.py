@@ -239,9 +239,7 @@ def test_partial_failure_includes_error_details(client, valid_rationale_payload)
         patch(
             "app.api.v1.endpoints.edges._write_lancedb",
             new_callable=AsyncMock,
-            return_value=_ws(
-                False, "Table edge_rationales locked by concurrent writer"
-            ),
+            return_value=_ws(False, "Table edge_rationales locked by concurrent writer"),
         ),
     ):
         resp = client.post(
@@ -915,19 +913,29 @@ async def test_lancedb_real_write_refuses_wrong_embedding_dim(real_lancedb, monk
     assert _EXPECTED_TABLE not in db.table_names(), f"拒写路径却建出了表（而且是坏维度的）: {db.table_names()}"
 
 
-async def test_lancedb_real_write_second_append_beyond_pagination_fails_loudly(
+async def test_lancedb_real_write_appends_beyond_default_pagination(
     real_lancedb,
 ):
-    """G1⑫ **已登记的上游限制**: 分页之外的既有表, 第二次追加会**响亮失败**（不静默丢数据）。
+    """G1⑫ **上游已修**: 目标表排在默认分页之外时, 第二次追加仍然**真的追加进去**。
 
-    ⛔ 这是 Codex r3 MEDIUM 指出的缺口, 但根因在**上游**: `add_documents` 内部仍用默认
-    分页的 `table_names()` 判存在性, 目标表排在第 11 张之后时它会误走 `create_table`,
-    撞上同名表报错 ⇒ 返回 0。调用方(本卡)侧无可行绕法 —— 传已解析表名也没用, 因为
-    `add_documents` 自己再解析一次、再用分页判存在性。
-    ⛔ 卡文硬边界明令**不改** `lancedb_client.add_documents`（G2-9 族），故本卡的处置是:
-    **把当前行为钉住并如实登记** —— 至少它是响亮失败而不是静默丢数据。
-    ⚠️ 本门绿 **不代表功能可用**: 它证明的是「坏了会说」, 不是「能追加」。
-    真正修复需另立卡改上游走 `_all_table_names()`。
+    本门是 P1-A 那条 ``…_second_append_beyond_pagination_fails_loudly`` 的**翻转版**,
+    按它自己写下的指令改造 —— 它的失败消息原文是:
+
+        「若哪天它真的成功了, 说明上游已修, 请删掉本门并把 G1② 的 append-only
+         覆盖到分页外场景」
+
+    上游限制(P1-A 登记): ``add_documents`` 内部用默认分页的 ``table_names()`` 判存在性,
+    目标表排在第 11 张之后时误走 ``create_table``, 撞上同名表报错 ⇒ 返回 0 ⇒ 调用方侧
+    报响亮失败。当时卡文硬边界不许改 ``add_documents``, 所以只能把「坏了会说」钉住。
+
+    **CARD-LANCE-INDEX-DELETE-CONTRACT (BATCH-2026-09-18-第十五批) 的 (e3) 修掉了它**:
+    ``add_documents`` 的两处存在性判断改走 ``_all_table_names()``。于是本门从「证明坏了会说」
+    升级成 G1② append-only 在**分页外**的正向覆盖 —— 与
+    ``test_lancedb_real_write_is_append_only`` 同判据(同一条 edge ⇒ 2 行),
+    只是把目标表推到默认分页之外。
+
+    ⚠️ 两条前提断言都不能删: 没有 ``len(db.table_names()) == 10`` 与「目标表不在默认分页内」,
+    本门就退化成 ``test_lancedb_real_write_is_append_only`` 的重复, 一点分页面也没覆盖到。
     """
     from app.api.v1.endpoints.edges import _write_lancedb
 
@@ -939,21 +947,28 @@ async def test_lancedb_real_write_second_append_beyond_pagination_fails_loudly(
         )
     assert len(db.table_names()) == 10, "分页前提不成立"
 
-    first = await _write_lancedb(_rationale("0012"), "rec-p1a-0012a")
+    shared = _rationale("0012")
+    first = await _write_lancedb(shared, "rec-p1a-0012a")
     assert first.success is True, f"第一次写（建表）应成功: {first!r}"
 
-    second = await _write_lancedb(_rationale("0012"), "rec-p1a-0012b")
-
-    assert second.success is False, (
-        f"上游分页限制下第二次追加竟报成功 —— 若哪天它真的成功了, 说明上游已修, "
-        f"请删掉本门并把 G1② 的 append-only 覆盖到分页外场景: {second!r}"
+    second = await _write_lancedb(shared, "rec-p1a-0012b")
+    assert second.success is True, (
+        f"分页外的第二次追加仍然失败 —— 上游 add_documents 的存在性判断又退回默认分页了? {second!r}"
     )
-    assert "not confirmed" in (second.error or "").lower(), f"失败必须是**响亮**的(带 not confirmed): {second.error!r}"
-    # 承重: 第一条仍在, 没有被静默毁掉
+
     after = real_lancedb.lancedb.connect(str(real_lancedb.db_dir))
+    assert _EXPECTED_TABLE not in set(after.table_names()), (
+        "前提失效: 目标表竟落在默认分页**之内**, 本门覆盖不到分页外场景, 需重新校准"
+    )
     table = after.open_table(_EXPECTED_TABLE)
-    assert table.count_rows() == 1
-    assert table.to_arrow().to_pylist()[0]["doc_id"] == "rec-p1a-0012a"
+    assert table.count_rows() == 2, f"append-only 期望 2 行, 实得 {table.count_rows()}"
+    rows = table.to_arrow().to_pylist()
+    assert sorted(r["doc_id"] for r in rows) == ["rec-p1a-0012a", "rec-p1a-0012b"], (
+        f"doc_id 集合不符: {sorted(r['doc_id'] for r in rows)}"
+    )
+    # 承重: 两行属于**同一条 edge** ⇒ 与 G1② 同一条主张, 只是覆盖面推到分页外
+    edge_ids = {json.loads(r["metadata_json"])["edge_id"] for r in rows}
+    assert edge_ids == {shared.edge_id}, f"两行不属于同一条 edge: {edge_ids}"
 
 
 class _RowsNeo4jStub:

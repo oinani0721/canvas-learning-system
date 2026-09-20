@@ -1,0 +1,11 @@
+# 负控④: 形态核回退成「四列齐全且无 vector」(Codex r1 HIGH-2 的缺陷态)
+1dd900c8adf76d865177361fdebf694951a63b67fe3d05b0e0855982bfc1d7bf  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入
+    assert "a_canvas" in derived, (
+E   assert 'a_canvas' in set()
+{"event": "[LanceDB vault registry] \u8868 'a_canvas_file_fingerprints' \u540d\u5b57\u50cf\u6307\u7eb9\u8868\u4f46\u5e26 vector \u5217 (\u5217 = ['content_hash', 'file_path', 'last_indexed']) \u2014\u2014 \u662f\u4e00\u5f20\u666e\u901a\u5411\u91cf\u8868, \u4e0d\u636e\u5b83\u53cd\u63a8 vault id\u3002\u5e38\u89c1\u6210\u56e0: LANCEDB_INDEX_TABLE_NAME \u88ab\u914d\u6210\u4e86\u4ee5 '_file_fingerprints' \u7ed3\u5c3e\u7684\u540d\u5b57", "logger": "agentic_rag.clients.lancedb_client", "level": "warning", "timestamp": "2026-09-18T15:00:26.581344Z"}
+WARNING  agentic_rag.clients.lancedb_client:lancedb_client.py:1136 [LanceDB vault registry] 表 'a_canvas_file_fingerprints' 名字像指纹表但带 vector 列 (列 = ['content_hash', 'file_path', 'last_indexed']) —— 是一张普通向量表, 不据它反推 vault id。常见成因: LANCEDB_INDEX_TABLE_NAME 被配成了以 '_file_fingerprints' 结尾的名字
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_fingerprint_source_keeps_a_real_table_with_an_older_schema
+================== 1 failed, 43 passed, 152 warnings in 1.98s ==================
+# 跑后(已还原):
+f1c673141482c0c24c38ce8fa411a430fcc15e98870a383262a33e4900def106  backend/lib/agentic_rag/clients/lancedb_client.py

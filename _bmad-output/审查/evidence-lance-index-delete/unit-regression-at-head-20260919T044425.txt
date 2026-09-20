@@ -1,0 +1,35 @@
+# ⛔⛔ 本文件作废，不得作为 (i) 的判据 —— 两处口径错误（主 session 自查 2026-09-19）
+# 错误 1: 与红基线**跑法不同**。基线头第 3 行是
+#         `pytest tests/unit -q -p no:cacheprovider -rfE`（不带 -p no:randomly，不含 regression）；
+#         本次跑的是 `pytest tests/unit tests/regression ... -p no:randomly` ⇒ 分母不同，不可比。
+# 错误 2: 管道里写了 `| tail -25` ⇒ 汇总说 45 failed，文件里只留下 24 条 FAILED，**缺 21 条**。
+#         「45」与「24」的差不是新旧差，是截断。
+# 正确的收工跑见同目录 unit-close-*.raw.txt / .nodeids（按基线跑法全量捕获）。
+# 教训：判据的**环境**（跑法、范围、管道）是判据的一部分；换任何一项都要重新证可比性。
+# 绑定 HEAD=698641ec  跑法与基线头逐字同、不带 --ignore
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean - AssertionError: [2m台账[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/scripts/vault_doc_roles.yaml
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+FAILED tests/regression/test_g3_7_truth_source.py::test_production_reader_reads_seeded_frontmatter
+FAILED tests/regression/test_g3_7_truth_source.py::test_get_fsrs_state_frontmatter_wins_on_divergence
+FAILED tests/regression/test_g3_7_truth_source.py::test_get_fsrs_state_agreement_is_not_reported_as_divergence
+FAILED tests/regression/test_g3_7_truth_source.py::test_gate_blocks_write_when_truth_source_exists
+FAILED tests/regression/test_g3_7_truth_source.py::test_gate_blocks_write_on_malformed_fsrs_due
+FAILED tests/regression/test_g3_7_truth_source.py::test_body_line_is_not_mistaken_for_truth_source
+FAILED tests/regression/test_g3_7_truth_source.py::test_unreadable_node_file_fails_closed
+FAILED tests/regression/test_g3_7_truth_source.py::test_unreadable_node_dir_fails_closed
+FAILED tests/regression/test_g3_7_truth_source.py::test_http_get_forwards_truth_source_and_degraded
+FAILED tests/regression/test_g3_7_truth_source.py::test_record_review_flags_divergence_but_keeps_computed_schedule
+FAILED tests/regression/test_g3_7_truth_source.py::test_record_review_degraded_reasons_are_additive
+FAILED tests/regression/test_g3_7_truth_source.py::test_record_review_reports_unparsable_truth_source
+FAILED tests/regression/test_g3_7_truth_source.py::test_record_review_reports_unreadable_truth_source
+= 45 failed, 7686 passed, 50 skipped, 14 xfailed, 696 warnings in 802.73s (0:13:22) =
+rc=1

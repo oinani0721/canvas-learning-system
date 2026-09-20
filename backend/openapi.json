@@ -15849,7 +15849,7 @@
     "description": "Multi-agent learning system backend using Feynman method",
     "title": "Canvas Learning System API",
     "version": "1.0.0",
-    "x-generated-at": "2026-09-20T10:48:39.101932+00:00",
+    "x-generated-at": "2026-09-20T10:51:26.553029+00:00",
     "x-generator": "scripts/spec-tools/check-openapi-drift.py --write"
   },
   "openapi": "3.1.0",
@@ -22699,7 +22699,7 @@
     },
     "/api/v1/index/{vault_id}": {
       "delete": {
-        "description": "Delete all LanceDB tables for a specific vault (Story 1.9 AC #4).\n\nWave-5 Stage B 续 follow-up (2026-05-13): 走 resolver 模式注入 ContextVar.\ndrop_vault_tables(vault_id) 维持接 raw path param 保向后兼容(表名查找), 但\nresolver 调用让 downstream service (audit log / 多 vault 监控 / 未来 ContextVar\n依赖的逻辑) 看到正确 group_id, 与 wave-2 F2 LanceDBClient direct instantiation\n风险同源 — 不破坏当前行为, 但消除未来 silent 串库回归窗口.",
+        "description": "Delete all LanceDB tables for a specific vault (Story 1.9 AC #4).\n\nWave-5 Stage B 续 follow-up (2026-05-13): 走 resolver 模式注入 ContextVar.\ndrop_vault_tables(vault_id) 维持接 raw path param 保向后兼容(表名查找), 但\nresolver 调用让 downstream service (audit log / 多 vault 监控 / 未来 ContextVar\n依赖的逻辑) 看到正确 group_id, 与 wave-2 F2 LanceDBClient direct instantiation\n风险同源 — 不破坏当前行为, 但消除未来 silent 串库回归窗口.\n\nCARD-LANCE-INDEX-DELETE-CONTRACT (BATCH-2026-09-18-第十五批) — 三合一 404 拆成五态:\n\n改前只看 ``drop_vault_tables`` 的 ``int``, 而 LanceDB 侧的**四道整次拒绝闸**全部返回\n0、\"名下没有表\"是 0、CARD-G2-9-F2 之后\"每一张都删失败\"也是 0 —— 三件性质完全不同的\n事共用同一个 ``404 No tables found``。部分失败更回 ``200`` 且不带失败清单, 调用方据此\n认为索引已清, 实际还留着几张。\n\n现在按 ``DropVaultReport.outcome`` 映射:\n\n===========  =====  ====================================================\noutcome      HTTP   体\n===========  =====  ====================================================\nno_tables    404    文案与改前**逐字**相同 (唯一保留 404 的分支)\nrefused      409    ``{vault_id, refusal_kind, ambiguous_tables}``\nall_failed   500    ``{vault_id, tables_failed:[{table, error_type}]}``\npartial      207    ``{vault_id, tables_dropped, tables_failed, partial}``\ndropped      200    体与改前**逐字**相同\n===========  =====  ====================================================\n\n⛔ **脱敏**: 体里只许出现表名、``refusal_kind``、``error_type``。完整 refusal 文案\n(闸② 里嵌着 ``{e}``) 与异常 message 常带 LanceDB 库的**绝对路径**, 只进服务端日志。",
         "operationId": "delete_vault_index_api_v1_index__vault_id__delete",
         "parameters": [
           {
@@ -22721,8 +22721,14 @@
             },
             "description": "Successful Response"
           },
+          "207": {
+            "description": "部分表删除失败 — 体内含 tables_failed 清单与已删数"
+          },
           "404": {
             "description": "Vault index not found"
+          },
+          "409": {
+            "description": "为保护其它 vault 的数据整次拒绝删除 — 体内含 refusal_kind"
           },
           "422": {
             "content": {
@@ -22733,6 +22739,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "500": {
+            "description": "名下每一张表都删除失败 — 体内含 tables_failed 清单"
           },
           "503": {
             "description": "LanceDB client unavailable"

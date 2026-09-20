@@ -1,0 +1,15 @@
+# 负控③: 注释掉 add_documents 建表分支后的 _ensure_vault_fingerprint_table() 调用
+# 跑前:
+7db5d02b627542f9a522d02d42067b7d2b78ee30347bf7c5dc300e3cc52758c3  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入: e1 调用点短路
+E   AssertionError: 建内容表时没有把指纹表一起建出来: 现存 ['a_canvas_nodes']
+E   assert {'a_canvas_nodes'} == {'a_canvas_no...fingerprints'}
+    assert "a_canvas_nodes" in mid, (
+E   AssertionError: 删 vault a 的索引连带删掉了 vault a_canvas 的表 a_canvas_nodes (它余名恰是规范逻辑名 canvas_nodes, 闸④ 看不出问题); 消失的表 = ['a_canvas_nodes', 'a_vault_notes']
+E   assert 'a_canvas_nodes' in set()
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_first_content_table_creates_fingerprint_table_for_scoped_vault
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_index_only_vault_survives_shorter_id_drop_and_heal_when_undiscoverable
+================== 2 failed, 39 passed, 142 warnings in 3.64s ==================
+pytest_rc=1
+# 跑后(已还原):
+7db5d02b627542f9a522d02d42067b7d2b78ee30347bf7c5dc300e3cc52758c3  backend/lib/agentic_rag/clients/lancedb_client.py

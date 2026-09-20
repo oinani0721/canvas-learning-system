@@ -1,0 +1,10 @@
+# 负控⑧: 退回 r2 态（去掉提前补建 + 拆掉 try/finally）—— Codex r3 HIGH 的缺陷态
+# 跑前:
+0ad5e339cf63e3e8d97e23049508667aab91c2c11b53fe43edbf5cf3fcf7d2c3  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入
+E   AssertionError: 重建中途抛异常后指纹表没了 —— 这个 vault 变成「有内容表、没有指纹表」, 会被 id 更短的 vault 认领; 现存 = ['a_canvas_nodes']
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_rebuild_index_keeps_the_fingerprint_table_when_the_rebuild_itself_blows_up
+================== 1 failed, 46 passed, 166 warnings in 7.54s ==================
+pytest_rc=1
+# 跑后(已还原):
+0ad5e339cf63e3e8d97e23049508667aab91c2c11b53fe43edbf5cf3fcf7d2c3  backend/lib/agentic_rag/clients/lancedb_client.py

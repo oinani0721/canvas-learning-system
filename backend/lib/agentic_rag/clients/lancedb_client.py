@@ -45,6 +45,7 @@ import json
 import os
 import time
 import unicodedata
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -600,6 +601,72 @@ _UNSET = object()
 _KNOWN_VAULTS_TTL_SECONDS = 5.0
 
 
+@dataclass(frozen=True)
+class DropVaultReport:
+    """``drop_vault_tables`` 的结构化回执 (CARD-LANCE-INDEX-DELETE-CONTRACT)。
+
+    为什么需要它: ``drop_vault_tables`` 的 ``int`` 返回值把**五件性质完全不同的事**压成了
+    两档 —— 四道整次拒绝闸全部返回 0, "名下没有表"是 0, CARD-G2-9-F2 把返回值改成实删数
+    之后"每一张都删失败"也是 0。``DELETE /index/{vault_id}`` 于是只能把它们合并成同一个
+    ``404 No tables found``: 调用方看到"没有表", 而表可能一张没少 (被拒绝) 或一张没删掉
+    (全失败)。部分失败更糟 —— 回 200 且不带失败清单, 调用方据此认为索引已清。
+
+    ⛔ ``int`` **契约**不动: ``drop_vault_tables`` 的签名与"实删数"语义零变化, 本回执是**新增**
+    的第二条出口, 不是替换。⚠️ 但**消费方**并非都没改 (Codex r3 LOW): ``endpoints/index.py``
+    已改调本方法 (它要分辨五态); 仍按 ``int`` 消费的是
+    ``scripts/g29_dual_vault_canary.py``, 那一处零改动。
+
+    字段:
+        vault_id: 被操作的 vault (原样, 未物理化)。
+        attempted: 进入实删循环的表名 —— 整次拒绝时恒为空 (**什么都没试过**)。
+        dropped:   ``drop_table`` 没抛的表名。
+        failures:  ``(表名, 异常类型名)`` —— ⛔ **不含异常 message**。原文另见
+                   ``_last_drop_failures`` (格式 ``(表名, "ExcType: 原文")``, 语义零变化),
+                   那份带路径, 只进日志与进程内诊断, **不进响应体**。
+        refusal_kind: 四道闸各一个固定值, 见 ``REFUSAL_KINDS``; 未拒绝时 ``None``。
+        refusal:   完整拒绝文案 (可能含绝对路径) —— 只进日志。
+        ambiguous: 闸④ 判不出主人的表名; 其余情形为空。
+    """
+
+    vault_id: str
+    attempted: tuple = ()
+    dropped: tuple = ()
+    failures: tuple = ()
+    refusal_kind: Optional[str] = None
+    refusal: Optional[str] = None
+    ambiguous: tuple = ()
+
+    #: 四道整次拒绝闸各自的固定 kind —— 响应体只回这几个值, 不回文案。
+    REFUSAL_KINDS = ("registry_degraded", "listing_failed", "collision", "ambiguous")
+
+    @property
+    def outcome(self) -> str:
+        """五态之一: ``no_tables`` / ``refused`` / ``dropped`` / ``partial`` / ``all_failed``。
+
+        判定顺序即互斥依据, **不可换序**:
+
+        1. ``refusal_kind`` 非空 ⇒ ``refused`` —— 拒绝发生在实删循环之前, 此时
+           ``attempted`` 恒空, 若先判 ``attempted`` 就会把"拒绝"误报成"没有表"
+           (这正是改前那个三合一 404 的成因)。
+        2. ``attempted`` 空 ⇒ ``no_tables``。
+        3. ``failures`` 空 ⇒ ``dropped`` (全成)。
+        4. ``dropped`` 空 ⇒ ``all_failed``。
+        5. 其余 ⇒ ``partial``。
+
+        完备性: 每张 ``attempted`` 的表要么进 ``dropped`` 要么进 ``failures``, 所以
+        ``attempted`` 非空时 ``dropped`` 与 ``failures`` 不可能同时为空, 第 3/4/5 支穷尽。
+        """
+        if self.refusal_kind is not None:
+            return "refused"
+        if not self.attempted:
+            return "no_tables"
+        if not self.failures:
+            return "dropped"
+        if not self.dropped:
+            return "all_failed"
+        return "partial"
+
+
 class LanceDBClient:
     """
     LanceDB 向量数据库客户端
@@ -1002,12 +1069,21 @@ class LanceDBClient:
         ``index_vault_notes`` 与 ``index_single_file`` 两条路径 —— ``index_canvas``
         **全程不写指纹** (实测: 该函数体内无任何 fingerprint 调用)。所以一个只索引过
         canvas 的 vault 在本来源里看不见。⇒ 目录来源失效 **且** 该 vault 没有指纹表时,
-        它的表仍会被 id 更短的 vault 认领 (退回改前口径)。这条残留边界已登记移交,
-        并由 ``_vault_registry_degraded`` + ``_discover_vault_ids_from_root`` 的
-        ``logger.error`` 保证**不静默**。
+        它的表仍会被 id 更短的 vault 认领 (退回改前口径)。
+
+        ⚠️ **这段描述的是"谁写指纹记录"**。CARD-LANCE-INDEX-DELETE-CONTRACT 起另有一条
+        ``_ensure_vault_fingerprint_table``: scoped vault 每次写内容表都幂等补建一张**空**
+        指纹表, 所以**本卡之后**写过内容表的 vault (含只索引 canvas 的) 在本来源里看得见。
+        仍看不见的是: 本卡**之前**就建好、至今没再写过的表 (D-41 存量, 本卡不追溯),
+        以及指纹表名被一张非指纹表占住的 vault (那种情形会置降级, 见 ``_looks_like_fingerprint_table``)。
 
         误报方向如实声明: 万一 X 是误报, 后果是真 vault **少认领**自己的表 (表变孤儿、
         不被删), **不丢数据**; 漏报方向才丢数据。风险不对称, 所以这条宁可多认。
+
+        CARD-LANCE-INDEX-DELETE-CONTRACT 起, 候选还要过 ``_looks_like_fingerprint_table``
+        的形态核。按当前实现, **唯一**的排除理由是「能打开且带 ``vector`` 列」——
+        打不开、空表、列不齐、列型不同都**保留**。被排除时同时置 ``_vault_registry_degraded``
+        (那说明有个 vault 的归属判不出来), 于是删索引整次拒绝、启动自愈跳过。
         """
         if self._db is None:
             return set()
@@ -1023,7 +1099,89 @@ class LanceDBClient:
                 "—— 主来源之外的补丁也失效, 归属可能退回改前口径"
             )
             return set()
-        return {n[: -len(suffix)] for n in names if n.endswith(suffix) and len(n) > len(suffix)}
+        ids = set()
+        for name in names:
+            if not name.endswith(suffix) or len(name) <= len(suffix):
+                continue
+            if not self._looks_like_fingerprint_table(name):
+                continue
+            ids.add(name[: -len(suffix)])
+        return ids
+
+    #: 指纹表的判别列 —— 与 ``_update_fingerprint`` 的 record 同列 (那是唯一写侧)。
+    _FINGERPRINT_COLUMNS = frozenset({"file_path", "content_hash", "last_indexed", "chunk_count"})
+
+    def _looks_like_fingerprint_table(self, name: str) -> bool:
+        """表 ``name`` 的 schema 形态是不是指纹表 (CARD-LANCE-INDEX-DELETE-CONTRACT)。
+
+        为什么光看名字不够 (Codex CARD-G2-9-F2 r5-M2): ``LANCEDB_INDEX_TABLE_NAME`` 可以
+        配成 ``custom_file_fingerprints``, 于是 vault ``a`` 的**普通向量表**叫
+        ``a_custom_file_fingerprints`` —— 纯后缀反推会从它切出一个并不存在的 vault
+        ``a_custom``, 而 ``a_custom`` 一旦进 V, ``a_custom_file_fingerprints`` 就按最长前缀
+        归了它, vault ``a`` 的删索引被碰撞预检整次拒绝, **永远删不掉自己的索引**。
+
+        ⚠️ **风险不对称, 两个方向不同待遇** (与本方法调用方 docstring 的原则一致):
+
+        - **打不开** (I/O / 权限 / 表损坏) ⇒ **保留**候选。"问不出来"不能当"不是指纹表"——
+          那会把一个真 vault 从 V 里抹掉, 它的表随即被 id 更短的 vault 认领 = **丢数据**。
+          宁可多认: 误认的后果只是某个真 vault **少认领**自己的表 (表变孤儿、不被删)。
+          ⛔ 这里**不**置 ``_vault_registry_degraded`` —— 单张表打不开不是来源失效,
+          置了会把整次删除/自愈都停掉, 代价远大于收益。
+        - **确凿不是**指纹表 = 能打开**且带 ``vector`` 列** ⇒ 排除 + ``logger.error``
+          **并置** ``_vault_registry_degraded`` (Codex r2 HIGH-B: 不置的话, 本方法的
+          按-schema 排除会与 ``_ensure_vault_fingerprint_table`` 的按-名字早退互相抵消)。
+        - **缺判别列**(旧 schema)**不排除**, 只 ``logger.warning`` —— 排除它就是上面那个
+          漏报方向 (Codex r1 HIGH-2 打回过一次)。
+        """
+        if self._db is None:
+            return True
+        try:
+            columns = set(self._db.open_table(name).schema.names)
+        except Exception as e:
+            logger.warning(
+                f"[LanceDB vault registry] 指纹形态核打不开表 {name!r} ({type(e).__name__}: {e}) "
+                "—— 保留它作为 vault 候选 (问不出来不当成'不是指纹表': 抹掉一个真 vault 会让"
+                "它的表被 id 更短的 vault 认领)"
+            )
+            return True
+        if "vector" in columns:
+            # 唯一**确凿**的排除理由: 它是一张向量表, 生产侧的指纹表从不带 vector 列。
+            #
+            # ⛔ **排除的同时必须置降级** (Codex r2 HIGH-B)。初版只排不降, 于是形态核与
+            # `_ensure_vault_fingerprint_table` 的「名字存在就早退」**互相抵消**:
+            # vault X 若用逻辑名 `file_fingerprints` 写过内容, 库里就有一张带 vector 的
+            # `X_file_fingerprints` —— 补建钩子看到名字在、恒早退, 永远建不出真指纹表;
+            # 形态核又把 X 排除出 V。两件事叠加 = X 从 V 里消失, 而它的内容表还在,
+            # 于是 id 更短的 vault 的**启动自愈**把 X 的表当自己的规范内容表删掉。
+            # ⚠️ 这是本卡引入的回归: 改前的纯后缀反推会**保留** X。
+            #
+            # 修法取 fail-closed: 这张表说明「这个库里有一个 vault 的归属判不出来」,
+            # 那就是 V 不可信 ⇒ 置降级 ⇒ drop 走闸①整次拒绝、启动自愈整段跳过。
+            # 代价如实写在这里: **任何**带 vector 且名字以 `_{FINGERPRINT_TABLE}` 结尾的表
+            # 会把整库打成降级, 于是**所有** vault 的删索引与维度自愈都停。这很重, 但它
+            # 可见 (本条 logger.error + HTTP 409 registry_degraded), 修法是改配置或改表名 ——
+            # 比静默删掉别人的表好。
+            self._vault_registry_degraded = True
+            logger.error(
+                f"[LanceDB vault registry] 表 {name!r} 名字占着指纹表命名空间却带 vector 列 "
+                f"(列 = {sorted(columns)}) —— 它是一张普通向量表, 不据它反推 vault id; "
+                "同时把 vault 清单判为**降级**: 这个名字被占意味着该 vault 的指纹表永远建不出来, "
+                "它的归属判不出来。删索引会整次拒绝 (HTTP 409 registry_degraded)、启动自愈会跳过。"
+                "常见成因: LANCEDB_INDEX_TABLE_NAME 被配成了以 '_file_fingerprints' 结尾的名字"
+            )
+            return False
+        if not (self._FINGERPRINT_COLUMNS <= columns):
+            # ⚠️ **列不齐不足以排除** (Codex r1 HIGH-2)。初版这里返回 False, 于是一张
+            # schema 较旧、少一列(如缺 chunk_count)的**真**指纹表会被判成"不是指纹表"
+            # ⇒ 它的 vault 从 V 里消失 ⇒ 表被 id 更短的 vault 认领 ⇒ **丢数据**。
+            # 这正是本方法 docstring 里写的漏报方向, 初版实现自己踩了。
+            # 现在只报不排: 多认一个 vault 的代价是它**少认领**自己的表(表变孤儿), 不丢数据。
+            logger.warning(
+                f"[LanceDB vault registry] 表 {name!r} 像指纹表但列不齐 (列 = {sorted(columns)}, "
+                f"缺 {sorted(self._FINGERPRINT_COLUMNS - columns)}) —— **仍**据它反推 vault id "
+                "(可能是旧 schema 的真指纹表; 抹掉一个真 vault 会让它的表被 id 更短的 vault 认领)"
+            )
+        return True
 
     def _canonical_logical_tables(self) -> tuple:
         """本客户端会按 vault 前缀拼出来的逻辑表名 —— 内置集 + 配置项。
@@ -1042,11 +1200,39 @@ class LanceDBClient:
             from app.config import get_settings
 
             configured = getattr(get_settings(), "LANCEDB_INDEX_TABLE_NAME", "")
-            if configured:
+            if configured and self._fingerprint_namespace_clash(configured):
+                # CARD-LANCE-INDEX-DELETE-CONTRACT (Codex CARD-G2-9-F2 r5-M2):
+                # 配置名撞上指纹表命名空间 ⇒ 这是**配置错误**, 不并入逻辑名。
+                # 并入会让闸④ 对 "{vid}_{配置名}" 这一族永久失明, 而该族恰恰与
+                # "vault {vid}_x 的指纹表"在名字上不可区分 —— 那是删别人基线的入口。
+                # 不并入的后果**按当前实现**是: 该表多半会被闸④ 当模糊名整次拒绝
+                # (409 + ambiguous_tables), 可见、不静默, 修法是改配置。
+                # ⛔ 不是"必然 409"(Codex r1 MEDIUM-4 / r2 LOW-1 两次更正):
+                #   - 配置恰为 FINGERPRINT_TABLE 时, `{vid}_file_fingerprints` 就是本 vault
+                #     的规范指纹表, 会被**正常删掉并回 200**;
+                #   - 配置为 `X_file_fingerprints` 且那张表带 vector 时, 形态核会先把 vault
+                #     清单打成降级, 于是落的是闸① 的 409 registry_degraded, 不是闸④。
+                logger.error(
+                    f"[LanceDB vault registry] LANCEDB_INDEX_TABLE_NAME={configured!r} 与指纹表命名空间"
+                    f" ({self.FINGERPRINT_TABLE!r}) 相撞 —— 不并入逻辑名。"
+                    "删索引多半会整次拒绝 (HTTP 409: 该表带 vector 时落 registry_degraded, "
+                    "否则落 ambiguous); 配置恰为裸指纹表名时则会正常删除并回 200。"
+                    "请改配置项, 勿以 '_file_fingerprints' 结尾"
+                )
+            elif configured:
                 extra = (configured,)
         except (ImportError, AttributeError, RuntimeError, ValueError):
             pass
         return tuple(dict.fromkeys(self._BUILTIN_LOGICAL_TABLES + extra))
+
+    @classmethod
+    def _fingerprint_namespace_clash(cls, configured: str) -> bool:
+        """配置出来的逻辑名会不会与"某个 vault 的指纹表"重名。
+
+        ``{vid}_{configured}`` 与 ``{vid}_{x}_{FINGERPRINT_TABLE}`` 撞车的充要形态就是
+        ``configured`` 本身等于或以 ``_{FINGERPRINT_TABLE}`` 结尾。
+        """
+        return configured == cls.FINGERPRINT_TABLE or configured.endswith(f"_{cls.FINGERPRINT_TABLE}")
 
     @contextlib.contextmanager
     def _pinned_vault_ids(self):
@@ -1305,11 +1491,18 @@ class LanceDBClient:
         return [t for t in self._all_table_names() if self._owns_table(t, vault_id)]
 
     def get_all_vault_stats(self) -> dict[str, dict]:
-        """Return per-vault table/row statistics."""
+        """Return per-vault table/row statistics.
+
+        CARD-LANCE-INDEX-DELETE-CONTRACT: 表名走 ``_all_table_names()`` —— ``table_names()``
+        默认 ``limit=10``, 库里超过 10 张表时 ``GET /index/stats`` 的数字直接少算整页之外的表。
+
+        ⚠️ 本卡只换**枚举口径**, ``split("_", 1)`` 的归组口径**没动** —— 互为前缀的 vault
+        (``a`` 与 ``a_b``) 在这里仍会被归错组, 已登记, 不在本卡范围。
+        """
         if self._db is None:
             return {}
         stats: dict[str, dict] = {}
-        for tname in self._db.table_names():
+        for tname in self._all_table_names():
             parts = tname.split("_", 1)
             vid = parts[0] if len(parts) >= 2 else "default"
             if vid not in stats:
@@ -1344,6 +1537,13 @@ class LanceDBClient:
         ⚠️ 随之而来的行为变化 (已登记): 全部表都删失败时返回 0, ``DELETE /index``
         由"骗人的 200"变成 404 —— 这正是本卡要的诚实, 但它是**可观察的**契约变化。
 
+        CARD-LANCE-INDEX-DELETE-CONTRACT (BATCH-2026-09-18-第十五批): 上面那条
+        "变成 404"正是本卡要收掉的 —— ``int`` 分辨不出"没有表 / 整次拒绝 / 全部删失败"。
+        本方法现在是 :meth:`drop_vault_tables_report` 的**薄包装**
+        (``len(report.dropped)``): 签名、返回语义 (实删数) 与
+        ``_last_drop_failures`` / ``_last_drop_refusal`` 两个诊断字段**全部零变化**,
+        需要分辨五态的调用方 (``endpoints/index.py``) 改调那个方法。
+
         **两道整次拒绝的前置闸** (Codex round-2 HIGH-1 / HIGH-3, 均返回 0 且
         ``_last_drop_refusal`` 记原因):
 
@@ -1359,14 +1559,29 @@ class LanceDBClient:
            ⛔ 枚举失败也拒绝 —— "问不出来"不能当"不存在"放行。
            ⚠️ ``default`` / 空 vault 走裸表口径, 不做本检查 (它的基线是裸指纹表)。
         """
+        return len(self.drop_vault_tables_report(vault_id).dropped)
+
+    def drop_vault_tables_report(self, vault_id: str) -> DropVaultReport:
+        """与 ``drop_vault_tables`` **同一次**操作, 但出结构化回执 (五态可分辨)。
+
+        CARD-LANCE-INDEX-DELETE-CONTRACT (BATCH-2026-09-18-第十五批): ``drop_vault_tables``
+        的 ``int`` 把"整次拒绝 / 名下没有表 / 每一张都删失败"压成同一个 ``0``,
+        ``DELETE /index/{vault_id}`` 因此只能回同一个 404。本方法是**新增**的第二条出口 ——
+        ``drop_vault_tables`` 现在是它的薄包装 (``len(report.dropped)``), ``int`` 契约与
+        ``_last_drop_failures`` / ``_last_drop_refusal`` 两个既有诊断字段的语义**零变化**。
+
+        ⛔ 四道闸**一道都没放宽**: 闸序与判据逐条不变, 只是把 ``return 0`` 换成"填
+        ``refusal_kind`` 后返回回执"。回执里的 ``refusal`` 是完整文案 (可能含绝对路径),
+        **只给日志**; 响应体只许回 ``refusal_kind`` 与表名 (见 ``endpoints/index.py``)。
+        """
         self._last_drop_failures = []
         self._last_drop_refusal = None
         if self._db is None:
-            return 0
+            return DropVaultReport(vault_id=vault_id)
         with self._pinned_vault_ids():
             return self._drop_vault_tables_pinned(vault_id)
 
-    def _drop_vault_tables_pinned(self, vault_id: str) -> int:
+    def _drop_vault_tables_pinned(self, vault_id: str) -> DropVaultReport:
         """``drop_vault_tables`` 的本体 —— 调用方已把已知 vault 集合钉住。
 
         拆出来只为让"整个删除流程共用同一份 V"这件事在代码形态上**看得见**
@@ -1381,7 +1596,11 @@ class LanceDBClient:
                 f"为避免连带删掉别的 vault 的表, 整次拒绝删除 vault {vault_id!r} 的索引"
             )
             logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
-            return 0
+            return DropVaultReport(
+                vault_id=vault_id,
+                refusal_kind="registry_degraded",
+                refusal=self._last_drop_refusal,
+            )
 
         # 碰撞预检 (Codex round-3 HIGH-1 / MEDIUM-1)。⛔ 枚举失败**不能**当成"这些表不存在"
         # 就放行 —— 那正是 round-2 那道闸的失败分支漏洞: 前置检查枚举抛错 → 空集 → 跳过拒绝,
@@ -1394,7 +1613,11 @@ class LanceDBClient:
                 f"整次拒绝删除 vault {vault_id!r} 的索引"
             )
             logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
-            return 0
+            return DropVaultReport(
+                vault_id=vault_id,
+                refusal_kind="listing_failed",
+                refusal=self._last_drop_refusal,
+            )
 
         # ⚠️ default / 空 vault 走**裸表**口径 (它的基线就是裸 file_fingerprints),
         # 拼 "default_xxx" 去检查会对着一张与它无关的存量表误拒 (Codex round-3 LOW)。
@@ -1412,7 +1635,11 @@ class LanceDBClient:
                         "内容表留下则是删索引没删干净。整次拒绝, 请先解决 vault id 碰撞"
                     )
                     logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
-                    return 0
+                    return DropVaultReport(
+                        vault_id=vault_id,
+                        refusal_kind="collision",
+                        refusal=self._last_drop_refusal,
+                    )
 
         tables = self.list_vault_tables(vault_id)
 
@@ -1440,21 +1667,37 @@ class LanceDBClient:
                 f"{vault_id!r} 的索引; 要继续请先让那个 vault 能被发现, 或人工确认后单表删除"
             )
             logger.error(f"[LanceDB drop_vault_tables] {self._last_drop_refusal}")
-            return 0
+            return DropVaultReport(
+                vault_id=vault_id,
+                refusal_kind="ambiguous",
+                refusal=self._last_drop_refusal,
+                ambiguous=tuple(ambiguous),
+            )
 
-        dropped = 0
+        dropped = []
+        failures = []
         for tname in tables:
             try:
                 self._db.drop_table(tname, ignore_missing=True)
                 self._tables_cache.pop(tname, None)
-                dropped += 1
+                dropped.append(tname)
             except Exception as e:
+                # ⚠️ 两份失败记录, 分工不同, 都必须写:
+                #   _last_drop_failures 带异常**原文** (可能含绝对路径) —— 进程内诊断 + 日志,
+                #     格式与 CARD-G2-9-F2 逐字相同 (g29f1 门⑦ 断的就是它);
+                #   failures 只带**类型名** —— 要回给 HTTP 调用方的那一份, 已脱敏。
                 self._last_drop_failures.append((tname, f"{type(e).__name__}: {e}"))
+                failures.append((tname, type(e).__name__))
                 logger.error(
                     f"[LanceDB drop_vault_tables] vault={vault_id!r} 的表 {tname!r} 删除失败, "
                     f"已跳过 ({type(e).__name__}: {e}) —— 该表仍在库里, 本次返回的实删数不含它"
                 )
-        return dropped
+        return DropVaultReport(
+            vault_id=vault_id,
+            attempted=tuple(tables),
+            dropped=tuple(dropped),
+            failures=tuple(failures),
+        )
 
     def connect_lightweight(self) -> bool:
         """
@@ -1778,6 +2021,98 @@ class LanceDBClient:
             if LOGURU_ENABLED:
                 logger.error(f"[fingerprint] Failed to update fingerprint for {file_path}: {e}")
 
+    def _ensure_vault_fingerprint_table(self) -> None:
+        """scoped vault 写过内容表就必须有指纹表 —— 幂等补建一张**空**的。
+
+        CARD-LANCE-INDEX-DELETE-CONTRACT (收口 Codex CARD-G2-9-F2 r7 既有 HIGH)。
+
+        r7 的场景: vault ``a_canvas`` 只索引过 canvas ⇒ 它的表叫 ``a_canvas_nodes``,
+        余名 ``canvas_nodes`` **恰好**是规范逻辑名, 模糊表名闸看不出问题; 它的目录又不可
+        发现 ⇒ ``_known_vault_ids`` 的来源②看不见它。而**``index_canvas`` 全程不写指纹**
+        (见 ``_vault_ids_from_fingerprint_tables`` docstring), 来源③ 也补不回来。于是
+        V 只剩 ``{a}``, ``a_canvas_nodes`` 被判给 ``a`` —— ``drop_vault_tables("a")`` 与
+        ``a`` 的启动维度自愈**两条**破坏性路径都会碰它。
+
+        收口手段: 把"有没有指纹表"从"走没走过 ``index_vault_notes``/``index_single_file``"
+        变成"**写没写过任何内容表**"。任何 scoped vault 建第一张内容表时就留下
+        ``{vid}_file_fingerprints``, 来源③ 于是覆盖所有写过表的 vault。
+
+        ⚠️ **default / 裸表口径恒 no-op**: ``_scope_depends_on_registry`` 为假时直接返回。
+        default 的基线是**裸** ``file_fingerprints``, 是全局共享面, 凭空建出来既没有
+        保护作用 (裸表口径根本不查 V), 又会推翻
+        ``test_g24_lance_legacy_table_removal.py:246`` 的 "default vault 不得凭空造表"。
+
+        ⚠️ **建失败只记日志不抛**: 本方法挂在内容写入路径上, 指纹表建不出来是**保护减弱**
+        (退回改前口径), 不是数据写入失败。抛出去会把一次成功的内容写入伪装成失败。
+
+        ⚠️ 建的是**空**表, 不写任何行: 伪造一行基线会让增量索引把那个文件判成"未变更"。
+
+        ⚠️ **每次写入都调一次**, 不只首次建表那次 (Codex r1 HIGH-1)。初版只挂在建表分支,
+        于是「第一次建表时指纹表恰好建失败」之后就再也不会重试。方法名里的"首次"已不再准确,
+        它现在的语义是**幂等补建**。
+
+        ⚠️ **早退判据与形态核同口径** (Codex r2 HIGH-B): 只看"名字在不在"会被一张**占着这个
+        名字的普通向量表**骗到 —— 那时钩子恒早退、真指纹表永远建不出来, 而形态核又按 schema
+        把这个 vault 排除出 V, 两件事互相抵消, 保护就蒸发了。所以这里要求"名字在 **且**
+        形态是指纹表"才算已有。名字被占时**不能**建 (建会覆盖别人的数据), 只报 —— 降级由
+        ``_looks_like_fingerprint_table`` 那一侧置上, drop 与自愈都会因此停下。
+        """
+        if self._db is None:
+            return
+        if not self._scope_depends_on_registry(self.active_vault_id):
+            return
+        fp_table = self._fingerprint_table_name
+        # ⛔ 归属闸 (独立对抗审查 2026-09-19 HIGH): 上面那句 docstring 说"名字被占时不能建",
+        # 但早退只核了 schema 形态, **没核归属**。vault `a` 与 `a_file` 并存时,
+        # `a` 拼出的 `a_file_fingerprints` 按最长前缀归 `a_file`
+        # (`_fingerprint_table_name` 只 _warn_namespace_collision 后照样返回该名)。
+        # 不拦的话本卡会**新造**出两条破坏, 改前都不存在 (那张表压根不会被建出来):
+        #   ① `DELETE /index/a` 从 200 变**永久 409 collision** —— 碰撞预检遍历
+        #      `{a}_{逻辑名}` 时这张表现在"存在"了且 owner 是 `a_file`;
+        #   ② `DELETE /index/a_file` 会把它删掉 (`_owns_table` 为真, 模糊闸不拦),
+        #      即销毁 vault `a` 的指纹基线 —— 正是本方法要防的那类数据丢失的镜像。
+        # ⇒ 归属不是自己的就**不建也不认领**, 退回改前口径 (该 vault 在来源③ 看不见),
+        #    并如实记录: 命名空间碰撞不是本卡能修的, 改名才是 (登记移交)。
+        _vid = self.active_vault_id
+        if self._table_owner(fp_table, _vid) != _vid:
+            logger.error(
+                f"[fingerprint] 指纹表名 {fp_table!r} 按最长前缀归属给了**别的** vault —— "
+                f"本 vault {_vid!r} 不建也不认领它 (建会让对方的删索引连带毁掉本 vault 的"
+                "指纹基线, 也会把本 vault 的删索引永久卡在 409 collision)。"
+                "本 vault 在目录不可发现时的归属保护退回改前口径; 需人工改名其中一个 vault 的 id"
+            )
+            return
+        if self._fingerprint_table_exists():
+            if self._looks_like_fingerprint_table(fp_table):
+                return
+            # 名字在、但它不是指纹表 ⇒ 命名空间被占。⛔ 不能 create(会撞), 也不能 drop(会删
+            # 掉别人的数据)。只报 —— 归属保护由形态核那侧的降级接管。
+            logger.error(
+                f"[fingerprint] 指纹表名 {fp_table!r} 被一张**不是指纹表**的表占着 —— "
+                "本 vault 的指纹表建不出来, 它在 vault 清单里就看不见。"
+                "已由 vault 清单降级接管 (删索引整次拒绝 / 启动自愈跳过); 请改表名或改配置"
+            )
+            return
+        try:
+            import pyarrow as pa
+
+            schema = pa.schema(
+                [
+                    ("file_path", pa.string()),
+                    ("content_hash", pa.string()),
+                    ("last_indexed", pa.string()),
+                    ("chunk_count", pa.int64()),
+                ]
+            )
+            self._tables_cache[fp_table] = self._db.create_table(fp_table, schema=schema)
+            if LOGURU_ENABLED:
+                logger.info(f"[fingerprint] 建出空指纹表 {fp_table!r} (vault 归属来源③ 的覆盖面补丁)")
+        except Exception as e:
+            logger.error(
+                f"[fingerprint] 建空指纹表 {fp_table!r} 失败 ({type(e).__name__}: {e}) —— "
+                "内容写入不受影响, 但本 vault 在目录不可发现时的归属保护退回改前口径"
+            )
+
     def _remove_fingerprint(self, file_path: str):
         """
         Story 2.7 Task 1.5: Delete fingerprint record.
@@ -1879,19 +2214,42 @@ class LanceDBClient:
         except Exception:
             pass
 
+        # CARD-LANCE-INDEX-DELETE-CONTRACT (Codex r2 HIGH-A + r3 HIGH): 重建把指纹表**删掉了**,
+        # 而 `index_vault_notes` 只在真写了文件时才经 `_update_fingerprint` 把它建回来。
+        # vault 下没有 Markdown 时它一行都不写 ⇒ 指纹表不再存在; 而**别的逻辑名**的内容表
+        # (典型: `index_canvas` 写的 `{vid}_canvas_nodes`) 压根不在本次删除范围里, 仍在库中。
+        # 于是这个 vault 变成「有内容表、没有指纹表」—— 正是 r7 那个被 id 更短的 vault
+        # 认领的形态, 而且是一条**正常的生命周期路径**走出来的, 不需要任何故障注入。
+        #
+        # ⛔ **删完立刻补**, 不是等重建跑完再补 (Codex r3 HIGH): 只放在正常返回路径上的话,
+        # 重建期间那段**时间窗**里指纹表是缺的 —— `index_vault_notes` 要做向量化、有 await
+        # 让出点, 期间另一个客户端跑 drop 或启动自愈就能认领这个 vault 的内容表; 回调抛异常
+        # 或任务被取消时更是直接越过补建。这里先补一张**空**指纹表把窗口压到最小
+        # (重建本就要清空指纹基线, 空表正是它要的状态; 随后 `_update_fingerprint` 走
+        # open_table + add, 行为等价), 再用 finally 兜住异常/取消路径。
+        self._ensure_vault_fingerprint_table()
+
         if LOGURU_ENABLED:
             logger.info(f"[REBUILD] Dropped tables '{table_name}' and '{fp_table}', starting full rebuild")
 
-        # Re-index all files via index_vault_notes with force_rebuild
-        total_chunks = await self.index_vault_notes(
-            vault_path=vault_path,
-            table_name=table_name,
-            max_tokens=max_tokens,
-            overlap_tokens=overlap_tokens,
-            subject=subject,
-            force_rebuild=True,
-            progress_callback=progress_callback,
-        )
+        try:
+            # Re-index all files via index_vault_notes with force_rebuild
+            total_chunks = await self.index_vault_notes(
+                vault_path=vault_path,
+                table_name=table_name,
+                max_tokens=max_tokens,
+                overlap_tokens=overlap_tokens,
+                subject=subject,
+                force_rebuild=True,
+                progress_callback=progress_callback,
+            )
+        finally:
+            # 兜底: 上面那次补建若失败(或重建过程把它又删了), 异常/取消路径仍须留下指纹表。
+            # ⛔ 补建自己的失败**不得掩盖**正在传播的异常, 所以整段再包一层。
+            try:
+                self._ensure_vault_fingerprint_table()
+            except Exception as e:  # pragma: no cover - 防御性: _ensure 内部已自吞
+                logger.error(f"[REBUILD] 退出路径上补建指纹表失败 ({type(e).__name__}: {e})")
 
         duration_ms = (time.perf_counter() - start_time) * 1000
 
@@ -4411,16 +4769,29 @@ class LanceDBClient:
 
             # Story 2.3 Task 6: Check vector dimension mismatch before insert
             # T3 根治 (2026-07-10): 守卫改为 db 权威存在性 (缓存命中 ≠ 表存在)
-            if data and table_name in self._db.table_names():
+            # CARD-LANCE-INDEX-DELETE-CONTRACT: 改走 _all_table_names() —— table_names()
+            # 默认 limit=10, 目标表排在页外时守卫恒不触发, 维度漂移直接写进去。
+            table_exists = table_name in set(self._all_table_names())
+            if data and table_exists:
                 sample_vector = data[0].get("vector")
                 if sample_vector is not None:
-                    self._check_and_fix_dimension_mismatch(table_name, len(sample_vector))
+                    # ⛔ 必须接住返回值: 这个守卫检测到 schema 漂移时会**把表 drop 掉**
+                    # (它的 docstring 原话: "True if the table was dropped (caller should
+                    # create new)")。存在性判断若沿用漂移检查**之前**的快照, 下面就会去
+                    # open_table 一张刚被删掉的表 —— 异常被本函数外层的 except 吞成
+                    # "添加了 0 条", 写入静默全丢。
+                    # ⚠️ 改前是靠"第二次重新查一遍 table_names()"歪打正着地躲开这一点;
+                    # 本卡把两次枚举合成一次以收口默认分页, 于是必须显式跟住这个状态变化。
+                    if self._check_and_fix_dimension_mismatch(table_name, len(sample_vector)):
+                        table_exists = False
 
             # 检查表是否存在
-            # T3 根治 (2026-07-10): 存在性用 table_names() 权威判断, 不再以
+            # T3 根治 (2026-07-10): 存在性用权威表名清单判断, 不再以
             # 缓存命中为准 — 原逻辑对"表存在但不在本实例缓存"会误走
             # create_table 抛错; rebuild 后缓存句柄也已失效
-            if table_name in self._db.table_names():
+            # CARD-LANCE-INDEX-DELETE-CONTRACT: 同上, 默认分页会把**已存在**的表判成
+            # 不存在 ⇒ 走 create_table 抛错 ⇒ 被下面的 except 吞成"添加了 0 条"。
+            if table_exists:
                 table = self._db.open_table(table_name)
                 self._tables_cache[table_name] = table
                 table.add(data)
@@ -4428,6 +4799,14 @@ class LanceDBClient:
                 # 创建新表
                 table = self._db.create_table(table_name, data=data)
                 self._tables_cache[table_name] = table
+
+            # CARD-LANCE-INDEX-DELETE-CONTRACT (e1): scoped vault 一旦写过内容表, 就必须在库里
+            # 留下指纹表 —— 否则目录不可发现时它在 V 里看不见, 它的表会被 id 更短的 vault
+            # 认领删掉 (Codex r7 既有 HIGH)。default / 裸表口径下本调用是 no-op。
+            # ⚠️ **挂在两个分支之外**, 每次写入都补一次 (Codex r1 HIGH-1): 初版只挂在建表分支,
+            # 于是"第一次建表时指纹表恰好建失败"之后, 后续追加全走 add 分支、**再也不会重试**,
+            # 那个 vault 就永久地看不见了。建指纹本身失败只记日志不抛 —— 它是保护, 不是写入结果。
+            self._ensure_vault_fingerprint_table()
 
             if LOGURU_ENABLED:
                 logger.info(f"Added {len(data)} documents to {table_name}")
@@ -4524,7 +4903,9 @@ class LanceDBClient:
 
         try:
             # 检查表是否存在
-            if table_name not in self._db.table_names():
+            # CARD-LANCE-INDEX-DELETE-CONTRACT: 改走 _all_table_names() —— table_names()
+            # 默认 limit=10, 目标表排在页外时本方法对一张**有数据**的表恒答 0 条。
+            if table_name not in set(self._all_table_names()):
                 return {"count": 0, "last_indexed": None, "subject": None}
 
             # 打开表

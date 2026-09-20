@@ -1,0 +1,25 @@
+    if table_name in self._db.table_names():
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:215: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "xvault_vault_notes" in db.table_names(), "新 vault 的数据必须落进自己的表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:246: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert db2.table_names() == ["vault_notes"], "default vault 不得凭空造 prefixed 表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_sees_past_default_pagination
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:285: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(list(db.table_names())) == 10, "lancedb 默认分页行为变了, 本锁需重新校准"
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+tests/unit/test_agentic_rag_vault_scope.py::TestDualVaultIsolationOnTmpLanceDB::test_shared_db_precondition_tables_coexist
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_agentic_rag_vault_scope.py:499: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    names = set(self.db.table_names())
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 141 passed, 159 warnings in 6.63s =======================

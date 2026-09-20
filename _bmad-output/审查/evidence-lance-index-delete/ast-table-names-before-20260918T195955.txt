@@ -1,0 +1,8 @@
+raw [1312, 4414, 4423, 4527] 4
+all [898, 1312, 4414, 4423, 4527] 5
+status_codes [(105, 503), (109, 404)]
+grep status_code=207: 0
+grep status_code=409: 0
+grep def drop_vault_tables_report: 0
+grep _ensure_vault_fingerprint_table: 0
+grep 'def drop_vault_tables(': 1

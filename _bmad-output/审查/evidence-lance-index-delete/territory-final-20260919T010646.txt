@@ -1,0 +1,17 @@
+PREV=5e0f87b7efc2c08693902dd470d9764974b90b67  HEAD=c51c39627dcd9f5782a7f8ae756d5235dc377035
+=== 地盘门（终态）===
+backend/app/api/v1/endpoints/index.py
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/tests/unit/test_edge_rationale_fallback.py
+backend/tests/unit/test_index_delete_contract_c101.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py
+
+=== 验伪锚: 去掉 exclude 必须多出 _bmad-output/ 路径（此前 evidence 未入库时此锚空洞）===
+带 exclude 的 _bmad-output/ 命中数: 0
+不带 exclude 的 _bmad-output/ 命中数: 67
+
+=== openapi 净零（期望 0）===
+       0
+=== 本卡 commit 数 ===
+      10

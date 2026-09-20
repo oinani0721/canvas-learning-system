@@ -1,0 +1,24 @@
+PREV=5e0f87b7efc2c08693902dd470d9764974b90b67  HEAD=bbb72916d0209eba7f9fb34c68814a2974d262a0
+=== 地盘门 ===
+ backend/app/api/v1/endpoints/index.py              |  99 ++++-
+ backend/lib/agentic_rag/clients/lancedb_client.py  | 293 ++++++++++++-
+ .../tests/unit/test_index_delete_contract_c101.py  | 452 +++++++++++++++++++++
+ .../unit/test_lancedb_cross_vault_drop_g29f1.py    | 376 +++++++++++++++++
+ ...st_wave5_stageb_continued_vault_id_injection.py |  80 +++-
+ 5 files changed, 1272 insertions(+), 28 deletions(-)
+=== 同口径 --name-only（--stat 会缩写长路径）===
+backend/app/api/v1/endpoints/index.py
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/tests/unit/test_index_delete_contract_c101.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py
+=== 验伪锚: 去掉 exclude 应多出 _bmad-output/ 路径 ===
+0
+=== test_wave5 改动行是否全部落在 :463 之后 ===
+@@ -466,0 +467,24 @@ class TestSharedResolverImportedByEndpoints:
+@@ -494 +518,2 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -496 +521,3 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -513,2 +540,2 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -519 +546,8 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -528 +562 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
+@@ -537,0 +572,34 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:

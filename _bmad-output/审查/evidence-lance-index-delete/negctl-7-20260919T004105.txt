@@ -1,0 +1,10 @@
+# 负控⑦: 去掉 rebuild_index 返回前的补建调用（Codex r2 HIGH-A 缺陷态）
+# 跑前:
+c70df8ce7ca24d95a6b955ea03b0d0c5edec281d1086bfede06c9c86529552af  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入
+E   AssertionError: 重建删掉指纹表后没有补回来 —— 这个 vault 变成「有内容表、没有指纹表」, 会被 id 更短的 vault 认领; 现存 = ['a_canvas_nodes']
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_rebuild_index_leaves_no_content_table_without_a_fingerprint_table
+================== 1 failed, 45 passed, 160 warnings in 6.10s ==================
+pytest_rc=1
+# 跑后(已还原):
+c70df8ce7ca24d95a6b955ea03b0d0c5edec281d1086bfede06c9c86529552af  backend/lib/agentic_rag/clients/lancedb_client.py

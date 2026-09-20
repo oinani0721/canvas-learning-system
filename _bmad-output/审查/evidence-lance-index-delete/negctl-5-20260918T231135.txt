@@ -1,0 +1,13 @@
+# 负控⑤: (e1) 钩子挪回 create 分支内（Codex r1 HIGH-1 缺陷态）
+# 跑前:
+1dd900c8adf76d865177361fdebf694951a63b67fe3d05b0e0855982bfc1d7bf  backend/lib/agentic_rag/clients/lancedb_client.py
+# 变异已注入
+E   assert set() == {'zz_file_fingerprints'}
+__ test_fingerprint_table_is_retried_on_later_writes_after_a_failed_creation ___
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1971: in test_fingerprint_table_is_retried_on_later_writes_after_a_failed_creation
+E   AssertionError: 第一次建指纹表失败后就再也没补过 —— 该 vault 在 V 里永久看不见, 它的表会被 id 更短的 vault 认领; 现存 = ['a_canvas_nodes']
+E   assert 'a_file_fingerprints' in {'a_canvas_nodes'}
+FAILED tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_stats_add_count_see_beyond_default_page
+pytest_rc=1
+# 跑后(已还原):
+1dd900c8adf76d865177361fdebf694951a63b67fe3d05b0e0855982bfc1d7bf  backend/lib/agentic_rag/clients/lancedb_client.py

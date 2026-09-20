@@ -1,0 +1,16 @@
+=== 本卡面 ruff format --check（应 rc=0）===
+files=6
+6 files already formatted
+rc=0
+
+=== 那 4 个 dirty 文件是不是本卡零改动（应全部 = PREV 态）===
+backend/app/clients/neo4j_client.py : PREV..HEAD diff 行数 =        0
+backend/tests/unit/test_mock_degradation_transparency.py : PREV..HEAD diff 行数 =        0
+backend/tests/unit/test_neo4j_client.py : PREV..HEAD diff 行数 =        0
+backend/tests/unit/test_review_mode_support.py : PREV..HEAD diff 行数 =        0
+
+=== 它们在 PREV 态就已 dirty（主干既有）===
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p1-storage/4e4a7ee0-e568-4531-a2c6-3e5a15bd2efc/scratchpad/fmtbase/neo4j_client.py
+Would reformat: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p1-storage/4e4a7ee0-e568-4531-a2c6-3e5a15bd2efc/scratchpad/fmtbase/test_neo4j_client.py
+2 files would be reformatted
+PREV 态 rc=1

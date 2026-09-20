@@ -464,6 +464,30 @@ class TestSharedResolverImportedByEndpoints:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _report(**kwargs):
+    """构造一个**真** ``DropVaultReport`` (CARD-LANCE-INDEX-DELETE-CONTRACT)。
+
+    ⚠️ 刻意不用 MagicMock 顶替回执: ``outcome`` 是回执自己的 property, 用 Mock 顶替等于
+    把"五态怎么判"这件事也一并 mock 掉, 端点断言就只剩"我喂什么它回什么"。这里只 mock
+    **客户端**(本文件测的是端点的 ContextVar 注入与状态码映射), 回执本体是真的。
+
+    ⚠️ 本文件**不是**删除契约的真契约门 —— 那在
+    ``tests/unit/test_index_delete_contract_c101.py``(tmp_path 下真 LanceDB 库)。
+    """
+    import sys
+    from pathlib import Path
+
+    # 与 g29f1 / g24 / c101 各测试文件同法: ``backend/lib`` 不在默认 sys.path 上。
+    # ⛔ 不能指望"别的测试文件先插过了"—— 单文件跑与目录级跑的 sys.path 不同。
+    lib_dir = str(Path(__file__).resolve().parents[2] / "lib")
+    if lib_dir not in sys.path:
+        sys.path.insert(0, lib_dir)
+
+    from agentic_rag.clients.lancedb_client import DropVaultReport
+
+    return DropVaultReport(**kwargs)
+
+
 class TestIndexDeleteVaultEndpointVaultIdInjection:
     """Wave-5 Stage B 续 follow-up (2026-05-13).
 
@@ -491,9 +515,12 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
         # 先把 ContextVar 重置到 baseline
         set_current_subject_id("vault:baseline_before_call")
 
-        # Mock LanceDB client - drop_vault_tables 返回 3 (3 tables dropped)
+        # Mock LanceDB client — 回执含 3 张已删表 (CARD-LANCE-INDEX-DELETE-CONTRACT:
+        # 端点改调 drop_vault_tables_report, tables_dropped 现在是 len(report.dropped))
         mock_client = MagicMock()
-        mock_client.drop_vault_tables.return_value = 3
+        mock_client.drop_vault_tables_report.return_value = _report(
+            vault_id="cs_61b", attempted=("t1", "t2", "t3"), dropped=("t1", "t2", "t3")
+        )
 
         # Patch _get_lancedb_client → return mock
         from app.api.v1.endpoints import index as index_module
@@ -510,13 +537,20 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
         assert new_subject.startswith("vault:")
         assert "cs_61b" in new_subject
 
-        # drop_vault_tables 应该接 raw vault_id (向后兼容)
-        mock_client.drop_vault_tables.assert_called_once_with("cs_61b")
+        # 删除入口应该接 raw vault_id (向后兼容表名查找)
+        mock_client.drop_vault_tables_report.assert_called_once_with("cs_61b")
         assert result == {"vault_id": "cs_61b", "tables_dropped": 3}
 
     @pytest.mark.asyncio
     async def test_delete_vault_index_404_when_no_tables(self, monkeypatch):
-        """drop_vault_tables 返回 0 → 404 (现有契约不变)."""
+        """名下**一张表都没有** → 404 (文案契约不变)。
+
+        CARD-LANCE-INDEX-DELETE-CONTRACT: 改前这条用例喂的是 ``drop_vault_tables → 0``,
+        而那个 0 同时代表"整次拒绝"和"全部删失败"。现在 404 只剩 ``attempted`` 为空
+        这一种意思, 用例随之改喂一个**空回执**。另外两种意思各有自己的用例
+        (见 ``test_delete_vault_index_409_when_refused`` 与
+        ``tests/unit/test_index_delete_contract_c101.py`` 的真库行为门)。
+        """
         from unittest.mock import MagicMock
 
         from fastapi import HTTPException
@@ -525,7 +559,7 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
         from app.api.v1.endpoints import index as index_module
 
         mock_client = MagicMock()
-        mock_client.drop_vault_tables.return_value = 0
+        mock_client.drop_vault_tables_report.return_value = _report(vault_id="empty_vault")
         monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: mock_client)
 
         with patch("app.config.get_current_vault_id", return_value="empty_vault"):
@@ -534,6 +568,40 @@ class TestIndexDeleteVaultEndpointVaultIdInjection:
 
         assert exc_info.value.status_code == 404
         assert "empty_vault" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_delete_vault_index_409_when_refused(self, monkeypatch):
+        """整次拒绝 → 409, ⛔ 不再混进 404。
+
+        这条是上一条用例的**分离面**: 同一个"0 张表被删掉"在改前不可区分, 现在
+        "系统为了保护别的 vault 主动没删"必须与"你本来就没东西可删"分开回。
+        """
+        from unittest.mock import MagicMock
+
+        from fastapi import HTTPException
+
+        from app.api.v1.endpoints.index import delete_vault_index
+        from app.api.v1.endpoints import index as index_module
+
+        mock_client = MagicMock()
+        mock_client.drop_vault_tables_report.return_value = _report(
+            vault_id="busy_vault",
+            refusal_kind="ambiguous",
+            refusal="完整文案 (只进日志)",
+            ambiguous=("busy_vault_x_y",),
+        )
+        monkeypatch.setattr(index_module, "_get_lancedb_client", lambda: mock_client)
+
+        with patch("app.config.get_current_vault_id", return_value="busy_vault"):
+            with pytest.raises(HTTPException) as exc_info:
+                await delete_vault_index(vault_id="busy_vault")
+
+        assert exc_info.value.status_code == 409, "整次拒绝不得再伪装成 404"
+        assert exc_info.value.detail == {
+            "vault_id": "busy_vault",
+            "refusal_kind": "ambiguous",
+            "ambiguous_tables": ["busy_vault_x_y"],
+        }
 
     @pytest.mark.asyncio
     async def test_delete_vault_index_503_when_client_unavailable(self, monkeypatch):

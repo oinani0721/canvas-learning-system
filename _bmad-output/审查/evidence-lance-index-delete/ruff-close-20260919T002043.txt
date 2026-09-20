@@ -1,0 +1,16 @@
+files=12
+All checks passed!
+check rc=0
+Would reformat: backend/app/clients/neo4j_client.py
+Would reformat: backend/tests/unit/test_mock_degradation_transparency.py
+Would reformat: backend/tests/unit/test_neo4j_client.py
+Would reformat: backend/tests/unit/test_review_mode_support.py
+4 files would be reformatted, 8 files already formatted
+format rc=1
+--- 本卡面 (PREV..HEAD) ---
+backend/app/api/v1/endpoints/index.py
+backend/lib/agentic_rag/clients/lancedb_client.py
+backend/tests/unit/test_edge_rationale_fallback.py
+backend/tests/unit/test_index_delete_contract_c101.py
+backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py
+backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py

@@ -1,0 +1,214 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 189 items
+
+tests/unit/test_agentic_rag_vault_scope.py .......................       [ 12%]
+tests/unit/test_archive_legacy_lance_tables_g24.py ..................... [ 23%]
+.                                                                        [ 23%]
+tests/unit/test_edge_rationale_fallback.py ............................  [ 38%]
+tests/unit/test_g24_lance_legacy_table_removal.py ..........             [ 43%]
+tests/unit/test_index_delete_contract_c101.py ..........                 [ 49%]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py ...................... [ 60%]
+......................                                                   [ 72%]
+tests/unit/test_lancedb_vault_isolation.py ...............               [ 80%]
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py ........... [ 86%]
+..........................                                               [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_agentic_rag_vault_scope.py::TestDualVaultIsolationOnTmpLanceDB::test_shared_db_precondition_tables_coexist
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_agentic_rag_vault_scope.py:499: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    names = set(self.db.table_names())
+
+tests/unit/test_agentic_rag_vault_scope.py: 1 warning
+tests/unit/test_edge_rationale_fallback.py: 15 warnings
+tests/unit/test_g24_lance_legacy_table_removal.py: 13 warnings
+tests/unit/test_index_delete_contract_c101.py: 9 warnings
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py: 71 warnings
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_edge_rationale_fallback.py: 11 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/edges.py:628: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/unit/test_edge_rationale_fallback.py: 14 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+tests/unit/test_edge_rationale_fallback.py: 18 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/edges.py:418: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "timestamp": datetime.utcnow().isoformat(),
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_lands_one_row
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:585: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    tables = db.table_names()
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_is_append_only
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:663: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert _EXPECTED_TABLE in db.table_names(), f"表不存在 ⇒ 没有真写（两次 WriteStatus: {first!r} / {second!r}）"
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_db_unreadable_is_refused
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:694: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert _EXPECTED_TABLE not in db.table_names(), "拒写路径却建出了表 —— 前提已变"
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_refuses_to_destroy_existing_history[legacy-table-missing-doc_type]
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_refuses_to_destroy_existing_history[legacy-table-dim-mismatch]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:763: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert _EXPECTED_TABLE in after.table_names(), "整张表被删掉了 —— 拒写失效"
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_row_count_net_catches_silent_rebuild
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:466: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if self._db is not None and resolved in self._db.table_names():
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_新打通分支的失败必须记成写失败[connect-fails]
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_新打通分支的失败必须记成写失败[embed-fails]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:828: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert _EXPECTED_TABLE not in db.table_names(), f"失败路径上却建出了表: {db.table_names()}"
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_survives_table_name_pagination
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:852: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(db.table_names()) == 10, f"分页前提不成立: {db.table_names()}"
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_refuses_wrong_embedding_dim[embed-returns-8-dim]
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_refuses_wrong_embedding_dim[embed-returns-1024-char-string]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:913: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert _EXPECTED_TABLE not in db.table_names(), f"拒写路径却建出了表（而且是坏维度的）: {db.table_names()}"
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_appends_beyond_default_pagination
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:948: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(db.table_names()) == 10, "分页前提不成立"
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_appends_beyond_default_pagination
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:960: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert _EXPECTED_TABLE not in set(after.table_names()), (
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_via_endpoint[neo4j-ok-200]
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_via_endpoint[neo4j-down-207]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_edge_rationale_fallback.py:1052: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert expected_table in db.table_names(), (
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_bare_table_really_holds_other_vault_rows
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_still_maps_to_bare_table
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+tests/unit/test_g24_lance_legacy_table_removal.py::test_search_raises_table_missing_and_never_opens_bare_table
+tests/unit/test_g24_lance_legacy_table_removal.py::test_table_missing_penetrates_enable_fallback_swallow_gate
+tests/unit/test_g24_lance_legacy_table_removal.py::test_search_supplementary_surfaces_unavailable
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_distinguishes_missing_from_unopenable
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:69: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert set(db.table_names()) == {"vault_notes"}
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:122: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "xvault_vault_notes" not in client._db.table_names()
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:123: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "vault_notes" in client._db.table_names()
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:215: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "xvault_vault_notes" in db.table_names(), "新 vault 的数据必须落进自己的表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:246: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert db2.table_names() == ["vault_notes"], "default vault 不得凭空造 prefixed 表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_sees_past_default_pagination
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_g24_lance_legacy_table_removal.py:285: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(list(db.table_names())) == 10, "lancedb 默认分页行为变了, 本锁需重新校准"
+
+tests/unit/test_index_delete_contract_c101.py::test_no_tables_404_detail_unchanged
+tests/unit/test_index_delete_contract_c101.py::test_all_dropped_200_body_unchanged
+tests/unit/test_index_delete_contract_c101.py::test_all_dropped_200_body_unchanged
+tests/unit/test_index_delete_contract_c101.py::test_partial_failure_207_lists_failed_tables_with_error_type_only
+tests/unit/test_index_delete_contract_c101.py::test_all_failed_500
+tests/unit/test_index_delete_contract_c101.py::test_registry_degraded_409_kind_not_404
+tests/unit/test_index_delete_contract_c101.py::test_ambiguous_409_exposes_ambiguous_tables
+tests/unit/test_index_delete_contract_c101.py::test_listing_failed_409_distinct_from_registry_degraded
+tests/unit/test_index_delete_contract_c101.py::test_listing_failed_reachable_on_scoped_vault_with_a_transient_failure
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_index_delete_contract_c101.py:90: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    return set(db.table_names(limit=10_000))
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py: 60 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:109: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    return set(db.table_names(limit=10_000))
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_scans_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:355: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(db.table_names()) == 10, (
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_scans_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:359: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "a_t11" not in set(db.table_names()), "前提失效: a_t11 不在默认分页的盲区里"
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:553: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    in_page = table in set(db.table_names())
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_fingerprint_baseline_readable_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1009: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert fp_name not in set(db.table_names()), (
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_stats_add_count_see_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1877: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(list(db.table_names())) == 10, "lancedb 默认分页行为变了, 本门需重新校准"
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_stats_add_count_see_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1879: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert target not in set(db.table_names()), "前提失效: 目标表必须落在默认分页**之外**"
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+====================== 189 passed, 272 warnings in 5.35s =======================
