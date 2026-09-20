@@ -103,7 +103,7 @@ source "$HOME/.codex/zai.env" && codex exec --profile zai --sandbox read-only -m
 - 前置（已落地）：`npm i -g zcode-app-cli@latest`（非官方终端客户端；实测 `zcode-app-cli 3.12.3-26` + `zcode-runtime 0.16.5`）+ `~/.zcode/v2/provider_config.json`（600；`providerId=zai-coding-plan` / `templateId=zai-api` / `access.type=zhipu-coding-plan-api-key` / `defaultModelSelection=glm-5.3+max`）。
 - 命令：`zcode --prompt "$(cat <prompt 路径>)" --cwd <车道树> --mode build --no-color --json > <树>/_bmad-output/审查/zcode-review-<CARD>[-rN].md 2> <树>/_bmad-output/审查/zcode-review-<CARD>[-rN].stderr`
 - **实测（2026-09-19）**：`--prompt` rc=0；工具读文件正常（`FOUND=ZCODE_TOOL_OK_7777`）；`--json` 输出 `sessionId/traceId/turnId/usage`；**`--mode build` 下 Bash 与 Write 全被「No permission client configured」阻断 = 强制只读**（yolo 可跑 git——补审不用）。
-- ⚠️ build 模式无 Bash ⇒ prompt 内**必须内嵌** `git --no-pager diff --no-color <PREV> <审SHA> -- . ':(exclude)_bmad-output'` 输出（车道先跑 git 再送审）。
+- ⚠️ build 模式 Bash **部分可用（2026-09-19 G1-1 补审实测更正）**：`git` / `grep` 等只读命令可通过，`python3` / `git apply` 等被拦；写工具（Edit/Write）恒被「No permission client configured」阻断。⇒ prompt 内**仍必须内嵌** `git --no-pager diff --no-color <PREV> <审SHA> -- . ':(exclude)_bmad-output'` 输出（评审者偶可自跑 git，但不得依赖）。
 - 存档首部（zcode 版）：`模型: glm-5.3（provider_config.defaultModelSelection）` · `工具: zcode-app-cli 3.12.3-26 / runtime 0.16.5` · `命令:` 全文 · `审查绑定: <审SHA 或 A..B>` · `自证: --json 的 sessionId/traceId 原文（抄）`。
 - **牙齿**：缺 `sessionId`（或 JSON 解析失败）该轮**不计入**轮次配额；其余轮次/绑定规则同 §2.1 / §2.2。
 - **通道分工**：开发复核默认 codex+zai（§2.4）；补审走本通道；同一卡同一轮只走一条通道，轮次编号沿用 `-rN`（接既有最大轮次之后）。
@@ -128,7 +128,7 @@ source "$HOME/.codex/zai.env" && codex exec --profile zai --sandbox read-only -m
 - **改 `canvas-vault/.claude/scripts/{fsrs_bridge,decay_beta}.py` 的卡 = 合入当天必须部署 live**：`daily-review-wrapper.sh` 对这两份文件做开发树↔live 逐字节 `cmp`，不一致 → exit 78，整条复习链停摆（2026-09-05 09:05/10:05 已发生）。部署由主 session 在用户**当次显式授权**后执行：先备份 live 旧副本到 `canvas-vault/backups/` 记 sha → cp → `cmp` → 等下一个 :05 档核 `launchctl list` 归 0 → 证据落 `_bmad-output/审查/evidence-deploy/`。只部署 wrapper 门覆盖的文件，**不顺手部署 SKILL.md**。squash 与部署须在同一 session 内连做（中间每一档都在停摆）。
 - 新车道 `backend/.venv` 缺席时建目录级 symlink 指向 `card-v5-lance/backend/.venv`（`.gitignore` 覆盖），否则 lefthook `python-lint` rc=127 阻断 commit。
 
-- **W4 哨兵判据绑 `blocked=` 次数 + 失败正文，不绑 nodeid**（R-08/R-10，第十四批起）：同一代码状态下哨兵红会在 nodeid 之间翻转（U10-A r4/r4b 实测：`candidate422` ↔ `mock_warning`，经 U1 第十三批验收单 §五.9-ter 转述落盘），逐 nodeid diff 自带 flaky。判据：`grep -c "blocked=" <存档>` 恒定 + `grep -oF "('::1', 7691, 0, 0) on thread MainThread" <存档> | sort -u | wc -l` = 1；红总数仍对基线，但不对具体哪条 nodeid 承 W4 身份。`NEO4J_LIVE_PORT_CONNECT_ATTEMPTS` 未设时 `blocked=0`（候选树常态），设了攻击次数才是「恒 12」口径——两态都写明。
+- **W4 哨兵判据绑 `blocked=` 次数 + 失败正文，不绑 nodeid**（R-08/R-10，第十四批起）：同一代码状态下哨兵红会在 nodeid 之间翻转（U10-A r4/r4b 实测：`candidate422` ↔ `mock_warning`，经 U1 第十三批验收单 §五.9-ter 转述落盘），逐 nodeid diff 自带 flaky。判据：`grep -c "blocked=" <存档>` 恒定 + `grep -oF "('::1', 7691, 0, 0) on thread MainThread" <存档> | sort -u | wc -l` = 1；红总数仍对基线，但不对具体哪条 nodeid 承 W4 身份。汇总行 `NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=<n> (blocked=<m>…)` 是该哨兵的**总账标签**，不是判据开关（第十五批 §七 更正）：未设该 env 时 `blocked=0`（候选树常态），探针显式设置攻击次数时按「恒 12」口径核——两态都写明。
 
 ## 4. 合并程序（主 session）
 
@@ -146,3 +146,28 @@ source "$HOME/.codex/zai.env" && codex exec --profile zai --sandbox read-only -m
 - 台账是全部卡的共同写入面 → **只有主 session 改**；卡在验收单写「台账待登记条目」。
 - **tests/unit 既有红基线**：主 session 每批开跑前落一份 nodeid 口径的基线（`_bmad-output/审查/evidence-b<N>/unit-red-baseline-<主干SHA>.txt`），车道开工/收工各跑一次目录级并 `diff`，差集才算本卡引入或修复；「298/289」这类含日志噪音的行数不得作分母。
 - 每张卡的完成条件含「本卡未证明什么」必填；数字与命令输出一致（`wc -m` 计字符非字节）。
+- **开卡必跑批注检索**（G1-1；自 `scripts/annotation_search.py` 合入主干之后的下一批起——第十五批本身不追溯，该脚本正是本批 G1-1 的产物）：主 session 排批写卡文前、车道开工第 0 分钟各跑一次 `PYTHONDONTWRITEBYTECODE=1 python3 scripts/annotation_search.py --story <卡号> --story <src 总账条目号> --keyword <主题词≥1> 2>&1 | tee _bmad-output/审查/evidence-<卡短名>/annotation-search-<ts>.txt; echo rc=$pipestatus[1] | tee -a 同一文件`（⚠️ 必须 `2>&1`：命中数汇总行走 stderr，只重定向 stdout 会得到一份 0 字节存档，撞 §2.2「0 字节不入库」）。0 命中也落档、rc=1 如实记。引用口径：**有命中**时卡文 §〇 / 验收单引用该存档的命中数与至少一条 `file:line`；**0 命中**时引用该存档的 `rc=1` 与汇总行的 `files_scanned` / `marker_hits`，不得为凑出 file:line 反复放宽 `--keyword`。私人 root 默认排除；`--include-private` 只在用户当次显式授权后使用，不得为凑命中自行加（A01 当前只声明边界、不提供授权流程，授权即用户本人的一次裁定）。替代 A01/A02 全量考古（总账 v2 G1-1）。
+- **每卡收官须更新 ledger 行（CARD-G1-3，自第十六批起）**：改了能力面（入口 / 依赖 / schema / UI）的卡在验收单写「ledger 待登记行」（id / E 级 / 证据 / 限制 / 降级触发面），与「台账待登记条目」同口径由**主 session 合入时**落 `docs/release-evidence/capability-ledger.md`；车道不得直改 ledger（多车道并行 = 合并冲突）；E 级不得高于证据（§12.5，E3+ 须指 live manifest，本版恒 0）。
+
+## 6. 第十五批回流条款（2026-09-20 主 session 回写）
+
+> 来源：第十五批排批草案/开跑手册 §七「协议回写候补」（本批多卡实测各踩一次）。只收尚未写入 §1–§5 的条款；已写入的不重复。
+
+- **ruff 验伪锚一律 F821、探针文件必须放仓内**（第十五批 T1-A/T2-A/T2-E/T4-B/T5-B/T10-C/T10-D 七卡同踩）：`backend/ruff.toml` 的 select 不含 F401，F401 锚恒不触发；scratchpad 里的探针吃不到本仓 ruff 配置。
+- **`--tb=line` 对 setup ERROR 不带 file:line**（T10-A）：以 file:line 作判据在 setup 错误上恒 0 命中 = 假阴性。
+- **被中断的 pytest 存档先断言汇总行存在**（T10-D）：`=+ … in …s =+` 不存在时「0 条红」是假绿，不得读红数。
+- **W4 哨兵自证防子进程吞行**（T5-E）：`subprocess.run(capture_output=True)` 套 pytest 时哨兵行不进存档 ⇒ 存档无法自证零连库；W4 判据口径见 §3。
+- **本机 urllib 会把 127.0.0.1 交给系统代理**（T4-A）：任何自连判据必须 `ProxyHandler({})` 直连。
+- **`find -newer` 类只读判据会被并发车道打成假红**（T4-A/T3-C）：非 0 时逐文件归因，不得直接判违规。
+- **含中文路径的 `git diff --name-only` / `grep -c '^_bmad-output/'` 类判据须 `-c core.quotepath=false`**（T4-A/T10-D/T9-B/T7-A 四卡）。
+- **lefthook `spec-sync-flat` glob 在本机 Go 引擎下跨目录**（T3-A/T3-C/T3-D/T5-A/T5-E 五卡）：任何触及 `backend/app` 的提交都会被自动塞进 `backend/openapi.json`；标准处置 = 单独一个只含 `openapi.json` 的还原 commit（零 `LEFTHOOK_EXCLUDE`、零 `--no-verify`）。
+- **卡文里的 openspec 命令一律仓内绝对路径**（T4-C）：`npx --no-install openspec` 在仓外跑不通，写 `<repo>/node_modules/.bin/openspec`。
+- **完整 SHA 必 `git rev-parse` 取 + `git cat-file -t` 验存在**（T7-C 缺陷 6）：禁手工补全；**存档自报 `rc=` 不能当承重判据**（T7-B）。
+- **本机 awk（20200816）不认 `--`**（T8-A）；**零暂存面下 lefthook 整块 skip、不打印 `[Mutant-Scan] OK`**（T8-A）——「干净暂存面应见 OK」是死判据；**zsh 无引号 `$TARGETS` 不做词分割**，sha 判据必带 `grep -cE '^[0-9a-f]{64}  '` = 文件数的验伪锚（T8-B）。
+- **多版本同名存档须有机器可读「当前版」标记；「回应声称已改 vs 原件未改」须有对账机制**（T10-E 一卡七次）。
+- **驳回的正确形态**（T8-B）：实测推翻复核方前提 + 下一轮复核方明文确认——不是车道自判通过。
+- **基线数字必须附产出它的完整命令**（T8-B 三次口径错跑）；**目录级跑法须与基线头第 2 行逐字同**（T10-A）。
+- **lefthook 双版本口径**（T8-A/T8-E）：`--no-auto-install` 在 1.x 是全局 flag、在 2.x 是子命令 flag；验证一律用绝对路径裸调用。
+- **「登记不阻断」同样适用于「要不要为它新增一处能力」**（T8-D）：不能因 MEDIUM 逼车道扩门。
+- **轮次上限与「审后改代码必再送一轮」的互斥场景**（T3-A）：修 ⇒ 必再送、不计上限；不修 ⇒ 登记（以 §1 轮次条为准）。
+- **合入主干 = 上线**（第十五批 §七）：`daily-review-wrapper.sh` 以 feature 树为工作树、`daily-review-push.sh` 直接执行该树 `scripts/daily_review_run.py` ⇒ `scripts/` 面卡合入 feature 后下一个 :05 档即执行新代码；`fsrs_bridge.py` / `decay_beta.py` 的部署门见 §3。
