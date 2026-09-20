@@ -1,0 +1,63 @@
+# 负控段 6 — negctl-6-read-failure-as-empty
+# 文件: backend/app/api/v1/endpoints/edges.py
+# HEAD: ab1c258ba1a1e5c982fb154f293e9ae3dcbe982d
+# 期望: G1⑩ 必红：读取失败被当成空表 ⇒ 跳过前置兼容检查
+## 跑前 shasum（工作树 / HEAD 版本 —— 两者必须相同, 证明基准 = HEAD）
+fea5440539f85bc2bea1da9914e49ae7122cda160fc1c897da77f08a506f2322  backend/app/api/v1/endpoints/edges.py
+fea5440539f85bc2bea1da9914e49ae7122cda160fc1c897da77f08a506f2322  -
+## 变异已施加（只拆一层）
+## 变异后 shasum（应与跑前不同）
+874271d0fa36ee332d6e5099dc4f92ad52f72cc4c6cce355fc32c9decfbfa1b8  backend/app/api/v1/endpoints/edges.py
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 25 items / 24 deselected / 1 selected
+
+tests/unit/test_edge_rationale_fallback.py F                             [100%]
+
+=================================== FAILURES ===================================
+_____ test_lancedb_real_write_read_failure_is_refused_not_treated_as_empty _____
+tests/unit/test_edge_rationale_fallback.py:853: in test_lancedb_real_write_read_failure_is_refused_not_treated_as_empty
+    assert "refused" in (status_.error or "").lower(), f"读取失败被当成了空表(错误串不是拒写): {status_.error!r}"
+E   AssertionError: 读取失败被当成了空表(错误串不是拒写): 'LanceDB write not confirmed: add_documents returned 0'
+E   assert 'refused' in 'lancedb write not confirmed: add_documents returned 0'
+E    +  where 'lancedb write not confirmed: add_documents returned 0' = <built-in method lower of str object at 0x116ab5890>()
+E    +    where <built-in method lower of str object at 0x116ab5890> = ('LanceDB write not confirmed: add_documents returned 0').lower
+E    +      where 'LanceDB write not confirmed: add_documents returned 0' = WriteStatus(success=False, error='LanceDB write not confirmed: add_documents returned 0').error
+----------------------------- Captured stdout call -----------------------------
+{"event": "[LanceDB vault registry] \u6307\u7eb9\u6765\u6e90\u7684\u8868\u540d\u5217\u4e3e\u5931\u8d25 (RuntimeError: P1A-READ-FAIL: table listing unavailable) \u2014\u2014 \u4e3b\u6765\u6e90\u4e4b\u5916\u7684\u8865\u4e01\u4e5f\u5931\u6548, \u5f52\u5c5e\u53ef\u80fd\u9000\u56de\u6539\u524d\u53e3\u5f84", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T10:31:54.405227Z"}
+{"event": "[LanceDB vault registry] \u6307\u7eb9\u6765\u6e90\u7684\u8868\u540d\u5217\u4e3e\u5931\u8d25 (RuntimeError: P1A-READ-FAIL: table listing unavailable) \u2014\u2014 \u4e3b\u6765\u6e90\u4e4b\u5916\u7684\u8865\u4e01\u4e5f\u5931\u6548, \u5f52\u5c5e\u53ef\u80fd\u9000\u56de\u6539\u524d\u53e3\u5f84", "logger": "agentic_rag.clients.lancedb_client", "level": "error", "timestamp": "2026-09-18T10:31:54.406216Z"}
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-0010 (record rec-p1a-0010): add_documents returned 0 (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:31:54.406391Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1021 [LanceDB vault registry] 指纹来源的表名列举失败 (RuntimeError: P1A-READ-FAIL: table listing unavailable) —— 主来源之外的补丁也失效, 归属可能退回改前口径
+ERROR    agentic_rag.clients.lancedb_client:lancedb_client.py:1021 [LanceDB vault registry] 指纹来源的表名列举失败 (RuntimeError: P1A-READ-FAIL: table listing unavailable) —— 主来源之外的补丁也失效, 归属可能退回改前口径
+ERROR    app.api.v1.endpoints.edges:edges.py:487 LanceDB write NOT confirmed for edge edge-p1a-0010 (record rec-p1a-0010): add_documents returned 0 (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_read_failure_is_refused_not_treated_as_empty
+================= 1 failed, 24 deselected, 4 warnings in 1.02s =================
+rc=1
+## 还原后 shasum（必须与跑前逐字同）
+fea5440539f85bc2bea1da9914e49ae7122cda160fc1c897da77f08a506f2322  backend/app/api/v1/endpoints/edges.py
+## （上行为空 = 工作树已回到 HEAD）

@@ -432,8 +432,23 @@ class TestNeo4jClientDriver:
             assert call_kwargs["max_connection_lifetime"] == 3600
 
     @pytest.mark.asyncio
-    async def test_driver_initialization_fallback_on_failure(self, tmp_path):
-        """Test fallback to JSON when Neo4j connection fails - AC-3."""
+    async def test_driver_initialization_fail_closed_on_auth_error(self, tmp_path):
+        """凭据错误 = **部署缺陷**, 必须 fail-closed 上抛, 不得转 JSON fallback.
+
+        ⛔ 契约反转 (CARD-LANCE-DUALWRITE-NEVER-WRITES / BATCH-2026-09-18-第十五批 P1-A):
+        本用例改前断言 ``result is True`` + ``_use_json_fallback is True`` —— 那正是被修的
+        缺陷本身。转 fallback 之后 ``run_query`` 落进 JSON 分发器返 ``[]``, 双写端点据此
+        记「写未确认」⇒ **207 半成功**, 于是「密码配错」的部署 5xx 率恒 0、看板全绿,
+        而每一条 edge rationale 的 Neo4j 半边都在丢。现在它响亮地上抛 ⇒ HTTP 500。
+
+        ⚠️ 覆盖边界如实: 这里让 ``AsyncGraphDatabase.driver()`` **本身**抛 AuthError, 是
+        人工形态(零网络, 驱动工厂被整体 mock)。真实凭据错误由 ``verify_connectivity()``
+        抛, 那条路的门在
+        ``tests/integration/test_edges_dual_write_neo4j_t5b.py`` 的 G2 段(含 7692 真库门)。
+
+        对照见下一个用例: 对端不可达仍然保留 fallback —— 没有那条对照, 「把 fallback
+        整个拆掉」也能让本用例变绿, 那不是收窄而是删功能。
+        """
         storage_path = tmp_path / "fallback_test.json"
         client = Neo4jClient(
             uri="bolt://localhost:7687",
@@ -442,15 +457,43 @@ class TestNeo4jClientDriver:
             storage_path=storage_path,
         )
 
-        # Mock driver creation to raise AuthError
+        # Mock driver creation to raise AuthError (驱动工厂整体被替换 ⇒ 零连接)
         with patch("app.clients.neo4j_client.AsyncGraphDatabase") as mock_agd:
             from neo4j.exceptions import AuthError
 
             mock_agd.driver.side_effect = AuthError("Authentication failed")
 
+            with pytest.raises(AuthError):
+                await client.initialize()
+
+            assert client._use_json_fallback is False, "部署缺陷被静默降级成了 JSON fallback"
+            assert client._initialized is False
+            assert client._driver is None
+            assert not storage_path.exists(), "走了 _fallback_to_json (它会建出 JSON storage)"
+
+    @pytest.mark.asyncio
+    async def test_driver_initialization_fallback_on_peer_unreachable(self, tmp_path):
+        """**对照组(承重)**: 对端不可达仍然经 JSON fallback 返 True - AC-3.
+
+        证明上一个用例收窄的只是「部署缺陷」这一族, fallback 的设计用途(对端连不上时
+        继续可用)原样保留。
+        """
+        storage_path = tmp_path / "unreachable_test.json"
+        client = Neo4jClient(
+            uri="bolt://localhost:7687",
+            user="neo4j",
+            password="neo4j",
+            storage_path=storage_path,
+        )
+
+        with patch("app.clients.neo4j_client.AsyncGraphDatabase") as mock_agd:
+            from neo4j.exceptions import ServiceUnavailable
+
+            mock_agd.driver.side_effect = ServiceUnavailable("peer unreachable")
+
             result = await client.initialize()
 
-            assert result is True  # Should succeed via fallback
+            assert result is True, "对端不可达应经 JSON fallback 返 True"
             assert client._use_json_fallback is True
             assert storage_path.exists()
 

@@ -1,0 +1,83 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/clients/neo4j_client.py
+Would reformat: backend/tests/unit/test_edge_rationale_fallback.py
+Would reformat: backend/tests/unit/test_neo4j_client.py
+3 files would be reformatted, 2 files already formatted
+[Python] Format check FAILED! Fix: ruff format backend/app/api/v1/endpoints/edges.py backend/app/clients/neo4j_client.py backend/tests/integration/test_edges_dual_write_neo4j_t5b.py backend/tests/unit/test_edge_rationale_fallback.py backend/tests/unit/test_neo4j_client.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/clients/neo4j_client.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/clients/neo4j_client.py:107:42 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/clients/neo4j_client.py:1253:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/clients/neo4j_client.py:1348:16 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+0 errors, 3 warnings, 0 informations
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+┃  spec-sync-flat ❯ 
+
+[Spec Sync] API changes detected, regenerating backend/openapi.json (via backend/.venv/bin/python)...
+[92m17:26:41 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('185.199.108.133', 443)) — check-openapi-drift.py 只允许 import, 不允许 lifespan/网络行为. Falling back to local backup.
+{"event": "LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: socket connect blocked during OpenAPI export (target=('185.199.108.133', 443)) \u2014 check-openapi-drift.py \u53ea\u5141\u8bb8 import, \u4e0d\u5141\u8bb8 lifespan/\u7f51\u7edc\u884c\u4e3a. Falling back to local backup.", "logger": "LiteLLM", "level": "warning", "timestamp": "2026-09-18T09:26:41.043020Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.355 seconds.
+Prefix dict has been built successfully.
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-18T09:26:47.373323Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-18T09:26:47.412968Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-18T09:26:47.413027Z"}
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+  canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-18T09:26:47.660811Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-18T09:26:47.680528Z"}
+{"event": "[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T09:26:48.009208Z"}
+{"event": "[P0-2] Registered 6 read-only MCP tool routes + 14 quarantined (410) stubs", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T09:26:48.023602Z"}
+{"event": "[MCP] Stripped spurious 'type' from 325 anyOf properties across 210 tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T09:26:48.605136Z"}
+{"event": "No auth config provided, skipping auth setup", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-18T09:26:48.606294Z"}
+{"event": "MCP HTTP server listening at /mcp", "logger": "fastapi_mcp.server", "level": "info", "timestamp": "2026-09-18T09:26:48.606336Z"}
+{"event": "[Story 3.2] MCP server mounted at /mcp (streamable HTTP) with canvas-learning tools", "logger": "app.mcp.server", "level": "info", "timestamp": "2026-09-18T09:26:48.606362Z"}
+WROTE: backend/openapi.json (paths=199 schemas=357, x-generated-at=2026-09-18T09:26:49.303031+00:00)
+[Spec Sync] + backend/openapi.json staged
+
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 12.51 seconds)      
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.11 seconds)
+✔️ python-typecheck (1.95 seconds)
+✔️ spec-sync-flat (10.38 seconds)
+🥊 python-lint (0.05 seconds)

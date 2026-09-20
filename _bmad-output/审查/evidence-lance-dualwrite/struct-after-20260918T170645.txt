@@ -1,0 +1,25 @@
+# 结构判据（改后）  基准 HEAD=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680
+## edges.py  文本判据  [改前 → 改后]
+asyncio.to_thread              3 → 0
+hasattr(client                 4 → 0
+await client.add_documents(    0 → 1
+_lancedb_client_for(           0 → 2
+BoltError                      2 → 7
+asyncio.gather(                1 → 1   [验伪锚: 改前改后恒 1]
+## edges.py  AST Call 节点判据（不数文本）
+to_thread              3 → 0
+gather                 1 → 1  [验伪锚: 把 to_thread 换成 gather 应得 1]
+add_documents          0 → 1
+connect_lightweight    0 → 1
+embed                  0 → 1
+## neo4j_client.py 段内文本判据  改前段 :351-420 / 改后段 :352-445
+_fallback_to_json()            3 → 2
+health_check()                 1 → 0
+raise                          0 → 2
+## neo4j_client.py AST Call 节点判据（全文件, 不受行号漂移影响）
+health_check           1 → 0
+verify_connectivity    1 → 2
+_fallback_to_json      5 → 4
+_close_driver          2 → 3
+[验伪锚] verify_connectivity 1 → 2 证明 health_check 本体那条调用仍在（未被删）
+rc=0

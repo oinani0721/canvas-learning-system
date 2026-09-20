@@ -1,0 +1,83 @@
+# 最终 HEAD 地盘门  HEAD=ddcaad55e6b03723c1d5ceeb95a417c2b3ada625  基线=9c4e7e82
+
+## 地盘门（⊆ 白名单 5 文件）
+ backend/app/api/v1/endpoints/edges.py              | 190 +++++++----
+ backend/app/clients/neo4j_client.py                |  51 ++-
+ .../integration/test_edges_dual_write_neo4j_t5b.py | 306 ++++++++++++++++-
+ backend/tests/unit/test_edge_rationale_fallback.py | 364 +++++++++++++++++++++
+ backend/tests/unit/test_neo4j_client.py            |  51 ++-
+ 5 files changed, 876 insertions(+), 86 deletions(-)
+
+## 验伪锚（post-commit 才有效：commit 前 evidence 是未跟踪文件, git diff 看不见, 锚恒空洞）
+带 exclude 时 _bmad-output 路径条数 = 0
+去 exclude 时 _bmad-output 路径条数 = 19
+⇒ 0 vs >0 = exclude 真的在起作用, 判据不是空洞的
+
+## openapi.json 净差（应为空）
+(上行为空 = 净差 0)
+
+## lancedb_client.py 是否出现在 diff（应为 0 = 本卡零改动）
+条数 = 0
+
+## 别车道禁改文件是否出现（应全为 0）
+backend/app/api/v1/endpoints/index.py                0
+backend/app/services/memory_service.py               0
+backend/app/services/episode_worker.py               0
+backend/app/models                                   0
+backend/app/main.py                                  0
+backend/app/security.py                              0
+lefthook.yml                                         0
+backend/tests/conftest.py                            0
+
+## neo4j_client.py 逐 hunk 头（应只在 import 块 + initialize/_initialize_neo4j_driver 内）
+@@ -27,6 +27,7 @@ from typing import Any, Dict, List, LiteralString, Optional, cast
+@@ -368,6 +369,15 @@ class Neo4jClient:
+@@ -397,24 +407,39 @@ class Neo4jClient:
+
+## 段外函数改前改后 sha256（逐字节同 = 比行号区间更强的地盘证明）
+health_check               fec253443ab95536  fec253443ab95536  SAME
+_fallback_to_json          e919a5d6f519c97c  e919a5d6f519c97c  SAME
+run_query                  8596a8fcdb019109  8596a8fcdb019109  SAME
+_run_query_neo4j           56ab4851f320b943  56ab4851f320b943  SAME
+_close_driver              d23eda3cbf0b699b  d23eda3cbf0b699b  SAME
+_initialize_json_fallback  31f8b055ee8b1bd8  31f8b055ee8b1bd8  SAME
+[验伪锚] 本卡改过的两个函数必须显示 CHANGED（否则说明这组哈希判据根本没在看真文件）:
+initialize                 e1b8dc606a0312ed  1411a282a51eb66b  CHANGED (预期)
+_initialize_neo4j_driver   f41aff5539f13d9c  069374b515016532  CHANGED (预期)
+VERDICT: PASS
+fnhash rc=0
+
+## 现网只读自检
+fsrs_bridge|decay_beta 命中数 = 0
+--- t5b 里 7691/7687 的出现位置（应只在注释/白名单拒绝逻辑）---
+45:   容器** (D-39; ⛔ 禁 7691/7687 现网). 7692 不可达则该门 skip.
+63:是 ``NEO4J_ENABLED=true`` + ``NEO4J_URI`` 端口 **7691**。
+65:7691; 连接、认证或写入本身也可能失败。``W4_GUARD_NO_EXEMPT=1`` 时上述默认豁免结论
+103:7691**。(措辞边界, r4 L3: 是「可能」不是「必然」—— 连接、认证或写入本身也可能失败;
+110:它只覆盖 7691/7687 两个端口, 且 W4 自证探针明确跳过记账, 因此不等于「整进程一次
+181:# 7692 测试容器 (D-39): 禁 7691 / 7687 现网
+196:#: 7687 / 7691。也就是说「入口端口 = 7692」对路由族根本不构成「只连 7692」的保证。
+204:    ⛔ 为什么不写 ``":7691" in uri or ":7687" in uri`` 这种黑名单 (Codex r1 HIGH 整改):
+205:    黑名单只看得见字面量。``bolt://localhost`` 省略端口时字面量里既没有 7691 也没有
+206:    7687, 黑名单放行, 而 neo4j 驱动会把它归一成**默认 7687 = 现网**(驱动 6.1.0 实测,
+208:    (同样归一成 7687)。要用黑名单挡住它们, 就得穷举一切会被驱动归一成现网端口的写法
+213:    去连别的地址, 那些地址可以是 7687 / 7691。端口白名单对这条路径无能为力, 只能在
+267:    f"{ALLOWED_TEST_PORT} (白名单拒绝, 含省略端口被驱动归一成现网 7687 的写法). "
+401:        f"真客户端并对现网 7691 发起过连接, 请登记后再排查"
+471:    # 继续发请求会让真 get_neo4j_client() 造出指向 .env 里 7691 现网的真客户端,
+476:            "继续发请求**可能**连上并写入 .env 的 7691 现网(也可能连接/认证/写入本身失败), "
+493:        "这一跑很可能用的是真客户端并对现网 7691 发起过连接, 请登记后再排查"
+802:    * **Codex r1 HIGH**——字符串黑名单 ``":7691" in uri or ":7687" in uri`` 挡不住
+803:      「省略端口」与 ``:0``: 驱动 6.1.0 实测把这两种都归一成 ``localhost:7687``(现网),
+805:      ⚠️ 只有这**两种**是黑名单放行的; ``bolt://host-7692.example:7687`` 字面量里含
+806:      ``:7687``, 黑名单也会拒 —— 下面第三条断言防的是「子串式端口判定」这一类写法,
+809:      入口端口是 7692, 真实连接目标仍由服务端公布的路由表决定, 可以是 7687 / 7691。
+827:    assert not _test_uri_port_is_allowed("bolt://localhost"), "省略端口 ⇒ 驱动默认 7687 = 现网"
+828:    assert not _test_uri_port_is_allowed("bolt://localhost:0"), ":0 ⇒ 驱动归一成 7687 = 现网"
+831:    assert not _test_uri_port_is_allowed("bolt://host-7692.example:7687"), "主机名含 7692 但端口是现网"
+832:    assert not _test_uri_port_is_allowed("bolt://localhost:7691")
+833:    assert not _test_uri_port_is_allowed("bolt://localhost:7687")
+885:    # 去调 _write_neo4j_triplet: 那一调会拿到 .env 指向 7691 现网的真单例,
+902:            "7691 现网写节点(也可能连接/认证/写入本身失败), 已立即停跑"
+1213:    ⛔ 不碰 7691 / 7687 现网。
+rc=0

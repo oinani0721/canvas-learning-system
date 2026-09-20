@@ -1,0 +1,163 @@
+# 负控段 1 — negctl-1-to_thread
+# 文件: backend/app/api/v1/endpoints/edges.py
+# HEAD: ab1c258ba1a1e5c982fb154f293e9ae3dcbe982d
+# 期望: G1① 真写门必红（表不存在 / 行数不符）
+## 跑前 shasum（工作树 / HEAD 版本 —— 两者必须相同, 证明基准 = HEAD）
+fea5440539f85bc2bea1da9914e49ae7122cda160fc1c897da77f08a506f2322  backend/app/api/v1/endpoints/edges.py
+fea5440539f85bc2bea1da9914e49ae7122cda160fc1c897da77f08a506f2322  -
+## 变异已施加（只拆一层）
+## 变异后 shasum（应与跑前不同）
+6aa76b3e03a39ca622233c7b01628db39e87c963bb34a03899504878a325ade1  backend/app/api/v1/endpoints/edges.py
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 25 items / 12 deselected / 13 selected
+
+tests/unit/test_edge_rationale_fallback.py FF.F..F..F.FF                 [100%]
+
+=================================== FAILURES ===================================
+____________________ test_lancedb_real_write_lands_one_row _____________________
+tests/unit/test_edge_rationale_fallback.py:566: in test_lancedb_real_write_lands_one_row
+    assert _EXPECTED_TABLE in tables, (
+E   AssertionError: 表 'p1adualwrite_edge_rationales' 不存在 ⇒ LanceDB 侧没有真写。库内表: []。⚠️ 同一次调用返回的 WriteStatus.success = False (error='LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x10b764b30>') —— success 已为 False(写确认判据接住了), 但表仍未建出 ⇒ 真写路径断了
+E   assert 'p1adualwrite_edge_rationales' in []
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-0001 (record rec-p1a-0001): add_documents returned <coroutine object LanceDBClient.add_documents at 0x10b764b30> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.575795Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-p1a-0001 (record rec-p1a-0001): add_documents returned <coroutine object LanceDBClient.add_documents at 0x10b764b30> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+____________________ test_lancedb_real_write_is_append_only ____________________
+tests/unit/test_edge_rationale_fallback.py:636: in test_lancedb_real_write_is_append_only
+    assert _EXPECTED_TABLE in db.table_names(), f"表不存在 ⇒ 没有真写（两次 WriteStatus: {first!r} / {second!r}）"
+E   AssertionError: 表不存在 ⇒ 没有真写（两次 WriteStatus: WriteStatus(success=False, error='LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a978040>') / WriteStatus(success=False, error='LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a979df0>')）
+E   assert 'p1adualwrite_edge_rationales' in []
+E    +  where [] = table_names()
+E    +    where table_names = LanceDBConnection(uri='/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-279/test_lancedb_real_write_is_app0/lancedb').table_names
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-same-edge (record rec-p1a-0002): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a978040> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.676259Z"}
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-same-edge (record rec-p1a-0003): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a979df0> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.678359Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-p1a-same-edge (record rec-p1a-0002): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a978040> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-p1a-same-edge (record rec-p1a-0003): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a979df0> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+________ test_lancedb_real_write_add_documents_returns_zero_is_failure _________
+tests/unit/test_edge_rationale_fallback.py:685: in test_lancedb_real_write_add_documents_returns_zero_is_failure
+    assert "returned 0" in (status_.error or ""), f"错误串未带上那个承重的返回值: {status_.error!r}"
+E   AssertionError: 错误串未带上那个承重的返回值: 'LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._AddReturnsZeroLanceDBClient.add_documents at 0x13aa029b0>'
+E   assert 'returned 0' in (('LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._AddReturnsZeroLanceDBClient.add_documents at 0x13aa029b0>'))
+E    +  where 'LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._AddReturnsZeroLanceDBClient.add_documents at 0x13aa029b0>' = WriteStatus(success=False, error='LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._AddReturnsZeroLanceDBClient.add_documents at 0x13aa029b0>').error
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-0004b (record rec-p1a-0004b): add_documents returned <coroutine object real_lancedb.<locals>._AddReturnsZeroLanceDBClient.add_documents at 0x13aa029b0> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.693291Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-p1a-0004b (record rec-p1a-0004b): add_documents returned <coroutine object real_lancedb.<locals>._AddReturnsZeroLanceDBClient.add_documents at 0x13aa029b0> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+_________ test_lancedb_real_write_row_count_net_catches_silent_rebuild _________
+tests/unit/test_edge_rationale_fallback.py:762: in test_lancedb_real_write_row_count_net_catches_silent_rebuild
+    assert "2 -> 1" in (status_.error or "") and "expected 3" in (status_.error or ""), (
+E   AssertionError: 错误串未带上行数形状(2 -> 1, 期望 3): 'LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._SilentRebuildLanceDBClient.add_documents at 0x13adbc440>'
+E   assert ('2 -> 1' in (('LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._SilentRebuildLanceDBClient.add_documents at 0x13adbc440>')))
+E    +  where 'LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._SilentRebuildLanceDBClient.add_documents at 0x13adbc440>' = WriteStatus(success=False, error='LanceDB write not confirmed: add_documents returned <coroutine object real_lancedb.<locals>._SilentRebuildLanceDBClient.add_documents at 0x13adbc440>').error
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-0008 (record rec-p1a-0008): add_documents returned <coroutine object real_lancedb.<locals>._SilentRebuildLanceDBClient.add_documents at 0x13adbc440> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.732985Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-p1a-0008 (record rec-p1a-0008): add_documents returned <coroutine object real_lancedb.<locals>._SilentRebuildLanceDBClient.add_documents at 0x13adbc440> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+____________ test_lancedb_real_write_survives_table_name_pagination ____________
+tests/unit/test_edge_rationale_fallback.py:830: in test_lancedb_real_write_survives_table_name_pagination
+    assert status_.success is True, f"分页把已写成功的表读成不存在 ⇒ 真实写入被误报成失败: {status_!r}"
+E   AssertionError: 分页把已写成功的表读成不存在 ⇒ 真实写入被误报成失败: WriteStatus(success=False, error='LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a6d89a0>')
+E   assert False is True
+E    +  where False = WriteStatus(success=False, error='LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a6d89a0>').success
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-0009 (record rec-p1a-0009): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a6d89a0> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.767093Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-p1a-0009 (record rec-p1a-0009): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13a6d89a0> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+______________ test_lancedb_real_write_via_endpoint[neo4j-ok-200] ______________
+tests/unit/test_edge_rationale_fallback.py:926: in test_lancedb_real_write_via_endpoint
+    assert resp.status_code == expected_status, f"期望 {expected_status}, 实得 {resp.status_code}: {resp.text[:400]}"
+E   AssertionError: 期望 200, 实得 207: {"record_id":"f7fc49ba-8693-4913-bf27-2080e2d1b3bb","edge_id":"edge-test-001","relation_type":"is prerequisite for","graphiti_status":{"success":true,"error":null},"lancedb_status":{"success":false,"error":"LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ac41f80>"},"timestamp":"2026-09-18T10:30:29.781638"}
+E   assert 207 == 200
+E    +  where 207 = <Response [207 Multi-Status]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-18T10:30:29.779462Z"}
+{"event": "Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-18T10:30:29.779578Z"}
+{"event": "Neo4j write succeeded for edge edge-test-001 (record f7fc49ba-8693-4913-bf27-2080e2d1b3bb)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-18T10:30:29.779676Z"}
+{"event": "LanceDB write NOT confirmed for edge edge-test-001 (record f7fc49ba-8693-4913-bf27-2080e2d1b3bb): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ac41f80> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.781527Z"}
+{"event": "Partial dual-write for edge edge-test-001: neo4j=True, lancedb=False", "logger": "app.api.v1.endpoints.edges", "level": "warning", "timestamp": "2026-09-18T10:30:29.781661Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:595 Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+INFO     app.api.v1.endpoints.edges:edges.py:274 Neo4j write succeeded for edge edge-test-001 (record f7fc49ba-8693-4913-bf27-2080e2d1b3bb)
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-test-001 (record f7fc49ba-8693-4913-bf27-2080e2d1b3bb): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ac41f80> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+WARNING  app.api.v1.endpoints.edges:edges.py:624 Partial dual-write for edge edge-test-001: neo4j=True, lancedb=False
+_____________ test_lancedb_real_write_via_endpoint[neo4j-down-207] _____________
+tests/unit/test_edge_rationale_fallback.py:926: in test_lancedb_real_write_via_endpoint
+    assert resp.status_code == expected_status, f"期望 {expected_status}, 实得 {resp.status_code}: {resp.text[:400]}"
+E   AssertionError: 期望 207, 实得 500: {"record_id":"6d2794e4-129a-4610-bda0-37939b278a8d","edge_id":"edge-test-001","relation_type":"is prerequisite for","graphiti_status":{"success":false,"error":"ServiceUnavailable: P1A-NEO4J-DOWN"},"lancedb_status":{"success":false,"error":"LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ae40810>"},"timestamp":"2026-09-18T10:30:29.792803"}
+E   assert 500 == 207
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-18T10:30:29.790398Z"}
+{"event": "Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-18T10:30:29.790473Z"}
+{"event": "Neo4j write failed for edge edge-test-001: type=ServiceUnavailable detail=P1A-NEO4J-DOWN", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.790557Z"}
+{"event": "LanceDB write NOT confirmed for edge edge-test-001 (record 6d2794e4-129a-4610-bda0-37939b278a8d): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ae40810> (\u5b83\u541e\u6389\u5185\u90e8\u5f02\u5e38\u8fd4 0, \u8fd4\u56de\u503c\u662f\u552f\u4e00\u4fe1\u53f7) \u2014 \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.792683Z"}
+{"event": "Both writes failed for edge edge-test-001: neo4j=ServiceUnavailable: P1A-NEO4J-DOWN, lancedb=LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ae40810>", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:30:29.792824Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:595 Recording edge rationale: edge=edge-test-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+ERROR    app.api.v1.endpoints.edges:edges.py:229 Neo4j write failed for edge edge-test-001: type=ServiceUnavailable detail=P1A-NEO4J-DOWN
+ERROR    app.api.v1.endpoints.edges:edges.py:488 LanceDB write NOT confirmed for edge edge-test-001 (record 6d2794e4-129a-4610-bda0-37939b278a8d): add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ae40810> (它吞掉内部异常返 0, 返回值是唯一信号) — 记为写失败
+ERROR    app.api.v1.endpoints.edges:edges.py:633 Both writes failed for edge edge-test-001: neo4j=ServiceUnavailable: P1A-NEO4J-DOWN, lancedb=LanceDB write not confirmed: add_documents returned <coroutine object LanceDBClient.add_documents at 0x13ae40810>
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_lands_one_row
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_is_append_only
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_survives_table_name_pagination
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_via_endpoint[neo4j-ok-200]
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_via_endpoint[neo4j-down-207]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/_pytest/stash.py:108: RuntimeWarning: coroutine 'LanceDBClient.add_documents' was never awaited
+    del self._storage[key]
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_add_documents_returns_zero_is_failure
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/_pytest/stash.py:108: RuntimeWarning: coroutine 'real_lancedb.<locals>._AddReturnsZeroLanceDBClient.add_documents' was never awaited
+    del self._storage[key]
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_row_count_net_catches_silent_rebuild
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/_pytest/stash.py:108: RuntimeWarning: coroutine 'real_lancedb.<locals>._SilentRebuildLanceDBClient.add_documents' was never awaited
+    del self._storage[key]
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_lands_one_row
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_is_append_only
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_add_documents_returns_zero_is_failure
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_row_count_net_catches_silent_rebuild
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_survives_table_name_pagination
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_via_endpoint[neo4j-ok-200]
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_via_endpoint[neo4j-down-207]
+=========== 7 failed, 6 passed, 12 deselected, 11 warnings in 1.18s ============
+rc=1
+## 还原后 shasum（必须与跑前逐字同）
+fea5440539f85bc2bea1da9914e49ae7122cda160fc1c897da77f08a506f2322  backend/app/api/v1/endpoints/edges.py
+## （上行为空 = 工作树已回到 HEAD）

@@ -1,0 +1,57 @@
+# 负控段 3 — negctl-3-drop-return-value-check
+# 文件: backend/app/api/v1/endpoints/edges.py
+# HEAD: efaece7fc899d408d58a80485b5e8e467d5ccccc
+# 期望: G1③-b 必红（错误串不再带 add_documents returned 0）
+## 跑前 shasum（工作树 / HEAD 版本 —— 两者必须相同, 证明基准 = HEAD）
+5115e72034e2b90b00c4652ae9c5fb516d2fdd3b030e274cb8f87c4276b12718  backend/app/api/v1/endpoints/edges.py
+5115e72034e2b90b00c4652ae9c5fb516d2fdd3b030e274cb8f87c4276b12718  -
+## 变异已施加（只拆一层）
+## 变异后 shasum（应与跑前不同）
+3d08afa74720a2259a8831a27f665e1f5333d28ed6ab0744500fa3acfb3ad9e2  backend/app/api/v1/endpoints/edges.py
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 28 items / 27 deselected / 1 selected
+
+tests/unit/test_edge_rationale_fallback.py F                             [100%]
+
+=================================== FAILURES ===================================
+________ test_lancedb_real_write_add_documents_returns_zero_is_failure _________
+tests/unit/test_edge_rationale_fallback.py:714: in test_lancedb_real_write_add_documents_returns_zero_is_failure
+    assert "returned 0" in (status_.error or ""), f"错误串未带上那个承重的返回值: {status_.error!r}"
+E   AssertionError: 错误串未带上那个承重的返回值: 'LanceDB write not confirmed: row count of p1adualwrite_edge_rationales went 0 -> 0 (expected 1)'
+E   assert 'returned 0' in (('LanceDB write not confirmed: row count of p1adualwrite_edge_rationales went 0 -> 0 (expected 1)'))
+E    +  where 'LanceDB write not confirmed: row count of p1adualwrite_edge_rationales went 0 -> 0 (expected 1)' = WriteStatus(success=False, error='LanceDB write not confirmed: row count of p1adualwrite_edge_rationales went 0 -> 0 (expected 1)').error
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write NOT confirmed for edge edge-p1a-0004b (record rec-p1a-0004b): p1adualwrite_edge_rationales \u884c\u6570 0 -> 0 (\u671f\u671b 1) \u2014 \u6574\u8868\u53ef\u80fd\u5df2\u88ab drop \u91cd\u5efa, \u5386\u53f2\u4e22\u5931", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T11:09:22.318052Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.api.v1.endpoints.edges:edges.py:529 LanceDB write NOT confirmed for edge edge-p1a-0004b (record rec-p1a-0004b): p1adualwrite_edge_rationales 行数 0 -> 0 (期望 1) — 整表可能已被 drop 重建, 历史丢失
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_add_documents_returns_zero_is_failure
+================= 1 failed, 27 deselected, 4 warnings in 0.85s =================
+rc=1
+## 还原后 shasum（必须与跑前逐字同）
+5115e72034e2b90b00c4652ae9c5fb516d2fdd3b030e274cb8f87c4276b12718  backend/app/api/v1/endpoints/edges.py
+## （上行为空 = 工作树已回到 HEAD）

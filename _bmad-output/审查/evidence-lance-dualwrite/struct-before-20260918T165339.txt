@@ -1,0 +1,15 @@
+# 结构基线（改前）  HEAD=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680
+## edges.py
+grep -cF 'asyncio.to_thread' edges.py = 3
+grep -c 'hasattr(client' edges.py = 4
+grep -cF 'await client.add_documents(' edges.py = 0
+grep -cF '_lancedb_client_for(' edges.py = 0
+grep -cF 'BoltError' edges.py = 2
+[验伪锚] grep -cF 'asyncio.gather(' edges.py = 1
+[AST 门] to_thread Call 节点数 = 3
+[AST 验伪锚] gather Call 节点数 = 1
+## neo4j_client.py :351-420 段
+grep -cF '_fallback_to_json()' = 3
+grep -cF 'health_check()' = 1
+grep -c 'raise' = 0
+rc=0

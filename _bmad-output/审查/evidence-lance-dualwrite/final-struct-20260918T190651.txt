@@ -1,0 +1,29 @@
+# 结构判据（最终冻结态）  基线=9c4e7e82
+## edges.py 文本判据（出现次数口径, 不是行数）  改前 → 改后
+asyncio.to_thread              3 → 0
+to_thread                      3 → 2
+hasattr(client                 4 → 0
+await client.add_documents(    0 → 1
+_lancedb_client_for(           0 → 2
+BoltError                      3 → 9
+asyncio.gather(                1 → 1
+## AST Call 节点判据
+to_thread              3 → 0
+gather                 1 → 1  [验伪锚: 恒 1]
+add_documents          0 → 1
+connect_lightweight    0 → 1
+embed                  0 → 1
+resolve_table_name     0 → 1
+_all_table_names       0 → 1
+## neo4j_client.py AST Call（全文件, 抗行号漂移）
+health_check               fec253443ab95536  fec253443ab95536  SAME
+_fallback_to_json          e919a5d6f519c97c  e919a5d6f519c97c  SAME
+run_query                  8596a8fcdb019109  8596a8fcdb019109  SAME
+_run_query_neo4j           56ab4851f320b943  56ab4851f320b943  SAME
+_close_driver              d23eda3cbf0b699b  d23eda3cbf0b699b  SAME
+_initialize_json_fallback  31f8b055ee8b1bd8  31f8b055ee8b1bd8  SAME
+[验伪锚] 本卡改过的两个函数必须显示 CHANGED（否则说明这组哈希判据根本没在看真文件）:
+initialize                 e1b8dc606a0312ed  1411a282a51eb66b  CHANGED (预期)
+_initialize_neo4j_driver   f41aff5539f13d9c  069374b515016532  CHANGED (预期)
+VERDICT: PASS
+rc=0

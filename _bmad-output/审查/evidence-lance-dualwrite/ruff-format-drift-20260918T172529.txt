@@ -1,0 +1,68 @@
+# python-lint 的 ruff format --check 漂移归因（协议 §2.3 过渡条款 / D-40）
+# HEAD=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680  基线=9c4e7e82
+
+## A. 主干既有集：HEAD(9c4e7e82) 版本的五个文件单独跑 ruff format --check
+Would reformat: backend/app/clients/neo4j_client.py
+Would reformat: backend/tests/unit/test_edge_rationale_fallback.py
+Would reformat: backend/tests/unit/test_neo4j_client.py
+3 files would be reformatted, 2 files already formatted
+rc=1
+
+## B. 本卡工作树：同五个文件
+Would reformat: backend/app/clients/neo4j_client.py
+Would reformat: backend/tests/unit/test_edge_rationale_fallback.py
+Would reformat: backend/tests/unit/test_neo4j_client.py
+3 files would be reformatted, 2 files already formatted
+rc=1
+
+## C. 判据：B 的 dirty 集 ⊆ A 的 dirty 集（本卡零新增漂移）
+A(主干既有) =        3 个:
+backend/app/clients/neo4j_client.py
+backend/tests/unit/test_edge_rationale_fallback.py
+backend/tests/unit/test_neo4j_client.py
+B(工作树)   =        3 个:
+backend/app/clients/neo4j_client.py
+backend/tests/unit/test_edge_rationale_fallback.py
+backend/tests/unit/test_neo4j_client.py
+B \ A（本卡新增漂移，必须为空）:
+(上行为空 = 本卡零新增漂移)
+
+## D. 更强判据：漂移 hunk 的行号 vs 本卡新增行区间
+本卡在 test_edge_rationale_fallback.py 的新增区起点: 第 364 行
+--- backend/app/clients/neo4j_client.py 的漂移 hunk 头 ---
+@@ -808,8 +808,7 @@
+@@ -839,8 +838,7 @@
+@@ -986,9 +984,7 @@
+@@ -1139,9 +1135,7 @@
+@@ -1212,9 +1206,7 @@
+@@ -1251,9 +1243,7 @@
+@@ -1323,9 +1313,7 @@
+@@ -1370,9 +1358,7 @@
+@@ -1647,15 +1633,11 @@
+@@ -1711,9 +1693,7 @@
+@@ -2059,14 +2039,10 @@
+@@ -2137,9 +2113,7 @@
+@@ -2370,9 +2344,7 @@
+@@ -2401,9 +2373,7 @@
+@@ -2441,14 +2411,10 @@
+@@ -2468,9 +2434,7 @@
+@@ -2516,9 +2480,7 @@
+@@ -2538,9 +2500,7 @@
+@@ -2567,14 +2527,10 @@
+@@ -2591,9 +2547,7 @@
+@@ -2624,18 +2578,12 @@
+@@ -2681,9 +2629,7 @@
+@@ -2739,9 +2685,7 @@
+--- backend/tests/unit/test_edge_rationale_fallback.py 的漂移 hunk 头 ---
+@@ -239,9 +239,7 @@
+--- backend/tests/unit/test_neo4j_client.py 的漂移 hunk 头 ---
+@@ -1201,8 +1201,7 @@
+@@ -1218,14 +1217,19 @@
+判读: neo4j_client.py 全部 hunk 在 :808+（本卡只改 :27 与 :352-445）;
+      test_neo4j_client.py 全部 hunk 在 :1201+（本卡只改 :435-510）;
+      test_edge_rationale_fallback.py 只剩 :239 一处（本卡新增区从 :364 起）。
+      ⇒ 三个文件的残留漂移**没有一处**落在本卡改动行上。
+
+## E. 本卡自己引入过的那一处已清: test_edges_dual_write_neo4j_t5b.py
+   HEAD 上它是 clean 的（见 A），我的新增行带进了漂移 ⇒ 已对该文件跑 ruff format 清掉（见 B 不含它）。
+rc=0

@@ -1,0 +1,132 @@
+# 负控段 2 — negctl-2-raise-to-fallback
+# 文件: backend/app/clients/neo4j_client.py
+# HEAD: 3260d720fa200556dc7a313220d8f45506492197
+# 期望: G2①②④ 必红；G2③ ServiceUnavailable 对照格必须仍绿
+## 跑前 shasum（工作树 / HEAD 版本 —— 两者必须相同, 证明基准 = HEAD）
+45ab91bf68c2866f7f54112b461dfacb1d0afb6f7fe0f41c7ed4fb142ce7aec9  backend/app/clients/neo4j_client.py
+45ab91bf68c2866f7f54112b461dfacb1d0afb6f7fe0f41c7ed4fb142ce7aec9  -
+## 变异已施加（只拆一层）
+## 变异后 shasum（应与跑前不同）
+890f0680a4855c4bb980197d9db2851c63c4a5c0f2fb1f3bd7a98a99e574889e  backend/app/clients/neo4j_client.py
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 29 items / 22 deselected / 7 selected
+
+tests/integration/test_edges_dual_write_neo4j_t5b.py FF...FF             [100%]
+
+=================================== FAILURES ===================================
+____________ test_init_fail_closed_对部署缺陷必须上抛而不转_fallback[AuthError] ____________
+tests/integration/test_edges_dual_write_neo4j_t5b.py:1129: in test_init_fail_closed_对部署缺陷必须上抛而不转_fallback
+    with pytest.raises(exc_cls):
+         ^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'neo4j.exceptions.AuthError'>
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.721911Z"}
+{"event": "Neo4j \u90e8\u7f72\u7f3a\u9677, \u62d2\u7edd\u964d\u7ea7\u4e3a JSON fallback: type=AuthError detail=P1A-AuthError", "logger": "app.clients.neo4j_client", "level": "error", "timestamp": "2026-09-18T10:49:26.722034Z"}
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.722070Z"}
+{"event": "Falling back to JSON storage mode", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:49:26.722098Z"}
+{"event": "Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_\u5bf9\u90e8\u7f72\u7f3a\u9677\u5fc5\u987b\u4e0a0/init_AuthError.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.723291Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50
+ERROR    app.clients.neo4j_client:neo4j_client.py:427 Neo4j 部署缺陷, 拒绝降级为 JSON fallback: type=AuthError detail=P1A-AuthError
+INFO     app.clients.neo4j_client:neo4j_client.py:522 Neo4j driver closed
+WARNING  app.clients.neo4j_client:neo4j_client.py:455 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:490 Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_对部署缺陷必须上0/init_AuthError.json
+_______ test_init_fail_closed_对部署缺陷必须上抛而不转_fallback[ConfigurationError] ________
+tests/integration/test_edges_dual_write_neo4j_t5b.py:1129: in test_init_fail_closed_对部署缺陷必须上抛而不转_fallback
+    with pytest.raises(exc_cls):
+         ^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'neo4j.exceptions.ConfigurationError'>
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.815437Z"}
+{"event": "Neo4j \u90e8\u7f72\u7f3a\u9677, \u62d2\u7edd\u964d\u7ea7\u4e3a JSON fallback: type=ConfigurationError detail=P1A-ConfigurationError", "logger": "app.clients.neo4j_client", "level": "error", "timestamp": "2026-09-18T10:49:26.815515Z"}
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.815544Z"}
+{"event": "Falling back to JSON storage mode", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:49:26.815566Z"}
+{"event": "Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_\u5bf9\u90e8\u7f72\u7f3a\u9677\u5fc5\u987b\u4e0a1/init_ConfigurationError.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.816092Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50
+ERROR    app.clients.neo4j_client:neo4j_client.py:427 Neo4j 部署缺陷, 拒绝降级为 JSON fallback: type=ConfigurationError detail=P1A-ConfigurationError
+INFO     app.clients.neo4j_client:neo4j_client.py:522 Neo4j driver closed
+WARNING  app.clients.neo4j_client:neo4j_client.py:455 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:490 Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_对部署缺陷必须上1/init_ConfigurationError.json
+_________________ test_init_fail_closed_端到端_凭据错误必须_500_而不是_207 _________________
+tests/integration/test_edges_dual_write_neo4j_t5b.py:1218: in test_init_fail_closed_端到端_凭据错误必须_500_而不是_207
+    assert resp.status_code == 500, (
+E   AssertionError: 凭据配错的部署必须响亮地 500, 实得 207 —— 207 说明 initialize() 又把 AuthError 吞成了 JSON fallback, 坏部署被伪装成半成功
+E   assert 207 == 500
+E    +  where 207 = <Response [207 Multi-Status]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.827200Z"}
+{"event": "vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)", "logger": "app.core.vault_scope", "level": "warning", "timestamp": "2026-09-18T10:49:26.829393Z"}
+{"event": "Recording edge rationale: edge=edge-t5b-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-18T10:49:26.829460Z"}
+{"event": "Neo4j \u90e8\u7f72\u7f3a\u9677, \u62d2\u7edd\u964d\u7ea7\u4e3a JSON fallback: type=AuthError detail=P1A-E2E-AUTH", "logger": "app.clients.neo4j_client", "level": "error", "timestamp": "2026-09-18T10:49:26.829550Z"}
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.829576Z"}
+{"event": "Falling back to JSON storage mode", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:49:26.829596Z"}
+{"event": "Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_\u7aef\u5230\u7aef_\u51ed\u636e\u9519\u8bef0/e2e_auth.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.830046Z"}
+{"event": "Unhandled query pattern: \n        CREATE (er:EdgeRationale {\n            record_id: $record_id,\n            edge_id: $edge_id", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:49:26.830086Z"}
+{"event": "Neo4j write NOT confirmed for edge edge-t5b-001 (record 10069a39-6b3e-476c-ad68-e4baf535b5fd): run_query returned 0 rows (JSON fallback \u7684 unhandled-query \u5206\u652f\u5373\u5982\u6b64) \u2014 \u63d0\u4ea4\u7ed3\u679c\u672a\u77e5, \u8bb0\u4e3a\u5199\u5931\u8d25", "logger": "app.api.v1.endpoints.edges", "level": "error", "timestamp": "2026-09-18T10:49:26.830110Z"}
+{"event": "Partial dual-write for edge edge-t5b-001: neo4j=False, lancedb=True", "logger": "app.api.v1.endpoints.edges", "level": "warning", "timestamp": "2026-09-18T10:49:26.830179Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50
+WARNING  app.core.vault_scope:vault_scope.py:195 vault_scope: both vault_id and group_id missing, deriving ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)
+INFO     app.api.v1.endpoints.edges:edges.py:623 Recording edge rationale: edge=edge-t5b-001, Concept A --[is prerequisite for]--> Concept B (confidence=0.85)
+ERROR    app.clients.neo4j_client:neo4j_client.py:427 Neo4j 部署缺陷, 拒绝降级为 JSON fallback: type=AuthError detail=P1A-E2E-AUTH
+INFO     app.clients.neo4j_client:neo4j_client.py:522 Neo4j driver closed
+WARNING  app.clients.neo4j_client:neo4j_client.py:455 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:490 Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_端到端_凭据错误0/e2e_auth.json
+WARNING  app.clients.neo4j_client:neo4j_client.py:694 Unhandled query pattern: 
+        CREATE (er:EdgeRationale {
+            record_id: $record_id,
+            edge_id: $edge_id
+ERROR    app.api.v1.endpoints.edges:edges.py:263 Neo4j write NOT confirmed for edge edge-t5b-001 (record 10069a39-6b3e-476c-ad68-e4baf535b5fd): run_query returned 0 rows (JSON fallback 的 unhandled-query 分支即如此) — 提交结果未知, 记为写失败
+WARNING  app.api.v1.endpoints.edges:edges.py:652 Partial dual-write for edge edge-t5b-001: neo4j=False, lancedb=True
+________________ test_init_fail_closed_真库_7692_错密码必须抛_AuthError ________________
+tests/integration/test_edges_dual_write_neo4j_t5b.py:1302: in test_init_fail_closed_真库_7692_错密码必须抛_AuthError
+    with pytest.raises(AuthError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'neo4j.exceptions.AuthError'>
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.843038Z"}
+{"event": "Neo4j \u90e8\u7f72\u7f3a\u9677, \u62d2\u7edd\u964d\u7ea7\u4e3a JSON fallback: type=AuthError detail={neo4j_code: Neo.ClientError.Security.Unauthorized} {message: The client is unauthorized due to authentication failure.} {gql_status: 50N42} {gql_status_description: error: general processing exception - unexpected error. Unexpected error has occurred. See debug log for details.}", "logger": "app.clients.neo4j_client", "level": "error", "timestamp": "2026-09-18T10:49:26.848755Z"}
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.848820Z"}
+{"event": "Falling back to JSON storage mode", "logger": "app.clients.neo4j_client", "level": "warning", "timestamp": "2026-09-18T10:49:26.848847Z"}
+{"event": "Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_\u771f\u5e93_7692_0/real_auth.json", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-18T10:49:26.849390Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://localhost:7692, pool_size=50
+ERROR    app.clients.neo4j_client:neo4j_client.py:427 Neo4j 部署缺陷, 拒绝降级为 JSON fallback: type=AuthError detail={neo4j_code: Neo.ClientError.Security.Unauthorized} {message: The client is unauthorized due to authentication failure.} {gql_status: 50N42} {gql_status_description: error: general processing exception - unexpected error. Unexpected error has occurred. See debug log for details.}
+INFO     app.clients.neo4j_client:neo4j_client.py:522 Neo4j driver closed
+WARNING  app.clients.neo4j_client:neo4j_client.py:455 Falling back to JSON storage mode
+INFO     app.clients.neo4j_client:neo4j_client.py:490 Created new JSON storage file: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-327/test_init_fail_closed_真库_7692_0/real_auth.json
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_对部署缺陷必须上抛而不转_fallback[AuthError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_对部署缺陷必须上抛而不转_fallback[ConfigurationError]
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_端到端_凭据错误必须_500_而不是_207
+FAILED tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_真库_7692_错密码必须抛_AuthError
+============ 4 failed, 3 passed, 22 deselected, 4 warnings in 0.57s ============
+rc=1
+## 还原后 shasum（必须与跑前逐字同）
+45ab91bf68c2866f7f54112b461dfacb1d0afb6f7fe0f41c7ed4fb142ce7aec9  backend/app/clients/neo4j_client.py
+## （上行为空 = 工作树已回到 HEAD）

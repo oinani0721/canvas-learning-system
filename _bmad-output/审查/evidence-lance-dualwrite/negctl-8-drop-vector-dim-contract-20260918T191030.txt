@@ -1,0 +1,68 @@
+# 负控段 8 — negctl-8-drop-vector-dim-contract
+# 文件: backend/app/api/v1/endpoints/edges.py
+# HEAD: efaece7fc899d408d58a80485b5e8e467d5ccccc
+# 期望: G1⑪ 必红：8 维向量建出一张坏表并被确认成功
+## 跑前 shasum（工作树 / HEAD 版本 —— 两者必须相同, 证明基准 = HEAD）
+5115e72034e2b90b00c4652ae9c5fb516d2fdd3b030e274cb8f87c4276b12718  backend/app/api/v1/endpoints/edges.py
+5115e72034e2b90b00c4652ae9c5fb516d2fdd3b030e274cb8f87c4276b12718  -
+## 变异已施加（只拆一层）
+## 变异后 shasum（应与跑前不同）
+1c25b133c4bf20171e7afbc55d820945a99cc1732fbe45d3b5e8cea487cd3ebf  backend/app/api/v1/endpoints/edges.py
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 28 items / 26 deselected / 2 selected
+
+tests/unit/test_edge_rationale_fallback.py FF                            [100%]
+
+=================================== FAILURES ===================================
+___ test_lancedb_real_write_refuses_wrong_embedding_dim[embed-returns-8-dim] ___
+tests/unit/test_edge_rationale_fallback.py:910: in test_lancedb_real_write_refuses_wrong_embedding_dim
+    assert status_.success is False, f"错误维度的向量被写进去了: {status_!r}"
+E   AssertionError: 错误维度的向量被写进去了: WriteStatus(success=True, error=None)
+E   assert True is False
+E    +  where True = WriteStatus(success=True, error=None).success
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write succeeded for edge edge-p1a-0011-bad_dim (record rec-p1a-0011-bad_dim)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-18T11:11:17.726873Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.edges:edges.py:542 LanceDB write succeeded for edge edge-p1a-0011-bad_dim (record rec-p1a-0011-bad_dim)
+_ test_lancedb_real_write_refuses_wrong_embedding_dim[embed-returns-1024-char-string] _
+tests/unit/test_edge_rationale_fallback.py:910: in test_lancedb_real_write_refuses_wrong_embedding_dim
+    assert status_.success is False, f"错误维度的向量被写进去了: {status_!r}"
+E   AssertionError: 错误维度的向量被写进去了: WriteStatus(success=True, error=None)
+E   assert True is False
+E    +  where True = WriteStatus(success=True, error=None).success
+----------------------------- Captured stdout call -----------------------------
+{"event": "LanceDB write succeeded for edge edge-p1a-0011-string_embed (record rec-p1a-0011-string_embed)", "logger": "app.api.v1.endpoints.edges", "level": "info", "timestamp": "2026-09-18T11:11:17.819237Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.edges:edges.py:542 LanceDB write succeeded for edge edge-p1a-0011-string_embed (record rec-p1a-0011-string_embed)
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_refuses_wrong_embedding_dim[embed-returns-8-dim]
+FAILED tests/unit/test_edge_rationale_fallback.py::test_lancedb_real_write_refuses_wrong_embedding_dim[embed-returns-1024-char-string]
+================= 2 failed, 26 deselected, 4 warnings in 0.93s =================
+rc=1
+## 还原后 shasum（必须与跑前逐字同）
+5115e72034e2b90b00c4652ae9c5fb516d2fdd3b030e274cb8f87c4276b12718  backend/app/api/v1/endpoints/edges.py
+## （上行为空 = 工作树已回到 HEAD）

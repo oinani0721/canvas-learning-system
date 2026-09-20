@@ -1,0 +1,63 @@
+# 最终 HEAD 地盘门(r2)  HEAD=74742100c62642e45e13780e77ea79c8e5716691  基线=9c4e7e82
+
+## 地盘门
+ backend/app/api/v1/endpoints/edges.py              | 299 +++++++++---
+ backend/app/clients/neo4j_client.py                |  51 ++-
+ .../integration/test_edges_dual_write_neo4j_t5b.py | 345 +++++++++++++-
+ backend/tests/unit/test_edge_rationale_fallback.py | 499 +++++++++++++++++++++
+ .../unit/test_mock_degradation_transparency.py     |  27 +-
+ backend/tests/unit/test_neo4j_client.py            |  51 ++-
+ backend/tests/unit/test_review_mode_support.py     |  27 +-
+ 7 files changed, 1214 insertions(+), 85 deletions(-)
+
+## 验伪锚（post-commit）
+带 exclude 时 _bmad-output 路径条数 = 0
+去 exclude 时 _bmad-output 路径条数 = 32
+
+## openapi.json 净差（应为空）
+(上行为空 = 净差 0)
+
+## 禁改面逐条（应全为 0）
+backend/lib/agentic_rag/clients/lancedb_client.py        0
+backend/app/api/v1/endpoints/index.py                    0
+backend/app/services/memory_service.py                   0
+backend/app/services/episode_worker.py                   0
+backend/app/models                                       0
+backend/app/main.py                                      0
+backend/app/security.py                                  0
+lefthook.yml                                             0
+backend/tests/conftest.py                                0
+backend/tests/unit/conftest.py                           0
+backend/tests/support/live_port_guard.py                 0
+canvas-vault                                             0
+
+## neo4j_client.py 逐 hunk 头
+@@ -27,6 +27,7 @@ from typing import Any, Dict, List, LiteralString, Optional, cast
+@@ -368,6 +369,15 @@ class Neo4jClient:
+@@ -397,24 +407,39 @@ class Neo4jClient:
+
+## 段外函数 sha256（自带验伪锚）
+health_check               fec253443ab95536  fec253443ab95536  SAME
+_fallback_to_json          e919a5d6f519c97c  e919a5d6f519c97c  SAME
+run_query                  8596a8fcdb019109  8596a8fcdb019109  SAME
+_run_query_neo4j           56ab4851f320b943  56ab4851f320b943  SAME
+_close_driver              d23eda3cbf0b699b  d23eda3cbf0b699b  SAME
+_initialize_json_fallback  31f8b055ee8b1bd8  31f8b055ee8b1bd8  SAME
+[验伪锚] 本卡改过的两个函数必须显示 CHANGED（否则说明这组哈希判据根本没在看真文件）:
+initialize                 e1b8dc606a0312ed  1411a282a51eb66b  CHANGED (预期)
+_initialize_neo4j_driver   f41aff5539f13d9c  069374b515016532  CHANGED (预期)
+VERDICT: PASS
+fnhash rc=0
+
+## 两个 fixture 文件的改动面（地盘外追加项 #2 #3）
+--- backend/tests/unit/test_mock_degradation_transparency.py: 改动 hunk 头 ---
+@@ -53,10 +53,35 @@ def stub_neo4j_singleton_health_check():
+    改动函数（AST 口径，应只有 stub_neo4j_singleton_health_check）:
+      改动的顶层/类内函数: ['stub_neo4j_singleton_health_check']
+      函数集合是否相同(无增删): True
+--- backend/tests/unit/test_review_mode_support.py: 改动 hunk 头 ---
+@@ -43,10 +43,35 @@ def stub_neo4j_singleton_health_check():
+    改动函数（AST 口径，应只有 stub_neo4j_singleton_health_check）:
+      改动的顶层/类内函数: ['stub_neo4j_singleton_health_check']
+      函数集合是否相同(无增删): True
+rc=0

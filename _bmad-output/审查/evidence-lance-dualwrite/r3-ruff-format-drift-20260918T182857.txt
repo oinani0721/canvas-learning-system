@@ -1,0 +1,42 @@
+# ruff format 漂移归因（7 文件, 协议 §2.3 / D-40）  HEAD=74742100c62642e45e13780e77ea79c8e5716691
+## A. 主干既有集（9c4e7e82 版）
+Would reformat: backend/app/clients/neo4j_client.py
+Would reformat: backend/tests/unit/test_edge_rationale_fallback.py
+Would reformat: backend/tests/unit/test_mock_degradation_transparency.py
+Would reformat: backend/tests/unit/test_neo4j_client.py
+Would reformat: backend/tests/unit/test_review_mode_support.py
+5 files would be reformatted, 2 files already formatted
+rc=1
+
+## B. 本卡工作树
+Would reformat: backend/app/clients/neo4j_client.py
+Would reformat: backend/tests/unit/test_edge_rationale_fallback.py
+Would reformat: backend/tests/unit/test_mock_degradation_transparency.py
+Would reformat: backend/tests/unit/test_neo4j_client.py
+Would reformat: backend/tests/unit/test_review_mode_support.py
+5 files would be reformatted, 2 files already formatted
+rc=1
+
+## C. B \ A（本卡新增漂移，必须为空）
+(上行为空 = 本卡零新增漂移)
+
+## D. 行号层: 漂移 hunk 是否落在本卡改动区（集合层挡不住「在本来就脏的文件里又写脏几行」）
+--- backend/app/clients/neo4j_client.py ---
+  漂移 hunk 头: @@ -808,8 +808,7 @@ @@ -839,8 +838,7 @@ @@ -986,9 +984,7 @@ @@ -1139,9 +1135,7 @@ @@ -1212,9 +1206,7 @@ @@ -1251,9 +1243,7 @@ @@ -1323,9 +1313,7 @@ @@ -1370,9 +1358,7 @@ @@ -1647,15 +1633,11 @@ @@ -1711,9 +1693,7 @@ @@ -2059,14 +2039,10 @@ @@ -2137,9 +2113,7 @@ @@ -2370,9 +2344,7 @@ @@ -2401,9 +2373,7 @@ @@ -2441,14 +2411,10 @@ @@ -2468,9 +2434,7 @@ @@ -2516,9 +2480,7 @@ @@ -2538,9 +2500,7 @@ @@ -2567,14 +2527,10 @@ @@ -2591,9 +2547,7 @@ @@ -2624,18 +2578,12 @@ @@ -2681,9 +2629,7 @@ @@ -2739,9 +2685,7 @@ 
+  本卡改动 hunk 头: @@ -27,6 +27,7 @@ @@ -368,6 +369,15 @@ @@ -397,24 +407,39 @@ 
+--- backend/tests/unit/test_edge_rationale_fallback.py ---
+  漂移 hunk 头: @@ -239,9 +239,7 @@ 
+  本卡改动 hunk 头: @@ -9,8 +9,25 @@ @@ -341,3 +358,485 @@ 
+--- backend/tests/unit/test_neo4j_client.py ---
+  漂移 hunk 头: @@ -1201,8 +1201,7 @@ @@ -1218,14 +1217,19 @@ 
+  本卡改动 hunk 头: @@ -432,8 +432,23 @@ @@ -442,15 +457,43 @@ 
+--- backend/tests/unit/test_mock_degradation_transparency.py ---
+  漂移 hunk 头: @@ -166,9 +166,7 @@ @@ -193,9 +191,7 @@ @@ -203,9 +199,7 @@ @@ -218,9 +212,7 @@ @@ -234,14 +226,10 @@ @@ -249,9 +237,7 @@ @@ -260,9 +246,7 @@ @@ -270,9 +254,7 @@ @@ -281,13 +263,9 @@ @@ -305,9 +283,7 @@ @@ -321,13 +297,9 @@ @@ -337,9 +309,7 @@ @@ -350,9 +320,7 @@ @@ -380,9 +348,7 @@ @@ -450,9 +416,7 @@ @@ -471,9 +435,7 @@ @@ -486,16 +448,12 @@ @@ -549,13 +507,9 @@ @@ -583,13 +537,9 @@ @@ -616,9 +566,7 @@ @@ -631,9 +579,7 @@ @@ -654,9 +600,7 @@ @@ -681,9 +625,7 @@ 
+  本卡改动 hunk 头: @@ -53,10 +53,35 @@ 
+--- backend/tests/unit/test_review_mode_support.py ---
+  漂移 hunk 头: @@ -107,9 +107,7 @@ @@ -123,23 +121,17 @@ @@ -153,14 +145,10 @@ @@ -168,9 +156,7 @@ @@ -186,14 +172,10 @@ @@ -206,9 +188,7 @@ @@ -240,9 +220,7 @@ @@ -250,16 +228,10 @@ @@ -275,9 +247,7 @@ @@ -295,9 +265,7 @@ @@ -347,13 +315,9 @@ @@ -367,9 +331,7 @@ @@ -383,9 +345,7 @@ @@ -397,9 +357,7 @@ 
+  本卡改动 hunk 头: @@ -43,10 +43,35 @@ 
+
+判读: 逐文件对照上面两行 —— 漂移 hunk 的行号区间与本卡改动 hunk 的行号区间无交集。
+      t5b 与 edges.py 两个文件 format-clean（B 中不出现）。
+rc=0

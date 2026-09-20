@@ -58,8 +58,10 @@
 上根本没有这个属性 —— 打 edges 路径时 ``raising=True`` 会在 setup 阶段就抛
 ``AttributeError``, ``raising=False`` 则 stub 根本不生效、每次调用重新 import 真
 函数. 而 ``get_neo4j_client()`` 恒返 ``Neo4jClient``、**永不返 None**
-(``neo4j_client.py`` 里该函数体唯一一条 ``return _client_instance``, 注解非
-Optional ⇒ ``_write_neo4j_triplet`` 里那句 ``if neo4j is None`` 是死守卫), 且 ``backend/.env``
+(``neo4j_client.py`` 里该函数体唯一一条 ``return _client_instance``, 注解非 Optional
+⇒ ``_write_neo4j_triplet`` 里那句 ``if neo4j is None`` 在当前实现下拿不到 None。
+⚠️ 措辞边界(Codex r1/r3 LOW): **不写「死守卫」** —— 仅凭返回注解与 ``return None``
+计数不足以证明不可达, 且删掉它也不会崩, 见该门 docstring), 且 ``backend/.env``
 是 ``NEO4J_ENABLED=true`` + ``NEO4J_URI`` 端口 **7691**。
 在上述配置且默认 W4 豁免生效时, 若注入失效并继续执行, 真实客户端**可能**连接并写入
 7691; 连接、认证或写入本身也可能失败。``W4_GUARD_NO_EXEMPT=1`` 时上述默认豁免结论
@@ -70,25 +72,29 @@ Optional ⇒ ``_write_neo4j_triplet`` 里那句 ``if neo4j is None`` 是死守�
 * **不证明「任何 Neo4j 写失败都会记成 207」**。被刻意排除在外的那一族(门 1d 的五格)
   按当前**处置策略**保留 500, 那是有意的。⚠️ 异常类型本身不唯一确定根因(r7-L2):
   「保留 500」表达的是默认处置, 不是「出现这个类就一定是我方的错」。
-* **已知未覆盖的逃逸面**: ``neo4j._exceptions.BoltError`` 族与 packstream 解码层的
-  裸 ``ValueError`` / ``struct.error`` —— 握手完成后收到畸形 Bolt 帧时会逃出
-  ``edges._NEO4J_WRITE_FAILURES`` 而 500。驱动自己的连接池写的是
-  ``except (Neo4jError, DriverError, BoltError)``, 但 ``BoltError`` 在私有模块里,
-  本卡不引私有 API。已登记移交。
+* **已知未覆盖的逃逸面**: packstream 解码层的裸 ``ValueError`` / ``struct.error``
+  —— 握手完成后收到畸形 Bolt 帧时**仍**会逃出 ``edges._NEO4J_WRITE_FAILURES`` 而 500。
+  ⛔ 刻意不收: 它们与 pydantic 校验 / 我方 params 组装抛的同名异常不可分辨。
+  ✅ ``neo4j._exceptions.BoltError`` 族**已收编**(CARD-LANCE-DUALWRITE-NEVER-WRITES /
+  第十五批 P1-A): 生产侧守卫式导入并入元组 ⇒ 207; 门 1c 有它一格, 门 1c2 是恒跑的
+  漂移门(导不到时 ``pytest.fail`` 而非静默 skip)。
+  ⚠️ 边界(Codex r2): 那道门保证的是**测试能发现漂移**, 不等于**生产运行时会告警** ——
+  生产侧导入失败本身没有日志。
 * **写确认只证明「有没有拿到写入确认」, 既不证明「一定没落盘」也不证明「落的内容
   对不对」**(r7-L1): 返回空行表示未取得写入确认、提交结果未知, 不能据此断言没有落盘;
   门 1e 用 stub 造出「返回 1 行」即判成功, 真库门(2)才校验字段值。
 * **不证明整个 pytest 进程零网络**(见下方 W4 段)。
 
-⛔ **已知不实前提(不是本卡能修的面, 但本文件的措辞必须绕开它)**:
-``_write_lancedb`` 目前**不会真写 LanceDB**。``LanceDBClient.add_documents`` 是
-``async def``(``backend/lib/agentic_rag/clients/lancedb_client.py:3787`` 实测),
-而 ``_write_lancedb`` 用 ``await asyncio.to_thread(client.add_documents, ...)``
-调它 —— ``to_thread`` 在工作线程里只是**调用**它拿到一个协程对象就返回, 函数体一行
-都不执行、也不抛异常, 于是它恒返 ``WriteStatus(success=True)`` 而零写入
-(进程日志里会有 ``RuntimeWarning: coroutine ... was never awaited``)。
-⇒ 本文件与 ``edges.py`` 都**不得**写「LanceDB 侧已经写成功的那一半」这类话。
-``_write_lancedb`` 不在本卡可改面内(卡文 §三 禁碰), 该缺陷已登记移交。
+⛔ **原「已知不实前提」已闭合(CARD-LANCE-DUALWRITE-NEVER-WRITES / 第十五批 P1-A)**:
+本文件此前写着「``_write_lancedb`` 目前**不会真写 LanceDB**」—— 那曾是实情: ``add_documents``
+是 ``async def``, 而它被交给 ``asyncio`` 的 ``to_thread`` 去跑, 工作线程只拿到一个协程对象
+就返回, 函数体一行不执行也不抛, 于是恒返 ``WriteStatus(success=True)`` 而零写入。
+✅ 该缺陷已修: 写路径改为 工厂 → ``connect_lightweight`` → ``await embed`` →
+``await add_documents``, 并按返回值 + **写前/写后行数**双重确认; 真写门在
+``backend/tests/unit/test_edge_rationale_fallback.py`` 的「真写面」段(真 LanceDB + tmp_path,
+按表名 + 行数 + ``doc_id`` + 向量维度 + ``metadata_json`` 断言)。
+⇒ 本文件与 ``edges.py`` 现在**可以**说「LanceDB 侧那一半确实落了盘」—— 但仅限于「该次调用
+净增一行」这个意义, 不含断电持久性与跨进程可见性。
 
 ⛔ 为什么「改前 500」不能当注入证据 (恒真判据):
 改前无论 stub 是否注入都得 500 —— 注入则 stub 抛 ``AttributeError``, 未注入则
@@ -125,6 +131,8 @@ from fastapi.testclient import TestClient
 from neo4j.exceptions import (
     AuthError,
     ClientError,
+    ConfigurationError,
+    ConnectionAcquisitionTimeoutError,
     ConnectionPoolError,
     DatabaseError,
     ServiceUnavailable,
@@ -132,6 +140,13 @@ from neo4j.exceptions import (
     TransientError,
 )
 from tenacity import RetryError
+
+#: ``neo4j._exceptions.BoltError`` —— **私有模块**。生产侧 (edges.py) 同样守卫式导入,
+#: 本表跟着它走: 导不到就让 1c 的那一格 skip 并如实登记, 而不是让整个文件红。
+try:
+    from neo4j._exceptions import BoltError as _BOLT_ERROR
+except ImportError:  # pragma: no cover — 驱动版本漂移时才走到
+    _BOLT_ERROR = None
 
 from app.graphiti.group_id_compat import to_physical_group_id
 from app.models.edge_rationale import EdgeRationaleCreate, WriteStatus
@@ -273,13 +288,37 @@ _WIDENED_TYPES: Dict[str, Any] = {
     "TransientError": TransientError,
     "DatabaseError": DatabaseError,
     "RetryError": RetryError,
+    # CARD-LANCE-DUALWRITE-NEVER-WRITES (第十五批 P1-A): 握手后收到畸形 Bolt 帧 =
+    # 对端协议层故障, 与 ServiceUnavailable 同族 → 207。值可能是 None(见上方导入)。
+    "BoltError": _BOLT_ERROR,
 }
+
+#: 构造签名不是 ``Exception(message)`` 的类型 —— 逐个给出实参。
+#: ``BoltError.__init__(self, message, address)``(``neo4j/_exceptions.py``, 6.1.0 实测):
+#: 少给一个位置实参会 ``TypeError``, 而 TypeError 不在生产元组里 ⇒ 那一格会以
+#: 「500」红掉, 红的原因却是本文件自己构造错了, 不是生产漂移。
+_EXC_EXTRA_ARGS: Dict[str, Tuple[Any, ...]] = {
+    "BoltError": (("127.0.0.1", ALLOWED_TEST_PORT),),
+}
+
+
+def _make_exc(type_name: str, exc_cls: Any, message: str) -> BaseException:
+    """按类型的真实构造签名造异常实例(见 ``_EXC_EXTRA_ARGS``)。"""
+    return exc_cls(message, *_EXC_EXTRA_ARGS.get(type_name, ()))
+
 
 #: 被**刻意排除**的类型 —— 每一类一道反向门(1d), 必须仍然 500。
 _EXCLUDED_TYPES: Dict[str, Any] = {
     "ClientError": ClientError,  # 我们发的请求不对(ParameterMissing / CypherSyntax…)
     "AuthError": AuthError,  # 凭据没配对 = 部署坏了
     "ConnectionPoolError": ConnectionPoolError,  # 连接池耗尽(根因不唯一, 见门 docstring)
+    # CARD-LANCE-DUALWRITE-NEVER-WRITES (第十五批 P1-A): **显式**钉住子类, 不再只靠父类。
+    # 归属**待用户裁**: manifest.defaults 无此项 ⇒ 保守默认 = 维持 500, 零行为改动。
+    # 若裁定改 207, 只需把它加进生产元组一行, 本格随即变红提示同步。
+    "ConnectionAcquisitionTimeoutError": ConnectionAcquisitionTimeoutError,
+    # Codex r2 MEDIUM 整改: 端点侧原先只注入 AuthError, 于是「单独把 ConfigurationError
+    # 收进生产元组」这个变异不会让任何门变红。补上这一格, 两类部署缺陷各有端点级反向门。
+    "ConfigurationError": ConfigurationError,
     "TypeError": TypeError,  # 签名漂移
     "KeyError": KeyError,  # params 契约破裂
 }
@@ -514,7 +553,7 @@ def test_neo4j_attribute_error_degrades_to_207(monkeypatch: pytest.MonkeyPatch) 
 
 @pytest.mark.parametrize(
     "type_name",
-    ["ServiceUnavailable", "SessionExpired", "TransientError", "DatabaseError", "RetryError"],
+    ["ServiceUnavailable", "SessionExpired", "TransientError", "DatabaseError", "RetryError", "BoltError"],
 )
 def test_每个被收进元组的对端故障类型都降级成_207(monkeypatch: pytest.MonkeyPatch, type_name: str) -> None:
     """逐类钉住 ``edges._NEO4J_WRITE_FAILURES`` 里新收的那几类.
@@ -533,6 +572,10 @@ def test_每个被收进元组的对端故障类型都降级成_207(monkeypatch:
     import app.api.v1.endpoints.edges as edges_module
 
     exc_cls = _WIDENED_TYPES[type_name]
+    if exc_cls is None:
+        pytest.skip(
+            f"{type_name} 不可导入(驱动私有模块漂移) —— 本格未跑, 已登记; 生产侧同样守卫式导入, 行为是「收不进元组」"
+        )
     assert issubclass(exc_cls, edges_module._NEO4J_WRITE_FAILURES), (
         f"{type_name} 不会被 edges._NEO4J_WRITE_FAILURES 接住 —— 本门与生产元组已漂移"
     )
@@ -542,7 +585,7 @@ def test_每个被收进元组的对端故障类型都降级成_207(monkeypatch:
     # 下面「响应里含类型名」这条断言变成恒真 —— 生产就算把
     # `error=f"{type(e).__name__}: {e}"` 改回 `error=str(e)`, 这五格照样绿。
     # 判据的取名面不等于它的主张。现在改成断言**前缀**, 那个前缀只能由生产加上。
-    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: exc_cls(SENTINEL))
+    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: _make_exc(type_name, exc_cls, SENTINEL))
     resp = _post_with_stub(monkeypatch, stub)
 
     assert resp.status_code == 207, f"{type_name} 应被记成对端写失败 ⇒ 207(LanceDB 那一半保住), 实得 {resp.status_code}"
@@ -558,13 +601,59 @@ def test_每个被收进元组的对端故障类型都降级成_207(monkeypatch:
 
 
 # ---------------------------------------------------------------------------
+# 门 1c2 — BoltError 私有导入漂移必须**有信号**, 不得静默收窄 (零 DB, 恒跑)
+# ---------------------------------------------------------------------------
+
+
+def test_BoltError_私有导入漂移必须可见而不是静默收窄() -> None:
+    """生产对 ``neo4j._exceptions.BoltError`` 的收编状态必须与本进程的可导入性一致。
+
+    ⛔ 为什么需要这道门(Codex r1 MEDIUM 整改): 生产侧是守卫式导入, 导不到就**静默**把
+    捕获集合收窄回改前的样子; 而门 1c 的 BoltError 那一格在导不到时 ``pytest.skip``。
+    两边一起沉默 ⇒ 「版本漂移由门 1c 钉住」这句话不成立 —— 驱动升级把它挪走时,
+    Bolt 协议层故障会重新逃逸成 500 而**没有任何东西变红**。
+
+    本门**恒跑**: 两边状态不一致直接红(契约破裂); 都不可导入则 ``pytest.fail`` 给出
+    明确信号(而不是 skip), 因为那意味着 207/500 的处置面已经悄悄变了, 必须有人裁。
+    """
+    import importlib
+
+    from app.api.v1.endpoints import edges as edges_module
+
+    try:
+        mod = importlib.import_module("neo4j._exceptions")
+        importable = hasattr(mod, "BoltError")
+    except ImportError:
+        importable = False
+
+    collected = bool(edges_module._BOLT_PROTOCOL_FAILURES)
+    assert collected == importable, (
+        f"生产收编状态({collected}) 与本进程可导入性({importable}) 不一致 —— 守卫式导入与实际捕获集合已漂移"
+    )
+    if not importable:
+        pytest.fail(
+            "neo4j._exceptions.BoltError 不可导入 ⇒ 生产的对端 Bolt 协议层故障捕获已静默"
+            "收窄回改前(那一族重新逃逸成 500)。这是处置面变更, 需登记并由主 session 裁定, "
+            "不接受静默 skip"
+        )
+
+
+# ---------------------------------------------------------------------------
 # 门 1d — 被**刻意排除**的类型必须仍然 500 (零 DB, 承重的反向门)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     "type_name",
-    ["ClientError", "AuthError", "ConnectionPoolError", "TypeError", "KeyError"],
+    [
+        "ClientError",
+        "AuthError",
+        "ConfigurationError",
+        "ConnectionPoolError",
+        "ConnectionAcquisitionTimeoutError",
+        "TypeError",
+        "KeyError",
+    ],
 )
 def test_本进程与部署缺陷不得被伪装成对端写失败(monkeypatch: pytest.MonkeyPatch, type_name: str) -> None:
     """反向门: 这几类按当前处置策略**不降级**, 必须原样上抛成 500.
@@ -591,7 +680,7 @@ def test_本进程与部署缺陷不得被伪装成对端写失败(monkeypatch: 
         f"收进 207 会把它静默记成对端写失败, 见本门 docstring"
     )
 
-    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: exc_cls(f"{SENTINEL}: {type_name}"))
+    stub = _AttributeErrorNeo4jStub(exc_factory=lambda: _make_exc(type_name, exc_cls, f"{SENTINEL}: {type_name}"))
     resp = _post_with_stub(monkeypatch, stub)
 
     assert resp.status_code == 500, (
@@ -937,3 +1026,283 @@ async def test_run_query_writes_edge_rationale_to_7692(
                 await verifier.cleanup()
             finally:
                 await injected_client.cleanup()
+
+
+# ---------------------------------------------------------------------------
+# 门 G2 — 初始化 fail-closed (CARD-LANCE-DUALWRITE-NEVER-WRITES / 第十五批 P1-A)
+# ---------------------------------------------------------------------------
+#
+# 被锁的缺陷: ``Neo4jClient._initialize_neo4j_driver`` 用 ``health_check()`` 做连通性
+# 验证, 而 ``health_check`` 的 ``except Exception`` **全捕获返 False** ⇒ 凭据错误
+# (``AuthError``, 真实抛出点是 ``verify_connectivity``) 被压成 ``health_ok=False``,
+# 随即 ``_fallback_to_json()`` 返 True。于是**密码配错的部署**表现为:
+# ``initialize()`` 说成功 → ``run_query`` 落进 JSON 分发器 → 返 ``[]`` →
+# 端点按写确认判据记 207「部分成功」。坏部署被伪装成半成功, 5xx 率恒 0。
+#
+# ⚠️ 勘探更正(如实记): 裁定书写的吞点是 ``except AuthError`` 那一支。实测**那一支对真实
+# 凭据错误不可达** —— 真实 AuthError 由 ``verify_connectivity`` 抛, 先被 health_check
+# 的全捕获吃掉。可达该支的只有「``AsyncGraphDatabase.driver()`` 本身抛 AuthError」这种
+# 人工形态。真正的吞点是 health_check 的全捕获 + 其后的 fallback 调用。
+#
+# 修复口径: init 路径**不经** health_check, 自己 ``verify_connectivity()`` 并分类 ——
+# ``AuthError`` / ``ConfigurationError``(部署缺陷) ⇒ 关驱动 + re-raise;
+# ``ServiceUnavailable`` / ``SessionExpired`` 等(对端不可达) ⇒ **仍然** fallback。
+# ⛔ 对照格(下面的 ServiceUnavailable 那条)是承重的: 没有它, 「把 fallback 整个拆掉」
+# 同样能让前两条变绿。
+
+
+class _FakeAsyncDriver:
+    """假 AsyncDriver: ``verify_connectivity`` 抛指定异常, ``close`` 计数。零网络。"""
+
+    def __init__(self, exc_factory: Optional[Any] = None) -> None:
+        self._exc_factory = exc_factory
+        self.verify_calls = 0
+        self.close_calls = 0
+
+    async def verify_connectivity(self) -> None:
+        self.verify_calls += 1
+        if self._exc_factory is not None:
+            raise self._exc_factory()
+
+    async def close(self) -> None:
+        self.close_calls += 1
+
+
+class _FakeAsyncGraphDatabase:
+    """替换 ``app.clients.neo4j_client.AsyncGraphDatabase`` 的注入点(零网络)。
+
+    ``.driver(...)`` 记录每次构造并返回 ``_FakeAsyncDriver``。``created`` 非空 = 注入锚。
+    """
+
+    def __init__(self, exc_factory: Optional[Any] = None) -> None:
+        self._exc_factory = exc_factory
+        self.created: List[_FakeAsyncDriver] = []
+        self.uris: List[str] = []
+
+    def driver(self, uri: str, **kwargs: Any) -> _FakeAsyncDriver:
+        drv = _FakeAsyncDriver(self._exc_factory)
+        self.created.append(drv)
+        self.uris.append(uri)
+        return drv
+
+
+def _install_fake_driver(monkeypatch: pytest.MonkeyPatch, exc_factory: Optional[Any]) -> _FakeAsyncGraphDatabase:
+    """把假驱动装进源模块并**当场验证装上了** —— 装不上就没有第二道网络防线。"""
+    import app.clients.neo4j_client as neo4j_module
+
+    fake = _FakeAsyncGraphDatabase(exc_factory)
+    monkeypatch.setattr("app.clients.neo4j_client.AsyncGraphDatabase", fake)
+    if neo4j_module.AsyncGraphDatabase is not fake:
+        pytest.fail("注入锚失败: AsyncGraphDatabase 未被替换, 继续会建真连接, 已立即停跑")
+    return fake
+
+
+def _client_under_fake_driver(tmp_path: Any, name: str) -> Any:
+    """造一个**真** Neo4jClient(非 fallback 态), URI 走 7692 白名单, storage 落 tmp_path。"""
+    from app.clients.neo4j_client import Neo4jClient
+
+    assert _test_uri_port_is_allowed(NEO4J_TEST_URI), f"NEO4J_TEST_URI 非白名单: {NEO4J_TEST_URI!r}"
+    return Neo4jClient(
+        uri=NEO4J_TEST_URI,
+        user=NEO4J_TEST_USER,
+        password="p1a-deliberately-wrong",
+        storage_path=tmp_path / f"{name}.json",
+    )
+
+
+@pytest.mark.parametrize(
+    "type_name",
+    ["AuthError", "ConfigurationError"],
+)
+async def test_init_fail_closed_对部署缺陷必须上抛而不转_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any, type_name: str
+) -> None:
+    """G2①② 凭据/配置错误 ⇒ ``initialize()`` 抛, 且**不得**转 JSON fallback。
+
+    改前: 返 True + ``_use_json_fallback is True`` + storage 文件被建出来 = RED。
+    """
+    exc_cls = {"AuthError": AuthError, "ConfigurationError": ConfigurationError}[type_name]
+    fake = _install_fake_driver(monkeypatch, lambda: exc_cls(f"P1A-{type_name}"))
+    storage = tmp_path / f"init_{type_name}.json"
+    client = _client_under_fake_driver(tmp_path, f"init_{type_name}")
+
+    with pytest.raises(exc_cls):
+        await client.initialize()
+
+    # ── 注入锚(承重, 0→1): 走的是假驱动, 不是真连接 ──
+    assert fake.created, "注入锚失败: 假驱动一次都没被构造 —— 这一跑可能建了真连接"
+    assert fake.created[0].verify_calls == 1, (
+        f"verify_connectivity 调用次数 {fake.created[0].verify_calls} != 1 —— init 路径没有自己做连通性验证"
+    )
+
+    assert client._use_json_fallback is False, "部署缺陷被转成了 JSON fallback —— 坏部署会继续伪装成半成功 207"
+    assert client._driver is None, "驱动未关闭/未置空"
+    assert client._initialized is False, "初始化失败却标记成已初始化"
+    assert fake.created[0].close_calls >= 1, "抛之前没有关掉驱动 (连接泄漏)"
+    assert not storage.exists(), f"fallback 的 JSON storage 被建出来了({storage}) —— 说明仍走了 _fallback_to_json"
+
+
+@pytest.mark.parametrize(
+    "type_name",
+    ["ServiceUnavailable", "SessionExpired", "ConnectionAcquisitionTimeoutError"],
+)
+async def test_init_fail_closed_对照_对端不可达仍然保留_json_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any, type_name: str
+) -> None:
+    """G2③ **对照格(承重)**: 非部署缺陷的那几类必须仍然 fallback 并返 True。
+
+    ⛔ 没有这一条, 「把 fallback 整个拆掉」也能让上面两格变绿 —— 那不是收窄, 是删功能。
+    ⛔ 为什么不止 ``ServiceUnavailable`` 一格(Codex r2 MEDIUM 整改): 只测它时,
+    「把 ``SessionExpired`` 或其它 ``DriverError`` 也改成上抛」这个变异不会让任何门变红 ——
+    本卡声称「只收窄部署缺陷这一族」, 那就得逐类给出对照。
+    ``ConnectionAcquisitionTimeoutError`` 这一格同时钉住**阶段相关策略**: 初始化阶段仍
+    fallback, 查询阶段(门 1d)才按 500 —— 两者不是同一条判据。
+    """
+    exc_cls = {
+        "ServiceUnavailable": ServiceUnavailable,
+        "SessionExpired": SessionExpired,
+        "ConnectionAcquisitionTimeoutError": ConnectionAcquisitionTimeoutError,
+    }[type_name]
+    fake = _install_fake_driver(monkeypatch, lambda: exc_cls(f"P1A-UNREACHABLE-{type_name}"))
+    storage = tmp_path / f"init_unreachable_{type_name}.json"
+    client = _client_under_fake_driver(tmp_path, f"init_unreachable_{type_name}")
+
+    result = await client.initialize()
+
+    assert fake.created, "注入锚失败: 假驱动一次都没被构造"
+    assert result is True, f"{type_name} 应经 JSON fallback 返 True (fallback 的设计用途)"
+    assert client._use_json_fallback is True, (
+        f"{type_name} 没有落进 fallback —— 本卡把 fail-closed 的面扩大到了部署缺陷之外"
+    )
+    assert storage.exists(), f"fallback 态下 JSON storage 应被建出来: {storage}"
+
+
+async def test_init_fail_closed_端到端_凭据错误必须_500_而不是_207(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    """G2④ 端到端: 凭据配错的部署下 ``POST /record-rationale`` 必须 **500**, 不是 207。
+
+    改前: initialize() 吞 AuthError → fallback → ``_run_query_json_fallback`` 对
+    ``CREATE (er:EdgeRationale …)`` 落 else 分支返 ``[]`` → 写确认判据记失败 →
+    LanceDB 侧成功 ⇒ **207**「部分成功」= RED。
+
+    ⚠️ 为什么要发**两次**请求(措辞边界): Starlette 的 ServerErrorMiddleware 在
+    ``raise_server_exceptions=False`` 下只回纯文本 ``Internal Server Error``, 异常类型
+    **不进响应体** —— 所以「状态码是 500」与「这个 500 的来源是 AuthError」必须分两次证:
+    第一次拿状态码, 第二次(``raise_server_exceptions=True``)让异常原样冒出来看类型。
+    两次都走同一个 client 实例与同一个假驱动。
+    """
+    import app.api.v1.endpoints.edges as edges_module
+    import app.clients.neo4j_client as neo4j_module
+
+    fake = _install_fake_driver(monkeypatch, lambda: AuthError("P1A-E2E-AUTH"))
+    storage = tmp_path / "e2e_auth.json"
+    client = _client_under_fake_driver(tmp_path, "e2e_auth")
+
+    def _fake_get_neo4j_client(*args: Any, **kwargs: Any) -> Any:
+        return client
+
+    monkeypatch.setattr("app.clients.neo4j_client.get_neo4j_client", _fake_get_neo4j_client)
+    if neo4j_module.get_neo4j_client is not _fake_get_neo4j_client:
+        pytest.fail("注入锚失败: 源模块 get_neo4j_client 未被替换, 已立即停跑")
+
+    async def _fake_write_lancedb(rationale: EdgeRationaleCreate, record_id: str) -> WriteStatus:
+        return WriteStatus(success=True)
+
+    monkeypatch.setattr(edges_module, "_write_lancedb", _fake_write_lancedb)
+
+    app = _minimal_edges_app()
+    resp = TestClient(app, raise_server_exceptions=False).post("/edges/record-rationale", json=_valid_payload())
+
+    assert fake.created, "注入锚失败: 假驱动一次都没被构造 —— 这一跑可能建了真连接"
+    assert resp.status_code == 500, (
+        f"凭据配错的部署必须响亮地 500, 实得 {resp.status_code} —— "
+        "207 说明 initialize() 又把 AuthError 吞成了 JSON fallback, 坏部署被伪装成半成功"
+    )
+    assert client._use_json_fallback is False, "客户端仍转进了 fallback 态"
+    assert not storage.exists(), f"fallback 的 JSON storage 被建出来了: {storage}"
+
+    # ── 第二次: 证明那个 500 的来源确实是 AuthError ──
+    with pytest.raises(AuthError):
+        TestClient(app, raise_server_exceptions=True).post("/edges/record-rationale", json=_valid_payload())
+
+
+def test_neo4j_客户端为_None_时端点给出可分辨的错误文案(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G3 尾巴③: ``neo4j is None`` 守卫的防御语义(生产不可达, 仅打桩可达)。
+
+    ``get_neo4j_client`` 函数体唯一一条 ``return _client_instance`` 且注解非 Optional
+    ⇒ 生产路径拿不到 None。⚠️ **仅凭返回注解与 ``return None`` 计数不足以证明不可达**
+    (Codex r1/r2 LOW), 所以措辞是「防御性」而不是「死代码」。
+
+    ⛔ 守卫**保留**, 但理由要说准(Codex r1 LOW 整改, 原文「删 = 改行为面」过强):
+    删掉它**不会崩** —— ``None.run_query`` 抛的 ``AttributeError`` 正在生产元组里, 照样被
+    接住记成写失败 ⇒ **仍是 207**。真正变掉的是**错误文案的可分辨性**: 从可读的
+    「Neo4j client not available」变成 ``'NoneType' object has no attribute 'run_query'``,
+    运维据此分不清「客户端没造出来」与「客户端方法漂移」。
+    ⇒ 本门锁的就是那句精确文案(下面那条 ``== "Neo4j client not available"`` 断言)。
+    """
+    import app.api.v1.endpoints.edges as edges_module
+    import app.clients.neo4j_client as neo4j_module
+
+    def _none_get_client(*args: Any, **kwargs: Any) -> Any:
+        return None
+
+    monkeypatch.setattr("app.clients.neo4j_client.get_neo4j_client", _none_get_client)
+    if neo4j_module.get_neo4j_client is not _none_get_client:
+        pytest.fail("注入锚失败: 源模块 get_neo4j_client 未被替换, 已立即停跑")
+
+    async def _fake_write_lancedb(rationale: EdgeRationaleCreate, record_id: str) -> WriteStatus:
+        return WriteStatus(success=True)
+
+    monkeypatch.setattr(edges_module, "_write_lancedb", _fake_write_lancedb)
+
+    resp = TestClient(_minimal_edges_app(), raise_server_exceptions=False).post(
+        "/edges/record-rationale", json=_valid_payload()
+    )
+
+    assert resp.status_code == 207, f"None 客户端应记成写失败 ⇒ 207, 实得 {resp.status_code}"
+    body = resp.json()
+    assert body["graphiti_status"]["success"] is False
+    assert body["graphiti_status"]["error"] == "Neo4j client not available", (
+        f"守卫的错误文案漂移: {body['graphiti_status']['error']!r}"
+    )
+    assert body["lancedb_status"]["success"] is True
+
+
+@pytest.mark.real_neo4j
+async def test_init_fail_closed_真库_7692_错密码必须抛_AuthError(
+    tmp_path: Any,
+) -> None:
+    """G2⑤ 真库门: 对 **7692 测试容器** 用错密码 ``initialize()`` 必须抛 AuthError。
+
+    这道门比零 DB 的 G2① 强的地方: G2① 靠假驱动造出 AuthError 这个形态, 本门证明
+    **真驱动对着真服务端用错密码时确实抛这一类** —— 即 G2① 模拟的形态不是我编的。
+
+    ⛔ 端口白名单先于一切建连; 7692 不可达则 skip(如实登记, 交主 session 复跑)。
+    ⛔ 不碰 7691 / 7687 现网。
+    """
+    from app.clients.neo4j_client import Neo4jClient
+
+    if not _test_neo4j_reachable():
+        pytest.skip(_REAL_DB_SKIP_REASON)
+
+    storage = tmp_path / "real_auth.json"
+    client = Neo4jClient(
+        uri=NEO4J_TEST_URI,
+        user=NEO4J_TEST_USER,
+        password=NEO4J_TEST_PASSWORD + "-p1a-wrong",
+        database=NEO4J_TEST_DATABASE,
+        storage_path=storage,
+    )
+    assert _test_uri_port_is_allowed(client._uri), f"client uri 非 7692: {client._uri!r}"
+
+    try:
+        with pytest.raises(AuthError):
+            await client.initialize()
+        assert client._use_json_fallback is False, "真库错密码仍被转成了 JSON fallback"
+        assert client._driver is None, "驱动未关闭/未置空"
+        assert not storage.exists(), f"fallback storage 被建出来了: {storage}"
+    finally:
+        await client.cleanup()

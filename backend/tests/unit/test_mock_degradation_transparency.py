@@ -53,10 +53,35 @@ def stub_neo4j_singleton_health_check():
     上面的结论 —— 精确说法是**连接控制状态**相同, 不是整个实例状态相同。
 
     ⛔ 不放宽 W4 端口门、不把 7691 加白名单、不改生产码。
+
+    ⚠️ **接缝迁移 (CARD-LANCE-DUALWRITE-NEVER-WRITES / BATCH-2026-09-18-第十五批 P1-A)**:
+    上面这段描述的「socket 开在 ``health_check`` 里」只对**改前**的实现成立。该卡把
+    初始化路径的连通性验证从 ``self.health_check()`` 换成了直接
+    ``await self._driver.verify_connectivity()`` —— 因为 ``health_check`` 的
+    ``except Exception`` 是全捕获, 会把「凭据配错」压成和「对端连不上」一样的 False,
+    于是坏部署被静默降级成 JSON fallback。换掉之后, **只 patch ``health_check`` 不再
+    挡得住 socket**: 本 fixture 下的 W4 哨兵实测从 ``ATTEMPTS=0`` 变成 ``blocked=1``。
+
+    ✅ 现在叠加第二层: 把 ``AsyncGraphDatabase`` 整个换掉, 让 ``driver()`` 返回一个
+    ``verify_connectivity`` 抛 ``ServiceUnavailable`` 的假驱动 —— 「对端不可达」正是本
+    fixture 想模拟的语义, 生产对它的处置**仍然是** ``_fallback_to_json()`` + 返回 True,
+    所以上面那段「连接控制状态与今天完全一致」的结论原样成立, 只少了那一次 socket。
+    ⛔ 原 ``health_check`` 打桩**保留不删**: 它让本 fixture 对「初始化路径经不经
+    health_check」这个实现细节**不敏感** —— 两条路径都被挡住, 以后再改回去也不会漏。
     """
+    from neo4j.exceptions import ServiceUnavailable
+
     from app.clients.neo4j_client import Neo4jClient
 
-    with patch.object(Neo4jClient, "health_check", AsyncMock(return_value=False)) as stub:
+    with (
+        patch.object(Neo4jClient, "health_check", AsyncMock(return_value=False)) as stub,
+        patch("app.clients.neo4j_client.AsyncGraphDatabase") as stub_driver_factory,
+    ):
+        fake_driver = AsyncMock()
+        fake_driver.verify_connectivity = AsyncMock(
+            side_effect=ServiceUnavailable("stubbed: unit tests 不得对现网 Neo4j 开 socket")
+        )
+        stub_driver_factory.driver.return_value = fake_driver
         yield stub
 
 

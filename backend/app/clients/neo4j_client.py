@@ -27,6 +27,7 @@ from typing import Any, Dict, List, LiteralString, Optional, cast
 from neo4j import AsyncDriver, AsyncGraphDatabase
 from neo4j.exceptions import (
     AuthError,
+    ConfigurationError,
     Neo4jError,
     ServiceUnavailable,
     SessionExpired,
@@ -368,6 +369,15 @@ class Neo4jClient:
                 # Real Neo4j mode - create driver
                 return await self._initialize_neo4j_driver()
 
+        # ⛔ CARD-LANCE-DUALWRITE-NEVER-WRITES (第十五批 P1-A): **部署缺陷必须上抛**。
+        # 下面那个 `except Exception` 会把凭据/配置错误一并压成 `return False`, 而
+        # `run_query` 的 lazy 初始化(`if not self._initialized: await self.initialize()`)
+        # 不看返回值 —— 于是密码配错的部署表现为「查询返回空、端点记 207 半成功」,
+        # 5xx 率恒 0, 坏部署被伪装成正常。这一支让它穿透到调用方(→ HTTP 500)。
+        except (AuthError, ConfigurationError):
+            self._initialized = False
+            raise
+
         except Exception as e:
             logger.error(f"Neo4jClient initialization failed: {e}")
             self._initialized = False
@@ -397,24 +407,39 @@ class Neo4jClient:
                 max_connection_lifetime=self._max_connection_lifetime,
             )
 
-            # Verify connection with health check
-            health_ok = await self.health_check()
-            if health_ok:
-                self._initialized = True
-                logger.info(f"Neo4j driver initialized: {self._uri}, pool_size={self._max_connection_pool_size}")
-                return True
-            else:
-                logger.warning("Neo4j health check failed during initialization")
-                await self._fallback_to_json()
-                return True
+            # ⛔ CARD-LANCE-DUALWRITE-NEVER-WRITES (第十五批 P1-A): 这里**刻意不调**
+            # `health_check` —— 它的 `except Exception` 是**全捕获**(健康检查本身必须
+            # fail-closed 返 False, 那是对的), 于是凭据错误被压成 `health_ok=False`,
+            # 与「对端连不上」不可分辨, 两者一起落进 JSON fallback。真实 `AuthError`
+            # 正是 `verify_connectivity()` 抛的 ⇒ 初始化路径必须自己调它、自己分类。
+            # (`health_check` 本体零改动, 它服务于 /health 的周期性探测, 语义不变。)
+            await self._driver.verify_connectivity()
+            self._health_status = True
+            self._last_health_check = datetime.now()
+            self._initialized = True
+            logger.info(f"Neo4j driver initialized: {self._uri}, pool_size={self._max_connection_pool_size}")
+            return True
 
-        except AuthError as e:
-            logger.error(f"Neo4j authentication failed: {e}")
+        # ── 部署缺陷: 凭据没配对 / 驱动配置非法 ⇒ fail-closed, 不得转 fallback ──
+        # 转 fallback 的后果: 查询静默返回 `[]`, 端点记「写未确认」⇒ 207 半成功,
+        # 前端 Outbox 把 207 当「部分成功已保留」继续投递 ⇒ 数据永久丢失且无人察觉。
+        except (AuthError, ConfigurationError) as e:
+            logger.error(f"Neo4j 部署缺陷, 拒绝降级为 JSON fallback: type={type(e).__name__} detail={e}")
+            await self._close_driver()
+            self._driver = None
+            self._initialized = False
+            raise
+
+        # ── 对端不可达: fallback 的**设计用途**, 原样保留 ──
+        except (ServiceUnavailable, SessionExpired) as e:
+            logger.warning(f"Neo4j 对端不可达, 降级为 JSON fallback: type={type(e).__name__} detail={e}")
             await self._fallback_to_json()
             return True
 
         except Exception as e:
-            logger.error(f"Failed to create Neo4j driver: {e}")
+            # 其余(含其它 DriverError 子类)维持 fallback —— 不扩大 fail-closed 面。
+            # 日志带类型名: 没有它, 运维分不清「对端故障」与「我方未预期缺陷」。
+            logger.error(f"Failed to create Neo4j driver: type={type(e).__name__} detail={e}")
             await self._fallback_to_json()
             return True
 
