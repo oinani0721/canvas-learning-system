@@ -1,0 +1,26 @@
+# CARD-G3-8 补审 r4 — 第 0 分钟环境核 + 绑定核 (2026-09-19)
+ts=20260919T170228
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs
+branch=card/p4-fsrs
+anchor 858582d3 is-ancestor HEAD: rc=0 OK
+--- git status --porcelain ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-g38/zcode-r4-probe-20260919T170228.txt"
+--- (porcelain end; empty above = clean) ---
+zcode-app-cli 3.12.3-26
+zcode-runtime 0.16.5
+cfg-ok
+HEAD=858582d39885ef6da537acf3ed9cb8ea656daec2
+--- binding: diff --stat ce81e5fa HEAD (two card files) ---
+rc=0
+name-only count=0
+--- inputs ---
+PREV=49e42626 审SHA=ce81e5fa
+diff lines=3047 bytes=149660
+files:
+ce81e5fa fix(g38): 按 Codex r2 整改 10 条 — 组名歧义/还原集合取错字段 [BATCH-2026-09-18-第十五批 / CARD-G3-8]
+f9e8e3e8 fix(g38): 按 Codex r1 整改 11 条 — vault↔组绑定/写入口闸/半写还原 [BATCH-2026-09-18-第十五批 / CARD-G3-8]
+71d6ad27 feat(g38): next_review 对账迁移器 + 14 文件 census [BATCH-2026-09-18-第十五批 / CARD-G3-8]
+
+--- recheck（排除本探针文件自身的 ?? 行）---
+git status --porcelain | grep -v 'zcode-r4-probe' =>
+--- (empty above = 除本探针外工作树干净；开工前已独立核过为空) ---

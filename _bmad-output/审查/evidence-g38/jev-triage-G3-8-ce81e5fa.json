@@ -1,0 +1,50 @@
+{
+  "commit": "fix(g38): 按 Codex r2 整改 10 条 — 组名歧义/还原集合取错字段 [BATCH-2026-09-18-第十五批 / CARD-G3-8]",
+  "ref": "ce81e5fa",
+  "sha": "ce81e5fad432faa06403b7992c2a155ece5ef00e",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:28:39-0700",
+  "code_files": [
+    "backend/scripts/migrate_next_review_g38.py",
+    "backend/tests/unit/test_migrate_next_review_g38.py"
+  ],
+  "files": [
+    {
+      "file": "backend/scripts/migrate_next_review_g38.py",
+      "added": 160,
+      "removed": 25,
+      "runtime": 0.98,
+      "risk": "logic",
+      "risk_conf": 0.58,
+      "urgency": 3.32,
+      "urgency_conf": 0.73,
+      "review": 0.89,
+      "test": 0.57,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/unit/test_migrate_next_review_g38.py",
+      "added": 170,
+      "removed": 14,
+      "runtime": 0.11,
+      "risk": "test_or_docs",
+      "risk_conf": 0.94,
+      "urgency": 2.28,
+      "urgency_conf": 0.38,
+      "review": 0.73,
+      "test": 0.91,
+      "truncated": true,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 10053,
+    "output_tokens": 314
+  },
+  "latency_ms": {
+    "min": 280,
+    "median": 479,
+    "max": 479
+  }
+}

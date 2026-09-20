@@ -1,0 +1,24 @@
+# CARD-G3-8 补审 r4 — ZCode/GLM-5.3 判定与自证（协议 §2.4.2）· ts=20260919T171624
+archive=_bmad-output/审查/zcode-review-CARD-G3-8-r4.md
+prompt=_bmad-output/审查/prompts/zcode-review-prompt-CARD-G3-8-r4.md
+model=glm-5.3（provider_config.defaultModelSelection）
+tool=zcode-app-cli 3.12.3-26 / runtime 0.16.5
+sessionId=sess_e7008619-8208-46ca-bbe1-e28f3409c716
+traceId=97d0c643-3549-431d-8322-f8df7861e877
+turnId=turn_c6c65249-71da-46a4-990c-e83c1e5a8ef4
+usage={"source":"provider","modelRequestCount":5,"inputTokens":545212,"outputTokens":44783,"totalTokens":589995,"cacheReadTokens":418624,"cacheWriteTokens":0,"reasoningTokens":0,"webFetchRequests":0,"webSearchRequests":0}
+eventCount=43178
+--- 判定 ---
+## 总判定
+**BLOCKER 0 / HIGH 0 / MEDIUM 0 / LOW 7**。round-4 目标轮（绑最终 HEAD、BLOCKER/HIGH = 0）**达成**。全部 7 条 LOW 均不构成数据破坏路径：3 条是文案/文档级偏差，4 条是前置条件极端或影响面有界的边界缺口。A1–A6 全部独立验证成立，Q0 未找到任何能把 A vault 的 `fsrs_due` 写到 B vault 边上的路径。
+LOW-条目数(grep ^**LOW-) = 7
+BLOCKER-条目数 = 0
+HIGH-条目数 = 0
+MEDIUM-条目数 = 0
+--- 绑定 ---
+git diff --stat ce81e5fa HEAD -- <两个卡文件> = 空（zcode-r4-probe-20260919T170228.txt 实测；name-only=0）
+--- 四词审计（协议 §2）---
+送审稿撰写面（p1/p2）：0 处；内嵌逐字节代码原文：3 处（迁移器 docstring 解释闸设计，非送审方措辞）
+prompt 全文命中数=3（全部位于内嵌 diff 的代码原文行）
+--- LOW 一览 ---
+LOW-1 LOW-2 LOW-3 LOW-4 LOW-5 LOW-6 LOW-7 
