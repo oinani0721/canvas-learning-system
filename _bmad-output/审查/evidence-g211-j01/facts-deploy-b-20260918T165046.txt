@@ -1,0 +1,53 @@
+### §〇 事实核对 B ts=20260918T165046
+=== deploy :1068,1069 install 调用 ===
+    local cmd
+    cmd="$(printf '%q %q --subject %q --vaults-root %q --source %q --env-file %q --harness-tree %q --backend-url %q' \
+        "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" "$SUBJECT" "$VAULT_PARENT" \
+        "$HARNESS/canvas-vault" "$ENV_FILE" "$HARNESS" "http://127.0.0.1:$PORT")"
+    if [ "$APPLY" != 1 ]; then
+=== deploy :1098 CLS_REPO ===
+    CLS_REPO="$HARNESS" "$HARNESS/scripts/install-vault.sh" "$VAULT_NAME" \
+=== deploy :3019,3020 compose config ===
+    docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
+        -p "cls-$VAULT_NAME" --project-directory "$HARNESS" config 2> /dev/null \
+=== deploy :3068,3069 SKIP ===
+        return 1
+    fi
+    if [ "$CLS_DEPLOY_ALLOW_DOCKER_UP" != 1 ]; then
+        STEP_MSG="config 断言过（container_name/端口各 1）; 未设 CLS_DEPLOY_ALLOW_DOCKER_UP=1 ⇒ 不执行 up -d（缺省即不做, 需用户当次授权）"
+        return 2
+=== deploy :3127 up -d ===
+    local up_rc=0
+    docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
+        -p "cls-$VAULT_NAME" --project-directory "$HARNESS" up -d backend \
+        >&9 2>&1 || up_rc=$?
+    act_stage "stage=up-instance project=cls-$VAULT_NAME rc=${up_rc}"
+=== deploy :3133,3136 rollback-down ===
+        local down_rc=0
+        docker compose -f "$HARNESS/docker-compose.yml" --env-file "$ENV_FILE" \
+            -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >&9 2>&1 || down_rc=$?
+        # ⛔ `-p "cls-$VAULT_NAME"` 是「只拆本实例」的全部依据：去掉它 = 拆光
+        #    当前 project-directory 下的一切, 别的 vault 的实例会被误伤。
+        act_stage "stage=rollback-down project=cls-$VAULT_NAME rc=${down_rc} scope=only-this-project"
+        # ⛔ down 失败时不得仍声称「已回滚」（Codex r1 HIGH-3）
+=== deploy :3244 lance-first-index ===
+    lnow="$(date +%s)"
+    lelapsed=$((lnow - lstart))
+    act_stage "stage=lance-first-index rc=${lrc} elapsed_s=${lelapsed} progress=${lprog}"
+
+    # ── ③ Graphiti 回填 readiness：⛔ 禁假成功 ───────────────────────────────
+=== deploy :817 port blacklist ===
+    # 端口
+    case "$PORT" in
+        7691 | 7692 | 7478 | 11434)
+            STEP_MSG="--port $PORT 与既有服务端口冲突（7691/7692 Neo4j, 7478 Browser, 11434 Ollama）"
+            return 1
+            ;;
+    esac
+    if command -v lsof > /dev/null 2>&1; then
+        # lsof 的 rc：0 有命中 / 1 无命中 / **其它 = 出错**（Codex r2 HIGH-2：
+        # 原版把「出错」也当成「空闲」）。出错时不敢断言空闲, 直接拒。
+        local lrc=0
+        lsof -nP -iTCP:"$PORT" -sTCP:LISTEN > /dev/null 2>&1 || lrc=$?
+        case "$lrc" in
+            0) STEP_MSG="--port $PORT 已被占用（lsof LISTEN 命中）"; return 1 ;;

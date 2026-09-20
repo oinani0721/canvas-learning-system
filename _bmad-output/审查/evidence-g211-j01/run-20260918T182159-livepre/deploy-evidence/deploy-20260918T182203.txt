@@ -1,0 +1,26 @@
+# CARD-G2-7b deploy-vault.sh — 20260918T182203
+## 参数
+  mode=apply vault=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/vaults/j01tw20260918182203 vault_name=j01tw20260918182203
+  harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy port=8187 hosts=claude subject=j01tw20260918182203
+  activate=1 also_push=0 evidence_dir=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/ev env_dir=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/env
+  also_push_result=not-requested
+  CLS_MIN_SKILLS=9 CLS_DEPLOY_ALLOW_DOCKER_UP=0
+  CLS_DEPLOY_LANCE_READY_TIMEOUT=120
+## 六行状态
+  [1/6] preflight: OK 树完整 / 禁写面过 / 名不动点 / port 8187 空闲 / skills 9 / main.js 在位
+  [2/6] install: OK install-vault.sh rc 0, 输出 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/ev/install-20260918T182203.txt
+  [3/6] postprocess: OK key 重生=yes(0600) 三处同值; :8011→:8187 ×4 已验残留 0; 绑定三件在位; .env 白名单跳过: NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL
+  [4/6] verify: OK 校验器 rc 0（含 content-drift 轴, 基准=源镜像(同 :8187 口径), 回执已核）, 报告 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/ev/verify-20260918T182203.txt
+  [5/6] activate: SKIP config 断言过（container_name/端口各 1）; 未设 CLS_DEPLOY_ALLOW_DOCKER_UP=1 ⇒ 不执行 up -d（缺省即不做, 需用户当次授权）
+  [6/6] evidence: OK /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/ev/deploy-20260918T182203.txt
+## 激活分阶段 (G2-8)
+  (无 - 步 5 未进入真 activate)
+## 文件 sha256（密钥件只 sha, 不记内容）
+  019e75a7a5a50f886474a40a64689eb12b4dd7b5b9409dc2089acabf0d3e7ae1  .canvas-config.yaml
+  bfe29fc2c289a874569fcfc492b3293ee79c6cfccbef8673fb1bf9685a027d7e  .mcp.json
+  5bb790eefa33f2d2e240a6a7bb84a8c0f2f502b5509458ffe46b394b15354cbe  .claude/settings.json
+  b3239c407f235f5326da8240508167d44ef770e24cea34cf5f46e2b465842552  .claude/hooks/session-end-archive.py
+  284e5831fb63de37c2351843e2426520233d6ffd3b772c4af3b8c1ff45943744  .obsidian/plugins/canvas-learning-system/data.json
+  5d52caedff271dbb3873903124d519a76bfce806baeae10cf22d5d8d9e54047a  .obsidian/cls-internal-key.txt
+  3756308f765a537eb4bca1cbc447fed48f6874323acc2ea2f3d33750fab24d13  /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/env/.env.j01tw20260918182203
+rc=0

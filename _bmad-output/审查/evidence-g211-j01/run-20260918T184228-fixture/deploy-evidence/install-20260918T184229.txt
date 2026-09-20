@@ -1,0 +1,30 @@
+📦 部署 Canvas Learning System → /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-6w6UDh/vaults/j01tw20260918184229
+   模板源: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/canvas-vault
+   ⚠️ 模板缺 .claude/agents — 跳过
+   ⚠️ 模板缺 .claude/commands — 跳过
+   ⚠️ 模板缺 .obsidian/app.json — 跳过
+   ⚠️ 模板缺 .obsidian/appearance.json — 跳过
+   ⚠️ 模板缺 .obsidian/core-plugins.json — 跳过
+   ⚠️ 模板缺插件 dataview — 跳过
+   ⚠️ 模板缺插件 breadcrumbs — 跳过
+   ⚠️ 模板缺插件 templater-obsidian — 跳过
+   ✏️  生成 插件 data.json (backendUrl=http://127.0.0.1:8187; key 由 activate 步写入)
+   ✏️  生成 .claude/settings.local.json (只批准 canvas-learning-mcp)
+
+🔍 自检:
+   ✅ 骨架目录 (含 wiki 两件)
+   ✅ skills ≥8 个 (含 SKILL.md)
+   ✅ decay_beta + fsrs_bridge
+   ✅ hooks 配置 settings.json
+   ✅ MCP 注册件 .mcp.json
+   ✅ 核心插件与模板源字节一致
+   ✅ 插件启用清单+快捷键
+   ✅ 后端鉴权 key 未从源复制
+   ✅ Dashboard + CLAUDE.md
+   ✅ vault 配置 yaml
+
+═══ 结果: 10 项通过 / 0 项失败 ═══
+📋 后续步骤:
+   1. Obsidian → 打开 vault → /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-6w6UDh/vaults/j01tw20260918184229 (插件与快捷键已随 vault 就位)
+   2. 激活: scripts/install-vault.sh 加 --activate, 或手改 .env ACTIVE_VAULT=j01tw20260918184229 后 docker compose up -d backend
+   3. 首验: 在新 vault 建原白板 (Cmd+P 建/配置原白板) → 写内容 → /start-exam-board 应能出题

@@ -1,0 +1,29 @@
+### 现网只读核验 ts=20260918T222531 HEAD=a26fefa1e9db756220344009cc40c567fc3fd202
+
+最早存档: pre-mainjs-20260918T165007.txt
+锚文件（本卡最早落档）: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g211-j01/pre-mainjs-20260918T165007.txt  mtime=Sep 18 16:50:07 2026
+
+-- live vault 自本卡最早存档时刻起被写过的文件数（-newer 是「任何人写的」）--
+live_vault_newer_count=0   (期望 0)
+
+-- feature 主干树 .env 未被改（本卡从它拷过 main.js）--
+feature_env_sha=c84c859683b6b0bd1f8e6915e7d4afa17652f8001753063294aa4d40914c7712
+feature_env_mtime=Jul 13 13:57:55 2026   (早于本卡开跑 16:50 即未被本卡改)
+
+-- 脚本内 fsrs_bridge / decay_beta 引用 --
+refs=0   (期望 0)
+
+-- 7691/7687 逐行（剥注释）--
+     63:J01_FORBIDDEN_API_PORTS="7691 7692 7478 11434"
+     65:J01_FORBIDDEN_PUBLISHED_PORTS="7691 7692 7478 7687 11434"
+
+-- docker 现网容器（本卡全程未动）--
+     canvas-backend-worktree
+     canvas-learning-system-backend
+     canvas-learning-system-neo4j
+     canvas-learning-system-neo4j-test
+     neo4j-canvas-graphiti
+     neo4j-graphiti
+
+-- 遗留 throwaway 根 --
+leftover_j01_roots=3   (期望 0)

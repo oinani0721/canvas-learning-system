@@ -1,0 +1,46 @@
+# j01_e2e.sh — J01 新 vault bootstrap 黑盒 E2E harness [CARD-G2-11]
+# ts=20260918T213117 mode=fixture allow_up_flag=0 allow_up_env=0 port=8187 keep_root=0
+# head=a22ac2e214a2137f3dc3d88a933df17173e59a95
+# harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy
+# evidence_dir=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g211-j01/run-20260918T213117-fixture
+# rc 约定: 0=通过 1=失败(红) 2=跳过(不红, 必带 reason=)
+# sha256 78c9b7ef0767ad9a97dc7ba4b73a02e6c535839be4ca622686627d96362163a9  scripts/deploy-vault.sh
+# sha256 b05a3333cbfebc20f791722aff89a153176b0be823820a39f49b2f366010fcfb  scripts/install-vault.sh
+# sha256 f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+# sha256 2a25c1771eaacc034e21ce453947366ab0ec870766f82bd41c13045a977fdb67  docker-compose.yml
+# sha256 d69c20b2bdcab166bc584ed66fd65b3703518d9df2c6b34126ea87a465290b86  scripts/j01_e2e.sh
+# snapshot S0 -> snapshot-S0.txt sha=02db686b595c24ee6c282eb37debc0d96df759428fbd15bca5769af9dcf2b0ff
+# vault_name=j01tw202609182131187ni0k1 root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz
+# throwaway: ROOT=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz real=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/j01-3AlUsz tmpbase=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/ real=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T main_repo=/Users/Heishing/Desktop/canvas/canvas-learning-system
+# throwaway: ①②（在 TMPDIR 内 / basename j01-*）对自造 ROOT 恒真, 仅为兜底, 不计作独立判据
+# throwaway: 黑名单条数=6（这一条才是真正在挡事的判据）
+assert=throwaway-outside-protected rc=0
+# deploy: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/deploy-vault.sh --vault /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz/vaults/j01tw202609182131187ni0k1 --harness /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy --port 8187 --env-dir /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz/env --evidence-dir /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz/ev --apply
+step=deploy rc=0
+assert=deploy-rc rc=0
+assert=verify-rc rc=0
+# scan: 参照 env 文件数=1 参照值 sha 数=46 baseline=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/canvas-vault
+# scan: env 形态文件数=1 旧值复用命中=0 禁带键名文件数=0 软链 env=0 读不动=0 deploy 白名单键跳过=4
+assert=no-old-secret rc=0
+# scan: abs 扫描范围=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz/vaults/j01tw202609182131187ni0k1（secret 扫描范围=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz）
+#   whitelisted-hit .canvas-config.yaml:11 key=harness_tree
+# scan: 继承自模板源（整文件 sha 相同, 非本次部署引入）: .claude/scripts/fsrs_bridge.py
+#   inherited-hit .claude/scripts/fsrs_bridge.py:54
+# scan: 枚举文件=34 真扫过=34 软链=0 软链命中=0 二进制跳过=0 白名单=1 继承=1 新引入=0 读不动=0
+assert=no-abs-path rc=0 reason=ok-inherited-from-template=1(registered-not-blocking)
+# secret: env_key_sha=ffbcfd0778779cf87a43336abc57d50f735cf512ddb387704c04fc14b8ac36aa keyfile_sha=ffbcfd0778779cf87a43336abc57d50f735cf512ddb387704c04fc14b8ac36aa same=yes mode_env=0o600 mode_keyfile=0o600
+assert=isolation-preflight rc=2 reason=no-compose-config-in-fixture
+assert=backend-ready rc=2 reason=fixture-mode
+assert=first-index rc=2 reason=fixture-mode
+assert=search-hit rc=2 reason=fixture-mode
+assert=table-diff rc=2 reason=fixture-mode
+assert=rollback-down rc=2 reason=no-up-attempted-in-fixture
+# evidence(stage): 部署证据文件数=3（枚举 rc=0）已查=3 拒绝复制=0
+# teardown: 已删 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-3AlUsz
+# snapshot S1 -> snapshot-S1.txt sha=02db686b595c24ee6c282eb37debc0d96df759428fbd15bca5769af9dcf2b0ff
+assert=state-diff rc=0
+# evidence: 部署证据文件数=3（枚举 rc=0）复查文件数=3 拒绝复制=0 主日志命中=0 needle 数=6
+assert=evidence-redacted rc=0
+# completeness: emitted=13 expected=13 missing=[] extra=[]
+# summary failed=0 skipped=6 completeness_rc=0
+rc=0

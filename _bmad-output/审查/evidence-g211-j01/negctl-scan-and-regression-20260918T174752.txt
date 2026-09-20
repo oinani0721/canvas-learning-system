@@ -1,0 +1,52 @@
+################ 负控① no-old-secret ################
+⚠️ 卡文写 --ref-env $(pwd)/.env —— 本车道树根**无** .env（只有 backend/.env）；
+   参照 env 实测用 backend/.env（卡文漂移，已登记）。值只在 tmp，日志只有 sha。
+[MATCH] rc=1   want=1    负控输入：INTERNAL_API_KEY 复用参照 env 的旧值 ⇒ 必红
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    对照输入：随机 32 字节新 key ⇒ 必绿
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    负控输入 b：值是新的但带禁带键名 ⇒ 必红
+        断言行: assert=no-old-secret rc=1 reason=forbidden-key-name-present-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    负控输入 c：不给任何参照 env ⇒ fail-closed（不是空洞通过）
+        断言行: assert=no-old-secret rc=1 reason=no-reference-env-value-found(fail-closed) assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    回归守卫：目录里一个文件都没有 ⇒ 两条判据都必须 fail-closed 而不是绿
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=1 reason=empty-scan-surface(no-file-examined) 
+
+################ 负控② no-abs-path ################
+[MATCH] rc=1   want=1    负控输入：settings.json 含 /Users/ ⇒ 必红且列 settings.json:1
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MISMATCH] rc=1   want=0    对照输入：同样含 /Users/ 但是白名单文件的设计键 ⇒ 必绿
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    负控输入 b：文件名只是像白名单（.bak）⇒ 不得放行
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=1   want=1    回归守卫：子目录里的同名文件 ⇒ 不得按 basename 放行
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=1   want=1    回归守卫：白名单文件里第三个键带本机路径 ⇒ 必红
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=1   want=1    回归守卫：软链 target 含 /Users/ ⇒ 必红（原先 -type f 漏掉链本身）
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MISMATCH] rc=1   want=0    对照输入：二进制（含 NUL）里的 /Users/ ⇒ 跳过并计数，不判红
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=0 
+
+################ 回归守卫：用法错必须报 64（不是 set -e 的 1）################
+[MATCH] rc=64  want=64   尾随 --mode 无值 ⇒ 64
+[MATCH] rc=64  want=64   尾随 --harness 无值 ⇒ 64
+[MATCH] rc=64  want=64   尾随 --port 无值 ⇒ 64
+[MATCH] rc=64  want=64   --harness 指向不存在的目录 ⇒ 64
+[MATCH] rc=64  want=64   --port 非数字 ⇒ 64
+[MATCH] rc=64  want=64   --port 07691（前导零, 数值等于黑名单项）⇒ 64
+[MATCH] rc=64  want=64   --port 7691 ⇒ 64
+[MATCH] rc=64  want=64   --allow-up 在 fixture 下 ⇒ 64
+
+################ 回归守卫：隔离预检输入面 ################
+[MATCH] rc=1   want=1    退化：零字节文件 ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-unparseable:not-a-mapping 
+[MATCH] rc=1   want=1    退化：services: {} ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-degenerate:has_services,has_neo4j,has_backend,neo4j_ports,neo4j_volumes,networks 
+[MATCH] rc=1   want=1    退化：有 services 但无 neo4j ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-degenerate:has_neo4j,neo4j_ports,neo4j_volumes,networks 
+[MATCH] rc=1   want=1    退化：YAML 是标量 ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-unparseable:not-a-mapping 
+
+================ 汇总 ================
+MATCH=22  MISMATCH=2

@@ -1,0 +1,137 @@
+name: cls-j01tw20260918182203
+services:
+  backend:
+    build:
+      context: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend
+      dockerfile: Dockerfile
+    container_name: cls-j01tw20260918182203-backend
+    depends_on:
+      neo4j:
+        condition: service_healthy
+        required: true
+    environment:
+      ACTIVE_VAULT: j01tw20260918182203
+      ALLOW_UNSAFE_DEV_AUTH_BYPASS: <redacted>
+      CANVAS_BASE_PATH: /vaults/j01tw20260918182203
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost,app://obsidian.md
+      DAILY_REVIEW_PICK: /vaults/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/daily_review_pick.py
+      DEBUG: "false"
+      EMBEDDER_PROVIDER: gemini
+      GEMINI_API_KEY: <redacted>
+      GOOGLE_API_KEY: <redacted>
+      GRAPHITI_LLM_BASE_URL: http://host.docker.internal:12341/v1
+      GRAPHITI_LLM_MODEL: ""
+      GRAPHITI_LLM_PROVIDER: gemini
+      GRAPHITI_RERANKER_BASE_URL: http://host.docker.internal:18012/v1
+      GRAPHITI_RERANKER_PROVIDER: gemini
+      INTERNAL_API_KEY: <redacted>
+      LANCEDB_DATA_PATH: /lancedb
+      LOCAL_EMBEDDER_BASE_URL: http://host.docker.internal:11434/v1
+      LOCAL_EMBEDDER_MODEL: bge-m3
+      NEO4J_PASSWORD: <redacted>
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OPENAI_API_KEY: <redacted>
+      OPENAI_EMBEDDER_MODEL: text-embedding-3-small
+      PYTHONPATH: /app:/app/src
+      SEMAPHORE_LIMIT: "3"
+      VAULTS_ROOT: /vaults
+    extra_hosts:
+      - host.docker.internal=host-gateway
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - curl -sf http://localhost:8001/api/v1/health || exit 1
+      timeout: 10s
+      interval: 30s
+      retries: 5
+      start_period: 30s
+    networks:
+      canvas-network: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 8001
+        published: "8187"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend
+        target: /app
+        bind: {}
+      - type: bind
+        source: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/src
+        target: /app/src
+        bind: {}
+      - type: volume
+        source: canvas-lancedb
+        target: /lancedb
+        volume: {}
+      - type: bind
+        source: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-SxWGes/vaults
+        target: /vaults
+        bind: {}
+      - type: volume
+        source: canvas-hf-cache
+        target: /root/.cache/huggingface
+        volume: {}
+  neo4j:
+    container_name: canvas-learning-system-neo4j
+    environment:
+      NEO4J_AUTH: <redacted>
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_allow__upgrade: "true"
+      NEO4J_dbms_memory_heap_initial__size: 512m
+      NEO4J_dbms_memory_heap_max__size: 1G
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - --spider
+        - http://localhost:7474
+      timeout: 10s
+      interval: 30s
+      retries: 5
+      start_period: 40s
+    image: neo4j:5.26-community
+    networks:
+      canvas-network: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 7474
+        published: "7478"
+        protocol: tcp
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 7687
+        published: "7691"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data
+        target: /data
+        bind: {}
+      - type: bind
+        source: /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs
+        target: /logs
+        bind: {}
+      - type: bind
+        source: /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins
+        target: /plugins
+        bind: {}
+networks:
+  canvas-network:
+    name: canvas-learning-network
+    driver: bridge
+volumes:
+  canvas-hf-cache:
+    name: canvas-hf-cache
+  canvas-lancedb:
+    name: canvas-lancedb-data
+    external: true

@@ -1,0 +1,63 @@
+### 结构判据（改后）ts=20260918T172655 HEAD=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680
+--- ① 存在 + 语法 ---
+exists_rc=0
+syntax_rc=0
+--- ② 断言全集 ---
+⚠️ 卡文 §一(f)② 的判据 `grep -oE 'assert=[a-z-]+' scripts/j01_e2e.sh` 在本实现上得 0：
+   卡文假设源码里直接写字面量 `assert=<id>`，而本实现是 `emit_assert <id> <rc>` 统一记录器
+   （源里那一处是 `log "assert=$id rc=$rc"`，$ 不在 [a-z-] 内 ⇒ 不命中）。如实照跑：
+card_literal_grep_count=0
+   替代判据（性质等价且更强，三面齐证）：
+  (a) ASSERT_ORDER 常量里的 id 集合：
+backend-ready
+deploy-rc
+evidence-redacted
+first-index
+isolation-preflight
+no-abs-path
+no-old-secret
+rollback-down
+search-hit
+state-diff
+table-diff
+throwaway-outside-protected
+verify-rc
+assert_order_count=13
+  (b) emit_assert 调用点覆盖的 id 集合：
+backend-ready
+deploy-rc
+evidence-redacted
+first-index
+isolation-preflight
+no-abs-path
+no-old-secret
+rollback-down
+search-hit
+state-diff
+table-diff
+throwaway-outside-protected
+verify-rc
+emit_callsite_count=13
+  (c) (a) 与 (b) 是否同集合：
+order_eq_callsites_rc=0
+--- ③ 零写者不被引用为写 ---
+also_push_or_live_vault_assign=1
+--- ④ 7691/7687 逐行（每行须为拒绝值/黑名单）---
+54:# --port 黑名单（与 deploy-vault.sh:817 同口径）。下面出现的每一个 7691/7692/
+55:# 7478/7687 都是**拒绝值**，没有一个是连接目标。
+56:J01_FORBIDDEN_API_PORTS="7691 7692 7478 11434"
+58:J01_FORBIDDEN_PUBLISHED_PORTS="7691 7692 7478 7687 11434"
+--- ⑤ down 带项目名 ---
+dash_p_cls_count=1
+--- ⑥ 不写死 live vault 路径 ---
+live_vault_literal=0
+--- 验伪锚 ---
+anchor_deploy_has_assert_eq=0   # 期望 0
+anchor_compose_has_abs_prefix=3   # 期望 >=1（证明 ⑥ 的模式本身能命中）
+--- ⑦ 常驻结构判据：$var 后紧跟多字节（bash 3.2 会吃进变量名）---
+unbraced_var_before_nonascii= 0
+anchor_same_regex_on_a_known_positive= 1
+--- ⑧ fsrs_bridge/decay_beta 零引用 ---
+fsrs_decay_refs=0
+--- ⑨ 唯一删除点 ---
+rm_rf_root_lines=0

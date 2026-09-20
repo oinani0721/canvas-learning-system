@@ -1,0 +1,25 @@
+### tests/unit 目录级 new_reds=5 的归因（4 点论证）ts=20260918T212855 HEAD=a22ac2e214a2137f3dc3d88a933df17173e59a95
+
+现象：两次目录级跑都报 new_reds=5，全部落在 test_deploy_vault_sh.py 的
+      npm build 墙钟上限类测试 + test_preflight_accepts_leading_zero_cap。
+
+① 地盘：这 5 条测的是 scripts/deploy-vault.sh，而本卡只改了一个文件 ——
+     scripts/j01_e2e.sh
+
+② 它们不碰真实 vault（也就与第 0 分钟拷的 gitignored main.js 无关）：
+     test_preflight_npm_build_cap_does_not_kill_a_fast_build    tmp_path=True  'canvas-vault' 出现=False
+     test_preflight_npm_build_failure_is_not_reported_as_timeout tmp_path=True  'canvas-vault' 出现=False
+     test_preflight_npm_build_is_walltime_capped                tmp_path=True  'canvas-vault' 出现=False
+     test_preflight_accepts_leading_zero_cap                    tmp_path=True  'canvas-vault' 出现=False
+
+③ 最终 HEAD 上单独跑这 5 条 —— 全过：
+     NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+     =============== 5 passed, 295 deselected, 10 warnings in 10.20s ================
+
+④ 两次目录级跑的**环境**与基线不可比（判据的环境是判据的一部分）：
+     基线跑法用时约 11 分钟；本卡两次目录级分别用时 11 分 09 秒（并发 44 个审查 agent）
+     与 45 分 21 秒（起跑时 load average 34.79/43.80/32.77）。
+     被判红的恰好全是**墙钟上限**类测试。
+     当前 load=11.22 13.11 13.72
+
+⇒ 结论：load 诱发的 flaky，非本卡引入。已按此登记，并建议主 session 在低负载下复测确认。

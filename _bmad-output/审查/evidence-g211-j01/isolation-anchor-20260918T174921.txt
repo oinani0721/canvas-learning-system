@@ -1,0 +1,39 @@
+### 隔离预检 验伪锚 + 敏感度矩阵  ts=20260918T174921
+### 判据用的是 isolation-check 子命令，它调的是 run --mode live 用的**同一个函数**
+### （若另写一份判定逻辑，验伪锚证明的就是那份副本，不是真正在跑的那份）
+
+=== 锚 A：喂一份『已隔离』的 compose config ⇒ 门必须变绿 ===
+# isolation-check: input-surface rc=0 ok（六项输入面均非空, 下面五条判据才有意义）
+# isolation-check: container-name rc=0 ok
+# isolation-check: published-ports rc=0 ok
+# isolation-check: neo4j-volumes rc=0 ok
+# isolation-check: backend-depends-on rc=0 ok
+# isolation-check: network-name rc=0 ok
+# isolation-check: 红条数=0/5
+assert=isolation-preflight rc=0
+rc=0
+anchor_A_rc=0   (期望 0)
+
+=== 锚 B：喂本机真 compose 渲染出来的配置 ⇒ 门必须变红 5/5 ===
+deploy_rc=0   (0 = 六步过, 步 5 因未授权 SKIP, 零容器)
+compose_config=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01anchorB-OKgLDc/ev/compose-config-20260918T174921.txt
+# isolation-check: input-surface rc=0 ok（六项输入面均非空, 下面五条判据才有意义）
+# isolation-check: container-name rc=1 neo4j-container-name-collides:canvas-learning-system-neo4j
+# isolation-check: published-ports rc=1 neo4j-published-port-collides:7478,neo4j-published-port-collides:7691
+# isolation-check: neo4j-volumes rc=1 neo4j-volume-is-host-bind-mount:/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data(in-main-repo),neo4j-volume-is-host-bind-mount:/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs(in-main-repo),neo4j-volume-is-host-bind-mount:/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins(in-main-repo)
+# isolation-check: backend-depends-on rc=1 backend-depends-on-neo4j
+# isolation-check: network-name rc=1 network-name-shared:canvas-learning-network
+# isolation-check: 红条数=5/5
+assert=isolation-preflight rc=1 reason=neo4j-container-name-collides:canvas-learning-system-neo4j
+rc=1
+anchor_B_rc=1   (期望 1)
+
+=== 敏感度矩阵：从『已隔离』配置出发，每次只把**一条**翻回现网取值 ===
+=== 期望：红条数恒为 1/5，且红的恰好是被翻的那一条（不多不少）===
+翻转=container-name       红条数=1/5  红的恰好是=[container-name]  rc=1  判定=MATCH
+翻转=published-ports      红条数=1/5  红的恰好是=[published-ports]  rc=1  判定=MATCH
+翻转=neo4j-volumes        红条数=1/5  红的恰好是=[neo4j-volumes]  rc=1  判定=MATCH
+翻转=backend-depends-on   红条数=1/5  红的恰好是=[backend-depends-on]  rc=1  判定=MATCH
+翻转=network-name         红条数=1/5  红的恰好是=[network-name]  rc=1  判定=MATCH
+
+（两个临时根已删）

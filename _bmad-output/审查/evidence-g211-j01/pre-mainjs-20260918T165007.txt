@@ -1,0 +1,8 @@
+# main.js 就位记录（gitignored 构建产物，卡文 §一(a)）ts=20260918T165007
+source_tree=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev
+cp_rc=0
+-- shasum 两侧 --
+9e2ea62e37f9a763d59ca0ab97b6f531b9607b0b6dc3b7a7108aaec62f23b16b  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
+9e2ea62e37f9a763d59ca0ab97b6f531b9607b0b6dc3b7a7108aaec62f23b16b  canvas-vault/.obsidian/plugins/canvas-learning-system/main.js
+-- git status 仍空（gitignored）--
+       1

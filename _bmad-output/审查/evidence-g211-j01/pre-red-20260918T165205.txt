@@ -1,0 +1,26 @@
+### 先红（卡文 §一(b)①②）ts=20260918T165205 HEAD=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680
+-- ① scripts/j01_e2e.sh 是否存在 --
+exists_rc=1
+-- ① evidence-g211-j01 在 HEAD 的 git 追踪面 --
+tracked_files=0
+(注：目录本身已由本 session 于 165007 建出用于 tee；建前 ls -d 报 No such file or directory rc=1，见 transcript)
+-- ② J01 断言在库内 0 命中 --
+matched_files=0
+-- 验伪锚：同 grep 喂一个已知为真的模式（assert= 在 deploy-vault.sh 内应 0，在 test_deploy_vault_sh.py 内找 def test_ 应 ≥1）--
+anchor_deploy_assert_eq=0
+anchor_grep_can_hit=1
+-- 工具事实 --
+GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)
+shellcheck=MISSING
+docker=/usr/local/bin/docker
+ruff_toml:
+# 终验审查红旗修复 (2026-07-24): backend 下 ruff 此前吃不到任何项目配置,
+# F821 未生效 → 3 处 NameError 静默存活 (memory_tools calibration/
+# learning_memory MCP 写入断 3 天 + memory_service Tier2 异常处理器自炸)。
+# 此文件定死「必错级」规则 (语法/未定义名/错误比较), 保证同类雷被 pre-commit
+# 拦截; 全量风格规则 (F401/I/C4, 存量 202 处) 待专项清理再开。
+line-length = 120
+target-version = "py39"
+
+[lint]
+select = ["E9", "F63", "F7", "F82"]

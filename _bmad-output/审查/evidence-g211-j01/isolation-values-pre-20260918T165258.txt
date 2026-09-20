@@ -1,0 +1,8 @@
+compose_config=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01pre-PJKutM/ev/compose-config-20260918T165238.txt
+neo4j.container_name= canvas-learning-system-neo4j
+neo4j.published= ['7478', '7691']
+neo4j.volume_sources= ['/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data', '/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs', '/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins']
+backend.depends_on= ['neo4j']
+networks= {'canvas-network': 'canvas-learning-network'}
+lancedb_volume= {'name': 'canvas-lancedb-data', 'external': True}
+py_rc=0

@@ -1,0 +1,39 @@
+### §〇 事实核对 C — compose 四项共享面 ts=20260918T165058
+=== :22 neo4j container_name ===
+    container_name: ${CLS_NEO4J_CONTAINER:-canvas-learning-system-neo4j}  # CARD-G2-7b: 按 vault 实例覆盖, 缺省 = 现网常量
+=== :35,36 neo4j ports ===
+      - "127.0.0.1:${NEO4J_HTTP_PORT:-7478}:7474"  # HTTP Browser
+      - "127.0.0.1:${NEO4J_BOLT_PORT:-7691}:7687"  # Bolt Protocol
+=== :39,45 neo4j volumes ===
+      # P0-C 迁移 (2026-07-12): 绝对路径指向主仓稳定目录 — 学习记忆图谱 (519MB,
+      # 唯一不可再生数据) 曾寄居 feature-deeptutor-canvas-mvp 旧 worktree 的
+      # bind-mount (相对路径 + 启动目录漂移所致), worktree 清理 = 记忆蒸发。
+      # 备份: backend/data/backups/neo4j-full-export-2026-07-12.cypher
+      - /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data:/data
+      - /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs:/logs
+      - /Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins:/plugins
+=== :153 NEO4J_URI ===
+      - NEO4J_URI=bolt://neo4j:7687
+=== :223,225 backend depends_on ===
+      - canvas-hf-cache:/root/.cache/huggingface
+
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      # ollama: removed — Mac uses native Ollama (host.docker.internal:11434)
+=== :281,284 networks ===
+networks:
+  canvas-network:
+    driver: bridge
+    name: canvas-learning-network
+=== :291,293 lancedb volume ===
+
+volumes:
+  canvas-lancedb:
+    name: canvas-lancedb-data
+    external: true  # Story 2.2 Phase A: 跨 worktree project 复用同一 LanceDB 数据；多 vault 切换的部署根基
+  canvas-hf-cache:
+=== CLS_NEO4J_CONTAINER in deploy-vault.sh ===
+0
+=== NEO4J_BOLT_PORT in .env ===
+ugrep: warning: .env: No such file or directory

@@ -1,0 +1,68 @@
+# j01_e2e.sh — J01 新 vault bootstrap 黑盒 E2E harness [CARD-G2-11]
+# ts=20260918T175235 mode=live allow_up_flag=0 allow_up_env=0 port=8187 keep_root=0
+# head=104c3e2da70ce4cc1b964b605123fa76ccdc0f80
+# harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy
+# evidence_dir=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g211-j01/run-20260918T175235-livepre
+# rc 约定: 0=通过 1=失败(红) 2=跳过(不红, 必带 reason=)
+# sha256 78c9b7ef0767ad9a97dc7ba4b73a02e6c535839be4ca622686627d96362163a9  scripts/deploy-vault.sh
+# sha256 b05a3333cbfebc20f791722aff89a153176b0be823820a39f49b2f366010fcfb  scripts/install-vault.sh
+# sha256 f47606cf17b7319f3415ae3e9039b22945faffae054912c406862c895d27ff2d  scripts/verify_vault_install.py
+# sha256 2a25c1771eaacc034e21ce453947366ab0ec870766f82bd41c13045a977fdb67  docker-compose.yml
+# sha256 853fa41ab64c7e773b54e0e2f74e041be5a2b7390b22b0f4ca3833f14a233505  scripts/j01_e2e.sh
+# snapshot S0 -> snapshot-S0.txt sha=531d66d187884e58e61c51b999cb3e6a2b3214105cd722e6b085395b9dbb7f5b
+# docker: 跑前 compose 项目集合=[feature-obsidian-hybrid-dev]
+# vault_name=j01tw20260918175235 root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6
+# throwaway: ROOT=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6 real=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/j01-CJOPL6 tmpbase=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/ real=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T main_repo=/Users/Heishing/Desktop/canvas/canvas-learning-system
+# throwaway: ①②（在 TMPDIR 内 / basename j01-*）对自造 ROOT 恒真, 仅为兜底, 不计作独立判据
+# throwaway: 黑名单条数=6（这一条才是真正在挡事的判据）
+assert=throwaway-outside-protected rc=0
+# deploy: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/deploy-vault.sh --vault /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6/vaults/j01tw20260918175235 --harness /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy --port 8187 --env-dir /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6/env --evidence-dir /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6/ev --apply --activate
+step=deploy rc=0
+assert=deploy-rc rc=0
+assert=verify-rc rc=0
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/canvas-vault
+# scan: env 形态文件数=1 旧值复用命中=0 禁带键名文件数=0 读不动=0
+assert=no-old-secret rc=0
+# scan: abs 扫描范围=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6/vaults/j01tw20260918175235（secret 扫描范围=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6）
+#   whitelisted-hit .canvas-config.yaml:11 key=harness_tree
+# scan: 继承自模板源（整文件 sha 相同, 非本次部署引入）: .claude/scripts/fsrs_bridge.py
+#   inherited-hit .claude/scripts/fsrs_bridge.py:54
+# scan: 文本文件=34 软链=0 软链命中=0 二进制跳过=0 白名单=1 继承=1 新引入=0 读不动=0
+assert=no-abs-path rc=0 reason=ok-inherited-from-template=1(registered-not-blocking)
+# secret: env_key_sha=99f9335d9f6d27b4456781847330f61699e9d407be7741e1cf4638dac375fc4c keyfile_sha=99f9335d9f6d27b4456781847330f61699e9d407be7741e1cf4638dac375fc4c same=yes mode_env=0o600 mode_keyfile=0o600
+# isolation: surface.has_services=1
+# isolation: surface.has_neo4j=1
+# isolation: surface.has_backend=1
+# isolation: surface.neo4j_ports=2
+# isolation: surface.neo4j_volumes=3
+# isolation: surface.networks=1
+# isolation: neo4j.container_name=canvas-learning-system-neo4j
+# isolation: neo4j.published=7478,7691
+# isolation: neo4j.volume_sources=/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data,/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs,/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins
+# isolation: backend.depends_on=neo4j
+# isolation: networks=canvas-network:canvas-learning-network
+# isolation: lancedb_volume.name=canvas-lancedb-data
+# isolation: lancedb_volume.external=True
+# isolation-check: input-surface rc=0 ok（六项输入面均非空, 下面五条判据才有意义）
+# isolation-check: container-name rc=1 neo4j-container-name-collides:canvas-learning-system-neo4j
+# isolation-check: published-ports rc=1 neo4j-published-port-collides:7478,neo4j-published-port-collides:7691
+# isolation-check: neo4j-volumes rc=1 neo4j-volume-is-host-bind-mount:/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/data(in-main-repo),neo4j-volume-is-host-bind-mount:/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/logs(in-main-repo),neo4j-volume-is-host-bind-mount:/Users/Heishing/Desktop/canvas/canvas-learning-system/docker/neo4j/plugins(in-main-repo)
+# isolation-check: backend-depends-on rc=1 backend-depends-on-neo4j
+# isolation-check: network-name rc=1 network-name-shared:canvas-learning-network
+# isolation: [登记不阻断] lancedb_volume name=canvas-lancedb-data external=True —— external 共享卷是产品口径待裁项
+# isolation-check: 红条数=5/5
+assert=isolation-preflight rc=1 reason=neo4j-container-name-collides:canvas-learning-system-neo4j
+assert=backend-ready rc=2 reason=isolation-preflight-red
+assert=first-index rc=2 reason=isolation-preflight-red
+assert=search-hit rc=2 reason=isolation-preflight-red
+assert=table-diff rc=2 reason=isolation-preflight-red
+# rollback: compose_projects_before=[feature-obsidian-hybrid-dev] after=[feature-obsidian-hybrid-dev] our_container_count=0
+assert=rollback-down rc=0 reason=no-up-happened(project-set-identical+no-container)
+# evidence: 复查文件数=4 拒绝复制=0
+assert=evidence-redacted rc=0
+# teardown: 已删 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-CJOPL6
+# snapshot S1 -> snapshot-S1.txt sha=531d66d187884e58e61c51b999cb3e6a2b3214105cd722e6b085395b9dbb7f5b
+assert=state-diff rc=0
+# completeness: emitted=13 expected=13 missing=[] extra=[]
+# summary failed=1 skipped=4 completeness_rc=0
+rc=1

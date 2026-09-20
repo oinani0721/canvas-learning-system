@@ -1,0 +1,37 @@
+### §〇 事实核对 ts=20260918T165032 HEAD=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680
+=== deploy-vault.sh 行数 ===
+    3562 scripts/deploy-vault.sh
+=== :5,15 六步 ===
+# ═══ 六步 ═══
+#   [1/6] preflight   — harness 树完整性 / 禁写面 / vault 名不动点 / 端口 / skills / main.js
+#   [2/6] install     — 调 <harness>/scripts/install-vault.sh（不加 --activate）
+#   [3/6] postprocess — 密钥按实例重生（E-3）/ .env.<vault> / 端口模板化 / 在位判
+#   [4/6] verify      — 调 verify_vault_install.py，rc 必须 0
+#   [5/6] activate    — `docker compose config` 断言；`up -d` 需用户授权（G2-8 事务化：
+#                       起/重建**本 vault 的** cls-<vault> 实例 → 健康断言 → 失败只拆本实例；
+#                       每阶段一行 `stage=… rc=` 落进 compose-config-<ts>.txt 与 evidence）
+#   [6/6] evidence    — 落 deploy-<ts>.txt（六行状态 + 参数 + 激活分阶段 + 各文件 sha；
+#                       密钥只 sha）；`--also-push` 的清单追加也在这一步执行并记账。
+#                       dry-run 下 SKIP 不落盘 —— 「不传 --apply = 零写」优先于留证据。
+=== :17,22 rc 表 ===
+# ═══ rc 表 ═══
+#   0  成功
+#   64 用法错（缺必填 / 未知参数 / --hosts 含未实现宿主 / --activate 缺 --apply / --also-push 越界）
+#   71 步 1 preflight 失败      74 步 4 verify 失败
+#   72 步 2 install 失败        75 步 5 activate 失败
+#   73 步 3 postprocess 失败    76 步 6 evidence 失败
+=== :43,44 apply/activate ===
+#   --apply               不传 = dry-run（只打印每步将做什么，零写）。
+#   --activate            仅与 --apply 同用（否则 rc 64）。真 `up -d` 需用户授权，见步 5。
+=== :125 ALLOW_DOCKER_UP ===
+CLS_DEPLOY_ALLOW_DOCKER_UP="${CLS_DEPLOY_ALLOW_DOCKER_UP:-0}"
+=== :406 activate ===
+        --activate) ACTIVATE=1; shift ;;
+=== :516 VAULT_NAME ===
+VAULT_NAME="${VAULT##*/}"
+=== :533 evidence-dir default ===
+[ -n "$EVIDENCE_DIR" ] || EVIDENCE_DIR="$HARNESS/_bmad-output/审查/evidence-deploy-$VAULT_NAME"
+=== :538 env-dir ===
+ENV_FILE="$ENV_DIR/.env.$VAULT_NAME"
+=== :972 whitelist ===
+ENV_KEYS_WHITELIST="NEO4J_HTTP_PORT NEO4J_BOLT_PORT OLLAMA_HOST VAULT_MOUNT_MODE LOCAL_EMBEDDER_BASE_URL"

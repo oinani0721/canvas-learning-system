@@ -1,0 +1,16 @@
+### throwaway / 临时产物残留清理（复验）ts=20260918T222802
+
+⚠️ 本文件的前一版写了「已手工清除」，但当时那一跑按形态判据（要求同时有
+   env/ev/vaults 三个子目录）没有匹配到任何目录，实际**一个都没删**。
+   那句话当时不成立，此处改正并附真正执行后的复验。
+
+实际残留分类（全部在 TMPDIR 下，均为本卡工作产物，无一在仓内）：
+  · j01-DEIk1c / j01-Ud1N0O / j01-W51gkc  —— **空目录**（内容已清、壳未删）
+  · j01case-* / j01t-*                    —— 内部审查 agent 的探针夹具
+  · j01dep-* / j01refsha-*                —— harness 辅助 mktemp 文件
+  · j01probe-*                            —— 空目录
+
+清理后复验：
+  leftover_j01_artifacts=0   (期望 0)
+  live_vault_newer_count=0   (期望 0)
+  代码面 porcelain 行数=0   (期望 0)

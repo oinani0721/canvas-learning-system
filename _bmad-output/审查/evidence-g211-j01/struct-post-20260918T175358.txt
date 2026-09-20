@@ -1,0 +1,108 @@
+### 结构判据（改后）ts=20260918T175406 HEAD=104c3e2da70ce4cc1b964b605123fa76ccdc0f80
+file=scripts/j01_e2e.sh  行数=1400  剥注释后非空行=1055
+
+--- ① 存在 + 语法 ---
+exists_rc=0
+syntax_rc=0
+
+--- ② 断言全集 ---
+⚠️ 卡文 §一(f)② 写的判据是 grep -oE 'assert=[a-z-]+' <脚本>，它假设源码里直接出现字面量
+   assert=<id>。本实现用统一记录器 emit_assert <id> <rc>，源里唯一一处是
+   log "assert=$id rc=$rc"（$ 不在 [a-z-] 内）⇒ 该 grep 必得 0。如实照跑：
+card_literal_grep_count=0   (卡文期望 13, 实测 0 —— 实现形态不同, 非缺陷)
+   替代判据（三面齐证, 且比源码 grep 更强）：
+  (a) ASSERT_ORDER 常量 id 集合 (n=13):
+      backend-ready
+      deploy-rc
+      evidence-redacted
+      first-index
+      isolation-preflight
+      no-abs-path
+      no-old-secret
+      rollback-down
+      search-hit
+      state-diff
+      table-diff
+      throwaway-outside-protected
+      verify-rc
+  (b) emit_assert 调用点 id 集合 (n=13):
+      backend-ready
+      deploy-rc
+      evidence-redacted
+      first-index
+      isolation-preflight
+      no-abs-path
+      no-old-secret
+      rollback-down
+      search-hit
+      state-diff
+      table-diff
+      throwaway-outside-protected
+      verify-rc
+  (c) (a) == (b) 同集合 rc=0   (0 = 同)
+  (d) 运行期自检见承重跑日志的 '# completeness: ... missing=[] extra=[]' 行
+  验伪锚 (b)：同一 grep 喂 scripts/deploy-vault.sh（它没有 emit_assert）=
+      0
+0
+
+--- ③ 零写者不被引用为写（--also-push / CLS_LIVE_VAULT 赋值）---
+raw_count_含注释=1
+  原始命中逐行（人核每一行都必须是注释/文档, 不是传参）：
+      581:#   ⑤ harness .env 家族的 sha（--also-push 会追加 DAILY_REVIEW_VAULTS；
+executable_count_剥注释=0   (期望 0)
+  验伪锚：同一判据喂 scripts/deploy-vault.sh 的剥注释体应 >=1（它真的传/赋这些）=
+      4
+
+--- ④ 7691/7687 逐行（每行须为拒绝值/黑名单, 无一是连接目标）---
+      60:# --port 黑名单（与 deploy-vault.sh:817 同口径）。下面出现的每一个 7691/7692/
+      61:# 7478/7687 都是**拒绝值**，没有一个是连接目标。比较前先做十进制归一，
+      62:# 否则 `--port 07691` 这种字符串不等、数值相等的输入会被放过去。
+      63:J01_FORBIDDEN_API_PORTS="7691 7692 7478 11434"
+      65:J01_FORBIDDEN_PUBLISHED_PORTS="7691 7692 7478 7687 11434"
+      179:# 十进制归一：`07691` 与 `7691` 字符串不等但是同一个端口。非纯数字回空串，
+      713:    # ② neo4j published 端口不得落在拒绝集合里（先十进制归一，`07691` 也要拦）
+      1115:    # --port：先证它是数字，再按**数值**比黑名单（`07691` 字符串不等但同口）
+executable_行数=2
+  剥注释后逐行：
+      63:J01_FORBIDDEN_API_PORTS="7691 7692 7478 11434"
+      65:J01_FORBIDDEN_PUBLISHED_PORTS="7691 7692 7478 7687 11434"
+
+--- ⑤ down 带项目名 -p "cls- ---
+dash_p_cls_count=1   (期望 >=1)
+      1089:        -p "cls-$VAULT_NAME" --project-directory "$HARNESS" down >> "$LOG" 2>&1 || dnrc=$?
+
+--- ⑥ 不写死 live vault 路径 ---
+live_vault_literal=0   (期望 0)
+  验伪锚：同一模式喂 docker-compose.yml 的前缀形态应 >=1 =
+      3
+
+--- ⑦ 常驻：$var 紧跟多字节（bash 3.2 会把多字节吃进变量名）---
+      unbraced_var_before_nonascii=0   (期望 0)
+      验伪锚 同一正则喂一个已知正例 'echo $foo（bar）' = 1   (期望 1)
+
+--- ⑧ fsrs_bridge / decay_beta 零引用（现网只读）---
+fsrs_decay_refs=0   (期望 0)
+
+--- ⑨ 唯一删除点 ---
+rm_rf_root_lines=1   (期望恰 1 —— 负控③ 靠它)
+      558:    rm -rf -- "$ROOT"
+含 rm -rf 的全部行（含注释）：
+      532:# 函数名调用它（trap 行里不出现 rm 字样），所以「含 rm -rf 的行」恰好 1 条，
+      558:    rm -rf -- "$ROOT"
+      559:    # ⛔ 报「已删」之前先看一眼（DD-13 名实一致）：`rm -rf` 可能因权限等原因
+
+--- ⑩ up 的调用点（Codex ⓪ 的直接读取面）---
+CLS_DEPLOY_ALLOW_DOCKER_UP 出现处：
+      99:# ⛔ 继承来的 CLS_DEPLOY_ALLOW_DOCKER_UP 一进门就**摘掉**，只留一个只读副本。
+      102:USER_ALLOW_UP_ENV="${CLS_DEPLOY_ALLOW_DOCKER_UP:-0}"
+      103:unset CLS_DEPLOY_ALLOW_DOCKER_UP || :
+      996:    # up 的**唯一**调用点：只有走到这里才带 CLS_DEPLOY_ALLOW_DOCKER_UP=1，
+      999:    CLS_DEPLOY_ALLOW_DOCKER_UP=1 "$HARNESS/scripts/deploy-vault.sh" \
+      1176:    # ⛔ 一律 `env -u CLS_DEPLOY_ALLOW_DOCKER_UP`：这一趟**绝不允许** up。
+      1184:    env -u CLS_DEPLOY_ALLOW_DOCKER_UP "$HARNESS/scripts/deploy-vault.sh" \
+      1261:        [ "$USER_ALLOW_UP_ENV" = 1 ] || why="${why}+CLS_DEPLOY_ALLOW_DOCKER_UP=1"
+export 该变量的次数=0   (期望 0)
+docker compose up 出现次数=1   (期望 0 —— up 只由 deploy-vault.sh 执行)
+deploy-vault.sh 调用点=
+      999:    CLS_DEPLOY_ALLOW_DOCKER_UP=1 "$HARNESS/scripts/deploy-vault.sh" \
+      1184:    env -u CLS_DEPLOY_ALLOW_DOCKER_UP "$HARNESS/scripts/deploy-vault.sh" \

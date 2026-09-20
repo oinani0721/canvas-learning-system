@@ -1,0 +1,4 @@
+# j01_e2e.sh — J01 新 vault bootstrap 黑盒 E2E harness [CARD-G2-11]
+# ts=20260918T173229 mode=fixture allow_up_flag=0 allow_up_env=0 port=8187
+# head=9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680
+# harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy

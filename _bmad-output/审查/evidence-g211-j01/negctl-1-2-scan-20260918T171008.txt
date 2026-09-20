@@ -1,0 +1,63 @@
+=============== 负控① no-old-secret ===============
+⚠️ 卡文写 --ref-env $(pwd)/.env —— 本车道树根**无** .env（只有 backend/.env）；
+   参照 env 实测用 backend/.env（卡文漂移，已登记）。值只在 tmp，日志只有 sha。
+-- 负控输入：INTERNAL_API_KEY 复用参照 env 里的旧值 --
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=<none>
+# scan: env 形态文件数=1 旧值复用命中=1 禁带键名文件数=0
+assert=no-old-secret rc=1 reason=old-secret-value-reused-count=1
+# scan: 文本文件=1 软链=0 二进制跳过=0 白名单=0 继承=0 新引入=0
+assert=no-abs-path rc=0
+harness_rc=1 expected_rc=1 verdict=MATCH
+-- 对照输入：随机 32 字节新 key --
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=<none>
+# scan: env 形态文件数=1 旧值复用命中=0 禁带键名文件数=0
+assert=no-old-secret rc=0
+# scan: 文本文件=1 软链=0 二进制跳过=0 白名单=0 继承=0 新引入=0
+assert=no-abs-path rc=0
+harness_rc=0 expected_rc=0 verdict=MATCH
+-- 负控输入 b：值是新的但带**禁带键名** GOOGLE_API_KEY --
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=<none>
+# scan: env 形态文件数=1 旧值复用命中=0 禁带键名文件数=1
+assert=no-old-secret rc=1 reason=forbidden-key-name-present-count=1
+# scan: 文本文件=1 软链=0 二进制跳过=0 白名单=0 继承=0 新引入=0
+assert=no-abs-path rc=0
+harness_rc=1 expected_rc=1 verdict=MATCH
+-- 负控输入 c：**不给任何参照 env** ⇒ 必须 fail-closed（不是空洞通过） --
+# scan: 参照 env 文件数=0 参照值 sha 数=0 baseline=<none>
+# scan: env 形态文件数=1 旧值复用命中=0 禁带键名文件数=0
+assert=no-old-secret rc=1 reason=no-reference-env-value-found(fail-closed)
+# scan: 文本文件=1 软链=0 二进制跳过=0 白名单=0 继承=0 新引入=0
+assert=no-abs-path rc=0
+harness_rc=1 expected_rc=1 verdict=MATCH
+=============== 负控② no-abs-path ===============
+-- 负控输入：settings.json 含 /Users/ 绝对路径 --
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=<none>
+# scan: env 形态文件数=0 旧值复用命中=0 禁带键名文件数=0
+assert=no-old-secret rc=0
+#   NEW-ABS-HIT settings.json:1
+# scan: 文本文件=1 软链=0 二进制跳过=0 白名单=0 继承=0 新引入=1
+assert=no-abs-path rc=1 reason=new-abs-path-hits=1
+harness_rc=1 expected_rc=1 verdict=MATCH
+-- 对照输入：同样含 /Users/ 但文件名是白名单里那唯一一个 --
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=<none>
+# scan: env 形态文件数=0 旧值复用命中=0 禁带键名文件数=0
+assert=no-old-secret rc=0
+# scan: 文本文件=1 软链=0 二进制跳过=0 白名单=1 继承=0 新引入=0
+assert=no-abs-path rc=0
+harness_rc=0 expected_rc=0 verdict=MATCH
+-- 负控输入 b：文件名只是**像**白名单（.bak 后缀）⇒ 不得放行 --
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=<none>
+# scan: env 形态文件数=0 旧值复用命中=0 禁带键名文件数=0
+assert=no-old-secret rc=0
+#   NEW-ABS-HIT .canvas-config.yaml.bak:1
+# scan: 文本文件=1 软链=0 二进制跳过=0 白名单=0 继承=0 新引入=1
+assert=no-abs-path rc=1 reason=new-abs-path-hits=1
+harness_rc=1 expected_rc=1 verdict=MATCH
+-- 对照输入 b：二进制文件（含 NUL）里有 /Users/ ⇒ 跳过并**计数**，不判红 --
+# scan: 参照 env 文件数=1 参照值 sha 数=37 baseline=<none>
+# scan: env 形态文件数=0 旧值复用命中=0 禁带键名文件数=0
+assert=no-old-secret rc=0
+# scan: 跳过二进制（含 NUL）: blob.bin
+# scan: 文本文件=1 软链=0 二进制跳过=1 白名单=0 继承=0 新引入=0
+assert=no-abs-path rc=0
+harness_rc=0 expected_rc=0 verdict=MATCH

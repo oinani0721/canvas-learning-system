@@ -1,0 +1,110 @@
+################ 负控① no-old-secret ################
+⚠️ 卡文写 --ref-env $(pwd)/.env —— 本车道树根**无** .env（只有 backend/.env）；
+   参照 env 实测用 backend/.env（卡文漂移，已登记）。值只在 tmp，日志只有 sha。
+[MATCH] rc=1   want=1    负控输入：INTERNAL_API_KEY 复用参照 env 的旧值 ⇒ 必红
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=2 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    对照输入：随机 32 字节新 key ⇒ 必绿
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    负控输入 b：值是新的但带禁带键名 ⇒ 必红
+        断言行: assert=no-old-secret rc=1 reason=forbidden-key-name-present-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    负控输入 c：不给任何参照 env ⇒ fail-closed（不是空洞通过）
+        断言行: assert=no-old-secret rc=1 reason=no-reference-env-value-found(fail-closed) assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    回归守卫：目录里一个文件都没有 ⇒ 两条判据都必须 fail-closed 而不是绿
+        断言行: assert=no-old-secret rc=1 reason=no-env-file-examined(empty-input-surface) assert=no-abs-path rc=1 reason=empty-scan-surface(no-file-examined) 
+
+################ 负控② no-abs-path ################
+[MATCH] rc=1   want=1    负控输入：settings.json 含 /Users/ ⇒ 必红且列 settings.json:1
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=0   want=0    对照输入：同样含 /Users/ 但是白名单文件的设计键 ⇒ 必绿
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    负控输入 b：文件名只是像白名单（.bak）⇒ 不得放行
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=1   want=1    回归守卫：子目录里的同名文件 ⇒ 不得按 basename 放行
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=1   want=1    回归守卫：白名单文件里第三个键带本机路径 ⇒ 必红
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=1   want=1    回归守卫：软链 target 含 /Users/ ⇒ 必红（原先 -type f 漏掉链本身）
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=1 reason=new-abs-path-hits=1 
+[MATCH] rc=0   want=0    对照输入：二进制（含 NUL）里的 /Users/ ⇒ 跳过并计数，不判红
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+
+################ 回归守卫（Codex round-1 整改）################
+[MATCH] rc=1   want=1    M1 回归：参照带引号 / 实例不带 ⇒ 仍须判定为同一个旧密钥（红）
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    M1 对照：值确实不同 ⇒ 绿（证明上一条不是恒红）
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    M3 回归：.env.extra 是软链 ⇒ 判红（原先被 -type f 整个排除）
+        断言行: assert=no-old-secret rc=1 reason=env-file-is-symlink=1 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    M2 回归：不可遍历子目录 ⇒ 枚举失败必须判红，而不是当它干净
+        断言行: assert=no-old-secret rc=1 reason=unreadable-env-files=1 assert=no-abs-path rc=1 reason=unreadable-files=1 
+[MATCH] rc=1   want=1    M7 回归：compose 短格式的端口与卷必须被解析出来并判红（原先投影成空判绿）
+        断言行: assert=isolation-preflight rc=1 reason=neo4j-published-port-collides:7478,neo4j-published-port-collides:7691 
+
+################ 回归守卫（Codex round-2 整改）################
+[MATCH] rc=1   want=1    H3-a 回归：参照末行无换行 ⇒ 该行仍须参与比对（红）
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    H3-b 回归：CRLF 参照 vs LF 目标 ⇒ 仍须判为同一个密钥（红）
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    M5 回归：deploy 白名单键同值 ⇒ 不算旧密钥复用（绿 + 跳过计数）
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    M5 对照：非白名单键同值 ⇒ 仍红（比对没被关掉）
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    M8-a 回归：网络名是 canvas-learning-network-j01（更长, 独立）⇒ 不得误判共享
+        断言行: assert=isolation-preflight rc=0 
+[MATCH] rc=0   want=0    M8-b 回归：逻辑键同名但实际网络名独立 ⇒ 不得误判共享
+        断言行: assert=isolation-preflight rc=0 
+[MATCH] rc=1   want=1    M8 对照：实际名就是现网名 ⇒ 必红（判据没被关掉）
+        断言行: assert=isolation-preflight rc=1 reason=network-name-shared:canvas-learning-network 
+[MATCH] rc=0   want=0    M6 回归：docker 调用恒失败时 fixture 仍须拆除干净
+        # teardown: 已删 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-HRklEk assert=state-diff rc=0 
+[MATCH] rc=0   want=0    M7 回归：--keep-root 下 SHA256SUMS 仍自洽(shasum -c rc=0) 且 state-diff 判 SKIP
+
+################ 回归守卫（Codex round-3 整改）################
+[MATCH] rc=1   want=1    R3-a 回归：export 前缀 + 空白 + 引号 + 行内注释 ⇒ 仍须判为同一个值（红）
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    R3-a 对照：值确实不同 ⇒ 绿（归一没把一切都判成相同）
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    R3-b 回归：有参照 env 读不动 ⇒ 判红（部分参照不得冒充完整参照）
+        断言行: assert=no-old-secret rc=1 reason=reference-env-unreadable=1(partial-reference-surface) assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    R3-c 回归：API_PORT/ACTIVE_VAULT 同值 ⇒ 不算旧密钥复用（绿）
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=-   want=-    R3-d 回归：两跑的 vault 名必须不同（j01tw202609181953411p6hut vs j01tw202609181953526u9tua）
+
+################ 回归守卫（Codex round-4 整改）################
+[MATCH] rc=1   want=1    R4-a 回归：引号内含  的值不得被注释归一截断 ⇒ 仍判为同一个密钥（红）
+        断言行: assert=no-old-secret rc=1 reason=old-secret-value-reused-count=2 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    R4-a 对照：值确实不同 ⇒ 绿
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    R4-b 回归：export 前缀的禁带键名必须被拦（原先行首正则不匹配）
+        断言行: assert=no-old-secret rc=1 reason=forbidden-key-name-present-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    R4-b 回归 b：键值两侧带空白的禁带键名同样必须被拦
+        断言行: assert=no-old-secret rc=1 reason=forbidden-key-name-present-count=1 assert=no-abs-path rc=0 
+[MATCH] rc=0   want=0    R4-b 对照：普通键名带 export ⇒ 不触发禁带键判据（绿）
+        断言行: assert=no-old-secret rc=0 assert=no-abs-path rc=0 
+[MATCH] rc=1   want=1    R4-c 回归：相对 bind ./data:/data 必须判红（原先只认以 / 开头的）
+        断言行: assert=isolation-preflight rc=1 reason=neo4j-volume-is-host-bind-mount:./data(relative-bind) 
+[MATCH] rc=0   want=0    R4-c 对照：具名卷 j01-neo4j-data ⇒ 卷这一条判绿
+        断言行: assert=isolation-preflight rc=0 
+
+################ 回归守卫：用法错必须报 64（不是 set -e 的 1）################
+[MATCH] rc=64  want=64   尾随 --mode 无值 ⇒ 64
+[MATCH] rc=64  want=64   尾随 --harness 无值 ⇒ 64
+[MATCH] rc=64  want=64   尾随 --port 无值 ⇒ 64
+[MATCH] rc=64  want=64   --harness 指向不存在的目录 ⇒ 64
+[MATCH] rc=64  want=64   --port 非数字 ⇒ 64
+[MATCH] rc=64  want=64   --port 07691（前导零, 数值等于黑名单项）⇒ 64
+[MATCH] rc=64  want=64   --port 7691 ⇒ 64
+[MATCH] rc=64  want=64   --allow-up 在 fixture 下 ⇒ 64
+
+################ 回归守卫：隔离预检输入面 ################
+[MATCH] rc=1   want=1    退化：零字节文件 ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-unparseable:not-a-mapping 
+[MATCH] rc=1   want=1    退化：services: {} ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-degenerate:has_services,has_neo4j,has_backend,neo4j_ports,neo4j_volumes,networks 
+[MATCH] rc=1   want=1    退化：有 services 但无 neo4j ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-degenerate:has_neo4j,neo4j_ports,neo4j_volumes,networks 
+[MATCH] rc=1   want=1    退化：YAML 是标量 ⇒ fail-closed
+        断言行: assert=isolation-preflight rc=1 reason=compose-config-unparseable:not-a-mapping 
+
+================ 汇总 ================
+MATCH=50  MISMATCH=0

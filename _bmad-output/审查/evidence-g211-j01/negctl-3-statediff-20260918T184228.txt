@@ -1,0 +1,50 @@
+### 负控③ state-diff 代码变异  ts=20260918T184251
+HEAD=d24485cd1222444342fd15718768771b1b11baae
+
+sha 跑前          : 6dd01b903750ee2afffc075e9d38e04483189bbebf8b2613789c65de6847f85e
+removed_lines=1  (必须恰为 1)
+sha 变异中        : 8bf86e74433683fb0b0d02f9eaa0e9f00385229d687caf89d635586d8db8bc30
+
+-- 变异体语法自证（门必须红在 state-diff 上, 不是红在语法错上）--
+mutant_syntax_rc=0
+mutant_rm_rf_root_lines=0   (期望 0)
+
+-- 变异体真跑 fixture --
+# ts=20260918T184254 mode=fixture allow_up_flag=0 allow_up_env=0 port=8187 keep_root=0
+# vault_name=j01tw20260918184254 root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-8sCIGO
+assert=throwaway-outside-protected rc=0
+assert=deploy-rc rc=0
+# teardown: ⚠️ rm 之后 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-8sCIGO 仍在（未删成, 交给 state-diff 判红）
+assert=state-diff rc=1 reason=snapshot-differs(see state-diff.txt)
+# completeness: emitted=13 expected=13 missing=[] extra=[]
+# summary failed=1 skipped=6 completeness_rc=0
+rc=1
+# teardown: ⚠️ rm 之后 /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-8sCIGO 仍在（未删成, 交给 state-diff 判红）
+mutated_process_rc=1   (期望 1)
+
+-- 判定：指定的那道门 state-diff 是否变红 --
+VERDICT=KILLED（state-diff 如期变红）
+-- 其余 12 条断言的状态（用于确认红的只有 state-diff 这一条）--
+    assert=throwaway-outside-protected rc=0
+    assert=deploy-rc rc=0
+    assert=verify-rc rc=0
+    assert=no-old-secret rc=0
+    assert=no-abs-path rc=0 reason=ok-inherited-from-template=1(registered-not-blocking)
+    assert=isolation-preflight rc=2 reason=no-compose-config-in-fixture
+    assert=backend-ready rc=2 reason=fixture-mode
+    assert=first-index rc=2 reason=fixture-mode
+    assert=search-hit rc=2 reason=fixture-mode
+    assert=table-diff rc=2 reason=fixture-mode
+    assert=rollback-down rc=2 reason=no-up-attempted-in-fixture
+    assert=evidence-redacted rc=0
+    assert=state-diff rc=1 reason=snapshot-differs(see state-diff.txt)
+
+-- 变异态残留的 throwaway 根 --
+leaked_root=/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T//j01-8sCIGO
+leaked_root_removed=yes exists_now=no
+
+sha 还原后        : 6dd01b903750ee2afffc075e9d38e04483189bbebf8b2613789c65de6847f85e
+sha HEAD blob     : 6dd01b903750ee2afffc075e9d38e04483189bbebf8b2613789c65de6847f85e
+还原后 rm_rf_root_lines=1   (期望 1)
+还原后 git status（代码面）：
+code_tree_clean=yes
