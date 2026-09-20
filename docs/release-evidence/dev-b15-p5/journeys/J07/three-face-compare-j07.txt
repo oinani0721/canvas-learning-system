@@ -1,0 +1,9 @@
+
+三面集合 picker: 6 api: 6 md: 6
+集合相等(三方): True
+ranked 板序 picker: ['CS 61B', '特征值与特征向量', 'CS188 lecture 2']
+ranked 板序 api   : ['CS 61B', '特征值与特征向量', 'CS188 lecture 2', '递归与分治 (Recursion & Divide-Conquer)']
+ranked 板序 md    : ['CS 61B', '特征值与特征向量', 'CS188 lecture 2', '递归与分治 (Recursion & Divide-Conquer)']
+ranked 板序 对比: OK
+three_face_equal=True
+rc=0

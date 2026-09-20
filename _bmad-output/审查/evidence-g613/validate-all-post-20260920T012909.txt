@@ -1,0 +1,5 @@
+✅ PASS docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+✅ PASS docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json
+
+合计 2 份 manifest, 失败 0 份。
+rc=0

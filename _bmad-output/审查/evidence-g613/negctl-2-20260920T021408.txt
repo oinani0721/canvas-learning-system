@@ -1,0 +1,30 @@
+# negctl-2 (20260920T021408, 重跑轮·快照还原·证据加强): manifest artifacts[0].sha256 末位翻位 → rc=1 含 [A
+== 快照建立 ==
+命令: cp docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json /tmp/g613snap2.AheSIy/manifest.json.bak
+3d224cb80c3d6f232a0731b66bb118ed0ac23b65c24ae23a2885f05634e44068  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+3d224cb80c3d6f232a0731b66bb118ed0ac23b65c24ae23a2885f05634e44068  /tmp/g613snap2.AheSIy/manifest.json.bak
+== 施变异前 status（完整行）==
+ M docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity.txt
+ M docs/release-evidence/dev-b15-p5/journeys/J07/three-face-api.json
+?? docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity-rsync.txt
+mutated artifacts[0] (copy-fidelity.txt) last hex 5 -> 0
+== 变异态 shasum ==
+45f241d0d418db50ae56b3c25c6124790d9fe8ed88b048c0d7ed983d0af9b9ed  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+      实际:     5b4ffdfa4423a0c2af84cb9591004ebb4a9ef53592270d25648f0900d1c567c4
+    [A3] artifact 字节数不符: copy-fidelity.txt (manifest 1089 vs 实际 979)
+    [A2] artifact checksum 不符: three-face-api.json
+      manifest: bf04c27a06f25addf9faf911577f55886bed59438f04f9cc39c8fec9b51db96e
+      实际:     097a544e027e861b8e39fb59fd3d97530d1950fa16bd09477d6dfbdc31a7f2ff
+    [A3] artifact 字节数不符: three-face-api.json (manifest 4818 vs 实际 4802)
+
+合计 1 份 manifest, 失败 1 份。
+rc=0
+== 恢复 ==
+命令: cp /tmp/g613snap2.AheSIy/manifest.json.bak docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+3d224cb80c3d6f232a0731b66bb118ed0ac23b65c24ae23a2885f05634e44068  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+== 恢复后 cmp(工作文件, 快照) ==
+cmp: identical
+== 恢复后 status（完整行）==
+ M docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity.txt
+ M docs/release-evidence/dev-b15-p5/journeys/J07/three-face-api.json
+?? docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity-rsync.txt

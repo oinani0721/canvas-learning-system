@@ -1,0 +1,5 @@
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/validate-all-final-20260920T021432.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/validate-all-full-20260920T021408.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/validate-j07-final-20260920T021432.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-13-r2.md"
+ create mode 100644 docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity-rsync.txt

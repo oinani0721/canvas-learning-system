@@ -1,0 +1,6 @@
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/negctl-2-20260920T013002.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/negctl-2-20260920T015822.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/validate-all-postfix-20260920T015822.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/validate-j07-postfix-20260920T015822.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-13-r1.md"
+ create mode 100644 docs/release-evidence/dev-b15-p5/journeys/J07/three-face-compare-j07.txt

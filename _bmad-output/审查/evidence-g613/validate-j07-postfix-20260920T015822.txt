@@ -1,0 +1,4 @@
+✅ PASS docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0

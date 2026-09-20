@@ -1,0 +1,280 @@
+[pick] fsrs_due 非规范格式, 视同到期: 脏due (2026-07-29T01:00:00+08:00)
+[pick] fsrs_due 非规范格式, 视同到期: 脏due (2026-07-29T01:00:00+08:00)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.252 seconds.
+Prefix dict has been built successfully.
+── 计算期被测模块的 stdout（排障用）──
+2026-09-20 00:55:23 [debug    ] RAGService: Added /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/lib to sys.path
+2026-09-20 00:55:26 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+✓ preview 已生成（只读引擎, 未动 vault 任何既有文件）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g68-five-view-sh6m87oe/inbox-vault/outputs/inbox-preview-_待处理.json / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g68-five-view-sh6m87oe/inbox-vault/outputs/inbox-preview-_待处理.md
+  _待处理/ 尚未创建（等同空仓，该 vault 还没开始用收件箱）。 Sleeping/ 未建立，无睡眠台账。
+  本批 0 件 · 拿不准 0 件 · 建议删 0 件
+
+══════════════════════════════════════════════════════════════════════════════
+CARD-G6-8 五面复习视图一致性契约 · now=2026-09-20T07:55:22Z · tz=Asia/Shanghai
+显示时区解析结果: Asia/Shanghai
+══════════════════════════════════════════════════════════════════════════════
+
+【面普查 census】
+  review_overview    产出全部五字段; display_day 取响应顶层 generated_at 的日期部分, projection_day 取响应中复述的 projection.date（两者都从响应读, 不现算）
+  review_app         纯消费方, 五字段均不产出; 静态断言通过（共享 import: ['_BUCKET_CN', '_BUCKET_ORDER', '_DONE_NOTE', '_PUSH_DEGRADED_LABEL', '_SNOOZE_NOTE', '_STATUS_META']）
+  picker             产出全部五字段（buckets/date + active_snoozed/board_done 同源判定 + ranked 让位分区被观察）; 本卡只读
+  skill_recap        无可比结论：域是检验白板构建（--ts 是 UTC 文件戳）, 不产出复习队列的桶位/本地日结论
+  skill_inbox        只产出 display_day=2026-09-20（基准固定 +08:00, 已登记分歧且带谓词）
+  notification       产出 display_day/projection_day=2026-09-20; 点名板='📚 今日复习 · 板-新卡'
+
+【五面矩阵】行=板, 列=面, 值逐字段
+
+  ▸ 板-今天晚些
+      bucket      
+        review_overview    [["今天晚些", "due_today"]]
+        review_app         "<该面不产出此字段>"
+        picker             [["今天晚些", "due_today"]]
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      display_day 
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "2026-09-20"
+        notification       "2026-09-20"
+      projection_day
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "2026-09-20"
+      snoozed     
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      done        
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+
+  ▸ 板-到期
+      bucket      
+        review_overview    [["同板未来", "future"], ["规范到期", "due_now"]]
+        review_app         "<该面不产出此字段>"
+        picker             [["同板未来", "future"], ["规范到期", "due_now"]]
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      display_day 
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "2026-09-20"
+        notification       "2026-09-20"
+      projection_day
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "2026-09-20"
+      snoozed     
+        review_overview    true
+        review_app         "<该面不产出此字段>"
+        picker             true
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      done        
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+
+  ▸ 板-学习中
+      bucket      
+        review_overview    [["学习中", "learning_queue"]]
+        review_app         "<该面不产出此字段>"
+        picker             [["学习中", "learning_queue"]]
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      display_day 
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "2026-09-20"
+        notification       "2026-09-20"
+      projection_day
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "2026-09-20"
+      snoozed     
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      done        
+        review_overview    true
+        review_app         "<该面不产出此字段>"
+        picker             true
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+
+  ▸ 板-新卡
+      bucket      
+        review_overview    [["无type", "new"]]
+        review_app         "<该面不产出此字段>"
+        picker             [["无type", "new"]]
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      display_day 
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "2026-09-20"
+        notification       "2026-09-20"
+      projection_day
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "2026-09-20"
+      snoozed     
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      done        
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+
+  ▸ 板-未来
+      bucket      
+        review_overview    [["远期", "future"]]
+        review_app         "<该面不产出此字段>"
+        picker             [["远期", "future"]]
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      display_day 
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "2026-09-20"
+        notification       "2026-09-20"
+      projection_day
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "2026-09-20"
+      snoozed     
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      done        
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+
+  ▸ 板-脏日期
+      bucket      
+        review_overview    [["脏due", "due_now"]]
+        review_app         "<该面不产出此字段>"
+        picker             [["脏due", "due_now"]]
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      display_day 
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "2026-09-20"
+        notification       "2026-09-20"
+      projection_day
+        review_overview    "2026-09-20"
+        review_app         "<该面不产出此字段>"
+        picker             "2026-09-20"
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "2026-09-20"
+      snoozed     
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+      done        
+        review_overview    false
+        review_app         "<该面不产出此字段>"
+        picker             false
+        skill_recap        "<该面不产出此字段>"
+        skill_inbox        "<该面不产出此字段>"
+        notification       "<该面不产出此字段>"
+
+【tonight_available】overview=True expected(now.hour=15 < 20)=True → 一致
+
+【已登记分歧（不判红, 见 DECLARED_DIVERGENCES 与验收单台账）】
+  （无）
+
+【未登记分歧】
+  （无）
+
+verdict=PASS
+Traceback (most recent call last):
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/scripts/g68_five_view_contract.py", line 1276, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/scripts/g68_five_view_contract.py", line 1269, in main
+    return run(args.now, args.tz, Path(args.out_json) if args.out_json else None, args.keep)
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/scripts/g68_five_view_contract.py", line 1191, in run
+    out_json.write_text(json.dumps(report, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 809, in write_text
+    with self.open(mode='w', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '_bmad-output/审查/evidence-g613/g68-pre.json'
+rc=1

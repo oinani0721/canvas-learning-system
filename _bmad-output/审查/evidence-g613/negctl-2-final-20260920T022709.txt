@@ -1,0 +1,20 @@
+# negctl-2 final (20260920T022709): 对终版 manifest (candidate=f0cacff6, 16 件) 末位翻位 → rc=1 含 [A
+命令: cp docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json /tmp/g613snap4.66IYwZ/manifest.json.bak
+41987c2f9d20068c0d77a987a9cfdbf609e22fb5e4af99a2facfc8ffaea1c048  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+41987c2f9d20068c0d77a987a9cfdbf609e22fb5e4af99a2facfc8ffaea1c048  /tmp/g613snap4.66IYwZ/manifest.json.bak
+== 施变异前 status ==
+ M docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+mutated artifacts[0] (copy-fidelity-rsync.txt) last hex 9 -> 0
+❌ FAIL docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+    [A2] artifact checksum 不符: copy-fidelity-rsync.txt
+      manifest: 388a1a1bbf7811905b50f7c68fff73f739c15a31ada4cf92b4c7ec00f58ac310
+      实际:     388a1a1bbf7811905b50f7c68fff73f739c15a31ada4cf92b4c7ec00f58ac319
+
+合计 1 份 manifest, 失败 1 份。
+validator rc=1
+== 恢复 ==
+命令: cp /tmp/g613snap4.66IYwZ/manifest.json.bak docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+41987c2f9d20068c0d77a987a9cfdbf609e22fb5e4af99a2facfc8ffaea1c048  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+cmp: identical
+== 恢复后 status ==
+ M docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json

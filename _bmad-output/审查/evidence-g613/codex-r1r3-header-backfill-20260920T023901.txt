@@ -1,0 +1,15 @@
+== r1 (commit A, 绑 00553b4e) 首部回填 ==
+pre-header sha256 = db1200af7edb904ad0b63971e9bc8e170a7ae24f38785cd4a52b65549d7cb7cb
+含首部全文 sha256 = de7a961565145c647f5ca84360b9a842e334e40b94c4caa2119dfb3cddd8fc4b
+首部 blockquote sha256 = c5ddd1ffaf0b33b4f47e18fe1b3111889d348fa1cf0d87fd5ea56be46dfd9ac9
+
+== r2 (commit B, 绑 28bd74a4) 首部回填 ==
+pre-header sha256 = 75dfb13ceff119c7e92ea291ed599d421b8885028e5868be69df155162aa9093
+含首部全文 sha256 = 779b532b30da083fe6b10be2fb3acd2ee5dc34f6205e9b2be21c2ab2d26adfa4
+首部 blockquote sha256 = 4c3e613d6cbcfd20b05d63da3446bd699ac8a707eb0a122ea148c9ebc6a382e2
+
+== r3 (commit C, 绑 a3103a49) 首部回填 ==
+pre-header sha256 = a0044eb957e6c547080ed63bd585f5f4cd355a146c1a7dbced0bd97ecfb08b6c
+含首部全文 sha256 = de3825413706a0c7aaa6fcf2668977ad7e062140e6bc75bcf26014d08b3349f7
+首部 blockquote sha256 = 0cf8f70c940c12715ecc3a4cb91e88b2b4330ca0ef962eac866b126e3ad7a7fc
+

@@ -1,0 +1,352 @@
+{
+  "now": "2026-09-19T13:00:00Z",
+  "tz": "Asia/Shanghai",
+  "display_tz": "Asia/Shanghai",
+  "boards": [
+    "板-今天晚些",
+    "板-到期",
+    "板-学习中",
+    "板-新卡",
+    "板-未来",
+    "板-脏日期"
+  ],
+  "matrix": {
+    "板-今天晚些": {
+      "bucket": {
+        "review_overview": [
+          [
+            "今天晚些",
+            "due_today"
+          ]
+        ],
+        "review_app": "<该面不产出此字段>",
+        "picker": [
+          [
+            "今天晚些",
+            "due_today"
+          ]
+        ],
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "display_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "2026-09-19",
+        "notification": "2026-09-19"
+      },
+      "projection_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "2026-09-19"
+      },
+      "snoozed": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "done": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      }
+    },
+    "板-到期": {
+      "bucket": {
+        "review_overview": [
+          [
+            "同板未来",
+            "future"
+          ],
+          [
+            "规范到期",
+            "due_now"
+          ]
+        ],
+        "review_app": "<该面不产出此字段>",
+        "picker": [
+          [
+            "同板未来",
+            "future"
+          ],
+          [
+            "规范到期",
+            "due_now"
+          ]
+        ],
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "display_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "2026-09-19",
+        "notification": "2026-09-19"
+      },
+      "projection_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "2026-09-19"
+      },
+      "snoozed": {
+        "review_overview": true,
+        "review_app": "<该面不产出此字段>",
+        "picker": true,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "done": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      }
+    },
+    "板-学习中": {
+      "bucket": {
+        "review_overview": [
+          [
+            "学习中",
+            "learning_queue"
+          ]
+        ],
+        "review_app": "<该面不产出此字段>",
+        "picker": [
+          [
+            "学习中",
+            "learning_queue"
+          ]
+        ],
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "display_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "2026-09-19",
+        "notification": "2026-09-19"
+      },
+      "projection_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "2026-09-19"
+      },
+      "snoozed": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "done": {
+        "review_overview": true,
+        "review_app": "<该面不产出此字段>",
+        "picker": true,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      }
+    },
+    "板-新卡": {
+      "bucket": {
+        "review_overview": [
+          [
+            "无type",
+            "new"
+          ]
+        ],
+        "review_app": "<该面不产出此字段>",
+        "picker": [
+          [
+            "无type",
+            "new"
+          ]
+        ],
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "display_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "2026-09-19",
+        "notification": "2026-09-19"
+      },
+      "projection_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "2026-09-19"
+      },
+      "snoozed": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "done": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      }
+    },
+    "板-未来": {
+      "bucket": {
+        "review_overview": [
+          [
+            "远期",
+            "future"
+          ]
+        ],
+        "review_app": "<该面不产出此字段>",
+        "picker": [
+          [
+            "远期",
+            "future"
+          ]
+        ],
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "display_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "2026-09-19",
+        "notification": "2026-09-19"
+      },
+      "projection_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "2026-09-19"
+      },
+      "snoozed": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "done": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      }
+    },
+    "板-脏日期": {
+      "bucket": {
+        "review_overview": [
+          [
+            "脏due",
+            "due_now"
+          ]
+        ],
+        "review_app": "<该面不产出此字段>",
+        "picker": [
+          [
+            "脏due",
+            "due_now"
+          ]
+        ],
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "display_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "2026-09-19",
+        "notification": "2026-09-19"
+      },
+      "projection_day": {
+        "review_overview": "2026-09-19",
+        "review_app": "<该面不产出此字段>",
+        "picker": "2026-09-19",
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "2026-09-19"
+      },
+      "snoozed": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      },
+      "done": {
+        "review_overview": false,
+        "review_app": "<该面不产出此字段>",
+        "picker": false,
+        "skill_recap": "<该面不产出此字段>",
+        "skill_inbox": "<该面不产出此字段>",
+        "notification": "<该面不产出此字段>"
+      }
+    }
+  },
+  "census": {
+    "review_overview": "产出全部五字段; display_day 取响应顶层 generated_at 的日期部分, projection_day 取响应中复述的 projection.date（两者都从响应读, 不现算）",
+    "review_app": "纯消费方, 五字段均不产出; 静态断言通过（共享 import: ['_BUCKET_CN', '_BUCKET_ORDER', '_DONE_NOTE', '_PUSH_DEGRADED_LABEL', '_SNOOZE_NOTE', '_STATUS_META']）",
+    "picker": "产出全部五字段（buckets/date + active_snoozed/board_done 同源判定 + ranked 让位分区被观察）; 本卡只读",
+    "skill_recap": "无可比结论：域是检验白板构建（--ts 是 UTC 文件戳）, 不产出复习队列的桶位/本地日结论",
+    "skill_inbox": "只产出 display_day=2026-09-19（基准固定 +08:00, 已登记分歧且带谓词）",
+    "notification": "产出 display_day/projection_day=2026-09-19; 点名板='📚 今日复习 · 板-新卡'"
+  },
+  "tonight_available": {
+    "from_overview": false,
+    "expected_now_hour_lt_20": false,
+    "now_local_hour": 21,
+    "ok": true
+  },
+  "declared_divergences": [],
+  "undeclared_divergences": [],
+  "verdict": "PASS"
+}

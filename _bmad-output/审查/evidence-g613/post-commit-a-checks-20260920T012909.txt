@@ -1,0 +1,56 @@
+# (f)(g)(j)(l)(m) 静态门 (20260920T012909) HEAD=f0cacff6
+
+== J07 产物清单 ==
+copy-fidelity.txt
+g68-2026-09-19T03:00:00Z-America_Los_Angeles.json
+g68-2026-09-19T03:00:00Z-Asia_Shanghai.json
+g68-2026-09-19T13:00:00Z-America_Los_Angeles.json
+g68-2026-09-19T13:00:00Z-Asia_Shanghai.json
+manifest.json
+md-final.md
+picker-final.json
+tests-g68-gate.txt
+tests-named-close.txt
+tests-named-open.txt
+tests-regression.txt
+three-face-api.json
+three-face-compare.txt
+unit-vs-base.txt
+
+== (f)① J07 目录数 (期望 1; 验伪锚 J08=1) ==
+       1
+       1
+
+== (g)① validate --all (期望 rc=0, 2 份) ==
+✅ PASS docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+✅ PASS docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json
+
+合计 2 份 manifest, 失败 0 份。
+rc=0
+manifest.json 计数: 2
+J07 串: 1 / J08 串: 1
+
+== (f)③ required 差集 (期望 []) ==
+[]
+
+== (f)④ UAT 计数 (期望 1) ==
+1
+
+== (f)⑤ 偏差声明 grep ==
+6
+
+== (j) openapi 验伪 ==
+0
+0
+
+== (l) 地盘核（当前工作树 vs PREV）==
+--- .py/README/schema 检查 ---
+       0
+
+== (m) 脱敏门 ==
+       0
+-- fsrs/7691 引用行 --
+docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json:131:      "note": "旁证: live 副本中已逾期节点 csm-tutoring-unit-credit 即在 learning_queue 桶 (见 three-face-compare.txt)。步长未验 (fsrs_bridge 零写者)。"
+docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json:294:    "「10 分钟回炉」只验到『逾期节点落在 learning_queue (重学中)』的桶机制旁证, 未验 FSRS 步长恰为 10 分钟 (fsrs_bridge.py 零写者, 本卡不读其运行期配置)。",
+docs/release-evidence/dev-b15-p5/journeys/J07/tests-regression.txt:24:tests/regression/test_decay_beta_convergence.py ...................      [ 15%]
+docs/release-evidence/dev-b15-p5/journeys/J07/tests-regression.txt:26:tests/regression/test_fsrs_bridge.py ..........                          [ 16%]

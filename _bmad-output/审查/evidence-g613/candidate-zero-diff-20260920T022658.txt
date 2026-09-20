@@ -1,0 +1,5 @@
+# candidate.sha 绑定佐证 (20260920T022658)
+命令: git --no-pager diff --name-only --no-color f0cacff6 a3103a49 -- backend/ frontend/ scripts/
+rc=0 (空输出=零 diff)
+命令: git --no-pager diff --name-only --no-color f0cacff6 a3103a49 -- . ':(exclude)_bmad-output' ':(exclude)docs/release-evidence'
+rc=0

@@ -1,0 +1,15 @@
+# negctl-2 (20260920T015822, 重跑·快照还原): manifest artifacts[0].sha256 末位翻位 → rc=1 含 [A
+== 跑前 shasum ==
+3d224cb80c3d6f232a0731b66bb118ed0ac23b65c24ae23a2885f05634e44068  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+mutated artifacts[0] (copy-fidelity.txt) last hex 5 -> 0
+❌ FAIL docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+    [A2] artifact checksum 不符: copy-fidelity.txt
+      manifest: 853045f7b325c169e42cc6864a5ae3cd2881ecb04af22915fdd8388ad1902ef0
+      实际:     853045f7b325c169e42cc6864a5ae3cd2881ecb04af22915fdd8388ad1902ef5
+
+合计 1 份 manifest, 失败 1 份。
+rc=1
+== 跑后 shasum（应逐字同）==
+3d224cb80c3d6f232a0731b66bb118ed0ac23b65c24ae23a2885f05634e44068  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+== status（应仅 M 两件）==
+       4

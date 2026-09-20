@@ -1,0 +1,5 @@
+# codex r4 prompt 自检 (20260920T022817)
+banned-rc=1
+oldmodel-rc=1
+0f6f758aa92af9c35e2cdff44410628ae02582885d75786d05dc8e58990a50de  _bmad-output/审查/prompts/codex-prompt-CARD-G6-13-r4.md
+binding-rc=0

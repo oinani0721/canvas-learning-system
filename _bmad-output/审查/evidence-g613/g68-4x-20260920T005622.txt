@@ -1,0 +1,16 @@
+--- now=2026-09-19T03:00:00Z tz=Asia/Shanghai ---
+显示时区解析结果: Asia/Shanghai
+verdict=PASS
+rc=0
+--- now=2026-09-19T03:00:00Z tz=America/Los_Angeles ---
+显示时区解析结果: America/Los_Angeles
+verdict=PASS
+rc=0
+--- now=2026-09-19T13:00:00Z tz=Asia/Shanghai ---
+显示时区解析结果: Asia/Shanghai
+verdict=PASS
+rc=0
+--- now=2026-09-19T13:00:00Z tz=America/Los_Angeles ---
+显示时区解析结果: America/Los_Angeles
+verdict=PASS
+rc=0

@@ -1,0 +1,320 @@
+{
+  "schema_version": "1.0.0",
+  "journey_id": "J07",
+  "journey_title": "J07 次日复习旅程（开发门 · 未授权窗口：用户步骤 not_run + fixture 半边机器证据）",
+  "rc": "dev-b15-p5",
+  "provenance": {
+    "mode": "reconstructed",
+    "reconstructed_from": "车道 card-p5-review 本会话执行期实录 (真实命令当场产出; 收集于 _bmad-output/审查/evidence-g613/, 存档于同批 commit A)。未授权窗口 ⇒ 用户旅程 (c) 整段 SKIP。『reconstructed』按卡文口径使用: 非全部字段有执行期证据。",
+    "unproven_fields": [
+      "旅程 (c): 用户 UI 步骤 (Day0 作答 / Day1 四桶巡查 / 回炉 / snooze / 完成 / 深链) 全部未执行 (not_run); live-before.txt / live-after-check.txt 不存在。",
+      "candidate.sha: 未开窗 ⇒ 无 8011 执行期代码树 HEAD 可公布; 本值钉为**执行期起手时** (00:54 PDT) 本车道树 checkout `f0cacff6` (P5-B 末 commit, 40 位)。与 8011 服务树 / 最终候选树的关系未证。⚠️ SHA 演变如实登记: A/B/C 三版 manifest 重建时曾一度取 build 时刻 HEAD (00553b4e / 28bd74a4 / 1c355c3a —— 其中 1c355c3a 是外部 session 的 docs-only commit), 终态已钉回执行期 checkout; f0cacff6..a3103a49 之间 backend/frontend/scripts 逐文件零 diff (见 execution.commands 佐证条)。",
+      "execution.operator: 未记录会话指纹 (无稳定标识)。",
+      "environment: host_os 具体版本与 backend/.env 取值未记录。",
+      "slo.manifest_revision: 本树无 R-SLO 锁版件 ⇒ null (S9 亦据此把等级钳在 E2)。",
+      "signoff: 未授权窗口 ⇒ pending (S10 亦禁止回填件 approved)。"
+    ],
+    "note": "fixture 半边 (五面契约 ×4 / 三面对账 / 校验器 / 点名套件 / 目录级) 为本卡当次现场执行, 不是从旧归档回填。"
+  },
+  "candidate": {
+    "sha": "f0cacff6619c669663b04bba8cc8e0291789c082",
+    "branch": "card/p5-review",
+    "dirty": false,
+    "worktree": ".claude/worktrees/card-p5-review"
+  },
+  "environment": {
+    "host_os": "darwin (macOS, Apple Silicon; 具体版本未记录)",
+    "runtimes": {
+      "python": "3.14.4 (backend/.venv)"
+    },
+    "models": [],
+    "index_sha": null,
+    "index_sha_null_reason": "复习链 (picker / review_overview / runner) 不经检索索引; 无 index 参与。",
+    "services": {
+      "8011": "未使用 (未授权窗口: 车道只在 tmp 副本上跑, 不 import app.main、不 POST /overview/*)"
+    }
+  },
+  "execution": {
+    "started_at": "2026-09-20T00:54:00-07:00",
+    "finished_at": "2026-09-20T02:26:58-07:00",
+    "operator": "车道 card-p5-review (AI 执行; 未记录会话指纹)",
+    "commands": [
+      {
+        "cmd": "backend/.venv/bin/python backend/scripts/validate_release_manifest.py --all",
+        "cwd": "<tree>",
+        "exit_code": 0,
+        "note": "先红对照: 加 J07 前 --all 只见 J08 一份。"
+      },
+      {
+        "cmd": "cd backend && .venv/bin/python scripts/g68_five_view_contract.py --now <ts> --json <EV>/g68-pre.json",
+        "cwd": "<tree>/backend",
+        "exit_code": 0
+      },
+      {
+        "cmd": "cd backend && for NOW in 2026-09-19T03:00:00Z 2026-09-19T13:00:00Z; for TZ in Asia/Shanghai America/Los_Angeles; .venv/bin/python scripts/g68_five_view_contract.py --now $NOW --tz $TZ --json <EV>/g68-...json",
+        "cwd": "<tree>/backend",
+        "exit_code": 0,
+        "note": "四档 (2 时刻 × 2 时区); 03Z×LA 档 declared=6 = skill_inbox 固定 +08:00 已登记分歧按设计现形, undeclared=0 全档。"
+      },
+      {
+        "cmd": "cd backend && .venv/bin/python ../scripts/daily_review_pick.py --vault <tmp>/vaults/canvas-vault --state <tmp>/backups/daily-review.canvas-vault.state.json --now <now> --write",
+        "cwd": "<tree>/backend",
+        "exit_code": 0,
+        "note": "写只落 tmp 副本 outputs/; live 只读复制。"
+      },
+      {
+        "cmd": "cd backend && (python - <<'PY' ... runner.BACKUPS=<tmp>/backups; reload_settings(VAULTS_ROOT=<tmp>/vaults); review_overview._collect(); 时钟 pin ... PY)",
+        "cwd": "<tree>/backend",
+        "exit_code": 0,
+        "note": "API 面: g68 同款注入; 不 import app.main。"
+      },
+      {
+        "cmd": "python3 <EV>/three-face-compare.py <tmp>/.../今日复习.json <EV>/three-face-api.json <tmp>/.../今日复习.md",
+        "cwd": "<tree>",
+        "exit_code": 0
+      },
+      {
+        "cmd": "cd backend && .venv/bin/pytest -q -rfE -p no:cacheprovider tests/regression/test_g68_five_view_contract.py",
+        "cwd": "<tree>/backend",
+        "exit_code": 0,
+        "note": "34 passed (参数化展开; 卡文写 24 = def test_ 数)。"
+      },
+      {
+        "cmd": "cd backend && .venv/bin/pytest tests/regression -q -p no:cacheprovider -rfE",
+        "cwd": "<tree>/backend",
+        "exit_code": 0
+      },
+      {
+        "cmd": "cd backend && .venv/bin/pytest -q -rfE -p no:cacheprovider <9 点名文件>",
+        "cwd": "<tree>/backend",
+        "exit_code": 0
+      },
+      {
+        "cmd": "git --no-pager diff --name-only --no-color f0cacff6 a3103a49 -- backend/ frontend/ scripts/",
+        "cwd": "<tree>",
+        "exit_code": 0,
+        "note": "零输出 = 执行期 checkout 与终态之间代码树逐文件零 diff (candidate.sha 绑定佐证)。"
+      },
+      {
+        "cmd": "cd backend && .venv/bin/pytest tests/unit -q -p no:cacheprovider -rfE",
+        "cwd": "<tree>/backend",
+        "exit_code": 1,
+        "expected_failure": true,
+        "note": "32 failed = 既有红基线 (BASE 33 − 1 条已知 flaky 本轮转绿); 非本卡引入 (diff 只 <)。"
+      }
+    ],
+    "skips_or_mocks": {
+      "declared": true,
+      "items": [
+        {
+          "what": "用户 UI 全步骤 (Day0 作答 / Day1 四桶 / 回炉 / snooze / 完成 / 深链)",
+          "why": "未授权 (口令「G6-13 授权 J07 窗口」未给出) + 主 session 尚未完成 P5-A/P5-B 合入部署与 launchd 一档核的前置; 按卡文 (c) 整段 SKIP, 用户步骤全部 not_run。"
+        },
+        {
+          "what": "10 分钟回炉的实际计时与 FSRS 步长核对",
+          "why": "同上未执行; 本卡只旁证 learning_queue 桶机制。"
+        },
+        {
+          "what": "live-before / live-after-check 原库 hash 门",
+          "why": "无用户作答 ⇒ 无关节点集合可对照; 未执行 (not_run), 不代跑。"
+        }
+      ]
+    }
+  },
+  "assertions": [
+    {
+      "id": "J07-1",
+      "statement": "次日总览四桶展示（产品口径五桶: relearning 并入 learning_queue「重学中」）",
+      "method": "未执行 —— 需用户经浏览器打开 /overview/page 与 /app 查看",
+      "result": "not_run",
+      "note": "旁证 (非本断言的通过依据): fixture 侧五桶机制产出 new=5 / learning_queue=1 (见 three-face-api.json 的 bucket_counts)。"
+    },
+    {
+      "id": "J07-2",
+      "statement": "答错回炉 → 该节点落 learning_queue「重学中」（10 分钟步长）",
+      "method": "未执行 —— 需用户对错题节点再作答触发 relearning",
+      "result": "not_run",
+      "note": "旁证: live 副本中已逾期节点 csm-tutoring-unit-credit 即在 learning_queue 桶 (见 three-face-compare.txt)。步长未验 (fsrs_bridge 零写者)。"
+    },
+    {
+      "id": "J07-3",
+      "statement": "snooze 让位（推迟到今晚/明天 → 该板在排序中让位）",
+      "method": "未执行 —— 需用户经页面点选 (车道禁 POST)",
+      "result": "not_run"
+    },
+    {
+      "id": "J07-4",
+      "statement": "完成让位与打勾（今天做完了 → 退后并标记）",
+      "method": "未执行 —— 需用户经页面点选 (车道禁 POST)",
+      "result": "not_run"
+    },
+    {
+      "id": "J07-5",
+      "statement": "深链精确开板/开节点 (obsidian://)",
+      "method": "未执行 —— 需用户点击深链",
+      "result": "not_run"
+    },
+    {
+      "id": "J07-6",
+      "statement": "三面排序一致: picker JSON / API _collect / Markdown 的 (板,节点,桶) 集合与 ranked 板序一致",
+      "method": "tmp 副本上同刻重算三面, 逐项比对",
+      "result": "pass",
+      "evidence": "three-face-compare.txt",
+      "note": "范围: 同一份数据、同一时刻的『副本三面』 (集合 6=6=6; ranked picker 3 前缀 = api/md 4 全长)。不证 live 8011 进程内存态; picker 与 API 投影同源耦合见 known_limitations。"
+    },
+    {
+      "id": "J07-7",
+      "statement": "G6-8 五面契约 0 未登记分歧（2 时刻 × 2 时区四档 verdict=PASS）",
+      "method": "g68_five_view_contract.py 四档 + 契约门 34 passed",
+      "result": "pass",
+      "evidence": "g68-2026-09-19T03:00:00Z-Asia_Shanghai.json",
+      "note": "四份 json 全为 artifact。03Z×LA 档 declared=6 (skill_inbox 固定 +08:00 的已登记分歧, 谓词通过); P5-B 按默认未改 inbox tz —— T3-B 待裁现状如实抄。"
+    },
+    {
+      "id": "J07-8",
+      "statement": "原库 hash 门: 仅被作答节点的 frontmatter 变化, 其余全 OK",
+      "method": "未执行 —— 需用户作答后才有关键集合可核 (live-before/after 不产生)",
+      "result": "not_run"
+    }
+  ],
+  "rollback": {
+    "performed": false,
+    "result": "not_applicable",
+    "reason": "本卡未发起任何 live 写入 (车道只 GET/cp/rsync/shasum); 产品路径的 snooze/done/undo 未执行, 无状态可回滚。"
+  },
+  "artifacts": [
+    {
+      "path": "copy-fidelity-rsync.txt",
+      "sha256": "388a1a1bbf7811905b50f7c68fff73f739c15a31ada4cf92b4c7ec00f58ac319",
+      "bytes": 364,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "copy-fidelity.txt",
+      "sha256": "5b4ffdfa4423a0c2af84cb9591004ebb4a9ef53592270d25648f0900d1c567c4",
+      "bytes": 979,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "g68-2026-09-19T03:00:00Z-America_Los_Angeles.json",
+      "sha256": "890829112dc00b9d9c14deed8b4fdb7944c2fb2be5b2cb5796314dc0575189fd",
+      "bytes": 13186,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "g68-2026-09-19T03:00:00Z-Asia_Shanghai.json",
+      "sha256": "4f758187cf42303de21ef5590f1006922e5f6f2cdb401cc30d3b3a8e13fa1b10",
+      "bytes": 11490,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "g68-2026-09-19T13:00:00Z-America_Los_Angeles.json",
+      "sha256": "704e5611dec08074b20fbb1b463863f6865a7ceeebc0b2abf4d7b3852d73f75d",
+      "bytes": 11501,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "g68-2026-09-19T13:00:00Z-Asia_Shanghai.json",
+      "sha256": "af617c30b35982bfc94b5f880fdf461d5ed162d3a1715f4223be73aa4bce6820",
+      "bytes": 11492,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "md-final.md",
+      "sha256": "d5728c403692eeb1c9f199a395e673117254ddc0d322d87d1d83c4f046f3352f",
+      "bytes": 2676,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "picker-final.json",
+      "sha256": "f83aef4f7e975e8d721e442390c798bc08f105c98a89d8abfca87100015f3fb9",
+      "bytes": 7593,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "tests-g68-gate.txt",
+      "sha256": "8980ebb596bd35c3b9928b6cf5dece82306156300eaab49c904965732be617f9",
+      "bytes": 227,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "tests-named-close.txt",
+      "sha256": "0124454ca5db7b0fb54b05fea25598607ca7350f886749c30e7f7fb962b3c666",
+      "bytes": 7448,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "tests-named-open.txt",
+      "sha256": "9326ee4def36e026ab8a0330f6e36415db0e0083c9db66e99ff4dc082b15d089",
+      "bytes": 637,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "tests-regression.txt",
+      "sha256": "dc6fc1eed55c406cb04a3a480dabef2fd3d4b4e6e236e7d7e0ffba153f98e07b",
+      "bytes": 14973,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "three-face-api.json",
+      "sha256": "097a544e027e861b8e39fb59fd3d97530d1950fa16bd09477d6dfbdc31a7f2ff",
+      "bytes": 4802,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "three-face-compare-j07.txt",
+      "sha256": "e65b6135d99261275005e6b1f2acede5d1834f083c4dad5035a44dd78a2d84e9",
+      "bytes": 452,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "three-face-compare.txt",
+      "sha256": "ddac8f13f8ea6652fbe022cfd01e5f826e9b0c52331f895c01d73aa541531265",
+      "bytes": 1105,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    },
+    {
+      "path": "unit-vs-base.txt",
+      "sha256": "41ed379498082e8a21bc8204c232e796a445de995ea973ed6f17c38e2fce7291",
+      "bytes": 181,
+      "redacted": true,
+      "redaction_note": "已脱敏: 机械核查通过 (无 /Users/、/private/、/home/、/opt/homebrew/、/tmp/、/var/、/Volumes/ 七类前缀); 收录件经人工检视无私人笔记正文; md-final.md 为全量脱敏版 (路径类值已替换占位)。"
+    }
+  ],
+  "slo": {
+    "manifest_revision": null,
+    "measurements": []
+  },
+  "signoff": {
+    "status": "pending",
+    "note": "未授权窗口 ⇒ E2/partial; 签字位待 J07 窗口执行后由用户签署 (S10: 回填件不得 approved)。"
+  },
+  "evidence_level": "E2",
+  "result": "partial",
+  "known_limitations": [
+    "未授权/未跨日: 用户 UI 步骤全部 not_run; 本卡只证明机器半边 (五面契约 + tmp 副本三面对账 + 校验器 + 套件), 旅程本身未在真实 UI 上走过。",
+    "即授权, 也只证明一块 vault / 4 板 / 6 节点的一次跨日; live 副本 14 节点里仅 1 个 fsrs_due ⇒ 集合小; 不证明多 vault / 多板并发或 14 天 dogfood (G8-6)。",
+    "candidate.sha = 本车道树 HEAD, 非 8011 执行期服务树, 也非最终候选树 (RC 复跑归 R-J07)。",
+    "三面对账在 tmp 副本上重算; 且 API 面读的就是 picker 输出 (outputs/今日复习.json) 再自行派生 ⇒ 两面同源, 对账无法排除共享数据缺陷; 独立渲染面只有 Markdown 链。不证 live 8011 进程当时内存里的投影与副本一致 (进程缓存/刷新时序未覆盖)。",
+    "「10 分钟回炉」只验到『逾期节点落在 learning_queue (重学中)』的桶机制旁证, 未验 FSRS 步长恰为 10 分钟 (fsrs_bridge.py 零写者, 本卡不读其运行期配置)。",
+    "深链 obsidian:// 的降级文案未测 (未开窗)。",
+    "E3+ 所需 SLO revision 本树不存在 ⇒ evidence_level 停在 E2 (S9/S13); 这不代表旅程质量低于 E3。",
+    "g68 契约的 boards=6 是 fixture 输入面, 与 live 库的 4 板/6 节点是两回事。"
+  ],
+  "notes": "candidate.sha 钉执行期 checkout f0cacff6; 其后 A/B/C 与外部 docs-only commit 1c355c3a 仅动 J07 证据面与 _bmad-output ⇒ `git --no-pager diff --name-only f0cacff6 a3103a49 -- backend/ frontend/ scripts/` 为空 (命令见 execution.commands)。rc='dev-b15-p5' 为本卡自命名开发门 rc (非 RC; 形态同 example-backfill-d5)。集成期主 session 如需并入 R-RC 冻结 rc, 只改目录名 + rc 字段 (纯文档)。candidate.dirty 口径: `git status --porcelain -- . ':(exclude)docs/release-evidence' ':(exclude)_bmad-output'` 为空 ⇒ false。候选双树现象: 本仓存在主仓 live tree 与车道树两份 canvas-vault, 本卡读 live 只经 cp/rsync。P5-B 按默认未改 inbox_preview.py:430 的 +08:00 ⇒ skill_inbox 已登记分歧仍在 (待 T3-B 用户裁)。"
+}

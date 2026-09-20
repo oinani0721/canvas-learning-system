@@ -1,0 +1,21 @@
+# negctl-1 (20260920T013002): picker-final.json top_boards 首两板对调 → 对账必红在『ranked 板序不等』
+== 跑前 shasum ==
+f83aef4f7e975e8d721e442390c798bc08f105c98a89d8abfca87100015f3fb9  docs/release-evidence/dev-b15-p5/journeys/J07/picker-final.json
+mutated: swapped top_boards[0].board <-> top_boards[1].board
+进面对账前先证键集 (不猜键名):
+  picker top keys: ['boards', 'buckets', 'date', 'display_tz', 'due_nodes', 'generated_at', 'ineligible', 'notification', 'rank_manifest', 'schema_version', 'stats', 'top_boards', 'truncated', 'unassigned_nodes', 'upcoming', 'vault_id']
+  api    top keys: ['active_vault', 'display_tz', 'generated_at', 'tonight_available', 'vaults', 'vaults_root']
+  api projection keys: ['boards', 'bucket_counts', 'bucket_rows', 'date', 'due_count', 'due_new_count', 'generated_at', 'next_upcoming', 'pending', 'placeholder_attributed', 'placeholder_backlog', 'recommended_board', 'schema_version', 'top_node', 'vault_id']
+
+三面集合 picker: 6 api: 6 md: 6
+集合相等(三方): True
+ranked 板序 picker: ['特征值与特征向量', 'CS 61B', 'CS188 lecture 2']
+ranked 板序 api   : ['CS 61B', '特征值与特征向量', 'CS188 lecture 2', '递归与分治 (Recursion & Divide-Conquer)']
+ranked 板序 md    : ['CS 61B', '特征值与特征向量', 'CS188 lecture 2', '递归与分治 (Recursion & Divide-Conquer)']
+ranked 板序 对比: ranked 板序不等
+three_face_equal=False
+rc=1
+== 跑后 shasum（应逐字同）==
+f83aef4f7e975e8d721e442390c798bc08f105c98a89d8abfca87100015f3fb9  docs/release-evidence/dev-b15-p5/journeys/J07/picker-final.json
+== status（应 0）==
+       0

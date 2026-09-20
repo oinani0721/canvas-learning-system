@@ -1,0 +1,173 @@
+{
+ "generated_at": "2026-09-20T15:59:55+08:00",
+ "display_tz": "Asia/Shanghai",
+ "tonight_available": true,
+ "vaults_root": "<tmp>/vaults",
+ "active_vault": "canvas-vault",
+ "vaults": [
+  {
+   "vault_id": "canvas-vault",
+   "path": "<tmp>/vaults/canvas-vault",
+   "status": "ok",
+   "projection": {
+    "schema_version": 3,
+    "vault_id": "canvas-vault",
+    "date": "2026-09-20",
+    "generated_at": "2026-09-20T15:59:55+08:00",
+    "due_count": 6,
+    "placeholder_backlog": 8,
+    "recommended_board": "CS 61B",
+    "top_node": "csm-tutoring-unit-credit",
+    "pending": 2,
+    "next_upcoming": null,
+    "boards": [
+     {
+      "board": "CS 61B",
+      "due": 2,
+      "due_new": 1,
+      "placeholder": 0,
+      "earliest": "2026-08-11T13:56:58Z",
+      "nodes": [
+       {
+        "node": "csm-tutoring-unit-credit",
+        "due_reason": "scheduled",
+        "fsrs_due": "2026-08-11T13:56:58Z",
+        "bucket": "learning_queue",
+        "why_due": "学习中 · 已逾期 40 天（8月11日到期） · 已闲置 39 天"
+       },
+       {
+        "node": "cs-61b-csm",
+        "due_reason": "new",
+        "fsrs_due": "",
+        "bucket": "new",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察"
+       }
+      ],
+      "why_this_board": "2 个节点到期（其中 1 张新卡） · 最早的已逾期 40 天 · 最该考的已闲置 39 天 · 今天已推荐过",
+      "estimated_minutes": 8
+     },
+     {
+      "board": "特征值与特征向量",
+      "due": 2,
+      "due_new": 2,
+      "placeholder": 1,
+      "earliest": "",
+      "nodes": [
+       {
+        "node": "Characteristic-Equation-for-Eigenvalues",
+        "due_reason": "new",
+        "fsrs_due": "",
+        "bucket": "new",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察"
+       },
+       {
+        "node": "Fundamentals",
+        "due_reason": "new",
+        "fsrs_due": "",
+        "bucket": "new",
+        "why_due": "新卡未排期，视同即刻到期 · 已闲置 57 天"
+       }
+      ],
+      "why_this_board": "2 个节点到期（其中 2 张新卡） · 最该考的已闲置 57 天 · 距上次推荐 41 天",
+      "estimated_minutes": 10
+     },
+     {
+      "board": "CS188 lecture 2",
+      "due": 1,
+      "due_new": 1,
+      "placeholder": 7,
+      "earliest": "",
+      "nodes": [
+       {
+        "node": "lecture 2",
+        "due_reason": "new",
+        "fsrs_due": "",
+        "bucket": "new",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察"
+       }
+      ],
+      "why_this_board": "1 个节点到期（其中 1 张新卡） · 最该考的从未考察 · 这块板从未被推荐过",
+      "estimated_minutes": 5
+     },
+     {
+      "board": "递归与分治 (Recursion & Divide-Conquer)",
+      "due": 1,
+      "due_new": 1,
+      "placeholder": 0,
+      "earliest": "",
+      "nodes": [
+       {
+        "node": "my-recursion-notes",
+        "due_reason": "new",
+        "fsrs_due": "",
+        "bucket": "new",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察"
+       }
+      ],
+      "why_this_board": null,
+      "estimated_minutes": null
+     }
+    ],
+    "due_new_count": 5,
+    "placeholder_attributed": 8,
+    "bucket_counts": {
+     "new": 5,
+     "learning_queue": 1,
+     "due_now": 0,
+     "due_today": 0,
+     "future": 0
+    },
+    "bucket_rows": {
+     "new": [
+      {
+       "node": "Characteristic-Equation-for-Eigenvalues",
+       "board": "特征值与特征向量",
+       "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+       "fsrs_due": ""
+      },
+      {
+       "node": "Fundamentals",
+       "board": "特征值与特征向量",
+       "why_due": "新卡未排期，视同即刻到期 · 已闲置 57 天",
+       "fsrs_due": ""
+      },
+      {
+       "node": "cs-61b-csm",
+       "board": "CS 61B",
+       "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+       "fsrs_due": ""
+      },
+      {
+       "node": "lecture 2",
+       "board": "CS188 lecture 2",
+       "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+       "fsrs_due": ""
+      },
+      {
+       "node": "my-recursion-notes",
+       "board": "递归与分治 (Recursion & Divide-Conquer)",
+       "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+       "fsrs_due": ""
+      }
+     ],
+     "learning_queue": [
+      {
+       "node": "csm-tutoring-unit-credit",
+       "board": "CS 61B",
+       "why_due": "学习中 · 已逾期 40 天（8月11日到期） · 已闲置 39 天",
+       "fsrs_due": "2026-08-11T13:56:58Z"
+      }
+     ],
+     "due_now": [],
+     "due_today": [],
+     "future": []
+    }
+   },
+   "error": null,
+   "board_done": [],
+   "snoozed": {},
+   "push_degraded": false,
+   "last_error": ""
+  }
+ ]
+}

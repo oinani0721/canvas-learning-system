@@ -1,0 +1,14 @@
+# 副本保真核 (CARD-G6-13 (d)②; live 只读)
+rsync 命令: rsync -a --exclude '.obsidian/plugins' <live-vault>/ <tmp>/vaults/canvas-vault/
+rsync rc: 0
+副本文件数: 272
+
+.canvas-config.yaml sha256 (live): d1f64c3fd70a5ac12dbe0595667b58b7a9908a5215acdc052ae8ae4cf9fb3acf
+.canvas-config.yaml sha256 (copy): d1f64c3fd70a5ac12dbe0595667b58b7a9908a5215acdc052ae8ae4cf9fb3acf  ⇒ 同 = True
+
+内容差异对照 (rsync -ainc --checksum -8 干跑, 空格安全全树对拍):
+  差异条目 = 1 目录 mtime + 2 文件内容 (恰: outputs/ + outputs/今日复习.json + outputs/今日复习.md)
+  完整源/目的命令与逐行 stdout+rc 见同目录 copy-fidelity-rsync.txt
+  成因 = 车道在副本上跑 picker --write 重算当日投影 (fixture 设计; 副本投影 00:59 vs live 00:05), 其余文件逐字节同 — 非 rsync 丢失。
+
+注: 首版'整树摘要'(shasum|xargs)因空格文件名被打散已弃用, 记录见 EV/copy-fidelity-digest-v1-broken-note.txt。

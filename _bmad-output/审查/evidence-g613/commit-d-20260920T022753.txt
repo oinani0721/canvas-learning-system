@@ -1,0 +1,4 @@
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/negctl-2-final-20260920T022709.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/validate-all-r3fix-20260920T022658.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/evidence-g613/validate-j07-r3fix-20260920T022658.txt"
+ create mode 100644 "_bmad-output/\345\256\241\346\237\245/prompts/codex-prompt-CARD-G6-13-r3.md"

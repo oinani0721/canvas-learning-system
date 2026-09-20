@@ -1,0 +1,8 @@
+# 副本保真 rsync 全量对拍 (CARD-G6-13 (d)②; live 只读; 完整 stdout+rc; -8 保留 UTF-8 原名)
+# 命令: rsync -ainc --checksum -8 --exclude '.obsidian/plugins' <live-vault>/ <tmp>/vaults/canvas-vault/
+# 时刻: 2026-09-20T02:13:52-0700
+== stdout ==
+.d..t.... outputs/
+>fcst.... outputs/今日复习.json
+>fcst.... outputs/今日复习.md
+== rc=0 ==

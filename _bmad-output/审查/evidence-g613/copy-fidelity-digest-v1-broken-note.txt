@@ -1,0 +1,5 @@
+# 弃用记录: 首版整树摘要 (shasum|xargs) 因空格文件名打散失效
+现象: find|sort|xargs shasum -a 256 → 大量 'No such file or directory' (文件名含空格/全角被 xargs 按空白切分);
+两树 digest 不可比 (8ea7c250… vs c4296926…), 全部弃用;
+替代: rsync -ainc --checksum 干跑 (空格安全; 只列内容差异行, 见 copy-fidelity.txt 终版);
+教训: 空格路径上的批量 hash 必须 -print0/-0 (或 python), 与 P5-A 'zsh 不词分割' 同族。

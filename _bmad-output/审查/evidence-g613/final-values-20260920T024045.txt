@@ -1,0 +1,4 @@
+# 终值补注 (20260920T024045) HEAD=16b08bd3
+验伪锚(去 exclude; f0..E) = 74
+commits f0..HEAD = 6 (本卡 5 + 外部 1c355c3a)
+evidence-g613 文件 = 65; J07 文件 = 17

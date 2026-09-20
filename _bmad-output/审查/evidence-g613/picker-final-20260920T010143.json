@@ -1,0 +1,280 @@
+{
+  "unassigned_nodes": [],
+  "schema_version": 3,
+  "vault_id": "canvas-vault",
+  "display_tz": "Asia/Shanghai",
+  "date": "2026-09-20",
+  "generated_at": "2026-09-20T15:59:55+08:00",
+  "top_boards": [
+    {
+      "board": "CS 61B",
+      "top_node": "csm-tutoring-unit-credit",
+      "priority": -0.0478,
+      "pending": 2,
+      "idle_days": 39,
+      "difficulty": "6.4133",
+      "next_due": "",
+      "why_this_board": "2 个节点到期（其中 1 张新卡） · 最早的已逾期 40 天 · 最该考的已闲置 39 天 · 今天已推荐过",
+      "estimated_minutes": 8,
+      "factors": {
+        "due_total": 2,
+        "due_new": 1,
+        "due_scheduled": 1,
+        "due_malformed": 0,
+        "overdue_days": 40,
+        "idle_days": 39,
+        "never_recommended": false,
+        "recommend_gap_days": 0
+      }
+    },
+    {
+      "board": "特征值与特征向量",
+      "top_node": "Fundamentals",
+      "priority": -0.0457,
+      "pending": 2,
+      "idle_days": 57,
+      "difficulty": "",
+      "next_due": "",
+      "why_this_board": "2 个节点到期（其中 2 张新卡） · 最该考的已闲置 57 天 · 距上次推荐 41 天",
+      "estimated_minutes": 10,
+      "factors": {
+        "due_total": 2,
+        "due_new": 2,
+        "due_scheduled": 0,
+        "due_malformed": 0,
+        "overdue_days": null,
+        "idle_days": 57,
+        "never_recommended": false,
+        "recommend_gap_days": 41
+      }
+    },
+    {
+      "board": "CS188 lecture 2",
+      "top_node": "lecture 2",
+      "priority": 0.0709,
+      "pending": 1,
+      "idle_days": null,
+      "difficulty": "",
+      "next_due": "",
+      "why_this_board": "1 个节点到期（其中 1 张新卡） · 最该考的从未考察 · 这块板从未被推荐过",
+      "estimated_minutes": 5,
+      "factors": {
+        "due_total": 1,
+        "due_new": 1,
+        "due_scheduled": 0,
+        "due_malformed": 0,
+        "overdue_days": null,
+        "idle_days": null,
+        "never_recommended": true,
+        "recommend_gap_days": null
+      }
+    }
+  ],
+  "upcoming": [],
+  "due_nodes": [
+    {
+      "node": "Characteristic-Equation-for-Eigenvalues",
+      "board": "特征值与特征向量",
+      "state": "legacy",
+      "pick": 0.0709,
+      "fsrs_due": "",
+      "due_reason": "new",
+      "last_examined": "",
+      "difficulty": "",
+      "bucket": "new",
+      "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+      "idle_days": null
+    },
+    {
+      "node": "Fundamentals",
+      "board": "特征值与特征向量",
+      "state": "new",
+      "pick": -0.0457,
+      "fsrs_due": "",
+      "due_reason": "new",
+      "last_examined": "2026-07-25T02:53:46Z",
+      "difficulty": "",
+      "bucket": "new",
+      "why_due": "新卡未排期，视同即刻到期 · 已闲置 57 天",
+      "idle_days": 57
+    },
+    {
+      "node": "cs-61b-csm",
+      "board": "CS 61B",
+      "state": "legacy",
+      "pick": 0.0709,
+      "fsrs_due": "",
+      "due_reason": "new",
+      "last_examined": "",
+      "difficulty": "",
+      "bucket": "new",
+      "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+      "idle_days": null
+    },
+    {
+      "node": "csm-tutoring-unit-credit",
+      "board": "CS 61B",
+      "state": "new",
+      "pick": -0.0478,
+      "fsrs_due": "2026-08-11T13:56:58Z",
+      "due_reason": "scheduled",
+      "last_examined": "2026-08-11T13:55:58Z",
+      "difficulty": "6.4133",
+      "bucket": "learning_queue",
+      "why_due": "学习中 · 已逾期 40 天（8月11日到期） · 已闲置 39 天",
+      "idle_days": 39
+    },
+    {
+      "node": "lecture 2",
+      "board": "CS188 lecture 2",
+      "state": "none",
+      "pick": 0.0709,
+      "fsrs_due": "",
+      "due_reason": "new",
+      "last_examined": "",
+      "difficulty": "",
+      "bucket": "new",
+      "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+      "idle_days": null
+    },
+    {
+      "node": "my-recursion-notes",
+      "board": "递归与分治 (Recursion & Divide-Conquer)",
+      "state": "none",
+      "pick": 0.0709,
+      "fsrs_due": "",
+      "due_reason": "new",
+      "last_examined": "",
+      "difficulty": "",
+      "bucket": "new",
+      "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+      "idle_days": null
+    }
+  ],
+  "boards": [
+    {
+      "board": "CS 61B",
+      "due": 2,
+      "due_new": 1,
+      "due_scheduled": 1,
+      "future": 0,
+      "next_due": "",
+      "placeholder": 0,
+      "earliest_overdue": "2026-08-11T13:56:58Z"
+    },
+    {
+      "board": "CS188 lecture 2",
+      "due": 1,
+      "due_new": 1,
+      "due_scheduled": 0,
+      "future": 0,
+      "next_due": "",
+      "placeholder": 7,
+      "earliest_overdue": ""
+    },
+    {
+      "board": "特征值与特征向量",
+      "due": 2,
+      "due_new": 2,
+      "due_scheduled": 0,
+      "future": 0,
+      "next_due": "",
+      "placeholder": 1,
+      "earliest_overdue": ""
+    },
+    {
+      "board": "递归与分治 (Recursion & Divide-Conquer)",
+      "due": 1,
+      "due_new": 1,
+      "due_scheduled": 0,
+      "future": 0,
+      "next_due": "",
+      "placeholder": 0,
+      "earliest_overdue": ""
+    }
+  ],
+  "buckets": {
+    "new": [
+      {
+        "node": "Characteristic-Equation-for-Eigenvalues",
+        "board": "特征值与特征向量",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+        "fsrs_due": ""
+      },
+      {
+        "node": "Fundamentals",
+        "board": "特征值与特征向量",
+        "why_due": "新卡未排期，视同即刻到期 · 已闲置 57 天",
+        "fsrs_due": ""
+      },
+      {
+        "node": "cs-61b-csm",
+        "board": "CS 61B",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+        "fsrs_due": ""
+      },
+      {
+        "node": "lecture 2",
+        "board": "CS188 lecture 2",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+        "fsrs_due": ""
+      },
+      {
+        "node": "my-recursion-notes",
+        "board": "递归与分治 (Recursion & Divide-Conquer)",
+        "why_due": "新卡未排期，视同即刻到期 · 从未考察",
+        "fsrs_due": ""
+      }
+    ],
+    "learning_queue": [
+      {
+        "node": "csm-tutoring-unit-credit",
+        "board": "CS 61B",
+        "why_due": "学习中 · 已逾期 40 天（8月11日到期） · 已闲置 39 天",
+        "fsrs_due": "2026-08-11T13:56:58Z"
+      }
+    ],
+    "due_now": [],
+    "due_today": [],
+    "future": []
+  },
+  "ineligible": {
+    "placeholder": [
+      "Eigenvalues-are-special-vectors-that-sat",
+      "代理决策分析-0303()",
+      "代理函数-(Agent-Function)",
+      "代理类型：反射与规划",
+      "反射代理的局限性引出了规划代理-(Planning-Agents)-的需求",
+      "理性代理-(Rational-Agent)",
+      "规划代理的特点",
+      "规划的分类-1549()"
+    ],
+    "test_excluded": [],
+    "corrupt": []
+  },
+  "stats": {
+    "new": 2,
+    "legacy": 2,
+    "none": 2,
+    "ineligible": 8,
+    "test_excluded": 0,
+    "corrupt": 0,
+    "unassigned": 0,
+    "due_nodes": 6,
+    "future_nodes": 0
+  },
+  "notification": {
+    "title": "📚 今日复习 · CS 61B",
+    "body": "csm-tutoring-unit-credit 等 2 节点待巩固 · 已闲置 39 天",
+    "group": "canvas复习",
+    "id": "canvas-review-2026-09-20"
+  },
+  "rank_manifest": {
+    "version": 2,
+    "sha256": "3aa15e242cb132876acac269615e52a0242c02b3ed00c882a6f870b563a02958"
+  },
+  "truncated": {
+    "top_boards": true,
+    "upcoming": false
+  }
+}

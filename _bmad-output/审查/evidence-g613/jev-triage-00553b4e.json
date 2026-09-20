@@ -1,0 +1,80 @@
+{
+  "commit": "docs(g6-13): J07 次日复习旅程证据 + manifest（未授权路径 E2/partial） [BATCH-2026-09-18-第十五批 / CARD-G6-13]",
+  "ref": "00553b4e",
+  "sha": "00553b4eb5b6aec75db1ec61b05649724b1e564c",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:30:16-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/_tmp_cmp.py\"",
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/build-j07-manifest.py\"",
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/sanitize.py\"",
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/three-face-compare.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/build-j07-manifest.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/build-j07-manifest.py\"",
+      "added": 195,
+      "removed": 0,
+      "runtime": 0.06,
+      "risk": "test_or_docs",
+      "risk_conf": 0.75,
+      "urgency": 1.78,
+      "urgency_conf": 0.0,
+      "review": 0.82,
+      "test": 0.51,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/three-face-compare.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/three-face-compare.py\"",
+      "added": 85,
+      "removed": 0,
+      "runtime": 0.1,
+      "risk": "test_or_docs",
+      "risk_conf": 0.44,
+      "urgency": 1.64,
+      "urgency_conf": 0.45,
+      "review": 0.58,
+      "test": 0.51,
+      "truncated": false,
+      "flag": false
+    },
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/sanitize.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/sanitize.py\"",
+      "added": 16,
+      "removed": 0,
+      "runtime": 0.11,
+      "risk": "security",
+      "risk_conf": 0.54,
+      "urgency": 1.61,
+      "urgency_conf": 0.4,
+      "review": 0.57,
+      "test": 0.33,
+      "truncated": false,
+      "flag": false
+    },
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/_tmp_cmp.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-g613/_tmp_cmp.py\"",
+      "added": 85,
+      "removed": 0,
+      "runtime": 0.1,
+      "risk": "test_or_docs",
+      "risk_conf": 0.5,
+      "urgency": 1.37,
+      "urgency_conf": 0.33,
+      "review": 0.6,
+      "test": 0.45,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 10221,
+    "output_tokens": 630
+  },
+  "latency_ms": {
+    "min": 253,
+    "median": 367,
+    "max": 435
+  }
+}

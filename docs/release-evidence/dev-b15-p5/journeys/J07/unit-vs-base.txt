@@ -1,0 +1,4 @@
+# unit 目录级 open 对 BASE(33) nodeid diff — 只允许 <
+区别行数: 1
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422

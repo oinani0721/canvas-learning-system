@@ -1,0 +1,2 @@
+d1f64c3fd70a5ac12dbe0595667b58b7a9908a5215acdc052ae8ae4cf9fb3acf  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/.canvas-config.yaml
+d1f64c3fd70a5ac12dbe0595667b58b7a9908a5215acdc052ae8ae4cf9fb3acf  /tmp/g613.iTeUuT/vaults/canvas-vault/.canvas-config.yaml

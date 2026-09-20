@@ -1,0 +1,8 @@
+# codex r4 存档哈希自证 (20260920T023838)
+pre-header sha256 = 421d18396ed42035429a7d0eff306f20ee2b1968ca377bdedb40701972aa0043
+含首部全文 sha256 = d98c7c73b987742b76930ab1f7450c165dc7e2b3222dc5f1ee5cecba97a09830
+首部 blockquote sha256 = 88c9fa6f6c4149225aa571332e4bae65a36653b835643c70fc63dace0c7028c7
+== prompt sha256 ==
+0f6f758aa92af9c35e2cdff44410628ae02582885d75786d05dc8e58990a50de  _bmad-output/审查/prompts/codex-prompt-CARD-G6-13-r4.md
+== 自检汇总 ==
+41:BLOCKER=0 HIGH=0 MEDIUM=0 LOW=6

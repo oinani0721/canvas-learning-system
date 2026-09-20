@@ -1,0 +1,5 @@
+# codex r2 prompt 自检 (20260920T020104)
+banned-rc=1
+oldmodel-rc=1
+8445bdcfad3d166ff7e2bc36120ef11e7d99bd5561955b2ae58cacc5254d3d4c  _bmad-output/审查/prompts/codex-prompt-CARD-G6-13-r2.md
+binding-rc=0 (空=绑定)

@@ -1,0 +1,13 @@
+进面对账前先证键集 (不猜键名):
+  picker top keys: ['boards', 'buckets', 'date', 'display_tz', 'due_nodes', 'generated_at', 'ineligible', 'notification', 'rank_manifest', 'schema_version', 'stats', 'top_boards', 'truncated', 'unassigned_nodes', 'upcoming', 'vault_id']
+  api    top keys: ['active_vault', 'display_tz', 'generated_at', 'tonight_available', 'vaults', 'vaults_root']
+  api projection keys: ['boards', 'bucket_counts', 'bucket_rows', 'date', 'due_count', 'due_new_count', 'generated_at', 'next_upcoming', 'pending', 'placeholder_attributed', 'placeholder_backlog', 'recommended_board', 'schema_version', 'top_node', 'vault_id']
+
+三面集合 picker: 6 api: 6 md: 6
+集合相等(三方): True
+ranked 板序 picker: ['CS 61B', '特征值与特征向量', 'CS188 lecture 2']
+ranked 板序 api   : ['CS 61B', '特征值与特征向量', 'CS188 lecture 2', '递归与分治 (Recursion & Divide-Conquer)']
+ranked 板序 md    : ['CS 61B', '特征值与特征向量', 'CS188 lecture 2', '递归与分治 (Recursion & Divide-Conquer)']
+ranked 板序 对比: OK
+three_face_equal=True
+rc=0

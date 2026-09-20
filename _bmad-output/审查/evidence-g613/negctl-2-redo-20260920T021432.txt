@@ -1,0 +1,26 @@
+# negctl-2 redo (20260920T021432): manifest artifacts[0].sha256 末位翻位 → rc=1 含 [A (rc 正确捕获)
+命令: cp docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json /tmp/g613snap3.uOsJdK/manifest.json.bak
+0eaefddefeb5b23048341b984602e80735ae2882e577ce3d8574a5229d1caf4b  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+0eaefddefeb5b23048341b984602e80735ae2882e577ce3d8574a5229d1caf4b  /tmp/g613snap3.uOsJdK/manifest.json.bak
+== 施变异前 status ==
+ M docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity.txt
+ M docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+ M docs/release-evidence/dev-b15-p5/journeys/J07/three-face-api.json
+?? docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity-rsync.txt
+mutated artifacts[0] (copy-fidelity-rsync.txt) last hex 9 -> 0
+❌ FAIL docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+    [A2] artifact checksum 不符: copy-fidelity-rsync.txt
+      manifest: 388a1a1bbf7811905b50f7c68fff73f739c15a31ada4cf92b4c7ec00f58ac310
+      实际:     388a1a1bbf7811905b50f7c68fff73f739c15a31ada4cf92b4c7ec00f58ac319
+
+合计 1 份 manifest, 失败 1 份。
+validator rc=1
+== 恢复 ==
+命令: cp /tmp/g613snap3.uOsJdK/manifest.json.bak docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+0eaefddefeb5b23048341b984602e80735ae2882e577ce3d8574a5229d1caf4b  docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+cmp: identical
+== 恢复后 status ==
+ M docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity.txt
+ M docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+ M docs/release-evidence/dev-b15-p5/journeys/J07/three-face-api.json
+?? docs/release-evidence/dev-b15-p5/journeys/J07/copy-fidelity-rsync.txt

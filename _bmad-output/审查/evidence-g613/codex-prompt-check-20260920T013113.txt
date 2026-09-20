@@ -1,0 +1,10 @@
+# codex r1 prompt 自检 (20260920T013113)
+== 四禁用措辞 ==
+rc=1 (1=无命中)
+== 旧模型名 ==
+rc=1
+== prompt sha256 ==
+9a8f874f673341bd27bad38ac3f4901c199b63c1818cd0ded52e3bc6934f90ad  _bmad-output/审查/prompts/codex-prompt-CARD-G6-13-r1.md
+== 送审前绑定 ==
+binding-empty rc=0
+       0

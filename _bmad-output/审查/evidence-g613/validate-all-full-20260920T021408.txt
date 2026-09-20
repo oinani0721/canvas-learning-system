@@ -1,0 +1,13 @@
+❌ FAIL docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+    [A2] artifact checksum 不符: copy-fidelity.txt
+      manifest: 853045f7b325c169e42cc6864a5ae3cd2881ecb04af22915fdd8388ad1902ef5
+      实际:     5b4ffdfa4423a0c2af84cb9591004ebb4a9ef53592270d25648f0900d1c567c4
+    [A3] artifact 字节数不符: copy-fidelity.txt (manifest 1089 vs 实际 979)
+    [A2] artifact checksum 不符: three-face-api.json
+      manifest: bf04c27a06f25addf9faf911577f55886bed59438f04f9cc39c8fec9b51db96e
+      实际:     097a544e027e861b8e39fb59fd3d97530d1950fa16bd09477d6dfbdc31a7f2ff
+    [A3] artifact 字节数不符: three-face-api.json (manifest 4818 vs 实际 4802)
+✅ PASS docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json
+
+合计 2 份 manifest, 失败 1 份。
+rc=1
