@@ -1,0 +1,4 @@
+=== pyright app ===
+0 errors, 80 warnings, 0 informations
+=== pyright 新脚本 ===
+0 errors, 0 warnings, 0 informations

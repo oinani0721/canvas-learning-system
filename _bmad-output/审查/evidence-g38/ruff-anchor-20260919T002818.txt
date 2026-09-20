@@ -1,0 +1,15 @@
+=== (6) 验伪锚：F821 探针（backend/ruff.toml select = E9,F63,F7,F82，⛔ 无 F401）===
+F821 Undefined name `undefined_name_g38`
+ --> backend/scripts/_g38_f821_probe.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_g38
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1   ← 期望 1
+--- 对照：F401（未启用规则）应 rc=0 = 证明不能拿 F401 当锚 ---
+All checks passed!
+rc=0   ← 期望 0
+探针已清理: 已删

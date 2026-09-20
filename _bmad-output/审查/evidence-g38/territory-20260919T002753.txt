@@ -1,0 +1,18 @@
+=== (l) 地盘门：改动 ⊆ 两个新文件 ===
+ backend/scripts/migrate_next_review_g38.py         | 1369 ++++++++++++++++++++
+ backend/tests/unit/test_migrate_next_review_g38.py |  896 +++++++++++++
+ 2 files changed, 2265 insertions(+)
+--- name-only ---
+backend/scripts/migrate_next_review_g38.py
+backend/tests/unit/test_migrate_next_review_g38.py
+
+=== (l) backend/app 改动文件数（期望 0）===
+0
+=== (l) 验伪锚：把 $PREV 换成 9c4e7e82 应列出 review_service.py（P4-A 的改动）===
+backend/app/services/review_service.py
+
+=== (l) 验伪锚：去掉 exclude 应多出 _bmad-output 条目 ===
+2
+
+=== (j) openapi.json 是否被塞进本卡 commit（期望 0）===
+0

@@ -1,0 +1,7 @@
+=== (m) 两个新文件不得提及 fsrs_bridge / decay_beta ===
+命中数 = 4   ← 期望 0
+验伪锚（同 grep 作用在 census md 上，应 ≥1 = grep 本身有效）:
+命中数 = 1
+
+=== (m) 车道裁判零连现网端口（W4 哨兵行）===
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)

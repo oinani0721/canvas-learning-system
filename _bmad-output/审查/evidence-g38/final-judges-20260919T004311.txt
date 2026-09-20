@@ -1,0 +1,30 @@
+=== HEAD ===
+f9e8e3e89659f9f916ecc66a9d6e753f8d280e52
+
+=== (f)① census 面零漂移（定稿后）===
+diff_rc=0  行数=      14
+
+=== (f)② AST 函数集 ===
+必备集 ⊆ 实际集: True | 缺: [] | 函数总数: 54
+
+=== (f)③ 零 app 导入 ===
+0
+=== (f)④ LIVE_* 常量（AST）===
+['LIVE_CARD_STATES', 'LIVE_DB_PORTS', 'LIVE_JSON_MIRROR', 'LIVE_REPO_ROOT', 'LIVE_VAULT_DIR']
+
+=== (l) 地盘门 ===
+ backend/scripts/migrate_next_review_g38.py         | 1634 ++++++++++++++++++++
+ backend/tests/unit/test_migrate_next_review_g38.py | 1110 +++++++++++++
+ 2 files changed, 2744 insertions(+)
+backend/app 改动文件数: 0
+openapi.json: 0
+
+=== (m) 两新文件 fsrs_bridge/decay_beta 命中（期望 0）===
+0
+
+=== (6) ruff（定稿后）===
+files=4
+All checks passed!
+rc=0
+4 files already formatted
+fmt_rc=0

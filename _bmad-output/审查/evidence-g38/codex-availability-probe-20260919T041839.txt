@@ -1,0 +1,90 @@
+CARD-G3-8 / CARD-G8-4 —— Codex 可用性复测记录（2026-09-19）
+
+本文件不是复核存档，是「(n) 为什么无法在车道内完成」的证据。
+
+时间线（同一台机器、同一个 `codex login status` = Logged in using ChatGPT）：
+
+  ~00:30        gpt-6-astra 正常 —— CARD-G3-8 的 round-1 / round-2 都拿到完整存档（已入库）
+  00:57/00:58   gpt-6-astra 0 字节：ERROR: You've hit your usage limit. … try again at Sep 23rd, 2026 11:05 AM.
+  01:19         同上（+20 分钟独立复测，结论当时成立）
+  04:10/04:12   gpt-6-astra 0 字节：400 invalid_request_error:
+                "The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."
+  ~04:25        gpt-6-astra 同上（第三次确认）
+  ~04:27        gpt-5.6-sol（上一代复核模型，仅作诊断探针、未做任何复核）
+                0 字节，**同一条 400**："The 'gpt-5.6-sol' model is not supported when using Codex
+                with a ChatGPT account."
+
+结论（只写能证的）：
+  · 两个不同的模型名返回**同一条**错误，且错误原文点名的是**账号形态**
+    （"when using Codex with a ChatGPT account"），不是某个模型的额度。
+  · 因此这不是「换个模型就能继续」的问题，而是当前登录形态下 `-m <model>` 这条路不通。
+  · 本车道**没有**用别的模型跑过任何一次复核；上面那次 gpt-5.6-sol 是一句
+    "回答两个字：可用" 的连通性探针，输出 0 字节，未入库、不作任何依据。
+
+未证明：
+  · 没有证据说明根因（额度用尽后服务端下架 / 计划变更 / 服务端策略调整都可能），本车道
+    不做推断。
+  · 没有测试过「不带 -m、用账号默认模型」是否可用 —— 本机 ~/.codex/config.toml:16 的
+    默认值就是 gpt-6-astra，裸跑与显式指定等价，说明不了新东西。
+
+处置（协议 §1）：0 字节存档重发一次、再 0 字节 → 主 session 人审替代，不等配额。
+0 字节存档均未入库。两份 prompt 已备好（禁用措辞自检全 0、最小读取面的 SHA 已 git cat-file 验过），
+模型/账号形态恢复即可直接送：
+  _bmad-output/审查/prompts/codex-prompt-CARD-G3-8-r3.md  （绑 ce81e5fa）
+  _bmad-output/审查/prompts/codex-prompt-CARD-G8-4.md     （绑 9f852a76）
+
+⛔ 需用户裁定：等额度 / 改用 API key 形态登录 / 更新 2026-09-05 的 D 裁定改用别的模型。
+   换模型是用户决策，车道不自行更改。
+
+────────────────────────────────────────────────────────────────────────
+追加（~04:30）：四模型交叉探针 —— 结论从「模型被门住」收紧为「账号整体不可用」
+────────────────────────────────────────────────────────────────────────
+
+又探了两个 ChatGPT 账号侧的标准 Codex 模型（同样只发一句「回答两个字：可用」，
+输出 0 字节、未入库、不作任何依据）：
+
+  gpt-6-astra        → 400 "not supported when using Codex with a ChatGPT account"
+  gpt-5.6-sol        → 同上
+  gpt-5-codex        → 同上
+  gpt-5.1-codex-max  → 同上
+
+四个不同模型名返回**逐字相同**的错误。因此：
+
+  ⛔ 这不是「换个模型就能继续」——**没有可换的模型**。
+  ⛔ 也不是「等额度恢复」——01:19 那条配额报错已被 04:10 起的 400 取代，形态不同。
+
+能证的只有一条：**当前这个 `Logged in using ChatGPT` 的登录形态下，
+`codex exec -m <任意模型>` 一律被服务端拒绝。**
+
+未证明（不要当结论）：
+  · 根因（计划变更 / 额度耗尽后的连带效果 / 服务端策略调整）本车道无证据。
+  · 未测试过 API key 形态的登录是否可用 —— 那需要用户本人的凭据，车道不碰。
+
+⇒ (n) 不是「等一等就能做完」的条件，它需要**用户先修复 Codex 的可用性**
+  （例如 `codex login` 换成 API key 形态，或处理账号状态），之后主 session
+  用已备好的两份 prompt 直接送即可：
+      _bmad-output/审查/prompts/codex-prompt-CARD-G3-8-r3.md  （绑 ce81e5fa）
+      _bmad-output/审查/prompts/codex-prompt-CARD-G8-4.md     （绑 9f852a76）
+
+────────────────────────────────────────────────────────────────────────
+追加（~04:33）：备用认证路径核查 —— 不存在，车道已穷尽
+────────────────────────────────────────────────────────────────────────
+
+查了「是否已经配好了另一条认证路径」（只看存在性与形状，未打印任何密钥值）：
+
+  环境变量 OPENAI_API_KEY          → 不存在
+  ~/.codex/auth.json 的 OPENAI_API_KEY → null（auth_mode 是 7 字符，tokens 里只有
+                                        OAuth 的 id/access/refresh token + account_id）
+  ~/.codex/config.toml 的 [model_providers] → 无自定义 provider、无 env_key
+
+⇒ 当前机器上**只有** ChatGPT OAuth 这一条认证路径，而那正是服务端拒绝的那一种。
+  车道没有别的路可走，也不会去索取或写入用户的 API key。
+
+**车道已穷尽的动作清单**（到此为止）：
+  ① 按协议 §1 重发被拒的复核：G3-8 三次、G8-4 两次，均 0 字节、均未入库；
+  ② 间隔 20 分钟独立复测配额结论（当时成立，随后形态变为 400）；
+  ③ 四模型交叉探针，确认是账号形态而非模型；
+  ④ 备用认证路径核查，确认不存在。
+
+**剩下的动作全部属于用户**：修复 Codex 可用性（`codex login` 换认证形态 / 处理账号状态）。
+之后主 session 用已备好的两份 prompt 直接送，两份都绑着各自的最终代码 SHA。

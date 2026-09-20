@@ -1,0 +1,11 @@
+=== (6) ruff（zsh 数组，协议 §2.2 写法）===
+files=4
+文件清单:
+backend/app/services/review_service.py
+backend/scripts/migrate_next_review_g38.py
+backend/tests/regression/test_g3_7_truth_source.py
+backend/tests/unit/test_migrate_next_review_g38.py
+All checks passed!
+rc=0
+4 files already formatted
+fmt_rc=0

@@ -1,0 +1,6 @@
+NEGCTL-3 变异片段
+--- 原 ---
+        relationships[position]["next_review"] = row["new_next_review"]
+--- 改 ---
+        [r.__setitem__("next_review", row["new_next_review"]) for r in relationships  # NEGCTL-3: 按键写
+         if r.get("user_id") == row["user_id"] and r.get("concept_name") == row["concept_key"]]

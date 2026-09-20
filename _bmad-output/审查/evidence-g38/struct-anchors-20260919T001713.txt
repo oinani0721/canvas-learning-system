@@ -1,0 +1,8 @@
+=== (f)④ 强化判据：AST 层的 LIVE_* 常量赋值（文本 grep 会把 help 文案算进去）===
+migrate_next_review_g38.py → ['LIVE_CARD_STATES', 'LIVE_DB_PORTS', 'LIVE_JSON_MIRROR', 'LIVE_REPO_ROOT', 'LIVE_VAULT_DIR']
+migrate_fsrs_card_states_vault_key_g35.py → ['LIVE_CARD_STATES', 'LIVE_REPO_ROOT', 'LIVE_VAULT_DIR']
+
+=== (f)③ 验伪锚：scratch 副本追加 import app ===
+副本（已追加 import app）grep 计数 = 1   ← 期望 1
+树内本体 grep 计数        = 0   ← 期望 0
+锚探针已删: 已清理

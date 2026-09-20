@@ -1,0 +1,134 @@
+# CARD-G3-8 独立复核请求（BATCH-2026-09-18-第十五批 · 车道 card-p4-fsrs）
+
+你是独立复核者。只读审查，不要修改任何文件，不要连接任何数据库或网络服务。
+
+仓库根：`/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs`
+
+---
+
+## ① 最小读取面（只读这些，不要泛读全仓）
+
+1. 本卡改动全文（两个新文件）：
+   `git --no-pager diff --no-color 49e426263caa0356e8c947c701e206efb11ae97f ce81e5fad432faa06403b7992c2a155ece5ef00e -- . ':(exclude)_bmad-output'`
+2. census 文档：`_bmad-output/审查/evidence-g38/next_review-census.md`
+3. 闸的参照实现（只读，不要评价它们本身）：
+   - `backend/scripts/migrate_fsrs_card_states_vault_key_g35.py` 第 50–160 行（路径面闸范式）
+   - `backend/scripts/migrate_write_identity_g23.py` 第 52–118 行（端口解析闸 + store identity 指纹闸）
+4. 目标侧写/读的生产代码（只读事实，不要评价它们的处置）：
+   - `backend/app/clients/neo4j_client.py` 第 985–1040 行（`LEARNED` 的 MERGE 身份键与 `P1D` 写）
+   - `backend/app/clients/neo4j_client.py` 第 716–746 行（JSON 镜像的行匹配键与写法）
+   - `backend/app/clients/neo4j_client.py` 第 790–835 行（JSON 镜像读方与其时区比较）
+5. 真相源与比较口径：
+   - `backend/app/services/review_service.py` 第 160–170 行（整秒归一）与第 223–330 行（governed 四态、frontmatter 正则）
+   - `docs/fsrs-truth-source-d0-revision.md` 第 10–49 行（T1/T5）
+
+---
+
+## ② 作者自述（请独立核对，不要默认接受）
+
+我声称本卡的实现满足下列性质。请逐条独立验证，**不要以我的措辞为准**：
+
+- **A1** 迁移器永不写 frontmatter，也永不写 `backend/data/fsrs_card_states.json`（后者只读、只报分歧计数）。
+- **A2** 现网库闸按 `urlsplit` **解析后的整数端口**判定，不是字符串包含判定；`bolt://h:07691` 与 `bolt://h:7691` 结论相同；省略端口的 URI 被拒。
+- **A3** `--apply` 第二次执行时 `set + backfill == 0`（幂等）。
+- **A4** 身份映射失败在**两个方向**都显形为 `unmatched`（`no_target` / `no_frontmatter`），不静默跳过。
+- **A5** `--dry-run` 除 `--out` 之外零写入（判据是跑前/跑后整棵 tmp 树的 sha256 映射逐键相等，不是文件计数）。
+- **A6** 迁移器零 `app` 导入，纯标准库（`neo4j` 仅在给了 `--neo4j-uri` 时函数内延迟导入）。
+- **A7** `ungoverned`（无 `fsrs_due`）的节点既不动目标，也不反向回填 frontmatter。
+- **A8** JSON 目标的写入按**行位置**而非三元组键，因此重复的 `(user_id, concept_name, group_id)` 行被逐行处置。
+
+---
+
+## ③ 请按重要性排序回答的问题
+
+- **Q0（最高）** 身份映射：`--vault-dir` 下的文件 stem ↔ `Concept.name` + `group_id`。在真实数据上，是否存在一条路径会把 A vault 的 `fsrs_due` 写到 B vault 的 `LEARNED` 边上？读侧与写侧的 Cypher 是否对 `c`、`r` 两个 alias 都做了 group 过滤（R1 全覆盖 / W5 scoped update）？`--group-id` 的形态校验是否是唯一防线，够不够？
+- **Q1** 整秒归一比较：除了「同秒不同微秒」之外，它是否还会把**真分歧**吞成 `noop`？特别是时区处理——naive 输入、Neo4j 纳秒精度、`--json-naive-tz` 的两种口径、跨夏令时边界的 naive 本地值。
+- **Q2** pre-image 落盘失败时，`--apply` 是否**真的不开写**？`--rollback` 是否做了读回校验？备份被改动过时的处置是否正确（rc 语义 1 与 3 是否分得开）？
+- **Q3** 闸对下列输入分别给什么结论，是否都正确：`neo4j://host:7692`、`bolt+s://host:7692`、`bolt://host`（省略端口）、`bolt://host:07691`、`http://host:7692`、以及路径面的 live vault 子树 / 受保护 inode 的硬链接 / `st_nlink > 1` 的普通文件。
+- **Q4** 7692 真库门的清理查询是否只删它自己的 `g38gate_` 前缀身份？有没有可能删到共享容器里别人的数据？（本次执行环境容器未启动，该门为 SKIPPED，请按代码判断。）
+- **Q5** 负控输入（把闸改成恒放行 / 把 `noop` 比较改成恒假）是否真的会让**指定的那几条**用例变红，还是会红在门未覆盖的路径上？有没有哪条门实际上绿在了更早的一道判据上？
+
+---
+
+## ④ 输出格式
+
+按 **BLOCKER / HIGH / MEDIUM / LOW** 分级，每条给：
+
+- 一句话结论
+- `file:line`
+- 一句复现思路（描述哪种输入会让它出问题即可）
+
+措辞请用「负控输入 / 对照输入 / 未被拦下的输入 / 门未覆盖的路径」这组词，不要用其他等价说法。
+
+---
+
+## ⑤ 审查边界（请不要越过）
+
+- 只读。不要修改文件，不要连接数据库、不要发起网络请求。
+- **不要评价** `neo4j_client.py:1034` / `fallback_sync_service.py:774` 的 `P1D` 写方、以及 `learning_context_service.py:96-102` 派生式**该如何处置** —— 它们属别的车道地盘，本卡只做 census 登记，明确不改。
+- **不要评价** 是否应该对现网执行 `--apply` —— live 执行需用户当次授权，本批只做 dry-run。
+- **不要评价** `backend/app/**` 里任何一行的写法 —— 本卡对这 14 个文件零改动，只读它们做 census。
+- census 文档 `next_review-census.md` 的事实陈述属审查面（请核对它与代码是否一致）；台账与验收单不属审查面。
+
+---
+
+## ⑥ 前两轮的差异（round-3）
+
+round-1（绑 `71d6ad27`）提 BLOCKER 1 / HIGH 5 / MEDIUM 4，逐条核对后**全部采纳并整改**，
+本轮审查对象是整改后的 `f9e8e3e8`。整改摘要（请独立核对它们是否真的成立、有没有引入新问题）：
+
+| 上轮条目 | 整改 | 新增判据 |
+|---|---|---|
+| BLOCKER-1 组名形态合法 ≠ 属于这个 vault | `assert_group_matches_vault`：读 `<vault>/.canvas-config.yaml` 的 `vault_id` 对表；读不到或算不出物理组名即 fail-closed，放行须显式 `--allow-unbound-vault` | `TestVaultGroupBinding` 5 条 |
+| HIGH-2 输出口未保护全部只读输入 | `assert_write_path_is_safe`：现网闸 + 整棵 `--vault-dir` 子树 + inode 同一性；`--out` / 双备份 / pre-image / `--backup-dir` 全走它 | `TestWritePathSafety` 5 条 |
+| HIGH-3 Neo4j 半写后 rc=1 谎报「迁移前可信状态」 | 写入期异常与回执不符同路：先按 pre-image 还原已写行，还原成功才 1，失败 3 | 见 `_restore_neo4j` |
+| HIGH-4 rollback 未绑回自己那个目标 | 比对 pre-image 的 `target_path` / `target_uri`+`database` | `TestRollbackBinding` |
+| HIGH-5 身份闸晚于业务读 | `_open_verified_driver`：每条进出库路径先核 store identity | — |
+| HIGH-6 测试探针是子串判定 | 探针改为复用被测迁移器的解析端口闸 | — |
+| HIGH-7 7692 清理过宽 | 只删本次这一条身份，且只在无残余边时删节点 | — |
+| MEDIUM-8 夏令时边界被静默归一 | `fold=0`/`fold=1` 落到不同 UTC 即判 `ambiguous` 不写 | `TestDaylightSaving` 3 条 |
+| MEDIUM-9 pre-image 闸晚于 `mkdir` | 先过闸再建目录 | `test_backup_dir_in_live_vault_creates_no_directory` |
+| MEDIUM-10 `malformed` 盖掉「目标侧没有边」 | 逐行 `target_missing` + `counts.rows_without_target`（与 `action` 正交） | `TestIdentityMissDimension` |
+| MEDIUM-11 硬链接用例绿在更早判据上 | 补「普通多硬链接文件」独立用例 | `test_plain_multi_hardlink_file_is_refused_on_its_own` |
+| Q1 末段：Neo4j 回滚读回执截整秒 | 还原校验改精确时刻比较 `_same_instant_exact` | — |
+
+**请重点判断**：这些整改有没有**引入新的**问题；有没有哪条新门实际上绿在了更早的一道判据上；
+`--allow-unbound-vault` / `--allow-unverified-target` 两个逃生门会不会在正常用法下被误开。
+
+负控实测（本轮已跑，供你判断门是否真的看管着东西）：
+- 闸恒放行 → 9 条用例红（live 子树 / 受保护 inode 硬链接 / 5 个 URI 参数 / live vault 下的 `--backup-dir` / 普通多硬链接文件）
+- `noop` 比较恒假 → 10 条红（含幂等断言 `test_apply_is_idempotent`）
+- 按行位置写退回按三元组键写 → **恰好 1 条**红（`test_duplicate_triples_are_written_positionally`）
+
+
+---
+
+## ⑦ round-3 增量（绑 `ce81e5fa`）
+
+round-2（绑 `f9e8e3e8`）提 BLOCKER 1 / HIGH 4 / MEDIUM 4 / LOW 1，逐条核对后**全部采纳并整改**。
+其中 HIGH-2 是 round-1 整改**亲手引入**的缺陷，已如实登记在 commit message 与验收单里。
+
+| 上轮条目 | 整改 | 新增判据 |
+|---|---|---|
+| BLOCKER-1 `vault__alpha__beta` 既像 A 的二级组也像 B 的根组 | 默认**逐字相等**；写二级作用域必须显式 `--group-scope <name>`（`name` 不得内嵌 `__`）；`vault_id` 内嵌 `__` 一律 fail-closed | `TestVaultGroupBinding` 新增 5 条，含「另一个 vault 的根组名恰好长得像 A 的二级组」 |
+| HIGH-2 `_restore_neo4j` 取 `old_next_review`，喂进去的却是分类行 ⇒ 恒 `REMOVE` 清空原值 | 改传 pre-image 形状的行 | `test_restore_uses_preimage_shaped_rows`（锁调用方给的形状 + 记账排序） |
+| HIGH-3 已提交但取回执时断连的那行不在还原集合 | **下笔前**记账 | 同上（断言 `attempted.append` 在 `session.run` 之前） |
+| HIGH-4 `--out` 可覆盖经软链读到的 frontmatter | 写报告前用**实测节点清单**再核一次 | `test_out_cannot_overwrite_a_node_reached_through_a_symlink` |
+| HIGH-5 真库门先写后核身份 | 先核 store identity 再下第一笔 | 见 7692 门 |
+| MEDIUM-6 备份目录被「不是普通文件」判据拒 | 新增目录专用闸 `assert_write_dir_is_safe` | `test_existing_backup_dir_is_accepted` / `test_second_apply_with_writable_rows_still_succeeds` |
+| MEDIUM-7 精确比较仍截 6 位小数 | 另比一次原始小数秒位 | 参数化 3 条 |
+| MEDIUM-8 `--out` 可别名到本次时间戳备份 | 补闸 | `test_out_cannot_alias_the_stamped_backup` |
+| MEDIUM-9 真库门身份固定 | 改 `g38gate_<uuid4hex>` | — |
+| LOW-10 DST 对照用例依赖启动时区 | 切时区后重建夹具值 | `_force_la_timezone` |
+
+**本轮负控实测（在 `ce81e5fa` 上跑，已落盘）**：
+- 闸恒放行 → **8** 条红（live 子树 / 受保护 inode 硬链接 / 5 个 URI 参数 / 普通多硬链接文件）。
+  ⚠️ 与 round-2 相比少了 `test_backup_dir_in_live_vault_creates_no_directory`：备份目录现在走
+  `assert_write_dir_is_safe`（另一个函数），不在这次变异面内 —— 如实登记，不当成「覆盖面变宽」。
+- `noop` 比较恒假 → **11** 条红，且 `test_apply_is_idempotent` 这次确实红在**计数断言**
+  （`assert (2 + 0) == 0`，"第二次 apply 又写了"）而不是更早的 `rc == 0`（round-2 MEDIUM-6 的关切已消除）。
+- 按行位置写退回按三元组键写 → **恰好 1** 条红。
+
+**请重点判断**：这一轮整改有没有引入新的问题；`--group-scope` 这个新参数会不会在正常用法下把
+「写二级作用域」变得太容易；`assert_write_dir_is_safe` 与 `assert_write_path_is_safe` 两条路径之间
+有没有留下未覆盖的写入口。

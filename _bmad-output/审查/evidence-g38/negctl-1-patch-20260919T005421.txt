@@ -1,0 +1,10 @@
+NEGCTL-1 变异片段
+--- 原 ---
+        None 表示放行; 非 None 为拒绝原因字符串。
+    """
+    if uri is not None:
+--- 改 ---
+        None 表示放行; 非 None 为拒绝原因字符串。
+    """
+    return None  # NEGCTL-1: 闸恒放行
+    if uri is not None:

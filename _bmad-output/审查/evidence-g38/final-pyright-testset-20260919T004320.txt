@@ -1,0 +1,9 @@
+=== (h) pyright app（定稿后，本卡零改 backend/app）===
+0 errors, 80 warnings, 0 informations
+=== (h') pyright 新脚本（自证）===
+0 errors, 0 warnings, 0 informations
+
+=== (f)⑤ 单测函数名集合：先红档 ⊆ 定稿（零删除）===
+红档 29 → 定稿 47 | 红档 ⊆ 定稿: True
+被删掉的用例（必须为空）: []
+新增用例: 18 条

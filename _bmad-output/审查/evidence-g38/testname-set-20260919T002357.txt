@@ -1,0 +1,6 @@
+=== (f)⑤ 单测函数名集合：先红档 vs 收工（防切片静默删门）===
+先红档用例数 = 29
+收工 AST 用例数 = 31
+红档 ⊆ 收工 : True
+被删掉的用例（必须为空）: []
+收工新增的用例: ['test_duplicate_triples_are_written_positionally', 'test_guard_refuses_out_aliasing_preimage']

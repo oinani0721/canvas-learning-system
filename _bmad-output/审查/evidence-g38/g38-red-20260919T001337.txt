@@ -1,0 +1,485 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 39 items
+
+tests/unit/test_migrate_next_review_g38.py FFFFFFFFFFFFFFFFFFFFFFFFFFFFF [ 74%]
+FFFFFFFFFF                                                               [100%]
+
+=================================== FAILURES ===================================
+________________ TestDryRun.test_dry_run_writes_only_the_report ________________
+tests/unit/test_migrate_next_review_g38.py:239: in test_dry_run_writes_only_the_report
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___________________ TestDryRun.test_dry_run_counts_are_exact ___________________
+tests/unit/test_migrate_next_review_g38.py:251: in test_dry_run_counts_are_exact
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+________________ TestDryRun.test_dry_run_row_actions_are_exact _________________
+tests/unit/test_migrate_next_review_g38.py:269: in test_dry_run_row_actions_are_exact
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_________________ TestDryRun.test_dry_run_records_input_hashes _________________
+tests/unit/test_migrate_next_review_g38.py:284: in test_dry_run_records_input_hashes
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___________ TestApply.test_apply_sets_target_to_frontmatter_fsrs_due ___________
+tests/unit/test_migrate_next_review_g38.py:299: in test_apply_sets_target_to_frontmatter_fsrs_due
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________ TestApply.test_apply_leaves_frontmatter_untouched _______________
+tests/unit/test_migrate_next_review_g38.py:318: in test_apply_leaves_frontmatter_untouched
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________________ TestApply.test_apply_is_idempotent ______________________
+tests/unit/test_migrate_next_review_g38.py:325: in test_apply_is_idempotent
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________ TestApply.test_apply_backfills_missing_next_review ______________
+tests/unit/test_migrate_next_review_g38.py:335: in test_apply_backfills_missing_next_review
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___________________ TestApply.test_apply_requires_backup_dir ___________________
+tests/unit/test_migrate_next_review_g38.py:349: in test_apply_requires_backup_dir
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___________ TestApply.test_apply_group_id_must_match_dry_run_report ____________
+tests/unit/test_migrate_next_review_g38.py:369: in test_apply_group_id_must_match_dry_run_report
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_______________ TestRollback.test_rollback_restores_target_bytes _______________
+tests/unit/test_migrate_next_review_g38.py:385: in test_rollback_restores_target_bytes
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________ TestRollback.test_rollback_refuses_tampered_backup ______________
+tests/unit/test_migrate_next_review_g38.py:409: in test_rollback_refuses_tampered_backup
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+____________ TestGuards.test_guard_refuses_target_inside_live_vault ____________
+tests/unit/test_migrate_next_review_g38.py:444: in test_guard_refuses_target_inside_live_vault
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___________ TestGuards.test_guard_refuses_hardlink_to_protected_file ___________
+tests/unit/test_migrate_next_review_g38.py:462: in test_guard_refuses_hardlink_to_protected_file
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_______ TestGuards.test_guard_refuses_live_db_uri[bolt://localhost:7691] _______
+tests/unit/test_migrate_next_review_g38.py:494: in test_guard_refuses_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______ TestGuards.test_guard_refuses_live_db_uri[bolt://localhost:07691] _______
+tests/unit/test_migrate_next_review_g38.py:494: in test_guard_refuses_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_______ TestGuards.test_guard_refuses_live_db_uri[bolt://127.0.0.1:7687] _______
+tests/unit/test_migrate_next_review_g38.py:494: in test_guard_refuses_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_________ TestGuards.test_guard_refuses_live_db_uri[bolt://localhost] __________
+tests/unit/test_migrate_next_review_g38.py:494: in test_guard_refuses_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_______ TestGuards.test_guard_refuses_live_db_uri[http://localhost:7692] _______
+tests/unit/test_migrate_next_review_g38.py:494: in test_guard_refuses_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_____ TestGuards.test_guard_allows_non_live_db_uri[bolt://127.0.0.1:7692] ______
+tests/unit/test_migrate_next_review_g38.py:503: in test_guard_allows_non_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_____ TestGuards.test_guard_allows_non_live_db_uri[neo4j://127.0.0.1:7692] _____
+tests/unit/test_migrate_next_review_g38.py:503: in test_guard_allows_non_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+____ TestGuards.test_guard_allows_non_live_db_uri[bolt+s://db.example:7692] ____
+tests/unit/test_migrate_next_review_g38.py:503: in test_guard_allows_non_live_db_uri
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___________ TestGuards.test_guard_refuses_bad_group_id[vault:cs_61b] ___________
+tests/unit/test_migrate_next_review_g38.py:513: in test_guard_refuses_bad_group_id
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________ TestGuards.test_guard_refuses_bad_group_id[cs188] _______________
+tests/unit/test_migrate_next_review_g38.py:513: in test_guard_refuses_bad_group_id
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_____________ TestGuards.test_guard_refuses_bad_group_id[vault__] ______________
+tests/unit/test_migrate_next_review_g38.py:513: in test_guard_refuses_bad_group_id
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_________________ TestGuards.test_guard_refuses_bad_group_id[] _________________
+tests/unit/test_migrate_next_review_g38.py:513: in test_guard_refuses_bad_group_id
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+____________ TestGuards.test_guard_refuses_bad_group_id[vault__a:b] ____________
+tests/unit/test_migrate_next_review_g38.py:513: in test_guard_refuses_bad_group_id
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________ TestGuards.test_guard_refuses_out_aliasing_target _______________
+tests/unit/test_migrate_next_review_g38.py:522: in test_guard_refuses_out_aliasing_target
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___________ TestBoundaries.test_script_imports_only_stdlib_allowlist ___________
+tests/unit/test_migrate_next_review_g38.py:569: in test_script_imports_only_stdlib_allowlist
+    for node in ast.walk(ast.parse(_script_source())):
+                                   ^^^^^^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:57: in _script_source
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+________________ TestBoundaries.test_script_has_no_app_imports _________________
+tests/unit/test_migrate_next_review_g38.py:581: in test_script_has_no_app_imports
+    for node in ast.walk(ast.parse(_script_source())):
+                                   ^^^^^^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:57: in _script_source
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+____________ TestBoundaries.test_script_defines_required_functions _____________
+tests/unit/test_migrate_next_review_g38.py:592: in test_script_defines_required_functions
+    names = {n.name for n in ast.walk(ast.parse(_script_source())) if isinstance(n, ast.FunctionDef)}
+                                                ^^^^^^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:57: in _script_source
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________ TestBoundaries.test_script_pins_live_path_literals ______________
+tests/unit/test_migrate_next_review_g38.py:597: in test_script_pins_live_path_literals
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+___ TestSemantics.test_naive_json_value_is_interpreted_as_local_and_flagged ____
+tests/unit/test_migrate_next_review_g38.py:610: in test_naive_json_value_is_interpreted_as_local_and_flagged
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_______ TestSemantics.test_naive_utc_interpretation_changes_the_verdict ________
+tests/unit/test_migrate_next_review_g38.py:622: in test_naive_utc_interpretation_changes_the_verdict
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+________ TestSemantics.test_report_warns_about_json_mirror_aware_reader ________
+tests/unit/test_migrate_next_review_g38.py:638: in test_report_warns_about_json_mirror_aware_reader
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+______________ TestSemantics.test_unmatched_no_target_is_surfaced ______________
+tests/unit/test_migrate_next_review_g38.py:646: in test_unmatched_no_target_is_surfaced
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+__________ TestSemantics.test_ungoverned_never_backfills_frontmatter ___________
+tests/unit/test_migrate_next_review_g38.py:660: in test_ungoverned_never_backfills_frontmatter
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+_____________ TestSemantics.test_shadowed_node_files_are_surfaced ______________
+tests/unit/test_migrate_next_review_g38.py:671: in test_shadowed_node_files_are_surfaced
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+________________ TestRealNeo4jGate.test_g38gate_neo4j_roundtrip ________________
+tests/unit/test_migrate_next_review_g38.py:715: in test_g38gate_neo4j_roundtrip
+    m = _migrator()
+        ^^^^^^^^^^^
+tests/unit/test_migrate_next_review_g38.py:44: in _migrator
+    assert SCRIPT_PATH.is_file(), _ABSENT_MSG
+E   AssertionError: migrate_next_review_g38.py 尚不存在
+E   assert False
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/scripts/migrate_next_review_g38.py').is_file
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_writes_only_the_report
+FAILED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_counts_are_exact
+FAILED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_row_actions_are_exact
+FAILED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_records_input_hashes
+FAILED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_sets_target_to_frontmatter_fsrs_due
+FAILED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_leaves_frontmatter_untouched
+FAILED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_is_idempotent
+FAILED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_backfills_missing_next_review
+FAILED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_requires_backup_dir
+FAILED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_group_id_must_match_dry_run_report
+FAILED tests/unit/test_migrate_next_review_g38.py::TestRollback::test_rollback_restores_target_bytes
+FAILED tests/unit/test_migrate_next_review_g38.py::TestRollback::test_rollback_refuses_tampered_backup
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_target_inside_live_vault
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_hardlink_to_protected_file
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://localhost:7691]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://localhost:07691]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://127.0.0.1:7687]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://localhost]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[http://localhost:7692]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_allows_non_live_db_uri[bolt://127.0.0.1:7692]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_allows_non_live_db_uri[neo4j://127.0.0.1:7692]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_allows_non_live_db_uri[bolt+s://db.example:7692]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[vault:cs_61b]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[cs188]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[vault__]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[vault__a:b]
+FAILED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_out_aliasing_target
+FAILED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_imports_only_stdlib_allowlist
+FAILED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_has_no_app_imports
+FAILED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_defines_required_functions
+FAILED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_pins_live_path_literals
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_naive_json_value_is_interpreted_as_local_and_flagged
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_naive_utc_interpretation_changes_the_verdict
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_report_warns_about_json_mirror_aware_reader
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_unmatched_no_target_is_surfaced
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_ungoverned_never_backfills_frontmatter
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_shadowed_node_files_are_surfaced
+FAILED tests/unit/test_migrate_next_review_g38.py::TestRealNeo4jGate::test_g38gate_neo4j_roundtrip
+======================= 39 failed, 10 warnings in 1.46s ========================
+rc=1

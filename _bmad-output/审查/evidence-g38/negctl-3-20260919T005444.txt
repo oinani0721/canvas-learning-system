@@ -1,0 +1,1061 @@
+=== 负控段 3 ===
+跑前 shasum:
+00b093290207f16092f7da2b09419da25e6c786f6b290ede4917f39868f72826  backend/scripts/migrate_next_review_g38.py
+变异后 shasum（应与跑前不同）:
+300efbbef35c9a8d1aa8306bf507f3469ac239cd4a4057becacab631c9541ce1  backend/scripts/migrate_next_review_g38.py
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 75 items
+
+tests/unit/test_migrate_next_review_g38.py ............................. [ 38%]
+..............F..............................s                           [100%]
+
+=================================== FAILURES ===================================
+________ TestSemantics.test_duplicate_triples_are_written_positionally _________
+tests/unit/test_migrate_next_review_g38.py:780: in test_duplicate_triples_are_written_positionally
+    assert rows[1]["next_review"] == dup["next_review"], "判 noop 的重复行被连带写入了"
+E   AssertionError: 判 noop 的重复行被连带写入了
+E   assert '2026-09-20T03:00:00Z' == '2026-09-19T20:00:00'
+E     
+E     - 2026-09-19T20:00:00
+E     ?         ---
+E     + 2026-09-20T03:00:00Z
+E     ?           +++      +
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_duplicate_triples_are_wri0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_duplicate_triples_are_wri0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 2
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_duplicate_triples_are_wri0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_duplicate_triples_are_wri0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_duplicate_triples_are_wri0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_duplicate_triples_are_wri0/out/report.json
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+________________ TestDryRun.test_dry_run_writes_only_the_report ________________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_writes_only_the_r0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_writes_only_the_r0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_writes_only_the_r0/out/report.json (本次唯一的文件写入)
+___________________ TestDryRun.test_dry_run_counts_are_exact ___________________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_counts_are_exact0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_counts_are_exact0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_counts_are_exact0/out/report.json (本次唯一的文件写入)
+________________ TestDryRun.test_dry_run_row_actions_are_exact _________________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_row_actions_are_e0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_row_actions_are_e0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_row_actions_are_e0/out/report.json (本次唯一的文件写入)
+_________________ TestDryRun.test_dry_run_records_input_hashes _________________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_records_input_has0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_records_input_has0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_records_input_has0/out/report.json (本次唯一的文件写入)
+___________ TestApply.test_apply_sets_target_to_frontmatter_fsrs_due ___________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_sets_target_to_fron0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_sets_target_to_fron0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_sets_target_to_fron0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_sets_target_to_fron0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_sets_target_to_fron0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_sets_target_to_fron0/out/report.json
+______________ TestApply.test_apply_leaves_frontmatter_untouched _______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_leaves_frontmatter_0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_leaves_frontmatter_0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_leaves_frontmatter_0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_leaves_frontmatter_0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_leaves_frontmatter_0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_leaves_frontmatter_0/out/report.json
+______________________ TestApply.test_apply_is_idempotent ______________________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/out/report.json
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 2
+  set                       : 0
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+无可写行 (set + backfill = 0) — 未做任何写入, 未产生备份。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_is_idempotent0/out/report2.json
+______________ TestApply.test_apply_backfills_missing_next_review ______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_backfills_missing_n0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_backfills_missing_n0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 0
+  backfill                  : 1
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_backfills_missing_n0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_backfills_missing_n0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_backfills_missing_n0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_apply_backfills_missing_n0/out/report.json
+___________________ TestApply.test_apply_requires_backup_dir ___________________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --apply 必须给 --backup-dir (没有有效 pre-image 就不该开始写)。
+_____________ TestApply.test_dry_run_preview_equals_apply_outcome ______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/out/report.json (本次唯一的文件写入)
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dry_run_preview_equals_ap0/out/applied.json
+_____ TestApply.test_group_id_is_never_silently_normalized[ vault__g38fix] _____
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id ' vault__g38fix' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+_____ TestApply.test_group_id_is_never_silently_normalized[vault__g38fix ] _____
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'vault__g38fix ' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+____ TestApply.test_group_id_is_never_silently_normalized[vault__g38fix\n] _____
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'vault__g38fix\n' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+_______________ TestRollback.test_rollback_restores_target_bytes _______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/out/report.json
+已从 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/mirror.json.bak.20260919_005451 回滚 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_restores_target_0/mirror.json, 读回 sha256 = ab1627721eef28b69244f51ddb7a581f067052945dfb4bf13f0d0c5ba4a00b2f
+______________ TestRollback.test_rollback_refuses_tampered_backup ______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_refuses_tampered0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_refuses_tampered0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_refuses_tampered0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_refuses_tampered0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_refuses_tampered0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_refuses_tampered0/out/report.json
+----------------------------- Captured stderr call -----------------------------
+ERROR: 备份 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_rollback_refuses_tampered0/mirror.json.bak.20260919_005451 的 sha256 (7b20583402f8c41146602dffc44c9e189dd30485135da5a108a1080a5cd4126c) 与 pre-image 记录的 (ab1627721eef28b69244f51ddb7a581f067052945dfb4bf13f0d0c5ba4a00b2f) 不符 — 拒绝用它覆盖目标。
+____________ TestGuards.test_guard_refuses_target_inside_live_vault ____________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --apply 的目标 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_target_insi0/standin-vault/节点/mirror.json 落在 live vault (/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_target_insi0/standin-vault) 内 — 写它会触发部署铁律, 拒绝执行。
+___________ TestGuards.test_guard_refuses_hardlink_to_protected_file ___________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --apply 的目标 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_hardlink_to0/innocent-looking.json 与**主仓现网**文件是同一个文件 (dev/inode (16777230, 55546956), 硬链接或同路径) — 本卡硬边界禁改它。请 cp 到临时目录后指向副本。
+___________ TestGuards.test_guard_refuses_bad_group_id[vault:cs_61b] ___________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'vault:cs_61b' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+______________ TestGuards.test_guard_refuses_bad_group_id[cs188] _______________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'cs188' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+_____________ TestGuards.test_guard_refuses_bad_group_id[vault__] ______________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'vault__' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+_________________ TestGuards.test_guard_refuses_bad_group_id[] _________________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id '' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+____________ TestGuards.test_guard_refuses_bad_group_id[vault__a:b] ____________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'vault__a:b' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+_____________ TestGuards.test_guard_refuses_out_aliasing_preimage ______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_out_aliasin0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_out_aliasin0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_out_aliasin0/backups/preimage-20260919_000000.json
+----------------------------- Captured stderr call -----------------------------
+ERROR: pre-image 路径 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_out_aliasin0/backups/preimage-20260919_000000.json 与 --out 是同一个位置 — 回滚依据会被覆盖, 拒绝执行。 — pre-image 落盘成功才允许开写, 源文件未改动。
+______________ TestGuards.test_guard_refuses_out_aliasing_target _______________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --out /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_guard_refuses_out_aliasin1/mirror.json 与输入/目标是同一个文件 (dev/inode (16777230, 55547200)) — 报告会覆盖它, 拒绝。
+___ TestSemantics.test_naive_json_value_is_interpreted_as_local_and_flagged ____
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_naive_json_value_is_inter0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_naive_json_value_is_inter0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_naive_json_value_is_inter0/out/report.json (本次唯一的文件写入)
+_______ TestSemantics.test_naive_utc_interpretation_changes_the_verdict ________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_naive_utc_interpretation_0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_naive_utc_interpretation_0/mirror.json
+naive 解释: utc
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 0
+  set                       : 2
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_naive_utc_interpretation_0/out/report.json (本次唯一的文件写入)
+________ TestSemantics.test_report_warns_about_json_mirror_aware_reader ________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_report_warns_about_json_m0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_report_warns_about_json_m0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_report_warns_about_json_m0/out/report.json (本次唯一的文件写入)
+______________ TestSemantics.test_unmatched_no_target_is_surfaced ______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_unmatched_no_target_is_su0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_unmatched_no_target_is_su0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 1
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 1
+  unmatched                 : 2
+  unmatched_no_target       : 1
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 0
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_unmatched_no_target_is_su0/out/report.json (本次唯一的文件写入)
+__________ TestSemantics.test_ungoverned_never_backfills_frontmatter ___________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ungoverned_never_backfill0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ungoverned_never_backfill0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ungoverned_never_backfill0/mirror.json.bak.20260919_005451 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ungoverned_never_backfill0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ungoverned_never_backfill0/backups/preimage-20260919_005451.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ungoverned_never_backfill0/out/report.json
+_____________ TestSemantics.test_shadowed_node_files_are_surfaced ______________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_shadowed_node_files_are_s0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_shadowed_node_files_are_s0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_shadowed_node_files_are_s0/out/report.json (本次唯一的文件写入)
+___ TestVaultGroupBinding.test_vault_subscope_with_explicit_scope_is_allowed ___
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_vault_subscope_with_expli0/vault
+group_id : vault__g38fix__someboard
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_vault_subscope_with_expli0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 3
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 0
+  unmatched                 : 2
+  unmatched_no_target       : 2
+  unmatched_no_frontmatter  : 0
+  noop                      : 0
+  set                       : 0
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_vault_subscope_with_expli0/out/report.json (本次唯一的文件写入)
+_ TestVaultGroupBinding.test_another_vault_rooted_at_a_subscope_name_is_refused _
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'vault__g38fix__beta' 与 --vault-dir 自报的 vault_id 'g38fix' 不匹配 (应逐字等于 'vault__g38fix')。 要写 vault 内的二级作用域请显式给 --group-scope。 这正是把 A vault 的 due 写进 B vault 的那条路径, 拒绝执行。
+________ TestVaultGroupBinding.test_group_scope_shape_is_enforced[a__b] ________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-scope 'a__b' 形态非法 (须 [A-Za-z0-9] 开头, 且**不得内嵌 __** —— 内嵌 __ 会让同一个歧义在下一层复发)。
+________ TestVaultGroupBinding.test_group_scope_shape_is_enforced[_bad] ________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-scope '_bad' 形态非法 (须 [A-Za-z0-9] 开头, 且**不得内嵌 __** —— 内嵌 __ 会让同一个歧义在下一层复发)。
+__________ TestVaultGroupBinding.test_group_scope_shape_is_enforced[] __________
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-scope '' 形态非法 (须 [A-Za-z0-9] 开头, 且**不得内嵌 __** —— 内嵌 __ 会让同一个歧义在下一层复发)。
+_ TestVaultGroupBinding.test_group_scope_shape_is_enforced[\u6709\u4e2d\u6587] _
+----------------------------- Captured stderr call -----------------------------
+ERROR: --group-id 'vault__g38fix__有中文' 不是物理格式 —— 必须形如 vault__<id> (双下划线, 无冒号)。 D16 的冒号格式 vault:<id> 是逻辑格式, 库里存的是物理格式。
+_____ TestVaultGroupBinding.test_allow_unbound_vault_is_an_explicit_escape _____
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_allow_unbound_vault_is_an0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_allow_unbound_vault_is_an0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_allow_unbound_vault_is_an0/out/report.json (本次唯一的文件写入)
+______ TestWritePathSafety.test_out_anywhere_in_vault_subtree_is_refused _______
+----------------------------- Captured stderr call -----------------------------
+ERROR: --out 的目标 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_out_anywhere_in_vault_sub0/vault/没被扫到的子目录/r.json 落在 --vault-dir (/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_out_anywhere_in_vault_sub0/vault) 子树内 —— 那是**只读**输入面, 拒绝写入。
+_______ TestWritePathSafety.test_backup_symlinked_into_vault_is_refused ________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_symlinked_into_vau0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_symlinked_into_vau0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_symlinked_into_vau0/out/report.json
+----------------------------- Captured stderr call -----------------------------
+ERROR: 备份的目标 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_symlinked_into_vau0/vault/节点/concept-a.md 落在 --vault-dir (/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_symlinked_into_vau0/vault) 子树内 —— 那是**只读**输入面, 拒绝写入。
+____ TestWritePathSafety.test_backup_dir_in_live_vault_creates_no_directory ____
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_dir_in_live_vault_0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_dir_in_live_vault_0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_dir_in_live_vault_0/out/report.json
+----------------------------- Captured stderr call -----------------------------
+ERROR: --backup-dir /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_dir_in_live_vault_0/standin-live-vault/g38-backups 落在 live vault (/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_backup_dir_in_live_vault_0/standin-live-vault) 内 — 写它会触发部署铁律, 拒绝执行。 — pre-image 落盘成功才允许开写, 源文件未改动。
+_ TestDaylightSaving.test_dst_boundary_local_values_are_not_silently_normalized[2026-11-01T01:30:00-ambiguous_local_time] _
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dst_boundary_local_values0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dst_boundary_local_values0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 0
+  backfill                  : 0
+  ambiguous                 : 1
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dst_boundary_local_values0/out/report.json (本次唯一的文件写入)
+_ TestDaylightSaving.test_dst_boundary_local_values_are_not_silently_normalized[2026-03-08T02:30:00-nonexistent_local_time] _
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dst_boundary_local_values1/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dst_boundary_local_values1/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 0
+  backfill                  : 0
+  ambiguous                 : 1
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_dst_boundary_local_values1/out/report.json (本次唯一的文件写入)
+_________ TestDaylightSaving.test_ordinary_local_value_still_compares __________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ordinary_local_value_stil0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ordinary_local_value_stil0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_ordinary_local_value_stil0/out/report.json (本次唯一的文件写入)
+_ TestIdentityMissDimension.test_malformed_node_without_target_still_shows_the_miss _
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — DRY-RUN (零写入)
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_malformed_node_without_ta0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_malformed_node_without_ta0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 1
+  governed                  : 3
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 1
+====================================================================
+⚠️ W-JSON-MIRROR-AWARE-READER: 写入 JSON 镜像的值是整秒 UTC-Z (tz-aware); app/clients/neo4j_client.py:806-808 用 naive 的 datetime.now() 与它比大小会抛 TypeError, 被 :833 的 except (ValueError, TypeError): continue 静默跳过 —— 该 concept 会从 JSON 降级路径的复习建议里消失。修读方属 P1/P2 地盘, 不在 CARD-G3-8 范围, 此处只如实报出。
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_malformed_node_without_ta0/out/report.json (本次唯一的文件写入)
+__________ TestCodexRound2Fixes.test_existing_backup_dir_is_accepted ___________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_existing_backup_dir_is_ac0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_existing_backup_dir_is_ac0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_existing_backup_dir_is_ac0/mirror.json.bak.20260919_005452 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_existing_backup_dir_is_ac0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_existing_backup_dir_is_ac0/backups/preimage-20260919_005452.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_existing_backup_dir_is_ac0/out/report.json
+___ TestCodexRound2Fixes.test_second_apply_with_writable_rows_still_succeeds ___
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/mirror.json.bak.20260919_005452 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/backups/preimage-20260919_005452.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/out/report.json
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+已写 1 行; 备份: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/mirror.json.bak.20260919_005452 / /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/mirror.json.bak; pre-image: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/backups/preimage-20260919_005452.json
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_second_apply_with_writabl0/out/second.json
+________ TestCodexRound2Fixes.test_out_cannot_alias_the_stamped_backup _________
+----------------------------- Captured stdout call -----------------------------
+====================================================================
+CARD-G3-8 next_review 对账 — APPLY
+====================================================================
+vault    : /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_out_cannot_alias_the_stam0/vault
+group_id : vault__g38fix
+user_id  : (全部)
+目标     : json /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_out_cannot_alias_the_stam0/mirror.json
+naive 解释: local
+--------------------------------------------------------------------
+  rows_without_target       : 0
+  governed                  : 2
+  ungoverned                : 1
+  matched                   : 2
+  unmatched                 : 1
+  unmatched_no_target       : 0
+  unmatched_no_frontmatter  : 1
+  noop                      : 1
+  set                       : 1
+  backfill                  : 0
+  ambiguous                 : 0
+  malformed_fsrs_due        : 0
+====================================================================
+报告已写: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_out_cannot_alias_the_stam0/mirror.json.bak.20260919_010203
+----------------------------- Captured stderr call -----------------------------
+ERROR: --out /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1220/test_out_cannot_alias_the_stam0/mirror.json.bak.20260919_010203 与本次备份是同一个位置 — 报告会覆盖回滚依据, 拒绝执行。
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_writes_only_the_report
+PASSED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_counts_are_exact
+PASSED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_row_actions_are_exact
+PASSED tests/unit/test_migrate_next_review_g38.py::TestDryRun::test_dry_run_records_input_hashes
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_sets_target_to_frontmatter_fsrs_due
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_leaves_frontmatter_untouched
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_is_idempotent
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_backfills_missing_next_review
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_requires_backup_dir
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_dry_run_preview_equals_apply_outcome
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_group_id_is_never_silently_normalized[ vault__g38fix]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_group_id_is_never_silently_normalized[vault__g38fix ]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_group_id_is_never_silently_normalized[vault__g38fix\n]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestApply::test_apply_group_id_must_match_dry_run_report
+PASSED tests/unit/test_migrate_next_review_g38.py::TestRollback::test_rollback_restores_target_bytes
+PASSED tests/unit/test_migrate_next_review_g38.py::TestRollback::test_rollback_refuses_tampered_backup
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_target_inside_live_vault
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_hardlink_to_protected_file
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://localhost:7691]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://localhost:07691]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://127.0.0.1:7687]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[bolt://localhost]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_live_db_uri[http://localhost:7692]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_allows_non_live_db_uri[bolt://127.0.0.1:7692]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_allows_non_live_db_uri[neo4j://127.0.0.1:7692]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_allows_non_live_db_uri[bolt+s://db.example:7692]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[vault:cs_61b]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[cs188]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[vault__]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_bad_group_id[vault__a:b]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_out_aliasing_preimage
+PASSED tests/unit/test_migrate_next_review_g38.py::TestGuards::test_guard_refuses_out_aliasing_target
+PASSED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_imports_only_stdlib_allowlist
+PASSED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_has_no_app_imports
+PASSED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_defines_required_functions
+PASSED tests/unit/test_migrate_next_review_g38.py::TestBoundaries::test_script_pins_live_path_literals
+PASSED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_naive_json_value_is_interpreted_as_local_and_flagged
+PASSED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_naive_utc_interpretation_changes_the_verdict
+PASSED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_report_warns_about_json_mirror_aware_reader
+PASSED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_unmatched_no_target_is_surfaced
+PASSED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_ungoverned_never_backfills_frontmatter
+PASSED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_shadowed_node_files_are_surfaced
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_group_from_another_vault_is_refused
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_vault_subscope_requires_explicit_scope
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_vault_subscope_with_explicit_scope_is_allowed
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_another_vault_rooted_at_a_subscope_name_is_refused
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_vault_id_containing_the_separator_fails_closed
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_group_scope_shape_is_enforced[a__b]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_group_scope_shape_is_enforced[_bad]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_group_scope_shape_is_enforced[]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_group_scope_shape_is_enforced[\u6709\u4e2d\u6587]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_vault_without_config_fails_closed
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_allow_unbound_vault_is_an_explicit_escape
+PASSED tests/unit/test_migrate_next_review_g38.py::TestVaultGroupBinding::test_non_ascii_vault_id_is_not_silently_vouched_for
+PASSED tests/unit/test_migrate_next_review_g38.py::TestWritePathSafety::test_out_inside_vault_is_refused
+PASSED tests/unit/test_migrate_next_review_g38.py::TestWritePathSafety::test_out_anywhere_in_vault_subtree_is_refused
+PASSED tests/unit/test_migrate_next_review_g38.py::TestWritePathSafety::test_backup_symlinked_into_vault_is_refused
+PASSED tests/unit/test_migrate_next_review_g38.py::TestWritePathSafety::test_backup_dir_in_live_vault_creates_no_directory
+PASSED tests/unit/test_migrate_next_review_g38.py::TestWritePathSafety::test_plain_multi_hardlink_file_is_refused_on_its_own
+PASSED tests/unit/test_migrate_next_review_g38.py::TestRollbackBinding::test_rollback_to_a_different_file_is_refused
+PASSED tests/unit/test_migrate_next_review_g38.py::TestDaylightSaving::test_dst_boundary_local_values_are_not_silently_normalized[2026-11-01T01:30:00-ambiguous_local_time]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestDaylightSaving::test_dst_boundary_local_values_are_not_silently_normalized[2026-03-08T02:30:00-nonexistent_local_time]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestDaylightSaving::test_ordinary_local_value_still_compares
+PASSED tests/unit/test_migrate_next_review_g38.py::TestIdentityMissDimension::test_malformed_node_without_target_still_shows_the_miss
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_out_cannot_overwrite_a_node_reached_through_a_symlink
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_existing_backup_dir_is_accepted
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_second_apply_with_writable_rows_still_succeeds
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_out_cannot_alias_the_stamped_backup
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_restore_comparison_does_not_swallow_nanoseconds[2026-01-01T00:00:00.123456999Z-2026-01-01T00:00:00.123456001Z-False]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_restore_comparison_does_not_swallow_nanoseconds[2026-01-01T00:00:00.123456789Z-2026-01-01T00:00:00.123456789Z-True]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_restore_comparison_does_not_swallow_nanoseconds[2026-01-01T00:00:00Z-2026-01-01T00:00:00.000000000Z-True]
+PASSED tests/unit/test_migrate_next_review_g38.py::TestCodexRound2Fixes::test_restore_uses_preimage_shaped_rows
+SKIPPED [1] tests/unit/test_migrate_next_review_g38.py:1145: 测试容器不可达或未通过现网闸, 跳过真库门: bolt://127.0.0.1:7692
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_duplicate_triples_are_written_positionally
+============= 1 failed, 73 passed, 1 skipped, 10 warnings in 1.75s =============
+pytest_rc=1
+=== 子 shell 退出后（trap 已还原）===
+跑后 shasum:
+00b093290207f16092f7da2b09419da25e6c786f6b290ede4917f39868f72826  backend/scripts/migrate_next_review_g38.py
+--- 本段红了哪些用例 ---
+FAILED tests/unit/test_migrate_next_review_g38.py::TestSemantics::test_duplicate_triples_are_written_positionally
+rc=0

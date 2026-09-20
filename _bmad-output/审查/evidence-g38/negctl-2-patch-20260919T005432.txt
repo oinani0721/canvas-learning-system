@@ -1,0 +1,5 @@
+NEGCTL-2 变异片段
+--- 原 ---
+            if _whole_second_utc(parsed) == _whole_second_utc(entry["due"]):
+--- 改 ---
+            if False:  # NEGCTL-2: noop 比较恒假
