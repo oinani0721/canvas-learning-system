@@ -1,0 +1,6 @@
+=== 负控 6（CARD-G5-10 H 整改 r6 · HEAD 9943b59d） ===
+变异文件: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/canvas-vault/.claude/skills/board-split/scripts/split_apply.py
+变异前 sha: 7fa6569f9799eb8c8aca5bbb00281ae734676f917fb9ad575cfe656d5c443bda
+MUTATION-FAILED
+还原后 sha: 7fa6569f9799eb8c8aca5bbb00281ae734676f917fb9ad575cfe656d5c443bda
+还原逐字同: YES

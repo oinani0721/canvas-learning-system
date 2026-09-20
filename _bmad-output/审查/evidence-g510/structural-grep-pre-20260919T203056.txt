@@ -1,0 +1,4 @@
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:42:  为它们持久化 split_stable_id。单跑 preview 只有位置与内容两种区分信息，
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:50:  G5-10：确认创建时把 stable_id 写进新节点 frontmatter `split_stable_id`，于是
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:127:#: 两者靠 G5-10 搭桥: 确认创建时把 stable_id 写进新节点 frontmatter `split_stable_id`,
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:1465:            "G5-10 不得据此持久化 split_stable_id。详见 docs/design/split-stable-id-contract.md §4.4。"

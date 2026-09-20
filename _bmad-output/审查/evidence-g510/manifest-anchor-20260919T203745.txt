@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/services/__init__.py", line 5, in <module>
+    from app.services.agent_service import AgentResult, AgentService, AgentType
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/services/agent_service.py", line 21, in <module>
+    import structlog
+ModuleNotFoundError: No module named 'structlog'

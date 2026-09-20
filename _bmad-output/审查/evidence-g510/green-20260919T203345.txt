@@ -1,0 +1,109 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 13 items
+
+tests/skills/test_g5_10_split_apply.py .FF..FFFFF...                     [100%]
+
+=================================== FAILURES ===================================
+______________ test_apply_creates_two_nodes_with_full_frontmatter ______________
+tests/skills/test_g5_10_split_apply.py:155: in test_apply_creates_two_nodes_with_full_frontmatter
+    assert r.returncode == 0, f"apply 应 rc=0: {out2(r)}"
+E   AssertionError: apply 应 rc=0: ✗ 这个文件里没有任何一条批次记录, 它不是一本清仓账本, 拒绝采信: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2296/test_apply_creates_two_nodes_w0/vault-apply/outputs/board-split/bs-ab999059c8686822/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...shing/pytest-2296/test_apply_creates_two_nodes_w0/vault-apply/outputs/board-split/bs-ab999059c8686822/journal.jsonl\n').returncode
+________ test_created_nodes_are_manifest_members_derived_and_not_orphan ________
+tests/skills/test_g5_10_split_apply.py:191: in test_created_nodes_are_manifest_members_derived_and_not_orphan
+    assert r.returncode == 0, f"apply 应 rc=0: {out2(r)}"
+E   AssertionError: apply 应 rc=0: ✗ 这个文件里没有任何一条批次记录, 它不是一本清仓账本, 拒绝采信: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2296/test_created_nodes_are_manifes0/vault-scan/outputs/board-split/bs-9df9f6772ce84ce3/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ishing/pytest-2296/test_created_nodes_are_manifes0/vault-scan/outputs/board-split/bs-9df9f6772ce84ce3/journal.jsonl\n').returncode
+_______________ test_callout_insertion_is_opt_in_and_idempotent ________________
+tests/skills/test_g5_10_split_apply.py:258: in test_callout_insertion_is_opt_in_and_idempotent
+    assert r.returncode == 0 and hashlib.sha256(board.read_bytes()).hexdigest() == sha0
+E   AssertionError: assert (1 == 0)
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ing/pytest-2296/test_callout_insertion_is_opt_0/vault-callout/outputs/board-split/bs-17571f9eb92af905/journal.jsonl\n').returncode
+___________________ test_undo_restores_vault_tree_byte_exact ___________________
+tests/skills/test_g5_10_split_apply.py:306: in test_undo_restores_vault_tree_byte_exact
+    assert r.returncode == 0, out2(r)
+E   AssertionError: ✗ 这个文件里没有任何一条批次记录, 它不是一本清仓账本, 拒绝采信: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2296/test_undo_restores_vault_tree_0/vault-undo/outputs/board-split/bs-99b9728f59d9aad5/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ishing/pytest-2296/test_undo_restores_vault_tree_0/vault-undo/outputs/board-split/bs-99b9728f59d9aad5/journal.jsonl\n').returncode
+____________ test_undo_refuses_user_modified_node_but_restores_rest ____________
+tests/skills/test_g5_10_split_apply.py:336: in test_undo_refuses_user_modified_node_but_restores_rest
+    assert r.returncode == 0, out2(r)
+E   AssertionError: ✗ 这个文件里没有任何一条批次记录, 它不是一本清仓账本, 拒绝采信: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2296/test_undo_refuses_user_modifie0/vault-undo2/outputs/board-split/bs-d2b93222d64fc8e1/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...shing/pytest-2296/test_undo_refuses_user_modifie0/vault-undo2/outputs/board-split/bs-d2b93222d64fc8e1/journal.jsonl\n').returncode
+__________________ test_apply_is_idempotent_second_run_skips ___________________
+tests/skills/test_g5_10_split_apply.py:364: in test_apply_is_idempotent_second_run_skips
+    assert r1.returncode == 0, out2(r1)
+E   AssertionError: ✗ 这个文件里没有任何一条批次记录, 它不是一本清仓账本, 拒绝采信: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2296/test_apply_is_idempotent_secon0/vault-idem/outputs/board-split/bs-a940e24a5917b16a/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ishing/pytest-2296/test_apply_is_idempotent_secon0/vault-idem/outputs/board-split/bs-a940e24a5917b16a/journal.jsonl\n').returncode
+_______________ test_rerun_after_missing_done_marker_catches_up ________________
+tests/skills/test_g5_10_split_apply.py:389: in test_rerun_after_missing_done_marker_catches_up
+    assert r1.returncode == 0, out2(r1)
+E   AssertionError: ✗ 这个文件里没有任何一条批次记录, 它不是一本清仓账本, 拒绝采信: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2296/test_rerun_after_missing_done_0/vault-resume/outputs/board-split/bs-f899f4bfd0ed0fb4/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...hing/pytest-2296/test_rerun_after_missing_done_0/vault-resume/outputs/board-split/bs-f899f4bfd0ed0fb4/journal.jsonl\n').returncode
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_10_split_apply.py::test_apply_creates_two_nodes_with_full_frontmatter
+FAILED tests/skills/test_g5_10_split_apply.py::test_created_nodes_are_manifest_members_derived_and_not_orphan
+FAILED tests/skills/test_g5_10_split_apply.py::test_callout_insertion_is_opt_in_and_idempotent
+FAILED tests/skills/test_g5_10_split_apply.py::test_undo_restores_vault_tree_byte_exact
+FAILED tests/skills/test_g5_10_split_apply.py::test_undo_refuses_user_modified_node_but_restores_rest
+FAILED tests/skills/test_g5_10_split_apply.py::test_apply_is_idempotent_second_run_skips
+FAILED tests/skills/test_g5_10_split_apply.py::test_rerun_after_missing_done_marker_catches_up
+=================== 7 failed, 6 passed, 10 warnings in 2.07s ===================
+rc=1

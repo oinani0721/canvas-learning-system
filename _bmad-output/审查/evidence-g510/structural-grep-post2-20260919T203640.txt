@@ -1,0 +1,18 @@
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:12:  ③ `identity_ambiguous=true` 候选拒绝持久化 `split_stable_id`
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:14:  ④ `conflict_unresolvable` 或目标已存在且其 `split_stable_id` ≠ 本候选 ⇒ 拒绝；
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:118:def existing_split_stable_id(path: Path) -> "str | None":
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:119:    """读既有节点 frontmatter 的 `split_stable_id`（只认我们自己写的确切形状）。
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:133:                if ln.startswith("split_stable_id:"):
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:189:    """门③：identity_ambiguous 候选拒绝持久化 split_stable_id（docstring :41-42）。"""
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:195:                "按 G5-3 契约拒绝为它持久化 split_stable_id"
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:200:    """门④：conflict_unresolvable ⇒ 拒绝；目标已存在且 split_stable_id ≠ 本候选 ⇒ 拒绝；
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:208:            got = existing_split_stable_id(target)
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:214:                    f"  它记录的 split_stable_id={got!r} ≠ 本候选 {c['stable_id']!r}；拒绝覆盖（零产物）"
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:285:    新增 G5-3 指定的 `split_stable_id` + `split_stable_id_basis`。"""
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:293:        "split_stable_id": c["stable_id"],
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:294:        "split_stable_id_basis": json.dumps(c["stable_id_basis"], ensure_ascii=False),
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:397:            if existing_split_stable_id(target) == c["stable_id"]:
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:42:  为它们持久化 split_stable_id。单跑 preview 只有位置与内容两种区分信息，
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:50:  G5-10：确认创建时把 stable_id 写进新节点 frontmatter `split_stable_id`，于是
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:127:#: 两者靠 G5-10 搭桥: 确认创建时把 stable_id 写进新节点 frontmatter `split_stable_id`,
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:1465:            "G5-10 不得据此持久化 split_stable_id。详见 docs/design/split-stable-id-contract.md §4.4。"

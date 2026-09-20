@@ -1,0 +1,2 @@
+canvas-vault/.claude/skills/board-split/scripts/split_apply.py:19
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:4

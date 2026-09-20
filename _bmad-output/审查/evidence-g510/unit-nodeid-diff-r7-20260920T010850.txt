@@ -1,0 +1,2 @@
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422

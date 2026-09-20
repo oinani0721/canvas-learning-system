@@ -1,0 +1,87 @@
+=== 负控 5（CARD-G5-10 H 整改 r6 · HEAD 9943b59d） ===
+变异文件: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/canvas-vault/.claude/skills/board-split/scripts/split_apply.py
+变异前 sha: 7fa6569f9799eb8c8aca5bbb00281ae734676f917fb9ad575cfe656d5c443bda
+变异后 sha: 923090560156ed7502323f022caa654bb82415469245adc39879b0413ba1c5f5
+期望变红的门: 新门 容忍面（插入后重跑用例全红）
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 37 items / 34 deselected / 3 selected
+
+tests/skills/test_g5_10_split_apply.py FFF                               [100%]
+
+=================================== FAILURES ===================================
+_______________ test_callout_insertion_is_opt_in_and_idempotent ________________
+tests/skills/test_g5_10_split_apply.py:294: in test_callout_insertion_is_opt_in_and_idempotent
+    assert r.returncode == 0, out2(r)
+E   AssertionError: ✗ preview 已过期：原白板/板A.md 与 preview 生成时的字节锚不符（板/种子文件已改）—— 请重跑 preview
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...d91d27f167b'], returncode=1, stdout='', stderr='✗ preview 已过期：原白板/板A.md 与 preview 生成时的字节锚不符（板/种子文件已改）—— 请重跑 preview\n').returncode
+__________ test_nested_callout_rerun_not_blocked_by_parent_freshness ___________
+tests/skills/test_g5_10_split_apply.py:657: in test_nested_callout_rerun_not_blocked_by_parent_freshness
+    assert r2.returncode == 0, f"嵌套重跑不得被门① 挡下: {out2(r2)}"
+E   AssertionError: 嵌套重跑不得被门① 挡下: ✗ preview 已过期：原白板/板A.md 与 preview 生成时的字节锚不符（板/种子文件已改）—— 请重跑 preview
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...a740d329403'], returncode=1, stdout='', stderr='✗ preview 已过期：原白板/板A.md 与 preview 生成时的字节锚不符（板/种子文件已改）—— 请重跑 preview\n').returncode
+___________ test_byte_anchor_tolerance_spares_non_candidate_callouts ___________
+tests/skills/test_g5_10_split_apply.py:1153: in test_byte_anchor_tolerance_spares_non_candidate_callouts
+    assert r2.returncode == 0, f"字节锚容忍面不得误剔 preview 时既存的 callout: {out2(r2)}"
+E   AssertionError: 字节锚容忍面不得误剔 preview 时既存的 callout: ✗ preview 已过期：原白板/板A.md 与 preview 生成时的字节锚不符（板/种子文件已改）—— 请重跑 preview
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...d91d27f167b'], returncode=1, stdout='', stderr='✗ preview 已过期：原白板/板A.md 与 preview 生成时的字节锚不符（板/种子文件已改）—— 请重跑 preview\n').returncode
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_10_split_apply.py::test_callout_insertion_is_opt_in_and_idempotent
+FAILED tests/skills/test_g5_10_split_apply.py::test_nested_callout_rerun_not_blocked_by_parent_freshness
+FAILED tests/skills/test_g5_10_split_apply.py::test_byte_anchor_tolerance_spares_non_candidate_callouts
+================ 3 failed, 34 deselected, 10 warnings in 1.27s =================
+rc=1
+还原后 sha: 7fa6569f9799eb8c8aca5bbb00281ae734676f917fb9ad575cfe656d5c443bda
+还原逐字同: YES

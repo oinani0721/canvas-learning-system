@@ -1,0 +1,3 @@
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+unit nodeid diff: gt(仅收工有)=0 lt(仅基线有)=1

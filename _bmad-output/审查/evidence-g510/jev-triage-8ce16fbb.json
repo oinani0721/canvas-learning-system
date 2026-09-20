@@ -1,0 +1,50 @@
+{
+  "commit": "fix(board-split): CARD-G5-10 H 整改 r7（子目录残留 + fence 口径） [BATCH-2026-09-18-第十五批 / CARD-G5-10]",
+  "ref": "8ce16fbb",
+  "sha": "8ce16fbba5efea274f2f376a27533111b16f4dd6",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:17:44-0700",
+  "code_files": [
+    "backend/tests/skills/test_g5_10_split_apply.py",
+    "canvas-vault/.claude/skills/board-split/scripts/split_apply.py"
+  ],
+  "files": [
+    {
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_apply.py",
+      "added": 24,
+      "removed": 10,
+      "runtime": 0.97,
+      "risk": "logic",
+      "risk_conf": 0.93,
+      "urgency": 2.93,
+      "urgency_conf": 0.91,
+      "review": 0.78,
+      "test": 0.66,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/skills/test_g5_10_split_apply.py",
+      "added": 54,
+      "removed": 0,
+      "runtime": 0.03,
+      "risk": "test_or_docs",
+      "risk_conf": 1.0,
+      "urgency": 1.46,
+      "urgency_conf": 0.35,
+      "review": 0.57,
+      "test": 0.92,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 4106,
+    "output_tokens": 314
+  },
+  "latency_ms": {
+    "min": 252,
+    "median": 407,
+    "max": 407
+  }
+}
