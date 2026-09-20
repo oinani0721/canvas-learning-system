@@ -1,0 +1,50 @@
+# 2026-09-19T17:05:49-0700 HEAD=9d4f7bf0
+e12ee283301c8a02a4948b23ceaec25bdb282b966f9ffe199ecf624cc543df71  检验白板/递归与分治 (Recursion & Divide-Conquer)-2026-07-24-0714.md
+47b1451f0862fd7e802132ae5a1e9557e9b205dd9018763d58302f23e2832ab0  原白板/递归与分治 (Recursion & Divide-Conquer).md
+6a9ddbf22c10ed4be75069d0f79763354c8681ea29f3d103f99507d7ee6a75cf  节点/代理函数-(Agent-Function).md
+fcea1f5bc9bdd0ffa2079967f9796ccde9e6b7335b4091ce03a7e3a611f4b29f  节点/反射代理的局限性引出了规划代理-(Planning-Agents)-的需求.md
+fd237b0c15a532f821a69a6e97b98b0b1b1299eb65a41387619fa2ac7f3eb628  节点/理性代理-(Rational-Agent).md
+9092933e83b08ae781c588c8238d37cac15b7ed7c24d5e0c14247bce7f36790e  节点/代理决策分析-0303().md
+d4cac75491a3f311aa4c101f84978f2c644ecec183f562645d0524328f69e07b  节点/规划的分类-1549().md
+adcbfa182fd7357638459e5e46517342eaa65339e15616a23dd80a5df470d272  检验白板/特征值与特征向量-2026-07-05-1815.md
+2796485615010b10482abe09998241648a495132ef79e23138cbdd9952507c0b  检验白板/特征值与特征向量-2026-07-16-0112.md
+367d2599211ab24122c96cfdb9dd74df2bff17545ad661d39ba2e6c4bb19b621  检验白板/特征值与特征向量-2026-07-18-1741.md
+2d6228280f73a09b20e206d42249e3da659cf072dc7ee39cec75f92bc61ca08a  检验白板/特征值与特征向量-2026-07-23-1939.md
+e7134a7c39bd89827721dde5ac7226f67ffbbf8d4c343ba13880a3df4dbffdf4  检验白板/特征值与特征向量-2026-07-24-0405.md
+150b75f945eb289370d6cd5f6b992190d353e74292c26f088bb2e28636b55d31  检验白板/特征值与特征向量-2026-07-25-0233.md
+4029ac555a1303f865d0b42da8f7241dc2b1a1ea2b0370cb76546da53da2bbbc  检验白板/考察-Fundamentals-2026-07-16.md
+fd9bfb803857a2e8d0f306bb5d2d3369f3b18972f8c24bbda5dc79588949e78f  原白板/线性代数.md
+d2df98e5c1f7ba218d366d5fcb771bc15acbd41ea17ebe79ad68030e42559003  节点/规划代理的特点.md
+075989de871daff055cdd27e5263c47cec3030efa3a32d05d2df19879c18d751  原白板/特征值与特征向量.md
+9d6a3391dcd8ec584f26adbb8abf68e6f23ce8fc8ec81fe8f010c78947b51acf  节点/代理类型：反射与规划.md
+dd6632dad6d29387853b1b3174749ca5fe39769731031bbae7654d0176595ba7  节点/Characteristic-Equation-for-Eigenvalues.md
+514e6d5221ecce6e448f821fa45fd2f4fabbb79727ded300d23b2033a5372784  检验白板/CS 61B-2026-08-11-1349.md
+4e8a1d187ab2e5550aaf84bd1bb0cc181a4e36b6c39c31a3d4d788a6bef36f34  检验白板/CS 61B-2026-08-11-1538.md
+c544f19530e35bc6788e6a4ea1eb17f5974237f2ac25929f35b3f57cbf590878  原白板/CS 61B.md
+3e28ffbf48f6eb456b8a3fb4000f87798e8611dc94b77ea808c3660828fcd5bc  节点/cs-61b-csm.md
+68eb14ab1607bfad82399480c3fbab27342161d780841892faa9ba3511a485cf  原白板/CS.md
+9bc0e6be316ac454f5a0a0f6fd1220246f1eb5ef9df89b2b8ae57558e8fe8dd9  原白板/CS188 lecture 2.md
+ddb2aa6545d851bedc543a121b8117d824e499a90029c202c72bba02ede79761  节点/csm-tutoring-unit-credit.md
+fa2aa093a80576c7b2269b547dac03e7cd5c6dc2db9ebe3138d75acb45a4db8e  节点/Eigenvalues-are-special-vectors-that-sat.md
+e06ba3b7ead4d8f15a4be14196096cd2b37de6b6123bde17b65eaea428ff7261  节点/Fundamentals.md
+d25d8852ed034ad21070288d7239c4980acd261eb7c0d60dced16cbe661dd3b8  节点/lecture 2.md
+68db41872f9d5c2e072435b74bd098ba8f4d60cbc278ffe09586d366cf22d2a5  节点/my-recursion-notes.md
+d40bf08159aeecf5f68cb525246b3ac26ae96fa6417ec855c57fd89da0613806  outputs/回顾-递归与分治 (Recursion & Divide-Conquer)-2026-08-27.md
+753f850212f6f8009a77f467eae37d7ec554e608b41f087d28173387011c315e  outputs/回顾-特征值与特征向量-2026-08-27.md
+a87fbf8f636e5f076d657762faf64acf3cea64705b6a4ed05316ed52b94106fe  outputs/思维导图-特征值与特征向量.excalidraw.md
+2264c1ada4e29a1af5275f4cfb5dc4c7a1e7e978221517944da79d00cfb40d55  outputs/回顾-CS 61B-2026-08-27.md
+d3c336a164c01e0074431bd5e8a6d2f6dee603e38a45bedc42d6bfa56c11e5d5  outputs/思维导图-CS 61B.excalidraw.md
+c028a9d70c24fbe0249d37f26110f2c0a8f82ca1d23564a168cff6935d020207  outputs/回顾-CS188 lecture 2-2026-08-27.md
+9365d0344101557a384cfcacbd7d4071d241ff9fe04002c6e66daeb12aab3bca  outputs/思维导图-CS188 lecture 2.excalidraw.md
+105f563cf6ebef87acd99f81d0c9b3ce844aefb6c17cbc6d16bee4973a5e5a62  outputs/今日复习.json
+5873d32b42bd0eb26668da4404163c38f963368f6ef31694993807e7519a3fe7  outputs/今日复习.md
+fac1a0d8062a91116dc14b44645f39aab7d10b7d5277d9daabffa15578971ce5  outputs/.recap-manifest-递归与分治 (Recursion & Divide-Conquer).json
+dcf3067dd1d5ae7f520e1a2962c092910cde23ee40ee280fe15d05fbbf838601  outputs/.recap-manifest-特征值与特征向量.json
+28eb864af441f63b059df72172b3a51d6b927a31699f9f2751d11b52e61f2c19  outputs/.recap-manifest-CS 61B.json
+13c91ea9b5ee86a22a8ff7a33f1f331ff26a3ae9b8ad8c7d5c0a75d4716cf8d6  outputs/.recap-manifest-CS188 lecture 2.json
+00c0763ba9de302551e565864066c1574e58b4fb269253525e0a5628225b1ad0  outputs/.recap-scan-递归与分治 (Recursion & Divide-Conquer).json
+42120142b8500aac584d5201cf1ebd406cf398110fd358f0074465ac52c689c8  outputs/.recap-scan-特征值与特征向量.json
+026e5b641e6b8e2187296db367daf6d6967b2a16a27b674c50317b6a007f7545  outputs/.recap-scan-CS 61B.json
+6f370fb9d4c947519b22b9bb5cfec2ff826153d7ad40a3e9752924ba776f1dd8  outputs/.recap-scan-CS188 lecture 2.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  outputs/exam_boards/.gitkeep
+47302154ff72e1324203aaa173657afba9f2379c4dff190d1d09961f343d1d60  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json

@@ -1,0 +1,36 @@
+# 负控强化电池 (可复跑脚本) 2026-09-19T21:22:46-0700
+# 白名单 matcher: grep -v -E -e ^检验白板/<新检验白板>\.md$ -e ^节点/<被答节点>\.md$ -e ^节点/<新材料>\.md$ -e ^原白板/<选定板>\.md$ -e ^outputs/回顾- -e ^outputs/\.recap-manifest- -e ^outputs/\.recap-scan- -e ^outputs/今日复习\.json$ -e ^outputs/今日复习\.md$ -e daily-review\.canvas-vault\.state\.json$
+# 输入面 sha256: before=c189026655173d89376c0436d355d9002af00dcb2cee225ef1c5ee361837a6a0
+#               after =3338eeb5c9d5c8b11dcf58dbbd4323dc556407666f1b55ec39452dc2b6e8bcd4
+
+## A. 非白名单文件 原白板/CS.md
+CMD: cp $BEFORE bm_a.txt; mutate bm_a.txt '原白板/CS.md'; classify bm_a.txt a
+  mutate: lines=1 target=原白板/CS.md
+  changed=1 outside=1
+  outside 明细: 原白板/CS.md|
+rc=0
+
+## B. 无关节点 节点/lecture 2.md
+CMD: cp $BEFORE bm_b.txt; mutate bm_b.txt '节点/lecture 2.md'; classify bm_b.txt b
+  mutate: lines=1 target=节点/lecture 2.md
+  changed=1 outside=1
+  outside 明细: 节点/lecture 2.md|
+rc=0
+
+## C. 含空格路径 原白板/递归与分治 (Recursion & Divide-Conquer).md
+CMD: cp $BEFORE bm_c.txt; mutate bm_c.txt '<space path>'; 分别用卡文字面与修正版提取
+  mutate: lines=1 target=原白板/递归与分治 (Recursion & Divide-Conquer).md
+  卡文字面 awk '$3': 原白板/递归与分治|
+  修正版剥离:        原白板/递归与分治 (Recursion & Divide-Conquer).md|
+  changed=1 outside=1
+  outside 明细: 原白板/递归与分治 (Recursion & Divide-Conquer).md|
+rc=0
+
+## D. 卡文 §二.8 sed 原文是否 no-op (身份链)
+CMD: cp $BEFORE bm_d.txt; sed -i '' -e '/原白板\/CS\.md$/ s/^\(.\{63\}\)./\1f/' bm_d.txt; diff $BEFORE bm_d.txt | grep -c '^>'
+  原白板/CS.md 完整原文行: 68eb14ab1607bfad82399480c3fbab27342161d780841892faa9ba3511a485cf  原白板/CS.md
+  该行 sha 第 64 位字符: f
+  before vs bm_d 差异行数 (0 = no-op): 0
+rc=0
+
+# 结论: A/B/C 三段负控输入均被 outside 捕获; C 段证明卡文字面 awk $3 对含空格路径截断; D 段证明卡文 sed 因末位恰为 'f' 而 no-op

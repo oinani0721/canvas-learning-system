@@ -1,0 +1,4 @@
+# (b)① 先红 — 2026-09-19T16:57:47-0700  HEAD=9d4f7bf0
+ls 审查 | grep -c evidence-g87-journey = 0
+ls 验收单 | grep -c CARD-G8-7 = 0
+验伪锚 ls 审查 | grep -c d5-evidence-2026-08-27 = 1

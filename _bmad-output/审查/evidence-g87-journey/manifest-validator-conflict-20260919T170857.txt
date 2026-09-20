@@ -1,0 +1,25 @@
+# manifest 校验器 vs 卡文 (c)④/§二.5 —— 实测冲突登记  2026-09-19T17:08:57-0700
+# 卡文要求: validate_release_manifest.py $EV/manifest.json → rc=0, journey_id="G8-7"
+
+## 绿跑候选(卡文字面: journey_id=G8-7, 位于 $EV 根)
+❌ FAIL _bmad-output/审查/evidence-g87-journey/manifest.json
+    [schema] journey_id: 'G8-7' does not match '^J(0[1-9]|10)$'
+
+合计 1 份 manifest, 失败 1 份。
+green_literal_rc=1
+
+## 红跑候选(卡文 §一(b)②: result 改 pass, 期望输出含 S3)
+❌ FAIL /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/opencode/p3c-scratch/m-red.json
+    [schema] journey_id: 'G8-7' does not match '^J(0[1-9]|10)$'
+
+合计 1 份 manifest, 失败 1 份。
+red_literal_rc=1
+
+## 对照: journey_id=J06 + <rc>/journeys/J06/ 结构 (仅 artifact 相对路径未就位)
+❌ FAIL /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/opencode/p3c-scratch/mirror/evidence-g87-journey/journeys/J06/manifest.json
+    [A1] artifact 不存在: 02-live-snapshot-before.txt → /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/opencode/p3c-scratch/mirror/evidence-g87-journey/journeys/J06/02-live-snapshot-before.txt
+
+合计 1 份 manifest, 失败 1 份。
+conformant_shape_rc=1
+
+## 结论: 卡文字面(journey_id=G8-7 于 $EV 根) 与借用 schema 的 journey_id 模式 ^J(0[1-9]|10)$ + S6 路径一致性 不可同时成立

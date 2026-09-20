@@ -1,0 +1,18 @@
+{
+  "commit": "docs(p3-deploy): CARD-G8-7 地盘门存档 + 验收单终态字段回填 [BATCH-2026-09-18-第十五批]",
+  "ref": "6ee90d57",
+  "sha": "6ee90d57dc533dc35f2acbdad47ad9f7f5bf6b6a",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T01:28:38-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

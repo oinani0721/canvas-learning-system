@@ -1,0 +1,20 @@
+# 负控强化电池 (回应 Codex r1 HIGH1/2/3)  2026-09-19T21:13:54-0700
+# 精确白名单 (声明写入面, 未授权下占位匹配为空): 检验白板/<新> \ 节点/<被答节点>/<新材料> \ 原白板/<选定板> \ outputs/回顾-*.md / outputs/.recap-*.json / outputs/今日复习.{json,md} \ daily-review state
+
+## A. 负控①a: 变异非白名单文件 原白板/CS.md → 期望 outside 含它
+a changed=1 outside=1
+  outside 明细: 原白板/CS.md|
+
+## B. 负控①b: 变异无关节点 节点/lecture 2.md (非被答节点) → 期望 outside 含它 (证明未放行整个 节点/ 前缀)
+b changed=1 outside=1
+  outside 明细: 节点/lecture 2.md|
+
+## C. 负控①c: 含空格路径 原白板/递归与分治 (Recursion & Divide-Conquer).md
+  卡文字面 awk '$3' 提取 = 原白板/递归与分治|
+  修正版 (剥离 64hex+2sp) 提取 = 原白板/递归与分治 (Recursion & Divide-Conquer).md|
+c changed=1 outside=1
+  outside 明细: 原白板/递归与分治 (Recursion & Divide-Conquer).md|
+
+## D. 正控: 篡改卡文 sed 原文 (\1f) 是否 no-op
+  before vs bm_d 差异行数 (期望 0 = no-op) = 0
+  原白板/CS.md 行 SHA-256 前16 = 68eb14ab1607bfad

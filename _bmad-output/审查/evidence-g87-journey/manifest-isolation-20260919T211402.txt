@@ -1,0 +1,36 @@
+# manifest 门孤立对照序列 (一致性副本 J06)  2026-09-19T21:14:02-0700
+# 副本: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+## [1] before = 骨架绿
+✅ PASS _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0
+
+## [2] red = 仅把 result 改 pass (单变量) ⇒ 期望仅红 S3
+❌ FAIL _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+    [S3] result=pass 与断言实况矛盾 — 非 pass 断言: G8-7-1, G8-7-2, G8-7-3, G8-7-4, G8-7-5, G8-7-6
+
+合计 1 份 manifest, 失败 1 份。
+rc=1
+
+## [3] after-restore = 绿
+✅ PASS _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0
+
+## [4] red = 仅把 signoff.status 改 approved 不填 user/at (单变量) ⇒ 期望仅红 signoff
+❌ FAIL _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+    [schema] signoff: 'user' is a required property
+    [schema] signoff: 'at' is a required property
+
+合计 1 份 manifest, 失败 1 份。
+rc=1
+
+## [5] after-restore = 绿 (确认原件已还原)
+✅ PASS _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0
+副本 sha256 = e0d395562ed16782e60e207c8934286e0ecb0eb5da042df571b0062a36794d11

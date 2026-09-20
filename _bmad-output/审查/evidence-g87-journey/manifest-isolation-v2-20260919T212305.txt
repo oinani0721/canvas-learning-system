@@ -1,0 +1,40 @@
+# manifest 门孤立对照序列 v2 — 绑定冻结对象  2026-09-19T21:23:05-0700
+# 冻结副本: b15-g8-7/journeys/J06/manifest.json
+# 冻结 SHA-256 = 866983aadbf9b0e0e8a91d1f917358b0058e72d4b1524b351e20344d7be092cf
+# 重跑方法: cp 冻结件到 scratch; 逐段单变量改后跑 validate_release_manifest.py; 每段后还原
+
+## [1] before = 冻结骨架绿
+✅ PASS _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0
+
+## [2] red = 仅 result → pass (单变量) ⇒ 期望仅红 S3
+❌ FAIL _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+    [S3] result=pass 与断言实况矛盾 — 非 pass 断言: G8-7-1, G8-7-2, G8-7-3, G8-7-4, G8-7-5, G8-7-6
+
+合计 1 份 manifest, 失败 1 份。
+rc=1
+restore_sha=866983aadbf9b0e0e8a91d1f917358b0058e72d4b1524b351e20344d7be092cf
+
+## [3] after-restore = 绿
+✅ PASS _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0
+
+## [4] red = 仅 signoff.status → approved 缺 user/at (单变量) ⇒ 期望仅红 signoff
+❌ FAIL _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+    [schema] signoff: 'user' is a required property
+    [schema] signoff: 'at' is a required property
+
+合计 1 份 manifest, 失败 1 份。
+rc=1
+restore_sha=866983aadbf9b0e0e8a91d1f917358b0058e72d4b1524b351e20344d7be092cf
+
+## [5] after-restore = 绿 (确认冻结对象已还原)
+✅ PASS _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0
+final_sha=866983aadbf9b0e0e8a91d1f917358b0058e72d4b1524b351e20344d7be092cf

@@ -1,0 +1,308 @@
+{
+  "schema_version": "1.0.0",
+  "journey_id": "J06",
+  "journey_title": "[CARD-G8-7 证据包的一致性副本 — 仅为让借用的 release schema 校验器能实施约束；不是 RC J06 证据] 两白板全旅程走查",
+  "rc": "b15-g8-7",
+  "provenance": {
+    "mode": "reconstructed",
+    "reconstructed_from": "_bmad-output/审查/evidence-g87-journey/ (骨架期车道侧产物: 01-skill-versions.md / 02-live-snapshot-before.txt / 00-README.md / 03-breakpoints.md / 05-g18-material.md); 本卡为 CARD-G8-7 的证据包, 授权侧六环节见 execution.commands",
+    "unproven_fields": [
+      "execution.* 六环节若未获用户当次授权: 全部 result=not_run, 无执行期记录。",
+      "candidate.dirty — 骨架期车道树含未跟踪证据目录, 按实测记 true (低于 E3 的回填件允许)。"
+    ],
+    "note": "本文件是 _bmad-output/审查/evidence-g87-journey/manifest.json（卡文字面件, journey_id=G8-7）的一致性副本, 满足 release schema 的 journey_id 模式与 S6 路径, 以便对骨架实施约束并做先红(S3)/后绿成对. J06 为满足模式借用, 不代表 RC J06 证据."
+  },
+  "candidate": {
+    "sha": "9d4f7bf0bfa245cd9a36d60177ed8ff528a255cb",
+    "branch": "card/p3-deploy",
+    "dirty": true,
+    "worktree": ".claude/worktrees/card-p3-deploy"
+  },
+  "environment": {
+    "host_os": "darwin (macOS, Apple Silicon)",
+    "runtimes": {
+      "python": "3.14.4 (backend/.venv → card-v5-lance/backend/.venv)"
+    },
+    "models": [],
+    "index_sha": null,
+    "index_sha_null_reason": "本卡为证据包/走查登记卡, 旅程检索环节经 MCP search_notes 现场召回, 不绑定固定索引快照 (vault 索引为现网 LanceDB 活体)。",
+    "services": {
+      "canvas-learning-mcp": "MCP SSE http://127.0.0.1:8011/mcp (search_notes / get_board_manifest)",
+      "backend": "canvas-learning-system-backend 127.0.0.1:8011->8001 (healthy)"
+    }
+  },
+  "execution": {
+    "started_at": "2026-09-19T16:57:47-07:00",
+    "finished_at": "2026-09-19T21:22:59-07:00",
+    "operator": "P3-C 车道 session (Claude)",
+    "commands": [
+      {
+        "cmd": "ls _bmad-output/审查 | grep -c 'evidence-g87-journey'",
+        "cwd": "_bmad-output/审查 (车道树 card-p3-deploy)",
+        "exit_code": 0,
+        "note": "先红: 建目录前 0 命中 (00-prefix-red-*.txt)"
+      },
+      {
+        "cmd": "skill 版本表: 逐文件 shasum dev vs live",
+        "cwd": "车道树根 (canvas-vault/.claude/skills vs live vault)",
+        "exit_code": 0,
+        "note": "裁判3: DIFF=8 (skill-versions-*.txt)"
+      },
+      {
+        "cmd": "live 跑前快照 (四目录 + state, 只读)",
+        "cwd": "live vault canvas-vault",
+        "exit_code": 0,
+        "note": "裁判4: 49 行 (02-live-snapshot-before.txt)"
+      },
+      {
+        "cmd": "validate_release_manifest.py b15-g8-7/journeys/J06/manifest.json (result=pass)",
+        "cwd": "车道树根",
+        "exit_code": 1,
+        "expected_failure": true,
+        "note": "manifest 门先红: assertions 全 not_run 而 result=pass ⇒ S3 (manifest-red-*.txt)"
+      },
+      {
+        "cmd": "validate_release_manifest.py b15-g8-7/journeys/J06/manifest.json (骨架 partial)",
+        "cwd": "车道树根",
+        "exit_code": 0,
+        "note": "manifest 门后绿 rc=0 (manifest-green-*.txt)"
+      },
+      {
+        "cmd": "零静默改写门: diff before/after + 白名单过滤",
+        "cwd": "车道树根",
+        "exit_code": 0,
+        "note": "未授权: changed=0 outside=0 (silent-rewrite-gate-*.txt)"
+      },
+      {
+        "cmd": "负控① 篡改 before 副本单行 sha (非白名单 原白板/CS.md)",
+        "cwd": "车道树根",
+        "exit_code": 0,
+        "note": "outside=1 红在指定文件 (negctl-strengthen-*.txt)"
+      },
+      {
+        "cmd": "负控② signoff=approved 不填 user/at",
+        "cwd": "车道树根",
+        "exit_code": 1,
+        "expected_failure": true,
+        "note": "校验红含 signoff (negctl2-signoff-*.txt)"
+      },
+      {
+        "cmd": "pytest tests/unit 目录级 开工/收工",
+        "cwd": "backend",
+        "exit_code": 1,
+        "expected_failure": true,
+        "note": "既有红基线 32⊆33, diff 只 < (unit-open/close-*.txt)"
+      }
+    ],
+    "skips_or_mocks": {
+      "declared": true,
+      "items": [
+        {
+          "what": "授权侧六环节 (vault 准备 / board-recap / search_notes / start-exam-board / quiz-answer / 次日总览页)",
+          "why": "真实旅程写 live vault 需用户当次授权并在 vault 内会话执行 (readonly guard R2 拦车道 session); 未授权即 not_run + SKIP 登记, 不用 fixture 或旧存档顶替。"
+        }
+      ]
+    }
+  },
+  "assertions": [
+    {
+      "id": "G8-7-1",
+      "statement": "环节① vault 准备: 现 vault 新增 1 个节点 md 或 1 条批注, 且在跑前快照之外",
+      "method": "用户在 vault 内会话新增材料; 车道只读比对 02-live-snapshot-before/after",
+      "result": "not_run",
+      "note": "待用户当次授权走查。"
+    },
+    {
+      "id": "G8-7-2",
+      "statement": "环节② /board-recap: 新生成 outputs/回顾-<板>-<日期>.md, 报告头 FALLBACK 与否如实记",
+      "method": "用户在 vault 内会话执行 /board-recap <板>; 车道 shasum 产物",
+      "result": "not_run",
+      "note": "待授权。"
+    },
+    {
+      "id": "G8-7-3",
+      "statement": "环节③ search_notes: 返回体含环节①新材料",
+      "method": "Claudian 经 MCP 调 search_notes; 返回体条目须命中新材料的完整 vault 相对路径 + 内容 sha256 前 16 位 (不接受仅同名命中); 返回体存 search-<ts>.json + 截图",
+      "result": "not_run",
+      "note": "待授权。"
+    },
+    {
+      "id": "G8-7-4",
+      "statement": "环节④ /start-exam-board: 新生成 检验白板/<板>-<ts>.md 且 type: exam_board",
+      "method": "用户在 vault 内会话执行; 车道核 frontmatter + shasum",
+      "result": "not_run",
+      "note": "待授权。"
+    },
+    {
+      "id": "G8-7-5",
+      "statement": "环节⑤ /quiz-answer: 被答节点 frontmatter mastery_score/mastery_a/mastery_b 出现或变化",
+      "method": "用户手答后执行 /quiz-answer; 车道前后 grep -n -e mastery_ -e fsrs_ <节点> 落档; 若仅 mastery_* 变化则登记为『本地掌握度更新, 不证明 fsrs_bridge』",
+      "result": "not_run",
+      "note": "待授权。"
+    },
+    {
+      "id": "G8-7-6",
+      "statement": "环节⑥ 次日总览页: GET /api/v1/review/overview/page 返回 200",
+      "method": "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8011/api/v1/review/overview/page (只读 GET)",
+      "result": "not_run",
+      "note": "待授权 (只读打开, 不手动触发 daily_review_run.py)。"
+    }
+  ],
+  "rollback": {
+    "performed": false,
+    "result": "not_applicable",
+    "reason": "本卡车道侧零写 live vault; 旅程写入面若发生由用户 vault 内会话执行, 写入面在零静默改写门中以白名单+差集对账登记, 无破坏性变更需回滚。"
+  },
+  "artifacts": [
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/02-live-snapshot-before.txt",
+      "sha256": "c189026655173d89376c0436d355d9002af00dcb2cee225ef1c5ee361837a6a0",
+      "bytes": 5483,
+      "redacted": false,
+      "description": "live 跑前快照 (四目录 + state, 49 行)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/04-live-snapshot-after.txt",
+      "sha256": "3338eeb5c9d5c8b11dcf58dbbd4323dc556407666f1b55ec39452dc2b6e8bcd4",
+      "bytes": 5483,
+      "redacted": false,
+      "description": "live 跑后只读快照 (未授权: 与 before 同口径, 仅头时间戳不同)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/01-skill-versions.md",
+      "sha256": "9a732ef56f17cd9caa31849408a2d967ec20fe4eb5ce67c8550b3ffd4de52540",
+      "bytes": 4410,
+      "redacted": false,
+      "description": "skill 版本表 dev 树 13 文件 ↔ live (DIFF=8) + fsrs_bridge/decay_beta 两行"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/03-breakpoints.md",
+      "sha256": "02694008d40a8f367265138d9e377a489268fd116a64a64a5e76f369f7e46053",
+      "bytes": 3946,
+      "redacted": false,
+      "description": "断点归属表 (已知前置 + 本卡发现 + SKIP 登记)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/05-g18-material.md",
+      "sha256": "9f004103415ac9b9abbd0cc4fd593232867be59be884de4885a7700b6a5832e7",
+      "bytes": 2933,
+      "redacted": false,
+      "description": "G1-8 备料 (截图清单 + 素材要点)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/manifest-validator-conflict-20260919T170857.txt",
+      "sha256": "9786ec029cba09161beee08eec14684b575afde2b2577372a20b796fa4c5d117",
+      "bytes": 1385,
+      "redacted": false,
+      "description": "manifest 卡文字面 vs 借用 schema 硬冲突实测"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/silent-rewrite-gate-20260919T173124.txt",
+      "sha256": "8fb383481f7686206bc65a28fa80dc86e76d0aad0b988941789113154dec5a56",
+      "bytes": 34,
+      "redacted": false,
+      "description": "零静默改写门 (修正版: 剥离 64hex+2sp)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/silent-rewrite-gate-literal-20260919T173124.txt",
+      "sha256": "8fb383481f7686206bc65a28fa80dc86e76d0aad0b988941789113154dec5a56",
+      "bytes": 34,
+      "redacted": false,
+      "description": "零静默改写门 (卡文字面 awk $3)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/negctl-strengthen-v2-20260919T212246.txt",
+      "sha256": "d057f3fd58757f55db36525484653081e0e8cbeb07bbbb4be99f64520fda8769",
+      "bytes": 2107,
+      "redacted": false,
+      "description": "负控强化电池 (可复跑: 精确命令 + 白名单 matcher + 输入 sha + 逐段 rc + no-op 身份链)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/negctl1-snapshot-20260919T173142.txt",
+      "sha256": "67be751fa9bfc6a0d40600c506f59ef5cd7ca482e8586b566eaae0d98db792a2",
+      "bytes": 337,
+      "redacted": false,
+      "description": "负控① 修正篡改 (红在指定文件, count=1, 原件 sha 不变)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/negctl1-cardtext-sed-noop-20260919T173131.txt",
+      "sha256": "b1caebdbf7696bbfe41729ec0dfcb0b9e17962408132588cada9821c2cf187ab",
+      "bytes": 265,
+      "redacted": false,
+      "description": "负控① 卡文字面 sed no-op 记录 (卡文缺陷)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/negctl2-signoff-20260919T173154.txt",
+      "sha256": "37ae445ac7d0418dee2f52392472a51d15c7c1025f0e1c4dbda9559b78dcc1c4",
+      "bytes": 440,
+      "redacted": false,
+      "description": "负控② signoff=approved 缺 user/at ⇒ 红含 signoff"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/00-prefix-red-20260919T165753.txt",
+      "sha256": "348914a61a95662246af0cdd93df73f7e5da9ca1954dbdc20d4288cf7095b1d6",
+      "bytes": 199,
+      "redacted": false,
+      "description": "先红: 建目录前 0 命中 + 验伪锚 1"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/unit-open-20260919T165758.txt",
+      "sha256": "b6436552176e6722717acc7a7c645a134fcd44231774abb0821fb3eb78116ceb",
+      "bytes": 91078,
+      "redacted": false,
+      "description": "tests/unit 开工目录级 (open=32 ⊆ base=33)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/unit-close-20260919T205949.txt",
+      "sha256": "9b64082cec1a285b267ed54a294e345378dd66da5fd1526070f5436d003c7f39",
+      "bytes": 91076,
+      "redacted": false,
+      "description": "tests/unit 收工目录级 (close=32, diff base 只 <)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/structural-20260919T210603.txt",
+      "sha256": "466f00d25c94a565973a754b58b727bce6b5a12eddd73082638a64a18a7082e2",
+      "bytes": 308,
+      "redacted": false,
+      "description": "结构判据成对 + 验伪锚"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/ruff-20260919T210603.txt",
+      "sha256": "ee114a830b53a278a52d63369e44c2ce11e80f189c3efc0089e8441f82c2ea47",
+      "bytes": 226,
+      "redacted": false,
+      "description": "ruff files=0 (本卡零 .py 改动)"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/ruff-negctl-f821-20260919T210603.txt",
+      "sha256": "aedc25d6f303ee95c372ba64947c6e0ca55fc811c7e5c586ca84164c81f22c15",
+      "bytes": 177,
+      "redacted": false,
+      "description": "F821 验伪锚 rc=1"
+    },
+    {
+      "path": "repo://_bmad-output/审查/evidence-g87-journey/scripts/negctl_strengthen.sh",
+      "sha256": "be6aa679f6aeb0000629130554bec900aced8439fe5d5e0d36151fa48cce4738",
+      "bytes": 4306,
+      "redacted": false,
+      "description": "负控强化电池可复跑脚本"
+    }
+  ],
+  "slo": {
+    "manifest_revision": null,
+    "measurements": []
+  },
+  "signoff": {
+    "status": "pending",
+    "note": "用户签字位: 验收单 4-B「旅程体验」勾选后才填 user/at + approved; 未勾保持 pending。"
+  },
+  "evidence_level": "E0",
+  "result": "partial",
+  "known_limitations": [
+    "未证明旅程在 clean RC 上可复跑 (本卡跑在 live 双树缝合体 + live skill 副本, R-J*/R-RC 承接)。",
+    "未证明「经 backend 写 7691」在六环节中真的发生 (quiz-answer :74 自述不碰后端熟练度链; 本卡只登记实测写入面)。",
+    "未证明次日清单真的包含本次答题的板 (跨日归 G6-13 J07; 本卡只读打开总览页)。",
+    "未证明 8 处 skill 版本差异对旅程结果的影响方向 (同一旅程在 HEAD 副本上未跑)。"
+  ],
+  "notes": "本件为 CARD-G8-7 证据包的登记面（借 docs/release-evidence/manifest.schema.json 字段；⛔ 不进 docs/release-evidence/，P10 唯一写者）。自引用排除规则：validate_release_manifest.py 对 manifest 自身的输出（manifest-red/green/isolation-*.txt）不登记进 artifacts —— 其内容依赖本件内容，登记会形成 SHA 循环。这些输出与「最终副本对象」的绑定：见 sidecar `manifest-bindings.md`（含最终 J06 副本 SHA-256、重跑方法与排除原因）。"
+}

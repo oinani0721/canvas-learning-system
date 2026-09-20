@@ -1,0 +1,14 @@
+=== 地盘门 (l) 2026-09-19T21:33:44-0700 ===
+diff --stat $PREV HEAD 排除 _bmad-output (期望空) : （以上为空即通过）
+
+=== 验伪锚: 去 exclude 应命中 evidence-g87-journey ===
+grep -c evidence-g87-journey = 12
+
+=== Codex 后 (§二.12): 审SHA=审工作区 @ 9d4f7bf0 ⇒ 代码面 diff 空 ===
+（空即绑定）
+
+=== Codex 存档首部三字段/非空核 ===
+  _bmad-output/审查/codex-review-CARD-G8-7.md: size=nonempty, 三字段行=1
+  _bmad-output/审查/codex-review-CARD-G8-7-r2.md: size=nonempty, 三字段行=1
+  _bmad-output/审查/codex-review-CARD-G8-7-r3.md: size=nonempty, 三字段行=1
+旧复核模型名 gpt-6-astra 命中 = 0

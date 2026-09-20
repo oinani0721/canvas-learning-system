@@ -1,0 +1,7 @@
+=== (f) 结构判据成对 2026-09-19T21:06:03-0700 ===
+ls 审查 | grep -c evidence-g87-journey = 1
+ls $EV | grep -c -e '^0[0-5]-' -e '^manifest.json$' = 8
+grep -c live 01-skill-versions.md = 10
+主表行数 (^\| N \|) = 13
+dev skills 文件数 = 13
+验伪锚 ls 审查 | grep -c d5-evidence-2026-08-27 = 1

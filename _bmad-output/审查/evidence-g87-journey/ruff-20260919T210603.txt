@@ -1,0 +1,4 @@
+from_B15_BASE_files=3
+backend/tests/unit/test_vault_install_manifest.py backend/tests/unit/test_verify_install_manifest.py scripts/verify_install_manifest.py
+from_PREV_files=0
+files=0 ⇒ 本卡零 .py 改动，ruff 不适用

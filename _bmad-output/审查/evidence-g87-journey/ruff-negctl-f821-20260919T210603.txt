@@ -1,0 +1,10 @@
+F821 Undefined name `undefined_name`
+ --> backend/_negctl_f821_tmp.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name
+  |            ^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1

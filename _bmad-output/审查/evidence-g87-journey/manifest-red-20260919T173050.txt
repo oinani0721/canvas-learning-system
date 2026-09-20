@@ -1,0 +1,7 @@
+❌ FAIL /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/opencode/p3c-scratch/mirror-red.json
+    [S3] result=pass 与断言实况矛盾 — 非 pass 断言: G8-7-1, G8-7-2, G8-7-3, G8-7-4, G8-7-5, G8-7-6
+    [S6] journey_id=J06 与所在目录名 p3c-scratch 不一致
+    [S6] manifest 不在 <rc>/journeys/<Jxx>/ 结构下 (实际父级: opencode)
+
+合计 1 份 manifest, 失败 1 份。
+v_rc=1
