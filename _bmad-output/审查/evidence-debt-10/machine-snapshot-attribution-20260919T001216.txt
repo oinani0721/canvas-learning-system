@@ -1,0 +1,37 @@
+# 收工快照 diff 非空的决定性归因 — CARD-DEBT-10 (m)
+HEAD=13a80be853beba16fbacc09f419e8fe72d20ae16  生成时刻=2026-09-19T00:12:16-07:00
+
+## 现象
+开工/收工两份 machine-inventory 的 6 条 `ls -la` 行全部不同, 6 条 sha256 行全部相同。
+
+## 归因三条（缺一条都不足以排除「文件被改写」）
+### ① 位移完全一致 —— 被改写的文件 mtime 会跳到「现在」, 不会整体平移
+  daily-review-wrapper.sh                size 6821==6821 -> True  open='Aug 27 05:37' close='Aug 26 14:37'  delta=15:00:00
+  com.canvas.daily-review.plist          size 2384==2384 -> True  open='Aug 25 03:43' close='Aug 24 12:43'  delta=15:00:00
+  com.canvas.memory-health.plist         size 876==876 -> True  open='Aug  1 00:18' close='Jul 31 09:18'  delta=15:00:00
+  com.canvas.neo4j-backup.plist          size 942==942 -> True  open='Aug  1 00:19' close='Jul 31 09:19'  delta=15:00:00
+  com.canvas.qwen-graphiti.plist         size 987==987 -> True  open='Aug  1 00:19' close='Jul 31 09:19'  delta=15:00:00
+  com.canvas.reranker-graphiti.plist     size 1003==1003 -> True  open='Aug  1 00:19' close='Jul 31 09:19'  delta=15:00:00
+  独立位移值个数 = 1（必须 == 1）; 位移 = {datetime.timedelta(seconds=54000)}
+  判据: 位移唯一 = True
+
+### ② 位移量恰等于两次快照之间的时区差
+  开工存档自带时刻: 2026-09-18T22:41:45+08:00  （UTC+08:00）
+  当前时区: PDT -0700  /etc/localtime -> /var/db/timezone/zoneinfo/America/Los_Angeles
+  +08:00 → -07:00 = 15 小时 —— 与 ① 的位移逐字相符。
+
+### ③ 内容与权限位一位未变（时区无关判据）
+  sha256 行 diff: EMPTY（6/6 逐字同）
+  mtime_epoch=1787600636 size=2384 mode=0o644 com.canvas.daily-review.plist
+  mtime_epoch=1785514698 size=876 mode=0o644 com.canvas.memory-health.plist
+  mtime_epoch=1785514767 size=942 mode=0o644 com.canvas.neo4j-backup.plist
+  mtime_epoch=1785514768 size=987 mode=0o644 com.canvas.qwen-graphiti.plist
+  mtime_epoch=1785514769 size=1003 mode=0o644 com.canvas.reranker-graphiti.plist
+  mtime_epoch=1787780243 size=6821 mode=0o755 daily-review-wrapper.sh
+
+## 裁定
+6 件真实 ~/Library 安装副本在本卡作业期间**未被写入**。卡文 (m) 那条「ls -la 的 mtime 列
+都不得变」在字面上不成立, 原因是 `ls -la` 打的是**本地时间**而机器时区在作业期间改了
+（用户所在地变更; 见记忆 user_timezone_follows_location / D-18）。
+⇒ 本卡把承重判据换成**时区无关**的三元组（epoch mtime + size + sha256）, 并保留上面的
+  归因过程。⚠️ 同批其它车道若也用 `ls -la` 文本 diff 做快照判据, 今天会同样假红。

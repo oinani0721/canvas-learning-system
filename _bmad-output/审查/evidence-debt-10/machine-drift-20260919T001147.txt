@@ -1,0 +1,51 @@
+# 机器级安装副本校验报告 — CARD-DEBT-10
+manifest=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/vault-install-manifest.json
+home=/Users/Heishing
+harness=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy
+mode=verify
+
+## 逐件状态
+- label=com.canvas.daily-review role=launchd-plist managed=repo status=MATCH
+    install=~/Library/LaunchAgents/com.canvas.daily-review.plist -> /Users/Heishing/Library/LaunchAgents/com.canvas.daily-review.plist
+    source=scripts/launchd/com.canvas.daily-review.plist installed_sha256=b673233c494da06c15edde69db2db3d99fa6ff80260bb2ac2d8bd91815e2924e source_sha256=b673233c494da06c15edde69db2db3d99fa6ff80260bb2ac2d8bd91815e2924e source_blob=c34fe0b07456bc18b127bf64bbcfb5624f630645
+    program_status=PROGRAM-MATCH program_source=scripts/launchd/daily-review-wrapper.sh
+    program_path=/Users/Heishing/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh program_sha256=d78d16be034a82cc927f0f32d01324116dbcf37509bb75c80f8cf5d259b8f303
+    harness_source=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/launchd/daily-review-wrapper.sh harness_sha256=d78d16be034a82cc927f0f32d01324116dbcf37509bb75c80f8cf5d259b8f303
+- label=daily-review-wrapper.sh role=launchd-wrapper managed=repo status=MATCH
+    install=~/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh -> /Users/Heishing/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh
+    source=scripts/launchd/daily-review-wrapper.sh installed_sha256=d78d16be034a82cc927f0f32d01324116dbcf37509bb75c80f8cf5d259b8f303 source_sha256=d78d16be034a82cc927f0f32d01324116dbcf37509bb75c80f8cf5d259b8f303 source_blob=fec9f1173d06041cfa9002956a842824b2900bdb
+- label=com.canvas.memory-health role=launchd-plist managed=external status=EXTERNAL-PRESENT
+    install=~/Library/LaunchAgents/com.canvas.memory-health.plist -> /Users/Heishing/Library/LaunchAgents/com.canvas.memory-health.plist
+    source=- installed_sha256=c198f01def4eb5bd939aedb93cd21d46d9c959c946d94a4f79ded60fd4caad9d source_sha256=- source_blob=-
+    program_status=PROGRAM-MATCH program_source=scripts/memory-health.sh
+    program_path=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/memory-health.sh program_sha256=250f66fb03b1c2744b5a9923941c4d11b9668481d0c037a9afac074190352dbd
+    harness_source=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/memory-health.sh harness_sha256=250f66fb03b1c2744b5a9923941c4d11b9668481d0c037a9afac074190352dbd
+- label=com.canvas.neo4j-backup role=launchd-plist managed=external status=EXTERNAL-PRESENT
+    install=~/Library/LaunchAgents/com.canvas.neo4j-backup.plist -> /Users/Heishing/Library/LaunchAgents/com.canvas.neo4j-backup.plist
+    source=- installed_sha256=407861964518686820f3f57ce841300bbe971a34e3f7c80336ef12368506334e source_sha256=- source_blob=-
+    program_status=PROGRAM-MATCH program_source=scripts/backup-neo4j.sh
+    program_path=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/backup-neo4j.sh program_sha256=32072a10de6b1a58a72a4b6b792d3161c64d4a652bf7d3d9de4e5f337f214b5f
+    harness_source=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/backup-neo4j.sh harness_sha256=32072a10de6b1a58a72a4b6b792d3161c64d4a652bf7d3d9de4e5f337f214b5f
+- label=com.canvas.qwen-graphiti role=launchd-plist managed=external status=EXTERNAL-PRESENT
+    install=~/Library/LaunchAgents/com.canvas.qwen-graphiti.plist -> /Users/Heishing/Library/LaunchAgents/com.canvas.qwen-graphiti.plist
+    source=- installed_sha256=1680bddecc4f0bd73fedc4193558d0f0386ce71eed30890a30e8b4be0d921004 source_sha256=- source_blob=-
+    program_status=PROGRAM-MATCH program_source=scripts/local-llm/start-qwen-graphiti.sh
+    program_path=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/local-llm/start-qwen-graphiti.sh program_sha256=f131b1d72d6e81aedfeb9fac92b7b830e55a2c412201a5745d8078a324de0189
+    harness_source=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/local-llm/start-qwen-graphiti.sh harness_sha256=f131b1d72d6e81aedfeb9fac92b7b830e55a2c412201a5745d8078a324de0189
+- label=com.canvas.reranker-graphiti role=launchd-plist managed=external status=EXTERNAL-PRESENT
+    install=~/Library/LaunchAgents/com.canvas.reranker-graphiti.plist -> /Users/Heishing/Library/LaunchAgents/com.canvas.reranker-graphiti.plist
+    source=- installed_sha256=58a10e97c96a10231eca7393dcfdb4ded4dc166a7e30f3ba6a3115afeaf5bc0a source_sha256=- source_blob=-
+    program_status=PROGRAM-MATCH program_source=scripts/local-llm/start-reranker-graphiti.sh
+    program_path=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/scripts/local-llm/start-reranker-graphiti.sh program_sha256=b247792f6bef002317da1bcd2c99ac5869959d33094f4571db3a9c3b668c7be7
+    harness_source=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/scripts/local-llm/start-reranker-graphiti.sh harness_sha256=b247792f6bef002317da1bcd2c99ac5869959d33094f4571db3a9c3b668c7be7
+
+## 摘要
+EXTERNAL-PRESENT=4
+MATCH=2
+PROGRAM-MATCH=5
+
+## 重装计划
+PLAN 空（没有 managed:repo 的件处在 DRIFT/MISSING）
+
+## 边界
+本校验器不调用 launchctl —— 重装之后的重载是人的动作, 不在它的面内。

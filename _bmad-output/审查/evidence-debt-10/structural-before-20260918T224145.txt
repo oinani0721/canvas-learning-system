@@ -1,0 +1,11 @@
+# 先红（改代码前）CARD-DEBT-10  HEAD=4cc6a78cb24568a648d9e896d8dda825ec1002ba  2026-09-18T22:41:45+08:00
+--- (b)① verify_vault_install.py --help 对机器面零覆盖 ---
+help_launch_machine_library_hits=0
+--- (b)② manifest 无 machine_items / 无 Library ---
+machine_items_in_manifest= False
+items_len= 55
+version= 2
+grep_c_Library=0
+grep_c_Users=0
+--- (b)③ 校验器不存在 ---
+rc=1

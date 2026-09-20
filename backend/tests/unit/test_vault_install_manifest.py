@@ -3530,3 +3530,46 @@ def test_absent_exclude_with_kind_file_is_not_reported_unreadable(tmp_path, mani
         f"不存在的 exclude 项不得报成读取失败，实得 {[(f.path, f.detail) for f in result.unreadable]}"
     )
     assert result.exit_code == vv.EXIT_OK == 0, "一个本就不在目标里的 exclude 不该阻断"
+
+
+# ── machine_items (CARD-DEBT-10, BATCH-2026-09-18-第十五批) ─────────────────
+#
+# 顶层 `machine_items` 是 ~/Library 机器级安装副本的清单, 由
+# scripts/verify_install_manifest.py 解释, 与本文件的 items 面**互不相干**。
+# 这里只钉两件本文件有资格钉的事: ① 它确实是**另一个顶层键**, 一条都没漏进
+# items（漏进去会被 :174 的集合等价门与 :261 的 template-free 门当场打红）;
+# ② G2-6 的两条既有约束对它同样成立（0 绝对路径 / 不带内容基线字段）。
+# 行为面（DRIFT/MISSING/幂等/零写）在 test_verify_install_manifest.py, 不在这里。
+
+
+def test_machine_items_is_a_separate_top_level_key_and_never_leaks_into_items():
+    data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    machine_items = data["machine_items"]
+    assert isinstance(machine_items, list) and len(machine_items) == 6
+    item_paths = {i["path"] for i in data["items"]}
+    assert len(item_paths) == 55, "items 的 path 集合应恰 55 条且互不重复"
+    assert len(data["items"]) == 55, "items 被动过 —— machine_items 只该是新增的顶层键"
+    for entry in machine_items:
+        assert entry["install"] not in item_paths
+        assert entry["label"] not in item_paths
+        if entry["source"] is not None:
+            assert entry["source"] not in item_paths
+    # 加了未知顶层键之后, G2-6 校验器的 schema 仍必须收得下这份清单
+    vv.load_manifest(MANIFEST)
+
+
+def test_machine_items_carry_no_absolute_paths_and_no_content_baseline():
+    """G2-6 的两条既有约束（:251 / :261）对 machine_items 同样成立。
+
+    install 写 `~/` 而不是 `/Users/…`: :251 那条门对**整个文件原文**断言不含
+    `/Users/`, 写绝对路径当场打红; 更实质的理由是绝对 HOME 路径把「这台机器的
+    用户名」钉进了可移植清单。sha 一律在校验时算, 不进清单（活源即模板）。
+    """
+    raw = MANIFEST.read_text(encoding="utf-8")
+    assert "/Users/" not in raw
+    banned = {"sha256", "sha", "checksum", "content", "bytes", "size", "hash", "version"}
+    for entry in json.loads(raw)["machine_items"]:
+        assert not (set(entry) & banned), f"{entry['label']} 携带了内容基线字段"
+        assert entry["install"].startswith("~/")
+        assert entry["managed"] in {"repo", "external"}
+        assert (entry["source"] is None) == (entry["managed"] == "external")

@@ -1,0 +1,20 @@
+# ruff 判据 + 地盘门 — CARD-DEBT-10  HEAD=13a80be853beba16fbacc09f419e8fe72d20ae16  2026-09-19T00:14:40-07:00
+--- §二.8 ruff 本卡新增 .py（zsh 数组）---
+files=3
+backend/tests/unit/test_vault_install_manifest.py backend/tests/unit/test_verify_install_manifest.py scripts/verify_install_manifest.py
+All checks passed!
+rc=0
+--- 验伪锚（F821；backend/ruff.toml 不含 F401 ⇒ 未用 import 当锚点恒不触发）---
+F821 Undefined name `undefined_name_xyz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p3-deploy/80e818b8-e68b-4173-97b6-1a29c29e563b/scratchpad/_ruff_anchor.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_xyz
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+--- 反向锚：未用 import 在本配置下必须 rc=0（证明锚点选对了规则）---
+All checks passed!
+f401_rc=0

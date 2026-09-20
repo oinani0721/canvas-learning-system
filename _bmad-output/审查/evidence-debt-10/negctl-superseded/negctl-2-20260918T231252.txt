@@ -1,0 +1,17 @@
+# 负控② — 只拆「--reinstall --dry-run 零写」这一层（dry-run 改成真复制）
+HEAD=13a80be853beba16fbacc09f419e8fe72d20ae16
+sha_before:
+233c2c55467ee0868bab6787112269211d3177d160b2ec835f85fd283ae6e9b3  scripts/verify_install_manifest.py
+MUTATED
+--- 变异 diff ---
++            _apply_reinstall(plan)
+--- 跑指定文件 ---
+FAILED tests/unit/test_verify_install_manifest.py::test_dry_run_writes_nothing_and_prints_the_plan
+================== 1 failed, 38 passed, 10 warnings in 3.54s ===================
+--- 指定断言原文（test_dry_run_writes_nothing...）---
+E       AssertionError: dry-run 动了 --home 树
+E       assert {'Library/': ...e=0o755', ...} == {'Library/': ...e=0o755', ...}
+E         
+E         Omitting 10 identical items, use -vv to show
+sha_after:
+233c2c55467ee0868bab6787112269211d3177d160b2ec835f85fd283ae6e9b3  scripts/verify_install_manifest.py

@@ -1,0 +1,18 @@
+# 负控③ — 在 verify() 体内植入一行绑定形态写调用（p.open("w")）, 只过 AST 门不真跑
+HEAD=390f25cf1b820aa25f1d279aa9ba3a0c8748c726
+sha_before:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py
+MUTATED（用绑定形态, 正是整改前漏报的那一族）
+--- 变异 diff ---
++    Path("_negctl3_planted").open("w")
+--- §二.4 AST 零写门 ---
+owners           = ['_apply_reinstall', '_write_report', 'verify']
+owners - allowed = ['verify']
+GATE = FAIL
+--- 同口径 pytest 门（只跑这一条 nodeid）---
+E   AssertionError: 写调用逃出允许名单: [('verify', '<expr>.open', 576)]
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:896: AssertionError: 写调用逃出允许名单: [('verify', '<expr>.open', 576)]
+FAILED tests/unit/test_verify_install_manifest.py::test_no_write_calls_outside_the_two_writers
+======================== 1 failed, 10 warnings in 2.09s ========================
+sha_after:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py

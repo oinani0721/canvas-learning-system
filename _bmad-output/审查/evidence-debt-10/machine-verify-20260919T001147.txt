@@ -1,0 +1,5 @@
+报告已落盘: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-debt-10/machine-drift-20260919T001147.txt
+EXTERNAL-PRESENT=4
+MATCH=2
+PROGRAM-MATCH=5
+rc=0

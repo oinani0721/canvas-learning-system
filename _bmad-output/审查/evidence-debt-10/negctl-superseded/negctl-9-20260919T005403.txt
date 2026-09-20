@@ -1,0 +1,16 @@
+# 负控9 — 在 verify() 体内植入一行对写者的调用（调用点门无感, 只有调用图门能抓）
+HEAD=e64fc5c5d2277db80db7d55ec57a6f5b9c331f18
+sha_before: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+--- 变异 diff ---
++    _write_report(Path("x"), "ran")
+--- 两条门的对照 ---
+调用点门 owners - allowed = [] (空 = 这一条它看不见)
+调用图门 writers_reachable_from(verify) = ['_write_report']
+--- pytest ---
+E   AssertionError: verify 的调用链能走到写者: ['_write_report']
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:995: AssertionError: verify 的调用链能走到写者: ['_write_report']
+FAILED tests/unit/test_verify_install_manifest.py::test_no_writer_is_reachable_from_the_read_only_entrypoints[verify]
+================== 1 failed, 81 passed, 10 warnings in 3.85s ===================
+sha_after: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+restored_identical: True
+worktree_clean: True

@@ -1,0 +1,24 @@
+# 负控1 — 只拆「installed sha != source sha ⇒ DRIFT」这一层（恒 MATCH）
+HEAD=390f25cf1b820aa25f1d279aa9ba3a0c8748c726
+sha_before:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py
+MUTATED
+--- 变异 diff ---
+-                    result.status = STATUS_MATCH if result.installed_sha256 == result.source_sha256 else STATUS_DRIFT
++                    result.status = STATUS_MATCH if True else STATUS_DRIFT
+--- 门 ---
+E   AssertionError: assert 'MATCH' == 'DRIFT'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:524: AssertionError: assert 'MATCH' == 'DRIFT'
+E   AssertionError: assert 'PLAN cp ' in '# 机器级安装副本校验报告 — CARD-DEBT-10\nmanifest=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p...计划\nPLAN 空（没有 managed:repo 的件处在 DRIFT/MISSING）\nDRY-RUN 未写入任何字节\n\n## 边界\n本校验器不调用 launchctl —— 重装之后的重载是人的动作, 不在它的面内。\n'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:649: AssertionError: assert 'PLAN cp ' in '# 机器级安装副本校验报告 — CARD-DEBT-10\nmanifest=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p...计划\nPLAN 空（没有 managed:repo 的件处在 DRIFT/MISSING）\nDRY-RUN 未写入任何字节\n\n## 边界\n本校验器不调用 launchctl —— 重装之后的重载是人的动作, 不在它的面内。\n'
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:686: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:718: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: 计划为空 ⇒ 下面那条断言会退化成恒真
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1023: AssertionError: 计划为空 ⇒ 下面那条断言会退化成恒真
+FAILED tests/unit/test_verify_install_manifest.py::test_single_byte_flip_is_drift_on_exactly_that_label
+FAILED tests/unit/test_verify_install_manifest.py::test_dry_run_writes_nothing_and_prints_the_plan
+sha_after:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py
+clean=YES

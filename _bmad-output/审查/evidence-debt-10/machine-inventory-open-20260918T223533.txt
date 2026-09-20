@@ -1,0 +1,13 @@
+-rw-r--r--@ 1 Heishing  staff  2384 Aug 25 03:43 /Users/Heishing/Library/LaunchAgents/com.canvas.daily-review.plist
+b673233c494da06c15edde69db2db3d99fa6ff80260bb2ac2d8bd91815e2924e  /Users/Heishing/Library/LaunchAgents/com.canvas.daily-review.plist
+-rw-r--r--@ 1 Heishing  staff  876 Aug  1 00:18 /Users/Heishing/Library/LaunchAgents/com.canvas.memory-health.plist
+c198f01def4eb5bd939aedb93cd21d46d9c959c946d94a4f79ded60fd4caad9d  /Users/Heishing/Library/LaunchAgents/com.canvas.memory-health.plist
+-rw-r--r--@ 1 Heishing  staff  942 Aug  1 00:19 /Users/Heishing/Library/LaunchAgents/com.canvas.neo4j-backup.plist
+407861964518686820f3f57ce841300bbe971a34e3f7c80336ef12368506334e  /Users/Heishing/Library/LaunchAgents/com.canvas.neo4j-backup.plist
+-rw-r--r--@ 1 Heishing  staff  987 Aug  1 00:19 /Users/Heishing/Library/LaunchAgents/com.canvas.qwen-graphiti.plist
+1680bddecc4f0bd73fedc4193558d0f0386ce71eed30890a30e8b4be0d921004  /Users/Heishing/Library/LaunchAgents/com.canvas.qwen-graphiti.plist
+-rw-r--r--@ 1 Heishing  staff  1003 Aug  1 00:19 /Users/Heishing/Library/LaunchAgents/com.canvas.reranker-graphiti.plist
+58a10e97c96a10231eca7393dcfdb4ded4dc166a7e30f3ba6a3115afeaf5bc0a  /Users/Heishing/Library/LaunchAgents/com.canvas.reranker-graphiti.plist
+-rwxr-xr-x@ 1 Heishing  staff  6821 Aug 27 05:37 /Users/Heishing/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh
+d78d16be034a82cc927f0f32d01324116dbcf37509bb75c80f8cf5d259b8f303  /Users/Heishing/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh
+ls: /Users/Heishing/CanvasReview/bin: No such file or directory

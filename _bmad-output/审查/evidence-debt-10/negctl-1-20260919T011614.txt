@@ -1,0 +1,22 @@
+# 负控1 — 拆「installed sha != source sha ⇒ DRIFT」（恒 MATCH）
+HEAD=8fe610bd05d6cf054beb5581cc2299ccda44db5b
+sha_before: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+--- 变异 diff ---
+-                    result.status = STATUS_MATCH if result.installed_sha256 == result.source_sha256 else STATUS_DRIFT
++                    result.status = STATUS_MATCH if True else STATUS_DRIFT
+--- pytest ---
+E   AssertionError: assert 'MATCH' == 'DRIFT'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:678: AssertionError: assert 'MATCH' == 'DRIFT'
+E   AssertionError: assert 'PLAN cp ' in '# 机器级安装副本校验报告 — CARD-DEBT-10\nmanifest=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p...计划\nPLAN 空（没有 managed:repo 的件处在 DRIFT/MISSING）\nDRY-RUN 未写入任何字节\n\n## 边界\n本校验器不调用 launchctl —— 重装之后的重载是人的动作, 不在它的面内。\n'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:803: AssertionError: assert 'PLAN cp ' in '# 机器级安装副本校验报告 — CARD-DEBT-10\nmanifest=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p...计划\nPLAN 空（没有 managed:repo 的件处在 DRIFT/MISSING）\nDRY-RUN 未写入任何字节\n\n## 边界\n本校验器不调用 launchctl —— 重装之后的重载是人的动作, 不在它的面内。\n'
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:840: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:872: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: 计划为空 ⇒ 下面那条断言会退化成恒真
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1205: AssertionError: 计划为空 ⇒ 下面那条断言会退化成恒真
+E   AssertionError: assert '安装失败' in ''
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1283: AssertionError: assert '安装失败' in ''
+sha_after: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+restored_identical: True
+worktree_clean: True

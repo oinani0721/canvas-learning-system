@@ -1,0 +1,26 @@
+# ruff + 地盘门（新 HEAD）CARD-DEBT-10  PREV=4cc6a78cb24568a648d9e896d8dda825ec1002ba  HEAD=390f25cf1b820aa25f1d279aa9ba3a0c8748c726  2026-09-19T00:40:20-07:00
+--- §二.8 ruff（zsh 数组）---
+files=3
+backend/tests/unit/test_vault_install_manifest.py backend/tests/unit/test_verify_install_manifest.py scripts/verify_install_manifest.py
+All checks passed!
+rc=0
+--- 验伪锚 F821 ---
+
+Found 1 error.
+anchor_rc=1
+--- 反向锚 F401（本配置不启用, 必须 rc=0）---
+All checks passed!
+f401_rc=0
+--- §二.9 地盘门 ---
+ backend/tests/unit/test_vault_install_manifest.py  |   43 +
+ backend/tests/unit/test_verify_install_manifest.py | 1290 ++++++++++++++++++++
+ scripts/vault-install-manifest.json                |   61 +
+ scripts/verify_install_manifest.py                 |  936 ++++++++++++++
+ 4 files changed, 2330 insertions(+)
+outliers_count=0
+removed_lines_in_tvim=0
+fsrs_decay_hits=0
+openapi_in_diff=0
+launchd_plist_added=0
+--- 既有 132 test 函数名集合 AST 比对 ---
+old_n 132 new_n 134 old_subset True lost set()

@@ -1,0 +1,24 @@
+# 负控④ — 只拆「复制方向」这一层（_apply_reinstall 里 source 与 dest 对调）
+# 这一段正是内部对抗复核确认的 HIGH-3: 整改前这个变异让全文件 39 passed 全绿。
+HEAD=390f25cf1b820aa25f1d279aa9ba3a0c8748c726
+sha_before:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py
+MUTATED（只改 _apply_reinstall 里那一处, render_report 那处不动）
+--- 变异 diff ---
+-    for source, dest, label in plan:
++    for dest, source, label in plan:
+--- 验伪锚：变异确实落在 _apply_reinstall 内 ---
+reversed_in_apply = True
+render_report_untouched = True
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_fixes_drift_and_is_0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:686: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_fixes_drift_and_is_0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_preserves_existing_0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:718: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_preserves_existing_0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_confirmation_guard_is_not0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1031: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_confirmation_guard_is_not0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_creates_a_missing_i0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1063: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_creates_a_missing_i0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_on_missing_parent_d0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1075: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1081/test_apply_on_missing_parent_d0/harness/scripts/launchd
+sha_after:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py

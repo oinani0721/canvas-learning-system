@@ -1,0 +1,51 @@
+# 结构 + ruff + 地盘（最终 HEAD）CARD-DEBT-10  PREV=4cc6a78cb24568a648d9e896d8dda825ec1002ba  HEAD=e64fc5c5d2277db80db7d55ec57a6f5b9c331f18  2026-09-19T00:55:13-07:00
+--- (f)① machine_items ---
+6 55 2 ['com.canvas.daily-review', 'com.canvas.memory-health', 'com.canvas.neo4j-backup', 'com.canvas.qwen-graphiti', 'com.canvas.reranker-graphiti', 'daily-review-wrapper.sh'] True
+grep_c_label=6
+grep_c_Users=0
+anchor_hits_on_known_positive=1
+items/version: 55 2
+--- (f)④ 零写：调用点门 + 调用图门 ---
+write_calls_total = 11
+owners            = ['def:_apply_reinstall', 'def:_write_report']
+allowed           = ['def:_apply_reinstall', 'def:_write_report']
+owners - allowed  = []
+CALL-SITE GATE = PASS
+  reachable writers from verify: []
+  reachable writers from _verify_one: []
+  reachable writers from _verify_program: []
+  reachable writers from plan_reinstall: []
+CALL-GRAPH GATE = PASS
+    def:_apply_reinstall:728  os.makedirs
+    def:_apply_reinstall:730  os.open
+    def:_apply_reinstall:743  os.open
+    def:_apply_reinstall:747  os.write
+    def:_apply_reinstall:751  os.fchmod
+    def:_apply_reinstall:754  os.replace
+    def:_apply_reinstall:763  os.unlink
+    def:_write_report:784  os.open
+    def:_write_report:788  os.write
+    def:_write_report:794  os.replace
+    def:_write_report:803  os.unlink
+--- (f)⑤ 脚本不 import subprocess ---
+imports = ['__future__', 'argparse', 'dataclasses', 'hashlib', 'json', 'os', 'pathlib', 'plistlib', 'stat', 'sys']
+subprocess_imported = False
+--- §二.8 ruff ---
+files=3
+backend/tests/unit/test_vault_install_manifest.py backend/tests/unit/test_verify_install_manifest.py scripts/verify_install_manifest.py
+All checks passed!
+rc=0
+F821_anchor_rc=1
+F401_reverse_anchor_rc=0
+--- §二.9 地盘门 ---
+ backend/tests/unit/test_vault_install_manifest.py  |   43 +
+ backend/tests/unit/test_verify_install_manifest.py | 1600 ++++++++++++++++++++
+ scripts/vault-install-manifest.json                |   61 +
+ scripts/verify_install_manifest.py                 | 1053 +++++++++++++
+ 4 files changed, 2757 insertions(+)
+outliers_count=0
+removed_lines_in_tvim=0
+fsrs_decay_hits=0
+openapi_in_diff=0
+launchd_plist_added=0
+test 函数名集合: old 132 new 134 old_subset True lost set()

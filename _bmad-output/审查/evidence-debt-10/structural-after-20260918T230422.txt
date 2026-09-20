@@ -1,0 +1,27 @@
+# 结构判据（改后）CARD-DEBT-10  HEAD=4cc6a78cb24568a648d9e896d8dda825ec1002ba(未提交)  2026-09-18T23:04:22+08:00
+--- (f)① machine_items 长度 + label 集合 + install 全 ~/ 开头 ---
+6 55 2 ['com.canvas.daily-review', 'com.canvas.memory-health', 'com.canvas.neo4j-backup', 'com.canvas.qwen-graphiti', 'com.canvas.reranker-graphiti', 'daily-review-wrapper.sh'] True
+grep_c_label=6
+--- (f)② 绝对路径门（:251 口径）---
+grep_c_Users=0
+--- 验伪锚：同一判据喂一条已知含 /Users/ 的输入，必须命中 ---
+anchor_hits_on_known_positive=1
+--- (f)③ items / version 未动 ---
+55 2
+--- (f)④ 零写 AST 门（口径与测试共用一份 collect_write_call_owners）---
+write_calls_total = 10
+owners            = ['_apply_reinstall', '_write_report']
+allowed           = ['_apply_reinstall', '_write_report']
+owners - allowed  = []
+input_nonempty    = True
+GATE = PASS
+    _apply_reinstall:471  os.makedirs
+    _apply_reinstall:480  os.open
+    _apply_reinstall:484  os.write
+    _apply_reinstall:490  os.chmod
+    _apply_reinstall:491  os.replace
+    _apply_reinstall:500  os.unlink
+    _write_report:515  os.open
+    _write_report:519  os.write
+    _write_report:525  os.replace
+    _write_report:534  os.unlink

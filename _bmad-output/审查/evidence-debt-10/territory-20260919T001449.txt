@@ -1,0 +1,21 @@
+# 地盘门 — CARD-DEBT-10  PREV=4cc6a78cb24568a648d9e896d8dda825ec1002ba  HEAD=13a80be853beba16fbacc09f419e8fe72d20ae16  2026-09-19T00:14:49-07:00
+--- git diff --stat（排除 _bmad-output）---
+ backend/tests/unit/test_vault_install_manifest.py  |  43 ++
+ backend/tests/unit/test_verify_install_manifest.py | 846 +++++++++++++++++++++
+ scripts/vault-install-manifest.json                |  61 ++
+ scripts/verify_install_manifest.py                 | 745 ++++++++++++++++++
+ 4 files changed, 1695 insertions(+)
+--- 名单外文件（必须 0 行）---
+outliers_count=0
+--- 验伪锚：同一判据去掉 exclude, 必须多出 _bmad-output/ 路径 ---
+with_exclude_n=4
+without_exclude_n=4
+anchor_extra_paths:
+--- test_vault_install_manifest.py 只追加（删改行必须 0）---
+removed_lines=0
+--- 禁碰面自证 ---
+fsrs_decay_hits=0
+openapi_in_diff=0
+launchd_plist_added=0
+--- 工作树状态 ---
+?? "_bmad-output/\345\256\241\346\237\245/evidence-debt-10/"

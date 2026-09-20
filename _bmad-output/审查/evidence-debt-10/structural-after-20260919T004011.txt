@@ -1,0 +1,29 @@
+# 结构判据（改后, 整改已并入 HEAD）CARD-DEBT-10  HEAD=390f25cf1b820aa25f1d279aa9ba3a0c8748c726  2026-09-19T00:40:11-07:00
+--- (f)① machine_items ---
+6 55 2 ['com.canvas.daily-review', 'com.canvas.memory-health', 'com.canvas.neo4j-backup', 'com.canvas.qwen-graphiti', 'com.canvas.reranker-graphiti', 'daily-review-wrapper.sh'] True
+grep_c_label=6
+--- (f)② 绝对路径门 ---
+grep_c_Users=0
+anchor_hits_on_known_positive=1
+--- (f)③ items / version 未动 ---
+55 2
+--- (f)④ 零写 AST 门 ---
+write_calls_total = 10
+owners            = ['_apply_reinstall', '_write_report']
+allowed           = ['_apply_reinstall', '_write_report']
+owners - allowed  = []
+input_nonempty    = True
+GATE = PASS
+    _apply_reinstall:640  os.makedirs
+    _apply_reinstall:645  os.open
+    _apply_reinstall:649  os.write
+    _apply_reinstall:655  os.chmod
+    _apply_reinstall:656  os.replace
+    _apply_reinstall:665  os.unlink
+    _write_report:680  os.open
+    _write_report:684  os.write
+    _write_report:690  os.replace
+    _write_report:699  os.unlink
+--- (f)⑤ 脚本不 import subprocess / 不起外部程序 ---
+imports = ['__future__', 'argparse', 'dataclasses', 'hashlib', 'json', 'os', 'pathlib', 'plistlib', 'stat', 'sys']
+subprocess_imported = False

@@ -1,0 +1,27 @@
+# 负控① — 只拆「installed sha != source sha ⇒ DRIFT」这一层（恒 MATCH）
+HEAD=13a80be853beba16fbacc09f419e8fe72d20ae16
+sha_before:
+233c2c55467ee0868bab6787112269211d3177d160b2ec835f85fd283ae6e9b3  scripts/verify_install_manifest.py
+MUTATED
+--- 变异 diff ---
+-                    result.status = STATUS_MATCH if result.installed_sha256 == result.source_sha256 else STATUS_DRIFT
++                    result.status = STATUS_MATCH if True else STATUS_DRIFT
+--- 跑指定文件 ---
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:406: AssertionError: assert 'MATCH' == 'DRIFT'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:527: AssertionError: assert 'PLAN cp ' in '# 机器级安装副本校验报告 — CARD-DEBT-10\nmanifest=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p...计划\nPLAN 空（没有 managed:repo 的件处在 DRIFT/MISSING）\nDRY-RUN 未写入任何字节\n\n## 边界\n本校验器不调用 launchctl —— 重装之后的重载是人的动作, 不在它的面内。\n'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:552: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:578: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+FAILED tests/unit/test_verify_install_manifest.py::test_single_byte_flip_is_drift_on_exactly_that_label
+FAILED tests/unit/test_verify_install_manifest.py::test_dry_run_writes_nothing_and_prints_the_plan
+FAILED tests/unit/test_verify_install_manifest.py::test_dry_run_plan_lists_only_repo_managed_items
+FAILED tests/unit/test_verify_install_manifest.py::test_apply_fixes_drift_and_is_idempotent
+FAILED tests/unit/test_verify_install_manifest.py::test_apply_preserves_existing_install_mode
+================== 5 failed, 34 passed, 10 warnings in 3.06s ===================
+--- 指定断言原文（test_single_byte_flip...）---
+E       AssertionError: assert 'MATCH' == 'DRIFT'
+E         
+E         - DRIFT
+E         + MATCH
+sha_after:
+233c2c55467ee0868bab6787112269211d3177d160b2ec835f85fd283ae6e9b3  scripts/verify_install_manifest.py
+rc=0

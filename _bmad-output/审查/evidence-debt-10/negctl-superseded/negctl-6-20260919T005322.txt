@@ -1,0 +1,14 @@
+# 负控6 — 真实 HOME 判定退回字符串比较（拆 inode 身份）
+HEAD=e64fc5c5d2277db80db7d55ec57a6f5b9c331f18
+sha_before: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+--- 变异 diff ---
+-        if args.apply and _same_dir(home, Path.home()) and not args.i_confirm_home_write:
++        if args.apply and home == Path.home().resolve() and not args.i_confirm_home_write:
+--- pytest ---
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1161: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+FAILED tests/unit/test_verify_install_manifest.py::test_case_variant_home_still_requires_confirmation
+================== 1 failed, 81 passed, 10 warnings in 4.19s ===================
+sha_after: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+restored_identical: True
+worktree_clean: True

@@ -1,0 +1,22 @@
+# 负控4 — _apply_reinstall 里 source/dest 对调
+HEAD=8fe610bd05d6cf054beb5581cc2299ccda44db5b
+sha_before: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+--- 变异 diff ---
+-    for source, dest, label in plan:
++    for dest, source, label in plan:
+--- pytest ---
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:840: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:872: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1213: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1250: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1262: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+E   AssertionError: assert '安装失败' in '失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1324/test_apply_failure_inside_the_0/harness/scripts/launchd\n'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1283: AssertionError: assert '安装失败' in '失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1324/test_apply_failure_inside_the_0/harness/scripts/launchd\n'
+sha_after: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+restored_identical: True
+worktree_clean: True

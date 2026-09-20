@@ -410,5 +410,66 @@
       "origin": "CARD-G2-7a (b) §2.1",
       "note": "Obsidian 用户删除区（.gitignore:218）。"
     }
+  ],
+  "machine_items": [
+    {
+      "label": "com.canvas.daily-review",
+      "role": "launchd-plist",
+      "managed": "repo",
+      "source": "scripts/launchd/com.canvas.daily-review.plist",
+      "install": "~/Library/LaunchAgents/com.canvas.daily-review.plist",
+      "program_source": "scripts/launchd/daily-review-wrapper.sh",
+      "origin": "CARD-DEBT-10 §〇 机器面盘点（6 件）",
+      "note": "每日复习推送的 launchd 说明书。它的 ProgramArguments[1] 指向**稳定安装路径** ~/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh（本文件 :15），不指任何 worktree —— 这是 memory-health 停摆 6 天的结构性修复（wrapper 源 :2-5）。program_source 按**内容** sha256 比，不按路径字符串比。"
+    },
+    {
+      "label": "daily-review-wrapper.sh",
+      "role": "launchd-wrapper",
+      "managed": "repo",
+      "source": "scripts/launchd/daily-review-wrapper.sh",
+      "install": "~/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh",
+      "origin": "CARD-DEBT-10 §〇 机器面盘点（6 件）",
+      "note": "复习链的唯一入口。改了仓内源却忘了重装 = 复习链停摆（wrapper 源 :5「改动后需重新 cp 安装」）—— 本条目是给那句话配的可执行守门人。⚠️ 旧文案（总账 :904 / 草案）写的 ~/CanvasReview/bin 实测不存在，真实安装根是 ~/Library/Application Support/CanvasReview/bin（CARD-DEBT-10 实测更正①）。重装权限位口径与手工 cp 一致：安装副本已在则保留它原有的权限位，不在则取仓内源的权限位。"
+    },
+    {
+      "label": "com.canvas.memory-health",
+      "role": "launchd-plist",
+      "managed": "external",
+      "source": null,
+      "install": "~/Library/LaunchAgents/com.canvas.memory-health.plist",
+      "program_source": "scripts/memory-health.sh",
+      "origin": "CARD-DEBT-10 (d) 用户裁定 2026-09-18：登 external-managed",
+      "note": "人手安装、仓内无 plist 源（`git ls-files '*.plist'` 全仓恰 1 份）。ProgramArguments[1] 直指 worktree 绝对路径下的 scripts/memory-health.sh：程序体是 tracked 文件、原地执行、无安装副本。校验口径 = 在位 + 可解析 + 程序体按内容 sha256 比 <harness>/scripts/memory-health.sh。触发 RunAtLoad + 每天 9:00。⚠️ 指向 worktree 是易腐事实（该目录改名即失效）——「改成像 wrapper 那样指稳定路径」已登记移交，不在本卡。"
+    },
+    {
+      "label": "com.canvas.neo4j-backup",
+      "role": "launchd-plist",
+      "managed": "external",
+      "source": null,
+      "install": "~/Library/LaunchAgents/com.canvas.neo4j-backup.plist",
+      "program_source": "scripts/backup-neo4j.sh",
+      "origin": "CARD-DEBT-10 (d) 用户裁定 2026-09-18：登 external-managed",
+      "note": "同 com.canvas.memory-health：人手安装、仓内无 plist 源，程序体 scripts/backup-neo4j.sh 是 tracked 文件、原地执行。触发每天 4:30（无 RunAtLoad）。"
+    },
+    {
+      "label": "com.canvas.qwen-graphiti",
+      "role": "launchd-plist",
+      "managed": "external",
+      "source": null,
+      "install": "~/Library/LaunchAgents/com.canvas.qwen-graphiti.plist",
+      "program_source": "scripts/local-llm/start-qwen-graphiti.sh",
+      "origin": "CARD-DEBT-10 (d) 用户裁定 2026-09-18：登 external-managed",
+      "note": "同 com.canvas.memory-health：人手安装、仓内无 plist 源，程序体 scripts/local-llm/start-qwen-graphiti.sh 是 tracked 文件、原地执行。触发 RunAtLoad + KeepAlive{SuccessfulExit:false} + ThrottleInterval 30（常驻）。"
+    },
+    {
+      "label": "com.canvas.reranker-graphiti",
+      "role": "launchd-plist",
+      "managed": "external",
+      "source": null,
+      "install": "~/Library/LaunchAgents/com.canvas.reranker-graphiti.plist",
+      "program_source": "scripts/local-llm/start-reranker-graphiti.sh",
+      "origin": "CARD-DEBT-10 (d) 用户裁定 2026-09-18：登 external-managed",
+      "note": "同 com.canvas.memory-health：人手安装、仓内无 plist 源，程序体 scripts/local-llm/start-reranker-graphiti.sh 是 tracked 文件、原地执行。触发 RunAtLoad + KeepAlive{SuccessfulExit:false} + ThrottleInterval 30（常驻）。"
+    }
   ]
 }

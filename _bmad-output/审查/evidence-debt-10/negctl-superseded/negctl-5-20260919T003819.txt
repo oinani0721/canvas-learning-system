@@ -1,0 +1,18 @@
+# 负控⑤ — 只拆「仓内源零改动」这一层, 且变异必须**通过**包含守卫
+# 为什么不能沿用负控④: 那个全对调的变异被包含守卫（更早的一层）杀掉了,
+# 于是「harness 快照逐项相同」这条断言在那一段里一次都没被走到 —— 更强的门
+# 吃掉了弱门的测试面。这里写一个 dest 仍在 --home 之内、安装副本照样被修好、
+# 只是**额外**把内容也写回仓内源的变异: 它通过包含守卫, 也通过 status==MATCH,
+# 只有 harness 快照断言拦得住。
+HEAD=390f25cf1b820aa25f1d279aa9ba3a0c8748c726
+sha_before:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py
+MUTATED: apply 期间顺手改了仓内源的权限位（dest 仍在 home 内, 安装副本照样修好）
+--- 变异 diff ---
++            os.chmod(str(source), 0o600)
+E   AssertionError: apply 写到了 harness 树
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:692: AssertionError: apply 写到了 harness 树
+FAILED tests/unit/test_verify_install_manifest.py::test_apply_fixes_drift_and_is_idempotent
+================== 1 failed, 65 passed, 10 warnings in 10.62s ==================
+sha_after:
+85d9f702f9d5373859b27b57e693428d3f9eb868fbb8e857fa32315fffe5734c  scripts/verify_install_manifest.py

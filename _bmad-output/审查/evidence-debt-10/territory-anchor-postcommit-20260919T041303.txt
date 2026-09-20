@@ -1,0 +1,32 @@
+# 地盘门验伪锚补跑（evidence 入库之后）CARD-DEBT-10
+PREV=4cc6a78cb24568a648d9e896d8dda825ec1002ba  HEAD=b987fa4d119348e068efe597c2354bb6e624ef62  2026-09-19T04:13:03-07:00
+
+## 为什么要补跑
+代码 commit 时点跑过一次, 但那时 evidence 目录还是**未跟踪**状态 —— git diff 根本看不见它,
+带不带 ':(exclude)_bmad-output' 输出完全相同（实测 with=4 / without=4, 多出路径为空）。
+那条锚当时是**空洞**的, 证明不了 exclude 在起作用。现在 evidence 已入库, 锚才有真值。
+
+## 锚（同一判据, 只去掉 exclude）
+with_exclude_n=4
+without_exclude_n=81
+多出的路径（前 5 条, 必须全在 _bmad-output/ 下）:
+_bmad-output/审查/codex-review-CARD-DEBT-10.md
+_bmad-output/审查/evidence-debt-10/VOID-negctl-4-变异未套上-空跑不作证据.txt
+_bmad-output/审查/evidence-debt-10/base.nodeids
+_bmad-output/审查/evidence-debt-10/behavior-20260918T231440.txt
+_bmad-output/审查/evidence-debt-10/close.nodeids
+多出路径总数=77
+⚠️ 路径判据一律带 -c core.quotepath=false —— 中文路径被 git quoting 时 '^_bmad-output/' 恒不命中
+   （实测: 不带它时「_bmad-output 外的文件数」报 77 = 全部, 是假报警）。
+
+## 代码面仍是恰 4 个文件
+ backend/tests/unit/test_vault_install_manifest.py  |   43 +
+ backend/tests/unit/test_verify_install_manifest.py | 1932 ++++++++++++++++++++
+ scripts/vault-install-manifest.json                |   61 +
+ scripts/verify_install_manifest.py                 | 1185 ++++++++++++
+ 4 files changed, 3221 insertions(+)
+outliers_count=0
+
+## 工作树
+?? "_bmad-output/\345\256\241\346\237\245/evidence-debt-10/territory-anchor-postcommit-20260919T041303.txt"
+clean=NO

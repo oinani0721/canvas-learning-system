@@ -1,0 +1,11 @@
+# 负控10 — apply 的目录身份退回「fstat(fd) 比 stat(同一路径)」（两次事后观测）
+HEAD=2726815dadfed5698082242fe449b83a3d5cadaf
+sha_before: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+--- 变异 diff ---
+-            if not _fd_within(parent_fd, home):
++            if not _under(_resolve_lenient(parent), _resolve_lenient(home)):
+--- pytest ---
+======================= 103 passed, 10 warnings in 4.25s =======================
+sha_after: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+restored_identical: True
+worktree_clean: True

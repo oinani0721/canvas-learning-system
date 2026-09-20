@@ -1,0 +1,14 @@
+# 负控6 — 真实 HOME 判定退回字符串比较（拆 inode 身份）
+HEAD=8fe610bd05d6cf054beb5581cc2299ccda44db5b
+sha_before: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+--- 变异 diff ---
+-        if args.apply and _same_dir(home, Path.home()) and not args.i_confirm_home_write:
++        if args.apply and home == Path.home().resolve() and not args.i_confirm_home_write:
+--- pytest ---
+E   AssertionError: 用法错: --apply 的写目标落在真实 HOME 之内（com.canvas.daily-review）, 必须显式带 --i-confirm-home-write
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1238: AssertionError: 用法错: --apply 的写目标落在真实 HOME 之内（com.canvas.daily-review）, 必须显式带 --i-confirm-home-write
+FAILED tests/unit/test_verify_install_manifest.py::test_case_variant_home_still_requires_confirmation
+================== 1 failed, 102 passed, 10 warnings in 3.79s ==================
+sha_after: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+restored_identical: True
+worktree_clean: True

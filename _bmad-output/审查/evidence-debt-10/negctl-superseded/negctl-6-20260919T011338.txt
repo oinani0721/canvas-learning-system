@@ -1,0 +1,11 @@
+# 负控6 — 真实 HOME 判定退回字符串比较（拆 inode 身份）
+HEAD=2726815dadfed5698082242fe449b83a3d5cadaf
+sha_before: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+--- 变异 diff ---
+-        if args.apply and _same_dir(home, Path.home()) and not args.i_confirm_home_write:
++        if args.apply and home == Path.home().resolve() and not args.i_confirm_home_write:
+--- pytest ---
+======================= 103 passed, 10 warnings in 4.12s =======================
+sha_after: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+restored_identical: True
+worktree_clean: True

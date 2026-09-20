@@ -1,0 +1,19 @@
+# 负控8 — 包含判定退回「只比第一个存在的祖先」
+HEAD=8fe610bd05d6cf054beb5581cc2299ccda44db5b
+sha_before: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+--- 变异 diff ---
+-        if os.path.lexists(ancestor) and _same_dir(ancestor, root):
+-            return True
++        if os.path.lexists(ancestor):
++            return _same_dir(ancestor, root)
+--- pytest ---
+E   AssertionError: 报告已落盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1328/test_report_guard_is_not_foole0/harness/SCRIPTS/launchd/com.canvas.daily-review.plist
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1531: AssertionError: 报告已落盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1328/test_report_guard_is_not_foole0/harness/SCRIPTS/launchd/com.canvas.daily-review.plist
+E   AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1744: AssertionError: # 机器级安装副本校验报告 — CARD-DEBT-10
+FAILED tests/unit/test_verify_install_manifest.py::test_report_guard_is_not_fooled_by_a_case_alias
+FAILED tests/unit/test_verify_install_manifest.py::test_ancestor_home_with_alias_spelling_still_requires_confirmation
+================== 2 failed, 101 passed, 10 warnings in 4.05s ==================
+sha_after: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+restored_identical: True
+worktree_clean: True

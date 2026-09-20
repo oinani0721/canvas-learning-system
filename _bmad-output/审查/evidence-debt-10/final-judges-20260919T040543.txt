@@ -1,0 +1,49 @@
+# 最终裁判（结构 / 零写双门 / ruff / 地盘）CARD-DEBT-10
+PREV=4cc6a78cb24568a648d9e896d8dda825ec1002ba  HEAD=8fe610bd05d6cf054beb5581cc2299ccda44db5b  2026-09-19T04:05:43-07:00
+--- (f)① machine_items ---
+6 55 2 ['com.canvas.daily-review', 'com.canvas.memory-health', 'com.canvas.neo4j-backup', 'com.canvas.qwen-graphiti', 'com.canvas.reranker-graphiti', 'daily-review-wrapper.sh'] True
+grep_c_label=6
+grep_c_Users=0
+验伪锚 anchor_hits_on_known_positive=1
+--- (f)④ 零写双门 ---
+write_calls_total = 10
+owners            = ['def:_apply_reinstall', 'def:_write_report']
+owners - allowed  = []
+CALL-SITE GATE    = PASS
+  reachable writers from verify: []
+  reachable writers from _verify_one: []
+  reachable writers from _verify_program: []
+  reachable writers from plan_reinstall: []
+CALL-GRAPH GATE   = PASS
+    def:_apply_reinstall:831  os.makedirs
+    def:_apply_reinstall:849  os.open
+    def:_apply_reinstall:853  os.write
+    def:_apply_reinstall:857  os.fchmod
+    def:_apply_reinstall:860  os.replace
+    def:_apply_reinstall:869  os.unlink
+    def:_write_report:890  os.open
+    def:_write_report:894  os.write
+    def:_write_report:900  os.replace
+    def:_write_report:909  os.unlink
+--- (f)⑤ 起不了外部程序 ---
+imports = ['__future__', 'argparse', 'dataclasses', 'hashlib', 'json', 'os', 'pathlib', 'plistlib', 'stat', 'sys']
+subprocess_imported = False
+--- §二.8 ruff ---
+files=3
+backend/tests/unit/test_vault_install_manifest.py backend/tests/unit/test_verify_install_manifest.py scripts/verify_install_manifest.py
+All checks passed!
+rc=0
+F821_anchor_rc=1（须 1）
+F401_reverse_anchor_rc=0（须 0: 证明 F401 未启用）
+--- §二.9 地盘门 ---
+ backend/tests/unit/test_vault_install_manifest.py  |   43 +
+ backend/tests/unit/test_verify_install_manifest.py | 1932 ++++++++++++++++++++
+ scripts/vault-install-manifest.json                |   61 +
+ scripts/verify_install_manifest.py                 | 1185 ++++++++++++
+ 4 files changed, 3221 insertions(+)
+outliers_count=0
+removed_lines_in_tvim=0
+fsrs_decay_hits=0
+openapi_in_diff=0
+launchd_plist_added=0
+test 函数名集合: old 132 new 134 old_subset True lost set()

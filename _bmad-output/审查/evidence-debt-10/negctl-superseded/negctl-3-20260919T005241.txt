@@ -1,0 +1,20 @@
+# 负控3 — 在 verify() 体内植入绑定形态写调用 Path(...).open("w")（整改前漏报的那一族）
+HEAD=e64fc5c5d2277db80db7d55ec57a6f5b9c331f18
+sha_before: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+--- 变异 diff ---
++    Path("_negctl3_planted").open("w")
+--- §二.4 AST 调用点门 ---
+owners           = ['def:_apply_reinstall', 'def:_write_report', 'def:verify']
+owners - allowed = ['def:verify']
+GATE = FAIL
+--- pytest ---
+E   AssertionError: 写调用逃出允许名单: [('def:verify', '<expr>.open', 658)]
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:979: AssertionError: 写调用逃出允许名单: [('def:verify', '<expr>.open', 658)]
+E   AssertionError: assert {'def:verify'} == set()
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1011: AssertionError: assert {'def:verify'} == set()
+FAILED tests/unit/test_verify_install_manifest.py::test_no_write_calls_outside_the_two_writers
+FAILED tests/unit/test_verify_install_manifest.py::test_call_graph_gate_flags_a_planted_writer_call
+================== 2 failed, 80 passed, 10 warnings in 4.13s ===================
+sha_after: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+restored_identical: True
+worktree_clean: True

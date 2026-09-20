@@ -1,0 +1,24 @@
+# 负控4 — _apply_reinstall 里 source/dest 对调（只改那一处, render_report 不动）
+HEAD=e64fc5c5d2277db80db7d55ec57a6f5b9c331f18
+sha_before: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+--- 变异 diff ---
+-    for source, dest, label in plan:
++    for dest, source, label in plan:
+--- pytest ---
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_fixes_drift_and_is_0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:769: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_fixes_drift_and_is_0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_preserves_existing_0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:801: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_preserves_existing_0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_confirmation_guard_is_not0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1142: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_confirmation_guard_is_not0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_creates_a_missing_i0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1174: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_creates_a_missing_i0/harness/scripts/launchd
+E   AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_on_missing_parent_d0/harness/scripts/launchd
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1186: AssertionError: 失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_on_missing_parent_d0/harness/scripts/launchd
+E   AssertionError: assert '安装失败' in '失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_failure_inside_the_0/harness/scripts/launchd\n'
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:1207: AssertionError: assert '安装失败' in '失败: daily-review-wrapper.sh: 安装目录物理位置在 --home 之外, 拒绝写入 —— /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1207/test_apply_failure_inside_the_0/harness/scripts/launchd\n'
+FAILED tests/unit/test_verify_install_manifest.py::test_apply_fixes_drift_and_is_idempotent
+FAILED tests/unit/test_verify_install_manifest.py::test_apply_preserves_existing_install_mode
+sha_after: 2fc3ce47d697a1cd1c8d60e4cea8dff7c74d3493ced40a5a200656dab213d77b
+restored_identical: True
+worktree_clean: True

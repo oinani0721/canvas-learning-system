@@ -1,0 +1,13 @@
+# 负控5 — apply 期间顺手改仓内源权限位（通过包含守卫与 status==MATCH）
+HEAD=8fe610bd05d6cf054beb5581cc2299ccda44db5b
+sha_before: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+--- 变异 diff ---
++            os.chmod(str(source), 0o600)
+--- pytest ---
+E   AssertionError: apply 写到了 harness 树
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/backend/tests/unit/test_verify_install_manifest.py:846: AssertionError: apply 写到了 harness 树
+FAILED tests/unit/test_verify_install_manifest.py::test_apply_fixes_drift_and_is_idempotent
+================== 1 failed, 102 passed, 10 warnings in 3.95s ==================
+sha_after: ccb8f372b5bd0b04cfa19e07a06099dd74beb5f24d5c1210c20c978474d1a677
+restored_identical: True
+worktree_clean: True
