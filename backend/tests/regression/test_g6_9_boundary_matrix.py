@@ -428,11 +428,11 @@ def test_midnight_crossing_bucket_attribution(tmp_path, machine_tz, monkeypatch,
     两件事混在一个用例里会让红了之后分不清是哪一个坏了。
     """
     machine_tz(_FIXED_HOST_TZ)
-    # pick 侧用**模块级常量** _DISPLAY_TZ（U6-B / U6-C 卡文已引用的既定形态），
+    # pick 侧的时区走 _display_tz()（CARD-G6-9c-R3 起每次现取，D-18 对齐），
     # 而 machine_tz 只改 TZ 不 reload 模块 ⇒ 它固化在进程启动时的时区上。
     # 不 patch 的话，在 TZ=America/Los_Angeles 态下宿主被钉成上海、pick 却仍按
     # LA 分桶，本用例的 label 期望必红。
-    monkeypatch.setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_HOST_TZ))
+    monkeypatch.setattr(picker, "_display_tz", lambda _tz=ZoneInfo(_FIXED_HOST_TZ): _tz)
     vault = _vault(
         tmp_path,
         {
@@ -479,9 +479,9 @@ NEXT_DAY = "2026-07-31T10:00:00+08:00"  # 次日首档
 def test_wakeup_catchup_sequence(tmp_path, machine_tz, runner_env, capsys):
     """窗口外只落盘 → 同日窗口内补推送且不重生成 → 次日重新生成。"""
     machine_tz(_FIXED_HOST_TZ)
-    # 同 :375：pick 的模块级 _DISPLAY_TZ 不随 machine_tz 走，须一并钉住
+    # 同 :375：pick 的 _display_tz() 不随 machine_tz 走，须一并钉住
     # （runner 的 ensure_payload 最终仍调 picker）
-    runner_env["monkeypatch"].setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_HOST_TZ))
+    runner_env["monkeypatch"].setattr(picker, "_display_tz", lambda _tz=ZoneInfo(_FIXED_HOST_TZ): _tz)
     # 无 fsrs_due = New 卡即刻到期；同时让 next_due_utc 为空，
     # 避免「越过最早未来到期点」这道门（:141-145）掺进来干扰缓存判定
     vault = _vault(tmp_path, {"甲": _node_md("补跑板")}, name="vaultCatchup")
@@ -552,8 +552,8 @@ def test_bark_failure_lands_state_and_projection_written_before_push(tmp_path, m
     用户连今天的复习清单都拿不到）。
     """
     machine_tz(_FIXED_HOST_TZ)
-    # 同 :375 / :419：pick 的模块级 _DISPLAY_TZ 一并钉住
-    runner_env["monkeypatch"].setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_HOST_TZ))
+    # 同 :375 / :419：pick 的 _display_tz() 一并钉住
+    runner_env["monkeypatch"].setattr(picker, "_display_tz", lambda _tz=ZoneInfo(_FIXED_HOST_TZ): _tz)
     vault = _vault(tmp_path, {"甲": _node_md("失败板")}, name="vaultBarkFail")
     payload_path = vault / "outputs" / "今日复习.json"
     md_path = vault / "outputs" / "今日复习.md"

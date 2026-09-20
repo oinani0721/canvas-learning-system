@@ -1,0 +1,27 @@
+== [v2 数组版] files=11 ==
+
+== (1) 验伪锚: diff --stat 9c4e7e82 d062e2b1（非空才对）==
+ backend/app/api/v1/endpoints/review_overview.py    |   38 +-
+ backend/app/core/display_tz.py                     |  567 +++++-
+ backend/tests/regression/test_daily_review_pick.py |   12 +-
+ backend/tests/regression/test_daily_review_run.py  |    5 +-
+ .../tests/regression/test_g6_9_boundary_matrix.py  |   12 +-
+ .../regression/test_g6_9c_single_tz_source.py      | 1946 +++++++++++++++++++-
+ .../tests/regression/test_local_tz_negctl_r3.py    |  562 ++++++
+ backend/tests/unit/test_review_overview.py         |   17 +-
+ scripts/daily_review_pick.py                       |   52 +-
+ scripts/local_tz.py                                |  567 +++++-
+ 10 files changed, 3643 insertions(+), 135 deletions(-)
+== rc=0 ==
+
+== (2) 绑定: diff --stat d062e2b1 HEAD（空=绑定）==
+== rc=0 ==
+
+== (3) 全树口径: diff --stat d062e2b1 HEAD -- . ':(exclude)_bmad-output'（空=绑定）==
+== rc=0 ==
+
+== (4) 变更集全文尺寸 ==
+    4325  293697 _bmad-output/审查/evidence-g69cr3/zcode-r3-changeset-d062e2b1.patch
+
+== (5) 之前 v1 空洞成因 ==
+v1 写 $FILES（标量串）未数组化 ⇒ zsh 不词分割 ⇒ 整串作单一 pathspec ⇒ 0 匹配 ⇒ 空（假信号）

@@ -1,0 +1,28 @@
+# 先红①结构锚 @ 9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680 2026-09-18T16:51:06+08:00
+--- grep -c -e '_has_dst' -e '_zoneinfo_key_candidates' scripts/local_tz.py backend/app/core/display_tz.py ---
+scripts/local_tz.py:0
+backend/app/core/display_tz.py:0
+--- grep -c -e '_digits_ok' 同两文件 ---
+scripts/local_tz.py:0
+backend/app/core/display_tz.py:0
+--- grep -c -F -e '++' -e '*+' 同两文件（占有量词/原子组）---
+backend/app/core/display_tz.py:0
+scripts/local_tz.py:0
+--- grep -c '_DISPLAY_TZ' scripts/daily_review_pick.py ---
+9
+--- grep -c 'def _display_tz' scripts/daily_review_pick.py ---
+0
+--- grep -c '"_DISPLAY_TZ"' 三测试文件 ---
+backend/tests/regression/test_g6_9_boundary_matrix.py:3
+backend/tests/regression/test_daily_review_pick.py:1
+backend/tests/regression/test_daily_review_run.py:1
+--- 验伪锚：同命令换 '"_display_tz"'（改前应 0/0/0）---
+backend/tests/regression/test_g6_9_boundary_matrix.py:0
+backend/tests/regression/test_daily_review_run.py:0
+backend/tests/regression/test_daily_review_pick.py:0
+--- grep -c 're.compile' scripts/local_tz.py ---
+1
+--- 两副本行数（⚠️ 卡文 §〇 写 270/269，实测如下 = 漂移登记）---
+     269 scripts/local_tz.py
+     268 backend/app/core/display_tz.py
+     537 total

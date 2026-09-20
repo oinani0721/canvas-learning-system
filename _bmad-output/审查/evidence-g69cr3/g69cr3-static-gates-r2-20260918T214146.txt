@@ -1,0 +1,33 @@
+# (h) pyright + (l) 地盘 + ruff（r1 修复后）@ 2026-09-18T21:41:46+08:00 HEAD=6242aff4
+## pyright（结构锚取汇总行，禁 tail）
+0 errors, 81 warnings, 0 informations
+## backend/app 下本卡新增 ignore（pyright 的取值面）
+   = 0
+   验伪锚（app 全树既有 ignore 行数，须 >0）= 53
+## ruff（zsh 数组）
+   files=10
+All checks passed!
+   ruff_rc=0
+## ruff format --check（协议 §2.3 起硬禁漂移）
+10 files already formatted
+## 地盘（代码面 ⊆ 10 文件白名单）
+ backend/app/api/v1/endpoints/review_overview.py    |   38 +-
+ backend/app/core/display_tz.py                     |  557 +++++-
+ backend/tests/regression/test_daily_review_pick.py |   10 +-
+ backend/tests/regression/test_daily_review_run.py  |    5 +-
+ .../tests/regression/test_g6_9_boundary_matrix.py  |   12 +-
+ .../regression/test_g6_9c_single_tz_source.py      | 1904 +++++++++++++++++++-
+ .../tests/regression/test_local_tz_negctl_r3.py    |  562 ++++++
+ backend/tests/unit/test_review_overview.py         |   17 +-
+ scripts/daily_review_pick.py                       |   44 +-
+ scripts/local_tz.py                                |  557 +++++-
+ 10 files changed, 3572 insertions(+), 134 deletions(-)
+## 验伪锚（quotepath=false，否则中文路径锚恒 0 —— §五.16）
+   _bmad-output/ 路径数 = 43
+## review_overview.py hunk 起始（全 < 600）
+@@ -382,7 +382,9 @@ def _display_day(ts: str, tz=None):
+@@ -467,7 +469,8 @@ def _gate_buckets(
+@@ -515,8 +518,9 @@ def _gate_buckets(
+@@ -548,11 +552,27 @@ def _gate_buckets(
+## openapi net diff（空）
+   (上面为空)

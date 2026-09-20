@@ -1,0 +1,24 @@
+# 长跑绑定自证：目录级 / unit 收工跑的是最终代码 @ 2026-09-18T19:00:42+08:00
+## commit 时间线
+c6a7f446 2026-09-18 18:41:36 fix(p5-a): 修 pick 现取门造成的测试间污染 + 三处名实不符注释 [BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]
+feb5a593 2026-09-18 18:16:56 fix(p5-a): 补全 pick 现取的剩余 6 处钉法（R2 移植文件自带） [BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]
+dadfc2c2 2026-09-18 17:42:16 fix(p5-a): TZ 解析器去 3.11+ 正则语法 + 补 H4 漏网入口 + pick 改现取 [BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]
+e182f30f 2026-09-18 16:55:44 chore(p5-a): 还原 spec-sync 再生的 openapi.json x-generated-at [BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]
+07b5bc53 2026-09-18 16:53:47 feat(p5-a): 移植 T3-A a8cefab4 五文件代码面 [BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]
+## 目录级存档创建时刻（= 该跑启动时刻）
+2026-09-18 18:46:10  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/_bmad-output/审查/evidence-g69cr3/regression-dir-close-20260918T184610.txt
+⇒ 最后一个代码 commit c6a7f446 = 18:41:36；目录级 18:46:10 启动 ⇒ 绑定成立
+## 工作树代码面与 HEAD 一致（空 = 无未提交改动）
+(上面为空)
+## 本卡 5 个代码 commit 的地盘（排除 _bmad-output）
+ backend/app/api/v1/endpoints/review_overview.py    |   38 +-
+ backend/app/core/display_tz.py                     |  538 +++++-
+ backend/tests/regression/test_daily_review_pick.py |    8 +-
+ backend/tests/regression/test_daily_review_run.py  |    5 +-
+ .../tests/regression/test_g6_9_boundary_matrix.py  |   12 +-
+ .../regression/test_g6_9c_single_tz_source.py      | 1820 +++++++++++++++++++-
+ .../tests/regression/test_local_tz_negctl_r3.py    |  557 ++++++
+ backend/tests/unit/test_review_overview.py         |   17 +-
+ scripts/daily_review_pick.py                       |   44 +-
+ scripts/local_tz.py                                |  538 +++++-
+ 10 files changed, 3443 insertions(+), 134 deletions(-)

@@ -894,6 +894,12 @@ def test_buckets_layer_counts_and_cross_source_gate(overview_env):
             upcoming=up,
             boards=boards,
             buckets=buckets,
+            # CARD-G6-9c-R2: 现役生产器 (daily_review_pick) **恒写** display_tz, 夹具
+            # 跟上它。缺这个键（或值为 null）的投影现在**整份判 corrupt** —— 没有生产者
+            # 时区就无法可靠重算归桶, 固定偏移只在 generated_at 那一刻可信。
+            # 本用例要测的是五桶计数与跨源一致性, 不是「旧投影无 display_tz 怎么归桶」;
+            # 后者由 test_g6_9c_single_tz_source.py 的两条桶位门专门守。
+            display_tz="Asia/Shanghai",
         )
         if drop_boards:
             proj.pop("boards")
@@ -1073,14 +1079,14 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env, monk
     # ⛔ 把**生产器侧**的时区也钉在 _SH (CARD-G6-9c)。本用例是两侧同场比对:
     #    picker 产出 buckets、总览端点的 _gate_buckets 复算它。两侧的时区来源
     #    形态不同 —— 端点每次现调 display_tz() (读 CANVAS_TZ, 由 _pin_display_tz
-    #    夹具钉住), 而 picker 用**模块级常量** `_DISPLAY_TZ`, 在 `import
+    #    夹具钉住), 而 picker 的时区取自 `_display_tz()`（CARD-G6-9c-R3 起现取）, 在 `import
     #    daily_review_pick` 那一刻就固化了。
     #    单跑本文件时这里恰好是首次 import (夹具已生效, 两侧同为上海, 绿);
     #    与别的文件合跑时 picker 早在 collection 期就被 import 过 —— 那时还没有
     #    CANVAS_TZ, 常量固化成机器本地 ⇒ 非上海宿主上两侧分叉, 生产器把
     #    「上海今天 23:00」判成 future 而门说它该是 due_today, 端点返回 corrupt。
     #    钉住它, 门比的才是"桶位逻辑", 不是"两侧时区碰巧一样吗"。
-    monkeypatch.setattr(picker, "_DISPLAY_TZ", _SH)
+    monkeypatch.setattr(picker, "_display_tz", lambda _tz=_SH: _tz)
 
     root, client = overview_env
     vault = root / "vault-real"
@@ -1098,7 +1104,7 @@ def test_buckets_gate_accepts_real_producer_payload(tmp_path, overview_env, monk
     # 的归日)。两次之间跨当地午夜 ⇒ 端点认为盘上投影是昨天的 ⇒ 判 stale,
     # 于是 `entry["status"] == "ok"` 红在一个与桶位逻辑无关的地方。
     # 把端点那一侧钉到**同一个** now: 本用例验的是"桶位逻辑两侧是否一致",
-    # 时钟不该是它的变量 (与上面钉 picker._DISPLAY_TZ 同一条纪律)。
+    # 时钟不该是它的变量 (与上面钉 picker._display_tz 同一条纪律)。
     import app.api.v1.endpoints.review_overview as _ov_mod
 
     monkeypatch.setattr(_ov_mod, "_display_now", lambda: now)
@@ -1205,6 +1211,11 @@ def _layered(root, name: str, *, gen_iso: str, tomorrow: str, buckets=None, stat
             {**_ROLLUP_BLANK, "board": "乙板", "future": 1, "next_due": tomorrow},
         ],
         buckets=good if buckets is None else buckets,
+        # CARD-G6-9c-R2: 现役生产器恒写 display_tz, 夹具跟上它。缺这个键的投影现在整份
+        # 判 corrupt（没有生产者时区就无法可靠重算归桶 —— 固定偏移只在 generated_at
+        # 那一刻可信）。本 helper 造的是**合法分层投影**, 要测的是透传与渲染, 不是
+        # 「旧投影怎么归桶」; 后者由 test_g6_9c_single_tz_source.py 的桶位门专门守。
+        display_tz="Asia/Shanghai",
     )
     _mk_vault(root, name, proj)
     return good

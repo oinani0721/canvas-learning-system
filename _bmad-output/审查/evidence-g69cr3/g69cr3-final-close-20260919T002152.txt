@@ -1,0 +1,47 @@
+# CARD-G6-9c-R3 收尾终检 @ 2026-09-19T00:21:52-07:00  HEAD=33bedae2
+
+## ① 终审绑定（D-15）：审 SHA d062e2b1 之后是否还有代码改动
+   git diff --stat d062e2b1 HEAD -- . ':(exclude)_bmad-output'  ⇒ 0 行  ✓ 绑定成立
+   验伪锚：同一判据换成 9c4e7e82 必非空 ⇒ 11 行
+
+## ② 地盘门（含 commit 后才非空洞的验伪锚）
+   改动面文件数: 10  （白名单 10）
+     backend/app/api/v1/endpoints/review_overview.py
+     backend/app/core/display_tz.py
+     backend/tests/regression/test_daily_review_pick.py
+     backend/tests/regression/test_daily_review_run.py
+     backend/tests/regression/test_g6_9_boundary_matrix.py
+     backend/tests/regression/test_g6_9c_single_tz_source.py
+     backend/tests/regression/test_local_tz_negctl_r3.py
+     backend/tests/unit/test_review_overview.py
+     scripts/daily_review_pick.py
+     scripts/local_tz.py
+   ⛔ 验伪锚（必须 >0，evidence 入库后才非空洞；必须带 core.quotepath=false）:
+      _bmad-output/ 下改动文件数 = 74
+      对照：不带 quotepath=false 会假 0 ⇒ 0
+   openapi.json 净差: 0 行（须 0）
+
+## ③ 现网只读 (m)
+   本卡文件里 7691/7687/canvas-vault 字面量: 0  （须 0）
+   fsrs_bridge / decay_beta 是否在改动面: 0  （须 0）
+
+## ④ 工作树状态（续 P5-B 前须干净）
+     ?? _bmad-output/审查/ABORTED-401-codex-review-CARD-G6-9c-R3-r2-20260918T215100.md.empty
+     ?? _bmad-output/审查/evidence-g69cr3/g69cr3-final-close-20260919T002152.txt
+     （只应剩 ABORTED-401 那个 0 字节文件，按协议不入库）
+
+## ⑤ commit 清单
+   总 commit: 15  （代码 7 + 存档若干）
+   代码定稿:  d062e2b1
+   最终 HEAD: 33bedae2
+
+## ⑥ Codex 轮次
+   r1 = BLOCKER 0 / HIGH 2 / MEDIUM 1 / LOW 2（已全部收口 6242aff4）
+   r2 = BLOCKER 0 / HIGH 0 / MEDIUM 4 / LOW 1，绑 d062e2b1 = 最终 HEAD ⇒ D-15 达成（2/5 轮）
+   存档首部三字段逐个核（⚠️ 原判据数的是**行数**不是字段数 —— 三字段都在同一行上，
+   「2 行」会被误读成「缺一个字段」。这是本卡第 N 次「判据取值面 ≠ 它要支撑的主张」）:
+     模型: `gpt-6-astra`        命中 1 ✓
+     reasoning_effort: `ultra`  命中 1 ✓
+     codex: `codex-cli 0.153.3` 命中 1 ✓
+     会话头自证三行             L4 / L7 / L11 齐全 ✓
+     验伪锚 gpt-5.6             命中 0 ✓

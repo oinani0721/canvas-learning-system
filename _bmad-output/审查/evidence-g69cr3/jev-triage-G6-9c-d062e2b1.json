@@ -1,0 +1,95 @@
+{
+  "commit": "fix(p5-a): 自审三处——libc 口径反了/H4 门只覆盖 2 处/pick 吞掉配置断裂 [BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]",
+  "ref": "d062e2b1",
+  "sha": "d062e2b145bc4faa244324228cc29697854158cb",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:28:40-0700",
+  "code_files": [
+    "backend/app/core/display_tz.py",
+    "backend/tests/regression/test_daily_review_pick.py",
+    "backend/tests/regression/test_g6_9c_single_tz_source.py",
+    "scripts/daily_review_pick.py",
+    "scripts/local_tz.py"
+  ],
+  "files": [
+    {
+      "file": "backend/tests/regression/test_g6_9c_single_tz_source.py",
+      "added": 50,
+      "removed": 8,
+      "runtime": 0.1,
+      "risk": "test_or_docs",
+      "risk_conf": 0.77,
+      "urgency": 3.0,
+      "urgency_conf": 0.88,
+      "review": 0.79,
+      "test": 0.9,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "scripts/daily_review_pick.py",
+      "added": 9,
+      "removed": 1,
+      "runtime": 0.97,
+      "risk": "error_handling",
+      "risk_conf": 0.97,
+      "urgency": 2.73,
+      "urgency_conf": 0.71,
+      "review": 0.71,
+      "test": 0.55,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/app/core/display_tz.py",
+      "added": 15,
+      "removed": 5,
+      "runtime": 0.15,
+      "risk": "test_or_docs",
+      "risk_conf": 0.77,
+      "urgency": 1.64,
+      "urgency_conf": 0.22,
+      "review": 0.63,
+      "test": 0.6,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "scripts/local_tz.py",
+      "added": 15,
+      "removed": 5,
+      "runtime": 0.15,
+      "risk": "test_or_docs",
+      "risk_conf": 0.82,
+      "urgency": 1.44,
+      "urgency_conf": 0.3,
+      "review": 0.62,
+      "test": 0.57,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/regression/test_daily_review_pick.py",
+      "added": 1,
+      "removed": 1,
+      "runtime": 0.06,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.08,
+      "urgency_conf": 0.43,
+      "review": 0.4,
+      "test": 0.7,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 9640,
+    "output_tokens": 791
+  },
+  "latency_ms": {
+    "min": 245,
+    "median": 259,
+    "max": 302
+  }
+}

@@ -1,0 +1,16 @@
+== binding: diff --stat d062e2b1 HEAD (expect empty) ==
+== rc=0 (empty above = bound) ==
+
+== diff size 9c4e7e82..d062e2b1 ==
+
+== zcode version ==
+zcode-app-cli 3.12.3-26
+zcode-runtime 0.16.5
+cfg-ok
+
+== pwd/branch/HEAD ==
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review
+card/p5-review
+57d29464
+anchor-ok
+       1

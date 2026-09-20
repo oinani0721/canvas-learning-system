@@ -1,0 +1,36 @@
+# D-18 活体验证：作业期内机器时区真的变了（Asia/Hong_Kong → America/Los_Angeles）
+# @ 2026-09-19T00:14:06-07:00  HEAD=d062e2b1
+
+## 这不是构造的场景 —— 裁判跑完后用户位置变了，本卡的主题被真实触发
+   裁判落档时刻: 2026-09-19T00:01:29+08:00（unit-diff-r3 头部）
+   现在:         2026-09-19T00:14:06-07:00
+   /etc/localtime -> /var/db/timezone/zoneinfo/America/Los_Angeles
+   TZ env: <未设>
+
+## 两副本在新时区下的实际行为（D-18: 跟随机器本地，不写死）
+   scripts/local_tz.py
+      display_tz()          -> America/Los_Angeles
+      今天(本地)             -> 2026-09-19
+      同一 UTC 时刻在本地是  -> 2026-09-19 00:00:00-07:00
+   backend/app/core/display_tz.py
+      display_tz()          -> America/Los_Angeles
+      今天(本地)             -> 2026-09-19
+      同一 UTC 时刻在本地是  -> 2026-09-19 00:00:00-07:00
+
+## 对照：若还是旧的写死 Asia/Shanghai（本卡要消除的形态），同一时刻会归到哪天
+   Asia/Shanghai          -> 2026-09-19 15:00:00+08:00  归日 2026-09-19
+   Asia/Hong_Kong         -> 2026-09-19 15:00:00+08:00  归日 2026-09-19
+   America/Los_Angeles    -> 2026-09-19 00:00:00-07:00  归日 2026-09-19
+   ⇒ 写死 Asia/* 会把用户的'今天'算成 09-19，而他所在地此刻是 09-19 00:xx —— 
+     本次恰好同日，但 UTC 07:00 往前推 8 小时就会分叉（见下）
+   [UTC 06:00] Asia/Shanghai          -> 2026-09-19 14:00:00+08:00  归日 2026-09-19
+   [UTC 06:00] America/Los_Angeles    -> 2026-09-18 23:00:00-07:00  归日 2026-09-18
+
+## pick 侧「每次调用现取」在这次时区变更下的意义（D-18 的落地点）
+   本卡把 daily_review_pick 的 _DISPLAY_TZ 模块级常量改成 _display_tz() 现取。
+   若仍是模块级常量: launchd 进程 import 那一刻取到的时区会被固化 ——
+   用户移动后的第一次复习推送仍按旧时区归日, 且**不报错**, 只是把「今天」算偏一天。
+   _display_tz() 第一次 -> America/Los_Angeles
+   设 CANVAS_TZ=Asia/Tokyo 后再调 -> Asia/Tokyo   ← 现取生效
+   撤销后 -> America/Los_Angeles
+   ⇒ 同一进程内时区变更立刻被看见 = 模块级常量那条缺陷已消除

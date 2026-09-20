@@ -1,0 +1,29 @@
+# ⚠️ 这一份的**验伪锚写错了**（§五.16）：`grep -c '^_bmad-output/'` 返回 0，
+#    但那不是「没越界」—— 中文路径被 git 的 core.quotepath 包成 "_bmad-output/\345\256\241…"，
+#    锚点 ^_bmad-output/ 根本匹配不上。加 -c core.quotepath=false 后是 32。
+# ⛔ 正确版见同目录 territory-final-*.txt。本文件只作「quotepath 会让路径锚恒 0」的证据。
+#    地盘门主判据（10 文件白名单 / hunk < 600 / openapi net 空）本身在两份里一致且成立。
+---
+# (l) 地盘门 + 验伪锚（evidence 入库后重跑）@ 2026-09-18T19:25:04+08:00 HEAD=ccc2b48a
+## 代码面（排除 _bmad-output）
+ backend/app/api/v1/endpoints/review_overview.py    |   38 +-
+ backend/app/core/display_tz.py                     |  538 +++++-
+ backend/tests/regression/test_daily_review_pick.py |    8 +-
+ backend/tests/regression/test_daily_review_run.py  |    5 +-
+ .../tests/regression/test_g6_9_boundary_matrix.py  |   12 +-
+ .../regression/test_g6_9c_single_tz_source.py      | 1820 +++++++++++++++++++-
+ .../tests/regression/test_local_tz_negctl_r3.py    |  557 ++++++
+ backend/tests/unit/test_review_overview.py         |   17 +-
+ scripts/daily_review_pick.py                       |   44 +-
+ scripts/local_tz.py                                |  538 +++++-
+ 10 files changed, 3443 insertions(+), 134 deletions(-)
+## 验伪锚：去掉 exclude 后应多出 _bmad-output/ 路径（首跑时 evidence 未入库 ⇒ 恒 0 = 空洞）
+   _bmad-output/ 路径数 = 0
+   ↑ 首跑 0（空洞）→ 现在 >0（锚成立）
+## review_overview.py hunk 起始（全 < 600）
+@@ -382,7 +382,9 @@ def _display_day(ts: str, tz=None):
+@@ -467,7 +469,8 @@ def _gate_buckets(
+@@ -515,8 +518,9 @@ def _gate_buckets(
+@@ -548,11 +552,27 @@ def _gate_buckets(
+## openapi.json net diff（空）
+(上面为空)

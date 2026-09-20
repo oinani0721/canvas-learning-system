@@ -28,7 +28,7 @@ NOW = datetime(2026, 7, 30, 1, 0, tzinfo=timezone.utc)
 
 
 #: 本文件全部期望值所依据的时区 —— 与 _pin_pick_display_tz 夹具**同一个字面量**。
-#: ⛔ 禁写成 picker._DISPLAY_TZ 之类"从被测物取": 那让期望与被测量同源, 缺陷会
+#: ⛔ 禁写成 picker._display_tz() 之类"从被测物取": 那让期望与被测量同源, 缺陷会
 #: 让两边一起退化 (memory「期望值与被测量同源」)。
 _FIXED_TZ = ZoneInfo("Asia/Shanghai")
 
@@ -42,14 +42,16 @@ def _pin_pick_display_tz(monkeypatch):
     「今天 21:00」「明天 7月31日」、due_today/future 的分桶) 全是按上海日算的 ——
     **刻意保留原值**, 不改成按显示时区现算 (那会让期望与被测量同源)。
 
-    ⛔ 为什么 monkeypatch 常量而不是 setenv: pick 用**模块级常量** `_DISPLAY_TZ`
+    ⛔ 为什么 monkeypatch 函数而不是 setenv: pick 的时区走 `_display_tz()` 每次现取,
+    setenv **本身是有效的**（CARD-G6-9c-R3 起）—— 钉函数只是让夹具与本文件其余
+    用例同形、且不依赖进程级 TZ。⚠️ 旧说明称「import 时固化、setenv 无效」已过时
     (U6-B / U6-C 卡文已引用的既定形态), 在 `import daily_review_pick` 那一刻就
-    固化了 —— setenv 对已 import 的模块完全无效。
+    固化了 —— setenv 对已 import 的模块**现在是有效的**（本卡改现取之后；旧文案称「无效」已废）。
 
     ⚠ 对起**子进程**的用例 (`test_cli_rejects_unconvertible_now_*`) 无效: 子进程
     重新 import、读自己的环境。那条用例的断言与时区无关 (新卡恒即刻到期), 故不受影响。
     """
-    monkeypatch.setattr(picker, "_DISPLAY_TZ", _FIXED_TZ)
+    monkeypatch.setattr(picker, "_display_tz", lambda: _FIXED_TZ)
 
 
 _seq = iter(range(1000))
@@ -2153,7 +2155,7 @@ _TWO_BOARDS = {
     "乙一": _node(board="乙板"),
 }
 #: 「今天」按**与 _pin_pick_display_tz 夹具同一个字面量**的时区算 (CARD-G6-9c)。
-#: ⛔ 不能写 NOW.astimezone()(机器本地): 本文件的夹具把 picker._DISPLAY_TZ 钉在
+#: ⛔ 不能写 NOW.astimezone()(机器本地): 本文件的夹具把 picker._display_tz 钉在
 #: 上海, 而模块级常量在 import 时求值、夹具还没跑 —— 在非上海宿主上两者会差
 #: 一天, board_done 的「值 == 今天」判定当场失效 (让位不发生, 门却说是生产坏了)。
 _TODAY = NOW.astimezone(_FIXED_TZ).date().isoformat()

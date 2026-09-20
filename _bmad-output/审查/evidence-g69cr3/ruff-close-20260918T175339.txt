@@ -1,0 +1,17 @@
+files=10
+backend/app/api/v1/endpoints/review_overview.py backend/app/core/display_tz.py backend/tests/regression/test_daily_review_pick.py backend/tests/regression/test_daily_review_run.py backend/tests/regression/test_g6_9_boundary_matrix.py backend/tests/regression/test_g6_9c_single_tz_source.py backend/tests/regression/test_local_tz_negctl_r3.py backend/tests/unit/test_review_overview.py scripts/daily_review_pick.py scripts/local_tz.py
+All checks passed!
+ruff_rc=0
+--- 验伪锚：F821 探针必须 rc=1（backend/ruff.toml 不含 F401 故不用 F401 锚）---
+F821 Undefined name `undefined_name_probe`
+ --> backend/_ruff_f821_probe.py:1:7
+  |
+1 | print(undefined_name_probe)
+  |       ^^^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_rc=1
+探针清理: 已删
+--- backend/ruff.toml 启用的规则（证明 F401 不在内）---
+10:select = ["E9", "F63", "F7", "F82"]

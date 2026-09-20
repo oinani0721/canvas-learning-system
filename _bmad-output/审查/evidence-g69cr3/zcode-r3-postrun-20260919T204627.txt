@@ -1,0 +1,24 @@
+# zcode r3 post-run 核验 (20260919T204627)
+
+== (a) 绑定复检（跑后）: diff --stat d062e2b1 HEAD -- <11 文件>（空=绑定）==
+rc=0
+
+== (b) 全树口径: d062e2b1..HEAD exclude _bmad-output（空=绑定）==
+rc=0
+
+== (c) provider defaultModelSelection ==
+None
+
+== (d) JSON 解析 + 自证 + usage ==
+sessionId: sess_5d5c6147-5e34-48dd-8e36-8c4e7941a4b3
+traceId: ecf664c4-38fc-4de1-bc93-26a678fb9229
+turnId: turn_7127f4a4-5da4-40ce-812e-8f28351f6acb
+usage: {"source": "provider", "modelRequestCount": 6, "inputTokens": 1278590, "outputTokens": 54081, "totalTokens": 1332671, "cacheReadTokens": 1027520, "cacheWriteTokens": 0, "reasoningTokens": 0, "webFetchRequests": 0, "webSearchRequests": 0}
+eventCount: 53455
+summary_line: ['**裁决：阻断级 0（BLOCKER=0 / HIGH=0），D-15 合入门满足；登记 1 MEDIUM + 3 LOW。** 四条 r12 HIGH 的修复经逐支推演确认真实落在解析器路径上且双向钉住；撤除 3.11+ 语法后的线性性质在文法层面成立（`std_off` 必填使 std 名贪婪终点唯一、dst 空名收窄为 `(?=[+-])` 消灭数字瓜分，名字/数字两个平方源均关闭）；负控 runner 的四道预检与「点名 oracle 必红」主判据构不成假绿通路。以下 MEDIUM/LOW 均为登记级。', '`BLOCKER=0 HIGH=0 MEDIUM=1 LOW=3`']
+
+== (e) 存档 sha256（pre-header 当前态）==
+2693d2441c48ab7449b028eeb688ed57aade040004e92eb212eba23ca5252452  _bmad-output/审查/zcode-review-CARD-G6-9c-R3-r3.md
+
+== (f) prompt sha256 ==
+f30defad2292d39892727865c5b86a60fcd8d5546be30ee8ea117d39c0d8413a  _bmad-output/审查/prompts/zcode-review-prompt-CARD-G6-9c-R3-r3.md

@@ -1,0 +1,18 @@
+# zcode r3 prompt word-scan + 组装自证 (20260919T202859)
+
+== prompt sha256 ==
+f30defad2292d39892727865c5b86a60fcd8d5546be30ee8ea117d39c0d8413a  _bmad-output/审查/prompts/zcode-review-prompt-CARD-G6-9c-R3-r3.md
+
+== 变更集 patch sha256（应与 prompt 内自述一致）==
+f949e76841c5c9cce5862d30ace7e3c1224d6cd5822b32f7695c871daab52f8e  _bmad-output/审查/evidence-g69cr3/zcode-r3-changeset-d062e2b1.patch
+
+== 撰写段（1-117 行）四个禁用词扫描（期望 0）==
+撰写段命中 rc=1 (1=无命中=通过)
+
+== 全文命中面（区分撰写段/附录段）==
+附录段 行705: +        #      `_rule_epoch` 是纯算术加法、负值合法, 故直接构造规则元组。
+附录段 行1623: +    """笛卡尔积（去掉「没有 dst 部分却有 dst 偏移」这种构造不出来的组合），去重。
+附录段 行4293: +        #      `_rule_epoch` 是纯算术加法、负值合法, 故直接构造规则元组。
+
+== 全文命中计数 ==
+3

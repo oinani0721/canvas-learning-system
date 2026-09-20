@@ -1,0 +1,15 @@
+# H4 门覆盖面加强的负控：逐处摘掉剥零防线，看门是否变红 @ 2026-09-18T22:16:56+08:00
+# 自审 gate-efficacy#1/#2 指出：5 处防线里 3 处（M规则/分钟/秒）+ _parse_hms 无门覆盖
+
+  原件: 绿 ✓
+
+  摘掉哪一处                                        门  红在哪
+  L199  digits = parts[i].lstrip("0") or "    ⛔绿  （门没抓到）
+  L227  digits = parts[i].lstrip("0") or "     红  etime @01-15: 偏移 0:00:00 != libc -1 day, 23:00:00
+  L242  if any(len(x.lstrip("0")) > 10 for     红  J 规则: 被拒(None)
+  L247  mon, week, dow = (int(x.lstrip("0"     红  M 规则月份: 抛ValueError
+  L253  n = int(_n_txt.lstrip("0") or "0")     红  J 规则: 抛ValueError
+  L402  return len(_d.lstrip("0")) <= 10       红  切换时刻小时: 被拒(None)
+  L421  if _hmax is not None and int(_f[0]     红  切换时刻小时: 抛ValueError
+  L423  if len(_f) > 1 and int(_f[1].lstri     红  切换时刻分钟: 抛ValueError
+  L425  if len(_f) > 2 and int(_f[2].lstri     红  切换时刻秒: 抛ValueError

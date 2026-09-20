@@ -1,0 +1,32 @@
+=== (b)③ 四条 HIGH 四组输入（移植后 a8cefab4 代码面 / 本卡修复前）===
+python 3.14.4
+
+[H1 引用名裸名回溯]  spec='<AAA1><BBB2'
+  libc : accepts=False  tzname=('UTC', 'UTC') timezone=0 altzone=0 daylight=0
+  impl : accepts=False  parse_posix_tz -> None (拒/退 UTC)
+  => 一致
+
+[H2 冒号偏移误判dst-a]  spec='AAA1:'
+  libc : accepts=False  tzname=('UTC', 'UTC') timezone=0 altzone=0 daylight=0
+  impl : accepts=False  parse_posix_tz -> None (拒/退 UTC)
+  => 一致
+
+[H2 冒号偏移误判dst-b]  spec='AAA1:30:BBB2'
+  libc : accepts=False  tzname=('UTC', 'UTC') timezone=0 altzone=0 daylight=0
+  impl : accepts=False  parse_posix_tz -> None (拒/退 UTC)
+  => 一致
+
+[H4 长数字未捕获异常]  spec='AAA000000000…(len=4304)'
+  libc : accepts=True  tzname=('AAA', 'AAA') timezone=3600 altzone=3600 daylight=0
+  impl : accepts=True  接受 冬=-1 day, 23:00:00 夏=-1 day, 23:00:00
+  => 一致
+
+=== H3 灾难性回溯计时（本实现 parse_posix_tz）===
+  n= 202 arabic: 0.000008s
+  n= 404 arabic: 0.000006s
+  n= 808 arabic: 0.000012s
+  n= 202 ascii: 0.000004s
+  n= 404 ascii: 0.000004s
+  n= 808 ascii: 0.000005s
+  arabic: n=202 ≤0.05s OK; 808/202 比 = 1.55 ≤3 OK
+  ascii: n=202 ≤0.05s OK; 808/202 比 = 1.43 ≤3 OK

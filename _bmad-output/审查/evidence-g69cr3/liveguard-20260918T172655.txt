@@ -1,0 +1,20 @@
+# (m) 现网只读：fsrs_bridge / decay_beta 命中数 BASE(9c4e7e82) vs HEAD
+# 口径：卡文 §〇 第 24 行——写「BASE/HEAD 命中数相同」不写「0 命中」（pick 在 BASE 上就有 28 处）
+scripts/local_tz.py base=0 head=0 同
+backend/app/core/display_tz.py base=0 head=0 同
+scripts/daily_review_pick.py base=28 head=28 同
+backend/app/api/v1/endpoints/review_overview.py base=8 head=8 同
+backend/tests/regression/test_g6_9c_single_tz_source.py base=1 head=1 同
+backend/tests/unit/test_review_overview.py base=14 head=14 同
+backend/tests/regression/test_daily_review_pick.py base=36 head=36 同
+backend/tests/regression/test_daily_review_run.py base=2 head=2 同
+backend/tests/regression/test_g6_9_boundary_matrix.py base=1 head=1 同
+backend/tests/regression/test_local_tz_negctl_r3.py base=0(新文件) head=0
+# 零连库自证：本卡改动文件里 7691/7687 字面量
+backend/app/core/display_tz.py:0
+scripts/local_tz.py:0
+backend/tests/regression/test_local_tz_negctl_r3.py:0
+# live vault 写入自证：canvas-vault 路径引用
+backend/tests/regression/test_local_tz_negctl_r3.py:0
+backend/app/core/display_tz.py:0
+scripts/local_tz.py:0

@@ -53,10 +53,11 @@ def _pin_display_tz(monkeypatch):
 
     两侧形态不同, 钉法也不同:
       · runner 每次现调 `local_tz.display_tz()` ⇒ setenv CANVAS_TZ 即可;
-      · picker 用**模块级常量** `_DISPLAY_TZ`(import 时固化) ⇒ 必须 setattr。
+      · picker 的时区走 `_display_tz()`(CARD-G6-9c-R3 起每次现取) ⇒ 仍用 setattr
+        钉住那个函数, 这样夹具与「同进程改 TZ」两条路都可控。
     """
     monkeypatch.setenv("CANVAS_TZ", _FIXED_TZ_NAME)
-    monkeypatch.setattr(picker, "_DISPLAY_TZ", ZoneInfo(_FIXED_TZ_NAME))
+    monkeypatch.setattr(picker, "_display_tz", lambda _tz=ZoneInfo(_FIXED_TZ_NAME): _tz)
 
 
 NOW = datetime(2026, 7, 30, 2, 0, tzinfo=timezone.utc)

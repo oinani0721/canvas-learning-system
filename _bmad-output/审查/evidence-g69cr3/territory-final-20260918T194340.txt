@@ -1,0 +1,36 @@
+# (l) 地盘门 + 验伪锚（正确版：quotepath=false）@ 2026-09-18T19:43:40+08:00 HEAD=ccc2b48a
+## 代码面（排除 _bmad-output）—— 应恰 10 文件 = 卡文 §三 白名单
+ backend/app/api/v1/endpoints/review_overview.py    |   38 +-
+ backend/app/core/display_tz.py                     |  538 +++++-
+ backend/tests/regression/test_daily_review_pick.py |    8 +-
+ backend/tests/regression/test_daily_review_run.py  |    5 +-
+ .../tests/regression/test_g6_9_boundary_matrix.py  |   12 +-
+ .../regression/test_g6_9c_single_tz_source.py      | 1820 +++++++++++++++++++-
+ .../tests/regression/test_local_tz_negctl_r3.py    |  557 ++++++
+ backend/tests/unit/test_review_overview.py         |   17 +-
+ scripts/daily_review_pick.py                       |   44 +-
+ scripts/local_tz.py                                |  538 +++++-
+ 10 files changed, 3443 insertions(+), 134 deletions(-)
+## 白名单逐条核
+backend/app/api/v1/endpoints/review_overview.py
+backend/app/core/display_tz.py
+backend/tests/regression/test_daily_review_pick.py
+backend/tests/regression/test_daily_review_run.py
+backend/tests/regression/test_g6_9_boundary_matrix.py
+backend/tests/regression/test_g6_9c_single_tz_source.py
+backend/tests/regression/test_local_tz_negctl_r3.py
+backend/tests/unit/test_review_overview.py
+scripts/daily_review_pick.py
+scripts/local_tz.py
+## ⛔ 验伪锚（本卡两次写错，第二次才对）
+   错法 grep '^_bmad-output/' 对**默认 quotepath** 的输出 = 0
+     ↑ 恒 0，但不是「没越界」——中文路径被 git 包成 "_bmad-output/\345\256\241…"，锚点匹配不上
+   对法 git -c core.quotepath=false … = 32
+     ↑ >0 ⇒ 锚成立（证明 exclude 真的在起作用，不是判据跑空）
+## review_overview.py hunk 起始（全 < 600；:2572+ 是 P5-B）
+@@ -382,7 +382,9 @@ def _display_day(ts: str, tz=None):
+@@ -467,7 +469,8 @@ def _gate_buckets(
+@@ -515,8 +518,9 @@ def _gate_buckets(
+@@ -548,11 +552,27 @@ def _gate_buckets(
+## openapi.json net diff（空）
+(上面为空)

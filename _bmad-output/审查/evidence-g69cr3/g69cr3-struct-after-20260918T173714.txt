@@ -1,0 +1,31 @@
+# (f) 结构判据成对 + 验伪锚 @ 2026-09-18T17:37:14+08:00
+## ① pick 现取（改前 → 改后）
+grep -c '_DISPLAY_TZ' scripts/daily_review_pick.py : 9 -> 0
+grep -c 'def _display_tz' scripts/daily_review_pick.py : 0 -> 1
+三测试文件 grep -c "\"_DISPLAY_TZ\"" : 1/1/3 -> 下
+backend/tests/regression/test_g6_9_boundary_matrix.py:0
+backend/tests/regression/test_daily_review_pick.py:0
+backend/tests/regression/test_daily_review_run.py:0
+验伪锚 grep -c "\"_display_tz\"" (改前 0/0/0, 期望改后合计 ≥5):
+backend/tests/regression/test_daily_review_pick.py:1
+backend/tests/regression/test_g6_9_boundary_matrix.py:3
+backend/tests/regression/test_daily_review_run.py:1
+## ② 两副本同源
+A(local_tz from __future__)=17  B(display_tz)=16
+cmp: 无输出 = 逐字节同源
+AST（去 docstring 后 dump 相等）:
+True
+验伪锚（tmp 副本多一个字符 ⇒ 必 False）:
+False
+## ③ 双解释器 import 冒烟
+py39: Asia/Hong_Kong
+rc39=0
+py314: Asia/Hong_Kong
+rc314=0
+py39 backend副本: Asia/Hong_Kong
+rc39b=0
+## ④ re.compile 计数（改前 1）
+grep -c 're.compile' scripts/local_tz.py : 1
+## ⑤ 3.11+ 语法：AST 取 _POSIX_TZ_RE 源码段（文本 grep 会被注释骗，见验收单）
+scripts/local_tz.py: 无 3.11+ 语法
+backend/app/core/display_tz.py: 无 3.11+ 语法

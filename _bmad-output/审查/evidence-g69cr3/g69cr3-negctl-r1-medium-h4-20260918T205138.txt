@@ -1,0 +1,22 @@
+# ⚠️ 本文件的「跑前 sha256」采样时点不对：子 shell 里的施变异脚本先于那次 shasum 执行，
+#    所以第一行 sha（3d6355f9…）是**变异态**的、第二行（33587b16…）才是 HEAD 态。
+#    两行不同**不代表没还原**。真正的还原证据是后两条：git status 空 + 负控标记残留 0。
+#    （这正好印证 Codex r1 的一句话：前后 SHA 相同只能证明两个采样时点内容相同，
+#     不能证明中途未修改 —— 反过来，采样时点搞错时 SHA 不同也不代表出了问题。）
+#    权威判据用 `git status --porcelain <path>` 与 `git show HEAD:<path> | shasum` 对照。
+---
+# Codex r1 MEDIUM 的负控：加强后的 H4 门能否抓住「合法串被误拒」@ 2026-09-18T20:51:38+08:00
+# Codex 原话：仅在内存中让⑤对长度超过 4300 的切换小时字段返回 None，原 H4 用例仍通过（假绿）
+## 跑前 sha256
+3d6355f9d017eba4bf49fd94a0f3ba72166810b7808feab170a07009d4ecd7c9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/scripts/local_tz.py
+  ✓ 已施负控（⑤ 对超长字段直接拒，不剥零）
+E   AssertionError: [scripts] 超长前导零串被拒 —— libc 接受它，这是误拒不是修复
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_r12_h4_overlong_digit_fields_do_not_raise[scripts]
+=========== 1 failed, 1 passed, 305 deselected, 10 warnings in 0.98s ===========
+rc=1
+## 跑后 sha256（必须与跑前同）
+33587b160f6cbff206228430ddec85485f3706d3c316a73cfa04a0c3e459ac3d  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/scripts/local_tz.py
+## git status（必须空）
+(空=已还原)
+## 负控标记残留（必须 0）
+0

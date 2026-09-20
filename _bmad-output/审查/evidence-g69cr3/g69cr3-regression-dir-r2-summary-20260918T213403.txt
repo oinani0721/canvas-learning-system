@@ -1,0 +1,14 @@
+# (g) tests/regression 目录级（r1 修复后重跑）@ 2026-09-18T21:34:03+08:00 HEAD=6242aff4
+## 汇总
+==== 2167 passed, 6 skipped, 1 xfailed, 425 warnings in 1129.12s (0:18:49) =====
+rc=0
+## FAILED 行数（应 0）
+0
+## W4 哨兵
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+## 与 r1 修复前那一跑的对比
+   r1 前: 2165 passed / 0 failed / 29:19
+   r1 后: 2167 passed, 6 skipped, 1 xfailed, 425 warnings in 1129.12s (0:18:49)
+   ⇒ 用例数 +2（本卡新增 test_r1_dst_quoted_name_* 的两个副本参数）
+   ⇒ 耗时 29:19 → 18:49，快 10 分钟：HIGH-2 的平方回溯在 27.8 万组合对拍里被触发无数次，
+      修掉它整套跟着加速（§五.19 同一现象，这次是目录级的量级）

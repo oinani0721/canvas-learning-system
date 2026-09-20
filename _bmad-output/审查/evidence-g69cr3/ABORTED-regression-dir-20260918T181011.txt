@@ -1,0 +1,42 @@
+# ⛔ 这一跑没有跑完 —— 不是证据，不作任何结论的依据。
+# 原因：跑到 22% 时被主动 TaskStop 掐掉。当时刚发现 pick 改现取漏了 6 处夹具钉法
+#       （承重套件首跑 11 failed），继续跑这 40 分钟只会重复同一批红。
+# 「被掐掉的跑」给出的是「未测出」，不是「阴性」—— 保留此文件只为让时间线完整。
+# 正式的 tests/regression 目录级结果见同目录 regression-dir-close-<更晚的时间戳>.txt。
+# 无汇总行、无 rc= ，grep -cE 'passed|failed|^rc=' → 0（已实测）。
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 2172 items
+
+tests/regression/test_all_index_entrypoints_hostile_env.py ............. [  0%]
+.....................                                                    [  1%]
+tests/regression/test_autoscore_regression.py .........                  [  1%]
+tests/regression/test_board_manifest_contracts.py ...................... [  2%]
+..........................................                               [  4%]
+tests/regression/test_callout_direct.py .....                            [  5%]
+tests/regression/test_census_dead_letter_readonly_contract.py .......... [  5%]
+..........                                                               [  6%]
+tests/regression/test_context_extract_regression.py ........             [  6%]
+tests/regression/test_crag_grading_regression.py .........               [  6%]
+tests/regression/test_daily_review_pick.py ............................. [  8%]
+...........................................................              [ 10%]
+tests/regression/test_daily_review_run.py .............................. [ 12%]
+............................................                             [ 14%]
+tests/regression/test_debt8_fsrs_fallback_honest.py .....                [ 14%]
+tests/regression/test_decay_beta_convergence.py ...................      [ 15%]
+tests/regression/test_edge_dialog_prompt.py ..................           [ 16%]
+tests/regression/test_fsrs_bridge.py ..........                          [ 16%]
+tests/regression/test_fsrs_fallback_datetime_serialize.py ..             [ 16%]
+tests/regression/test_fsrs_golden_vectors.py ...................         [ 17%]
+tests/regression/test_fsrs_legacy_state_zero.py ..............           [ 18%]
+tests/regression/test_fsrs_new_card_none_serialization.py .......        [ 18%]
+tests/regression/test_g29_dual_vault_fsrs_isolation.py ..                [ 18%]
+tests/regression/test_g39_three_view_reconcile.py ...................... [ 19%]
+...................................                                      [ 21%]
+tests/regression/test_g3_2_review_ledger.py ............................ [ 22%]
+........

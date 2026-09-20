@@ -1,0 +1,29 @@
+# (f)①' 结构判据加固：AST 级**全仓**扫描（卡文原判据只查 4 个点名文件 = 搜索面划窄）
+# @ 2026-09-18T18:15:50+08:00  HEAD=dadfc2c2+工作树
+<unknown>:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+<unknown>:6100: SyntaxWarning: "\S" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\S"? A raw string is also an option.
+<unknown>:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+<unknown>:6100: SyntaxWarning: "\S" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\S"? A raw string is also an option.
+--- 主判据：AST 级 `_DISPLAY_TZ` 代码引用 = 0 处（期望 0）---
+--- 验伪锚：同一扫描器对 `_display_tz` = 53 处（期望 >0，证明扫描器能命中）---
+  ✓ backend/app/api/v1/endpoints/review_overview.py:117 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:423 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:746 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:727 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:739 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:1558 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:393 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:2090 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:728 _display_tz
+  ✓ backend/app/api/v1/endpoints/review_overview.py:1113 _display_tz
+  ✓ backend/scripts/vault_lint.py:285 _display_tz
+  ✓ backend/scripts/vault_lint.py:957 _display_tz
+  ✓ backend/scripts/vault_lint.py:885 _display_tz
+  ✓ backend/scripts/vault_lint.py:951 _display_tz
+  … 另 39 处
+--- 文本级残留（只应剩注释：本卡自写的历史描述 2 处 + 白名单外 2 处）---
+backend/tests/regression/test_g6_9c_single_tz_source.py:2592:    地方（`_DISPLAY_TZ = local_tz.display_tz()`），与两份 TZ 副本 docstring 里那条
+backend/tests/regression/test_g6_9c_single_tz_source.py:2620:        f"（{key_utc} → {key_ny}）。这正是本卡删掉的那个模块级 _DISPLAY_TZ 的病。"
+backend/tests/regression/test_g68_five_view_contract.py:7:被测模块**之前**设置 `CANVAS_TZ` / `VAULTS_ROOT`（picker 的 `_DISPLAY_TZ` 是
+backend/scripts/g68_five_view_contract.py:947:    #    · CANVAS_TZ —— picker 的 `_DISPLAY_TZ` 是**模块级常量**, import 那一刻固化;
+--- 白名单外那 2 处的性质：只有注释、无代码依赖（AST 扫描已证），且「import 前设 CANVAS_TZ」在改现取后仍正确 ⇒ 不改，登记移交 ---

@@ -1,0 +1,33 @@
+# (l) 地盘门 @ HEAD=dadfc2c2 2026-09-18T17:49:09+08:00
+## 本卡改动面（排除 _bmad-output）
+ backend/app/api/v1/endpoints/review_overview.py    |   38 +-
+ backend/app/core/display_tz.py                     |  533 +++++-
+ backend/tests/regression/test_daily_review_pick.py |    2 +-
+ backend/tests/regression/test_daily_review_run.py  |    2 +-
+ .../tests/regression/test_g6_9_boundary_matrix.py  |   10 +-
+ .../regression/test_g6_9c_single_tz_source.py      | 1800 +++++++++++++++++++-
+ .../tests/regression/test_local_tz_negctl_r3.py    |  557 ++++++
+ backend/tests/unit/test_review_overview.py         |   11 +
+ scripts/daily_review_pick.py                       |   41 +-
+ scripts/local_tz.py                                |  533 +++++-
+ 10 files changed, 3414 insertions(+), 113 deletions(-)
+## review_overview.py hunk 起始（必须全 < 600；:2572+ 是 P5-B）
+@@ -382,7 +382,9 @@ def _display_day(ts: str, tz=None):
+@@ -467,7 +469,8 @@ def _gate_buckets(
+@@ -515,8 +518,9 @@ def _gate_buckets(
+@@ -548,11 +552,27 @@ def _gate_buckets(
+## openapi.json net diff（必须空）
+(上面为空 = net 无变化)
+## 验伪锚：去掉 exclude 应多出 _bmad-output/ 路径
+0
+## 白名单核对（本卡改动的每个路径）
+backend/app/api/v1/endpoints/review_overview.py
+backend/app/core/display_tz.py
+backend/tests/regression/test_daily_review_pick.py
+backend/tests/regression/test_daily_review_run.py
+backend/tests/regression/test_g6_9_boundary_matrix.py
+backend/tests/regression/test_g6_9c_single_tz_source.py
+backend/tests/regression/test_local_tz_negctl_r3.py
+backend/tests/unit/test_review_overview.py
+scripts/daily_review_pick.py
+scripts/local_tz.py

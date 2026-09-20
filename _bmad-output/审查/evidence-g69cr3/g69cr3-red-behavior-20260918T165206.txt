@@ -1,0 +1,1108 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 289 items
+
+tests/regression/test_g6_9c_single_tz_source.py .F...................... [  8%]
+.......FFFF..FFFFFFFFFFFFFFFFFF......FFFF..FFFFFFFF................FFFFF [ 33%]
+........FF..........FFFFFFFFFFFFFFFFFFFF..FFFFFF....FFFFFFFFFFFFFFFF..FF [ 58%]
+FF..FFFFFFFFFFFFFF......................................FFFFFFFFFFFFFFFF [ 83%]
+FFFF........................................FFF..                        [100%]
+
+=================================== FAILURES ===================================
+________________ test_two_copies_share_identical_localtz_class _________________
+tests/regression/test_g6_9c_single_tz_source.py:130: in test_two_copies_share_identical_localtz_class
+    assert hasattr(mod, name), (
+E   AssertionError: backend/app/core/display_tz.py 里没有 _zoneinfo_key_candidates —— 同源副本漂移了（定义被删或改名）。_zoneinfo_key_candidates 是 POSIX TZ 分支的实现体，缺了它这份副本在运行期会 NameError。
+E   assert False
+E    +  where False = hasattr(<module 'app.core.display_tz' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/core/display_tz.py'>, '_zoneinfo_key_candidates')
+_ test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:501: in test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+    assert got.replace(tzinfo=None) == libc.replace(tzinfo=None), (
+E   AssertionError: [backend] TZ='CET-1CEST' 在 2026-07-31T16:30:00+00:00 上墙钟与 C 库不一致：
+E       display_tz() 给 2026-07-31 16:30:00（resolved=zoneinfo.ZoneInfo(key='UTC')）
+E       C 库逐时刻给 2026-07-31 18:30:00
+E   assert datetime.datetime(2026, 7, 31, 16, 30) == datetime.datetime(2026, 7, 31, 18, 30)
+E    +  where datetime.datetime(2026, 7, 31, 16, 30) = <built-in method replace of datetime.datetime object at 0x13694fae0>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x13694fae0> = datetime.datetime(2026, 7, 31, 16, 30, tzinfo=zoneinfo.ZoneInfo(key='UTC')).replace
+E    +  and   datetime.datetime(2026, 7, 31, 18, 30) = <built-in method replace of datetime.datetime object at 0x1368e6340>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x1368e6340> = datetime.datetime(2026, 7, 31, 18, 30, tzinfo=datetime.timezone(datetime.timedelta(seconds=7200), 'CEST')).replace
+_ test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:501: in test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+    assert got.replace(tzinfo=None) == libc.replace(tzinfo=None), (
+E   AssertionError: [scripts] TZ='CET-1CEST' 在 2026-07-31T16:30:00+00:00 上墙钟与 C 库不一致：
+E       display_tz() 给 2026-07-31 16:30:00（resolved=zoneinfo.ZoneInfo(key='UTC')）
+E       C 库逐时刻给 2026-07-31 18:30:00
+E   assert datetime.datetime(2026, 7, 31, 16, 30) == datetime.datetime(2026, 7, 31, 18, 30)
+E    +  where datetime.datetime(2026, 7, 31, 16, 30) = <built-in method replace of datetime.datetime object at 0x1368e59b0>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x1368e59b0> = datetime.datetime(2026, 7, 31, 16, 30, tzinfo=zoneinfo.ZoneInfo(key='UTC')).replace
+E    +  and   datetime.datetime(2026, 7, 31, 18, 30) = <built-in method replace of datetime.datetime object at 0x1368e5620>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x1368e5620> = datetime.datetime(2026, 7, 31, 18, 30, tzinfo=datetime.timezone(datetime.timedelta(seconds=7200), 'CEST')).replace
+_ test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:501: in test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+    assert got.replace(tzinfo=None) == libc.replace(tzinfo=None), (
+E   AssertionError: [backend] TZ='AAA1BBB0,365/3,365/2' 在 2024-01-01T00:30:00+00:00 上墙钟与 C 库不一致：
+E       display_tz() 给 2023-12-31 23:30:00（resolved=<app.core.display_tz._PosixTZ object at 0x133d5a980>）
+E       C 库逐时刻给 2024-01-01 00:30:00
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+E    +  where datetime.datetime(2023, 12, 31, 23, 30, fold=1) = <built-in method replace of datetime.datetime object at 0x1368e4720>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x1368e4720> = datetime.datetime(2023, 12, 31, 23, 30, fold=1, tzinfo=<app.core.display_tz._PosixTZ object at 0x133d5a980>).replace
+E    +  and   datetime.datetime(2024, 1, 1, 0, 30) = <built-in method replace of datetime.datetime object at 0x1368e4960>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x1368e4960> = datetime.datetime(2024, 1, 1, 0, 30, tzinfo=datetime.timezone(datetime.timedelta(0), 'BBB')).replace
+_ test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:501: in test_posix_tz_string_resolves_to_process_local_not_etc_localtime
+    assert got.replace(tzinfo=None) == libc.replace(tzinfo=None), (
+E   AssertionError: [scripts] TZ='AAA1BBB0,365/3,365/2' 在 2024-01-01T00:30:00+00:00 上墙钟与 C 库不一致：
+E       display_tz() 给 2023-12-31 23:30:00（resolved=<_g69c_local_tz_probe._PosixTZ object at 0x133d5af80>）
+E       C 库逐时刻给 2024-01-01 00:30:00
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+E    +  where datetime.datetime(2023, 12, 31, 23, 30, fold=1) = <built-in method replace of datetime.datetime object at 0x1368effc0>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x1368effc0> = datetime.datetime(2023, 12, 31, 23, 30, fold=1, tzinfo=<_g69c_local_tz_probe._PosixTZ object at 0x133d5af80>).replace
+E    +  and   datetime.datetime(2024, 1, 1, 0, 30) = <built-in method replace of datetime.datetime object at 0x1368ee490>(tzinfo=None)
+E    +    where <built-in method replace of datetime.datetime object at 0x1368ee490> = datetime.datetime(2024, 1, 1, 0, 30, tzinfo=datetime.timezone(datetime.timedelta(0), 'BBB')).replace
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant0-2022 \u662f\u5e73\u5e74 \u21d2 start(2022) \u7684\u88f8 n=365 \u843d\u5230 2023-01-01T04:00Z, end(2023) \u843d\u5230 2024-01-01T02:00Z \u21d2 \u8be5\u5b63\u5ea6\u6a2a\u8de8\u6574\u4e2a 2023 \u5e74\u5e76\u5305\u4f4f 2024 \u5143\u65e6, \u540d\u4e49\u8d77\u59cb\u5e74\u662f y-2-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [backend] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,365/3,365/2' 在 2024-01-01T00:30:00+00:00
+E       2022 是平年 ⇒ start(2022) 的裸 n=365 落到 2023-01-01T04:00Z, end(2023) 落到 2024-01-01T02:00Z ⇒ 该季度横跨整个 2023 年并包住 2024 元旦, 名义起始年是 y-2
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant0-2022 \u662f\u5e73\u5e74 \u21d2 start(2022) \u7684\u88f8 n=365 \u843d\u5230 2023-01-01T04:00Z, end(2023) \u843d\u5230 2024-01-01T02:00Z \u21d2 \u8be5\u5b63\u5ea6\u6a2a\u8de8\u6574\u4e2a 2023 \u5e74\u5e76\u5305\u4f4f 2024 \u5143\u65e6, \u540d\u4e49\u8d77\u59cb\u5e74\u662f y-2-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [scripts] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,365/3,365/2' 在 2024-01-01T00:30:00+00:00
+E       2022 是平年 ⇒ start(2022) 的裸 n=365 落到 2023-01-01T04:00Z, end(2023) 落到 2024-01-01T02:00Z ⇒ 该季度横跨整个 2023 年并包住 2024 元旦, 名义起始年是 y-2
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant1-\u540c\u5f62\u6001\u7684\u53e6\u4e00\u5e74(2021 \u4e5f\u662f\u5e73\u5e74) \u2014\u2014 \u4e24\u6761\u4e00\u8d77\u6392\u9664\u300c\u53ea\u662f\u67d0\u4e00\u5e74\u51d1\u5de7\u300d-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [backend] 候选窗漏格·实得 2022-12-31 23:30:00 应为 2023-01-01 00:30:00
+E       TZ='AAA1BBB0,365/3,365/2' 在 2023-01-01T00:30:00+00:00
+E       同形态的另一年(2021 也是平年) —— 两条一起排除「只是某一年凑巧」
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2022, 12, 31, 23, 30, fold=1) == datetime.datetime(2023, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant1-\u540c\u5f62\u6001\u7684\u53e6\u4e00\u5e74(2021 \u4e5f\u662f\u5e73\u5e74) \u2014\u2014 \u4e24\u6761\u4e00\u8d77\u6392\u9664\u300c\u53ea\u662f\u67d0\u4e00\u5e74\u51d1\u5de7\u300d-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [scripts] 候选窗漏格·实得 2022-12-31 23:30:00 应为 2023-01-01 00:30:00
+E       TZ='AAA1BBB0,365/3,365/2' 在 2023-01-01T00:30:00+00:00
+E       同形态的另一年(2021 也是平年) —— 两条一起排除「只是某一年凑巧」
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2022, 12, 31, 23, 30, fold=1) == datetime.datetime(2023, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/167,365/166-instant2-\u540c\u4e00\u6f0f\u683c\u3001\u7ea2\u533a\u5bbd 166 \u5c0f\u65f6\u4e14\u9010\u5e74\u90fd\u6709 \u2014\u2014 \u65f6\u523b\u632a\u52a8\u540e\u4ecd\u7136\u627f\u91cd-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [backend] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,365/167,365/166' 在 2024-01-01T00:30:00+00:00
+E       同一漏格、红区宽 166 小时且逐年都有 —— 时刻挪动后仍然承重
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/167,365/166-instant2-\u540c\u4e00\u6f0f\u683c\u3001\u7ea2\u533a\u5bbd 166 \u5c0f\u65f6\u4e14\u9010\u5e74\u90fd\u6709 \u2014\u2014 \u65f6\u523b\u632a\u52a8\u540e\u4ecd\u7136\u627f\u91cd-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [scripts] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,365/167,365/166' 在 2024-01-01T00:30:00+00:00
+E       同一漏格、红区宽 166 小时且逐年都有 —— 时刻挪动后仍然承重
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,J365/167,J365/167-instant3-Jn \u53e0\u5927 /N \u540c\u6837\u6eda\u51fa\u540d\u4e49\u5e74\uff082007..2037 \u5143\u65e6\u5468\u9010\u5c0f\u65f6\u7ea2 4433 \u70b9\uff09-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [backend] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,J365/167,J365/167' 在 2024-01-01T00:30:00+00:00
+E       Jn 叠大 /N 同样滚出名义年（2007..2037 元旦周逐小时红 4433 点）
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,J365/167,J365/167-instant3-Jn \u53e0\u5927 /N \u540c\u6837\u6eda\u51fa\u540d\u4e49\u5e74\uff082007..2037 \u5143\u65e6\u5468\u9010\u5c0f\u65f6\u7ea2 4433 \u70b9\uff09-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [scripts] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,J365/167,J365/167' 在 2024-01-01T00:30:00+00:00
+E       Jn 叠大 /N 同样滚出名义年（2007..2037 元旦周逐小时红 4433 点）
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,M12.5.0/167,M12.5.0/167-instant4-\u7eaf Mm.w.d \u89c4\u5219\u4e5f\u80fd\u6eda\u5e74\uff08\u672b\u5468\u65e5\u9760\u8fd1\u6708\u672b\u7684\u5e74\u4efd\uff0c\u7ea2 2325 \u70b9\uff09-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [backend] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,M12.5.0/167,M12.5.0/167' 在 2024-01-01T00:30:00+00:00
+E       纯 Mm.w.d 规则也能滚年（末周日靠近月末的年份，红 2325 点）
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,M12.5.0/167,M12.5.0/167-instant4-\u7eaf Mm.w.d \u89c4\u5219\u4e5f\u80fd\u6eda\u5e74\uff08\u672b\u5468\u65e5\u9760\u8fd1\u6708\u672b\u7684\u5e74\u4efd\uff0c\u7ea2 2325 \u70b9\uff09-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:600: in test_dst_window_candidates_cover_rules_that_roll_into_the_following_year
+    assert got == libc, (
+E   AssertionError: [scripts] 候选窗漏格·实得 2023-12-31 23:30:00 应为 2024-01-01 00:30:00
+E       TZ='AAA1BBB0,M12.5.0/167,M12.5.0/167' 在 2024-01-01T00:30:00+00:00
+E       纯 Mm.w.d 规则也能滚年（末周日靠近月末的年份，红 2325 点）
+E       `_in_dst` 的候选年只取名义年 (y-1, y, y+1), 漏掉了起始年更早的那个跨年季度。
+E   assert datetime.datetime(2023, 12, 31, 23, 30, fold=1) == datetime.datetime(2024, 1, 1, 0, 30)
+_ test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[EST5EDT-summer0-winter0-\u6709\u540c\u540d tzfile, \u6545\u53ea\u6709\u76f4\u63a5\u8c03 parse_posix_tz \u624d\u591f\u5f97\u5230\u672c\u5206\u652f-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:651: in test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+    assert tz is not None, (
+E   AssertionError: [backend] dst 有名省略规则被退 UTC: parse_posix_tz('EST5EDT') 返回 None
+E       有同名 tzfile, 故只有直接调 parse_posix_tz 才够得到本分支
+E       返回 None 会让 display_tz() 的 POSIX 档整体退回 ZoneInfo('UTC') —— 而 C 库
+E       按 tzset(3) 用 posixrules 的规则补齐, 于是每年有几百小时归错日, 且生产者
+E       自报的 display_tz 也一并退成 'UTC', 与 generated_at 自洽 ⇒ **错得不会报错**。
+E   assert None is not None
+_ test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[EST5EDT-summer0-winter0-\u6709\u540c\u540d tzfile, \u6545\u53ea\u6709\u76f4\u63a5\u8c03 parse_posix_tz \u624d\u591f\u5f97\u5230\u672c\u5206\u652f-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:651: in test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+    assert tz is not None, (
+E   AssertionError: [scripts] dst 有名省略规则被退 UTC: parse_posix_tz('EST5EDT') 返回 None
+E       有同名 tzfile, 故只有直接调 parse_posix_tz 才够得到本分支
+E       返回 None 会让 display_tz() 的 POSIX 档整体退回 ZoneInfo('UTC') —— 而 C 库
+E       按 tzset(3) 用 posixrules 的规则补齐, 于是每年有几百小时归错日, 且生产者
+E       自报的 display_tz 也一并退成 'UTC', 与 generated_at 自洽 ⇒ **错得不会报错**。
+E   assert None is not None
+_ test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[CET-1CEST-summer1-winter1-Codex r5 \u7684\u9010\u5b57\u53cd\u4f8b: \u4e24\u526f\u672c\u7ed9 22:30+00:00, libc \u7ed9 2026-08-01 00:30+02:00-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:651: in test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+    assert tz is not None, (
+E   AssertionError: [backend] dst 有名省略规则被退 UTC: parse_posix_tz('CET-1CEST') 返回 None
+E       Codex r5 的逐字反例: 两副本给 22:30+00:00, libc 给 2026-08-01 00:30+02:00
+E       返回 None 会让 display_tz() 的 POSIX 档整体退回 ZoneInfo('UTC') —— 而 C 库
+E       按 tzset(3) 用 posixrules 的规则补齐, 于是每年有几百小时归错日, 且生产者
+E       自报的 display_tz 也一并退成 'UTC', 与 generated_at 自洽 ⇒ **错得不会报错**。
+E   assert None is not None
+_ test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[CET-1CEST-summer1-winter1-Codex r5 \u7684\u9010\u5b57\u53cd\u4f8b: \u4e24\u526f\u672c\u7ed9 22:30+00:00, libc \u7ed9 2026-08-01 00:30+02:00-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:651: in test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+    assert tz is not None, (
+E   AssertionError: [scripts] dst 有名省略规则被退 UTC: parse_posix_tz('CET-1CEST') 返回 None
+E       Codex r5 的逐字反例: 两副本给 22:30+00:00, libc 给 2026-08-01 00:30+02:00
+E       返回 None 会让 display_tz() 的 POSIX 档整体退回 ZoneInfo('UTC') —— 而 C 库
+E       按 tzset(3) 用 posixrules 的规则补齐, 于是每年有几百小时归错日, 且生产者
+E       自报的 display_tz 也一并退成 'UTC', 与 generated_at 自洽 ⇒ **错得不会报错**。
+E   assert None is not None
+_ test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[XYZ5XYD-summer2-winter2-\u81ea\u9020\u540d \u2014\u2014 /usr/share/zoneinfo \u4e0b\u65e0\u540c\u540d tzfile, \u6392\u9664\u300c\u5176\u5b9e\u8bfb\u5230\u4e86\u540c\u540d\u6587\u4ef6\u300d\u8fd9\u4e00\u66ff\u4ee3\u89e3\u91ca-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:651: in test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+    assert tz is not None, (
+E   AssertionError: [backend] dst 有名省略规则被退 UTC: parse_posix_tz('XYZ5XYD') 返回 None
+E       自造名 —— /usr/share/zoneinfo 下无同名 tzfile, 排除「其实读到了同名文件」这一替代解释
+E       返回 None 会让 display_tz() 的 POSIX 档整体退回 ZoneInfo('UTC') —— 而 C 库
+E       按 tzset(3) 用 posixrules 的规则补齐, 于是每年有几百小时归错日, 且生产者
+E       自报的 display_tz 也一并退成 'UTC', 与 generated_at 自洽 ⇒ **错得不会报错**。
+E   assert None is not None
+_ test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[XYZ5XYD-summer2-winter2-\u81ea\u9020\u540d \u2014\u2014 /usr/share/zoneinfo \u4e0b\u65e0\u540c\u540d tzfile, \u6392\u9664\u300c\u5176\u5b9e\u8bfb\u5230\u4e86\u540c\u540d\u6587\u4ef6\u300d\u8fd9\u4e00\u66ff\u4ee3\u89e3\u91ca-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:651: in test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc
+    assert tz is not None, (
+E   AssertionError: [scripts] dst 有名省略规则被退 UTC: parse_posix_tz('XYZ5XYD') 返回 None
+E       自造名 —— /usr/share/zoneinfo 下无同名 tzfile, 排除「其实读到了同名文件」这一替代解释
+E       返回 None 会让 display_tz() 的 POSIX 档整体退回 ZoneInfo('UTC') —— 而 C 库
+E       按 tzset(3) 用 posixrules 的规则补齐, 于是每年有几百小时归错日, 且生产者
+E       自报的 display_tz 也一并退成 'UTC', 与 generated_at 自洽 ⇒ **错得不会报错**。
+E   assert None is not None
+_____ test_candidate_year_guard_keeps_extreme_epochs_from_raising[backend] _____
+tests/regression/test_g6_9c_single_tz_source.py:716: in test_candidate_year_guard_keeps_extreme_epochs_from_raising
+    datetime(9999, 12, 15, 12, tzinfo=timezone.utc).astimezone(south)
+app/core/display_tz.py:229: in fromutc
+    in_dst = self._in_dst(ts)
+             ^^^^^^^^^^^^^^^^
+app/core/display_tz.py:181: in _in_dst
+    if s <= ts < self._dst_window(year + 1)[1]:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/core/display_tz.py:169: in _dst_window
+    s = _rule_epoch(self._start, year) - self._std_off
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/core/display_tz.py:109: in _rule_epoch
+    first_wd = datetime(year, mon, 1).weekday()  # 0=周一
+               ^^^^^^^^^^^^^^^^^^^^^^
+E   ValueError: year must be in 1..9999, not 10000
+
+The above exception was the direct cause of the following exception:
+tests/regression/test_g6_9c_single_tz_source.py:718: in test_candidate_year_guard_keeps_extreme_epochs_from_raising
+    raise AssertionError(
+E   AssertionError: [backend] 南半球分支的候选年上界失效: 9999-12-15 换算抛 ValueError: year must be in 1..9999, not 10000
+E     南支要取 `_dst_window(year + 1)`，year=9999 时会算到 10000。
+_____ test_candidate_year_guard_keeps_extreme_epochs_from_raising[scripts] _____
+tests/regression/test_g6_9c_single_tz_source.py:716: in test_candidate_year_guard_keeps_extreme_epochs_from_raising
+    datetime(9999, 12, 15, 12, tzinfo=timezone.utc).astimezone(south)
+../scripts/local_tz.py:230: in fromutc
+    in_dst = self._in_dst(ts)
+             ^^^^^^^^^^^^^^^^
+../scripts/local_tz.py:182: in _in_dst
+    if s <= ts < self._dst_window(year + 1)[1]:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../scripts/local_tz.py:170: in _dst_window
+    s = _rule_epoch(self._start, year) - self._std_off
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../scripts/local_tz.py:110: in _rule_epoch
+    first_wd = datetime(year, mon, 1).weekday()  # 0=周一
+               ^^^^^^^^^^^^^^^^^^^^^^
+E   ValueError: year must be in 1..9999, not 10000
+
+The above exception was the direct cause of the following exception:
+tests/regression/test_g6_9c_single_tz_source.py:718: in test_candidate_year_guard_keeps_extreme_epochs_from_raising
+    raise AssertionError(
+E   AssertionError: [scripts] 南半球分支的候选年上界失效: 9999-12-15 换算抛 ValueError: year must be in 1..9999, not 10000
+E     南支要取 `_dst_window(year + 1)`，year=9999 时会算到 10000。
+_ test_tz_path_forms_match_libc[**\u53cc**\u5192\u53f7\uff1aC \u5e93\u53ea\u5265\u4e00\u4e2a\uff0c\u5269\u4e0b `:Asi-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [backend] TZ='::Asia/Shanghai' 下偏移与 C 库不符: 本实现 8:00:00，C 库 0:00:00
+E       形态: **双**冒号：C 库只剥一个，剩下 `:Asia/Shanghai` 当路径打不开 ⇒ UTC
+E   assert datetime.timedelta(seconds=28800) == datetime.timedelta(0)
+_ test_tz_path_forms_match_libc[**\u53cc**\u5192\u53f7\uff1aC \u5e93\u53ea\u5265\u4e00\u4e2a\uff0c\u5269\u4e0b `:Asi-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [scripts] TZ='::Asia/Shanghai' 下偏移与 C 库不符: 本实现 8:00:00，C 库 0:00:00
+E       形态: **双**冒号：C 库只剥一个，剩下 `:Asia/Shanghai` 当路径打不开 ⇒ UTC
+E   assert datetime.timedelta(seconds=28800) == datetime.timedelta(0)
+_ test_tz_path_forms_match_libc[\u4e09\u5192\u53f7\uff1a\u540c\u4e0a-backend] __
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [backend] TZ=':::Asia/Shanghai' 下偏移与 C 库不符: 本实现 8:00:00，C 库 0:00:00
+E       形态: 三冒号：同上
+E   assert datetime.timedelta(seconds=28800) == datetime.timedelta(0)
+_ test_tz_path_forms_match_libc[\u4e09\u5192\u53f7\uff1a\u540c\u4e0a-scripts] __
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [scripts] TZ=':::Asia/Shanghai' 下偏移与 C 库不符: 本实现 8:00:00，C 库 0:00:00
+E       形态: 三冒号：同上
+E   assert datetime.timedelta(seconds=28800) == datetime.timedelta(0)
+_ test_tz_path_forms_match_libc[\u7edd\u5bf9\u8def\u5f84\uff1aC \u5e93\u76f4\u63a5\u6253\u5f00\u8be5 tzfile-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [backend] TZ='/usr/share/zoneinfo/Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 绝对路径：C 库直接打开该 tzfile
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_ test_tz_path_forms_match_libc[\u7edd\u5bf9\u8def\u5f84\uff1aC \u5e93\u76f4\u63a5\u6253\u5f00\u8be5 tzfile-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [scripts] TZ='/usr/share/zoneinfo/Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 绝对路径：C 库直接打开该 tzfile
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_ test_tz_path_forms_match_libc[\u5192\u53f7 + \u7edd\u5bf9\u8def\u5f84-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [backend] TZ=':/usr/share/zoneinfo/Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 冒号 + 绝对路径
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_ test_tz_path_forms_match_libc[\u5192\u53f7 + \u7edd\u5bf9\u8def\u5f84-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [scripts] TZ=':/usr/share/zoneinfo/Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 冒号 + 绝对路径
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_ test_tz_path_forms_match_libc[\u76f8\u5bf9 TZDIR \u7684\u8def\u5f84-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [backend] TZ='./Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 相对 TZDIR 的路径
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_ test_tz_path_forms_match_libc[\u76f8\u5bf9 TZDIR \u7684\u8def\u5f84-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [scripts] TZ='./Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 相对 TZDIR 的路径
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+__________ test_tz_path_forms_match_libc[\u53cc\u659c\u6760-backend] ___________
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [backend] TZ='Asia//Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 双斜杠
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+__________ test_tz_path_forms_match_libc[\u53cc\u659c\u6760-scripts] ___________
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [scripts] TZ='Asia//Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: 双斜杠
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_ test_tz_path_forms_match_libc[`..` \u8def\u5f84\uff1aC \u5e93\u63a5\u53d7\uff08`resolve()-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [backend] TZ='Asia/../Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: `..` 路径：C 库接受（`resolve()` 后就是上海）
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_ test_tz_path_forms_match_libc[`..` \u8def\u5f84\uff1aC \u5e93\u63a5\u53d7\uff08`resolve()-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:855: in test_tz_path_forms_match_libc
+    assert mine_off == libc_off, (
+E   AssertionError: [scripts] TZ='Asia/../Asia/Shanghai' 下偏移与 C 库不符: 本实现 0:00:00，C 库 8:00:00
+E       形态: `..` 路径：C 库接受（`resolve()` 后就是上海）
+E   assert datetime.timedelta(0) == datetime.timedelta(seconds=28800)
+_________________ test_fromutc_rejects_foreign_tzinfo[backend] _________________
+tests/regression/test_g6_9c_single_tz_source.py:875: in test_fromutc_rejects_foreign_tzinfo
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'ValueError'>
+_________________ test_fromutc_rejects_foreign_tzinfo[scripts] _________________
+tests/regression/test_g6_9c_single_tz_source.py:875: in test_fromutc_rejects_foreign_tzinfo
+    with pytest.raises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'ValueError'>
+____________________ test_accepted_domain_grid_matches_libc ____________________
+tests/regression/test_g6_9c_single_tz_source.py:1131: in test_accepted_domain_grid_matches_libc
+    why = _declared_narrowing(spec)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/regression/test_g6_9c_single_tz_source.py:1097: in _declared_narrowing
+    if backend_tz._has_dst(g) or g["start"] is not None:
+       ^^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'app.core.display_tz' has no attribute '_has_dst'
+_____________ test_accepted_domain_matches_libc[accept-4-backend] ______________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0<中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中'…) 拒绝了，表称应当接受
+E       依据: 3 + 507 + 2 = **512**：和式上边界（多字节名字侧）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-4-scripts] ______________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0<中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中'…) 拒绝了，表称应当接受
+E       依据: 3 + 507 + 2 = **512**：和式上边界（多字节名字侧）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[reject-10-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAA><BBB>,M3.2.0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 缺 std 偏移：C 库对**所有**形态整串拒收（r9 M3）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-10-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('<AAA><BBB>,M3.2.0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 缺 std 偏移：C 库对**所有**形态整串拒收（r9 M3）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-11-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAA>'…) 接受了，表称应当拒绝
+E       依据: 同上，无 dst 形态也拒
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-11-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('<AAA>'…) 接受了，表称应当拒绝
+E       依据: 同上，无 dst 形态也拒
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-12-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA-1,J0,J0'…) 接受了，表称应当拒绝
+E       依据: 非法规则 J0：C 库拒，**无 dst 形态也要验规则**（r9 M4）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-12-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA-1,J0,J0'…) 接受了，表称应当拒绝
+E       依据: 非法规则 J0：C 库拒，**无 dst 形态也要验规则**（r9 M4）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-13-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:60,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻分钟 60：C 库拒（r9 M5）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-13-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:60,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻分钟 60：C 库拒（r9 M5）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-14-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:00:61,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻秒 61：C 库拒（60 接受、61 拒，两侧都在表里）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-14-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:00:61,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻秒 61：C 库拒（60 接受、61 拒，两侧都在表里）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-15-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/168,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-15-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/168,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻 168 小时：越过 C 库的 167 上界（r9 M5）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-16-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M３.2.0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 规则含**全角**数字：Python 的 `\d` 匹配它而 C 库拒（r9 M5）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-16-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M３.2.0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 规则含**全角**数字：Python 的 `\d` 匹配它而 C 库拒（r9 M5）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-17-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/２,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻含全角数字：同上
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-17-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/２,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 切换时刻含全角数字：同上
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-18-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:３0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 全角数字落在**切换时刻的分钟字段** —— 只有数字字段的 ASCII 检查能拦（规则文本检查看的是 `start`/`end`，不含 `/` 之后的时刻）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-18-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0BBB,M3.2.0/2:３0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 全角数字落在**切换时刻的分钟字段** —— 只有数字字段的 ASCII 检查能拦（规则文本检查看的是 `start`/`end`，不含 `/` 之后的时刻）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-19-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0BBB,J３60,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 全角数字落在**规则文本**里 —— 只有规则文本的 ASCII 检查能拦（数字字段检查看的是偏移与切换时刻，不含规则本身）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-19-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0BBB,J３60,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: 全角数字落在**规则文本**里 —— 只有规则文本的 ASCII 检查能拦（数字字段检查看的是偏移与切换时刻，不含规则本身）
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-21-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+E       依据: 508 + 3 + 2 = 513 > 512：和式上界外一字节
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-21-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+E       依据: 508 + 3 + 2 = 513 > 512：和式上界外一字节
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-22-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+E       依据: 无 dst 形态 512 + 1 = 513 > 512 —— 旧口径**根本没检查**这一支，于是误收了 C 库拒绝的串
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-22-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+E       依据: 无 dst 形态 512 + 1 = 513 > 512 —— 旧口径**根本没检查**这一支，于是误收了 C 库拒绝的串
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-23-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+E       依据: 两个名字**各自**都 ≤507 却和 = 1016 > 512：单名上限口径在这条上误收，和式口径才拒
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-23-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 接受了，表称应当拒绝
+E       依据: 两个名字**各自**都 ≤507 却和 = 1016 > 512：单名上限口径在这条上误收，和式口径才拒
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[accept-26-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA0001'…) 拒绝了，表称应当接受
+E       依据: 前导零偏移：C 库数字字段**无位数上限**（`AAA00000001` 也收）（r10 M2）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-26-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA0001'…) 拒绝了，表称应当接受
+E       依据: 前导零偏移：C 库数字字段**无位数上限**（`AAA00000001` 也收）（r10 M2）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-27-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA1BBB,M03.02.00,M11.1.0'…) 拒绝了，表称应当接受
+E       依据: 规则字段前导零：C 库收（r10 M2）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-27-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA1BBB,M03.02.00,M11.1.0'…) 拒绝了，表称应当接受
+E       依据: 规则字段前导零：C 库收（r10 M2）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-28-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA1BBB,J0001,J0200'…) 拒绝了，表称应当接受
+E       依据: 儒略日前导零：同上
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-28-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA1BBB,J0001,J0200'…) 拒绝了，表称应当接受
+E       依据: 儒略日前导零：同上
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-29-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('A1'…) 拒绝了，表称应当接受
+E       依据: **单字符**名：C 库不要求 POSIX 的「≥3 字符」（r10 M1）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-29-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('A1'…) 拒绝了，表称应当接受
+E       依据: **单字符**名：C 库不要求 POSIX 的「≥3 字符」（r10 M1）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-30-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<>1'…) 拒绝了，表称应当接受
+E       依据: **空**引用名：C 库接受（r10 M1）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-30-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('<>1'…) 拒绝了，表称应当接受
+E       依据: **空**引用名：C 库接受（r10 M1）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-31-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('ABC<DEF>2'…) 拒绝了，表称应当接受
+E       依据: 裸名一直吃到遇见数字为止 ⇒ 名字是 `ABC<DEF>`（C 库 tzname 打成 `ABC_DEF_`）。原 `[A-Za-z]{3,}` 会把它判成「缺 std 偏移」而整串拒（r10 M1）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-31-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('ABC<DEF>2'…) 拒绝了，表称应当接受
+E       依据: 裸名一直吃到遇见数字为止 ⇒ 名字是 `ABC<DEF>`（C 库 tzname 打成 `ABC_DEF_`）。原 `[A-Za-z]{3,}` 会把它判成「缺 std 偏移」而整串拒（r10 M1）
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-32-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('ABC DEF2'…) 拒绝了，表称应当接受
+E       依据: 同上，名字里带空格
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-32-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('ABC DEF2'…) 拒绝了，表称应当接受
+E       依据: 同上，名字里带空格
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-33-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 拒绝了，表称应当接受
+E       依据: 511 + **空** dst 名 = 512：空名**不占**缓冲区、不加 NUL。机械地按 511+0+2=513 算会误拒
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-33-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('<AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'…) 拒绝了，表称应当接受
+E       依据: 511 + **空** dst 名 = 512：空名**不占**缓冲区、不加 NUL。机械地按 511+0+2=513 算会误拒
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-35-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA-1BBB\n'…) 拒绝了，表称应当接受
+E       依据: 同上条：C 库把尾部换行吃进 dst 名（tzname `('AAA','BBB_')`），本实现现已跟随。
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[accept-35-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA-1BBB\n'…) 拒绝了，表称应当接受
+E       依据: 同上条：C 库把尾部换行吃进 dst 名（tzname `('AAA','BBB_')`），本实现现已跟随。
+E   assert False == True
+_____________ test_accepted_domain_matches_libc[reject-36-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA-1BBB,M3.2.0,M11.1.0\n'…) 接受了，表称应当拒绝
+E       依据: 对照组：**带显式规则**时尾部换行两边都拒。⛔ 这条是 `\Z` 锚的守门样本 —— 正则结尾若写 `$`，Python 的 `$` 在末尾换行**之前**收尾，这串会被误收（删掉那条尾部空白检查后第一次跑对拍，红的就是它）。
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-36-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA-1BBB,M3.2.0,M11.1.0\n'…) 接受了，表称应当拒绝
+E       依据: 对照组：**带显式规则**时尾部换行两边都拒。⛔ 这条是 `\Z` 锚的守门样本 —— 正则结尾若写 `$`，Python 的 `$` 在末尾换行**之前**收尾，这串会被误收（删掉那条尾部空白检查后第一次跑对拍，红的就是它）。
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-38-backend] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [backend] 本实现的接受域变了: parse_posix_tz('AAA12BBB-12,M3.2.0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: ⚠️分歧: 两侧各自合法而**差**恰为 24h。C 库接受并在冬季给 −12h，本实现全年退 UTC。取舍: `dst()` / `timetuple()` 在夏季抛是**运行时**炸、落点不可预测（模板渲染 / 序列化 / 日志）；退 UTC 是可预测的降级。
+E   assert True == False
+_____________ test_accepted_domain_matches_libc[reject-38-scripts] _____________
+tests/regression/test_g6_9c_single_tz_source.py:1386: in test_accepted_domain_matches_libc
+    assert accepted == impl_ok, (
+E   AssertionError: [scripts] 本实现的接受域变了: parse_posix_tz('AAA12BBB-12,M3.2.0,M11.1.0'…) 接受了，表称应当拒绝
+E       依据: ⚠️分歧: 两侧各自合法而**差**恰为 24h。C 库接受并在冬季给 −12h，本实现全年退 UTC。取舍: `dst()` / `timetuple()` 在夏季抛是**运行时**炸、落点不可预测（模板渲染 / 序列化 / 日志）；退 UTC 是可预测的降级。
+E   assert True == False
+__________ test_southern_season_in_year_9999_is_not_dropped[backend] ___________
+tests/regression/test_g6_9c_single_tz_source.py:1411: in test_southern_season_in_year_9999_is_not_dropped
+    got = instant.astimezone(resolved).replace(tzinfo=None)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/core/display_tz.py:229: in fromutc
+    in_dst = self._in_dst(ts)
+             ^^^^^^^^^^^^^^^^
+app/core/display_tz.py:181: in _in_dst
+    if s <= ts < self._dst_window(year + 1)[1]:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/core/display_tz.py:169: in _dst_window
+    s = _rule_epoch(self._start, year) - self._std_off
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/core/display_tz.py:109: in _rule_epoch
+    first_wd = datetime(year, mon, 1).weekday()  # 0=周一
+               ^^^^^^^^^^^^^^^^^^^^^^
+E   ValueError: year must be in 1..9999, not 10000
+__________ test_southern_season_in_year_9999_is_not_dropped[scripts] ___________
+tests/regression/test_g6_9c_single_tz_source.py:1411: in test_southern_season_in_year_9999_is_not_dropped
+    got = instant.astimezone(resolved).replace(tzinfo=None)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../scripts/local_tz.py:230: in fromutc
+    in_dst = self._in_dst(ts)
+             ^^^^^^^^^^^^^^^^
+../scripts/local_tz.py:182: in _in_dst
+    if s <= ts < self._dst_window(year + 1)[1]:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../scripts/local_tz.py:170: in _dst_window
+    s = _rule_epoch(self._start, year) - self._std_off
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../scripts/local_tz.py:110: in _rule_epoch
+    first_wd = datetime(year, mon, 1).weekday()  # 0=周一
+               ^^^^^^^^^^^^^^^^^^^^^^
+E   ValueError: year must be in 1..9999, not 10000
+_________ test_tzname_uses_dst_membership_not_offset_equality[backend] _________
+tests/regression/test_g6_9c_single_tz_source.py:1432: in test_tzname_uses_dst_membership_not_offset_equality
+    assert winter.tzname() == "AAA", (
+E   AssertionError: [backend] 冬季 tzname 应为 std 名 'AAA'，实得 'BBB' —— 偏移相等时不能用「偏移 == dst_off」判身份。
+E   assert 'BBB' == 'AAA'
+E     
+E     - AAA
+E     + BBB
+_________ test_tzname_uses_dst_membership_not_offset_equality[scripts] _________
+tests/regression/test_g6_9c_single_tz_source.py:1432: in test_tzname_uses_dst_membership_not_offset_equality
+    assert winter.tzname() == "AAA", (
+E   AssertionError: [scripts] 冬季 tzname 应为 std 名 'AAA'，实得 'BBB' —— 偏移相等时不能用「偏移 == dst_off」判身份。
+E   assert 'BBB' == 'AAA'
+E     
+E     - AAA
+E     + BBB
+_ test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA24BBB,M3.2.0,M11.1.0-std \u4fa7 \u221224h \u4e0d\u53ef\u8868\u793a\uff08\u26a0\ufe0f C \u5e93**\u63a5\u53d7**\u5b83\u5e76\u7ed9 \u221224h\uff1b\u629b\u7684\u662f Python\uff09-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1467: in test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules
+    assert got is None, (
+E   AssertionError: [backend] 显式规则分支未校验偏移取值域: parse_posix_tz('AAA24BBB,M3.2.0,M11.1.0') 返回 <app.core.display_tz._PosixTZ object at 0x136a90ac0>
+E       std 侧 −24h 不可表示（⚠️ C 库**接受**它并给 −24h；抛的是 Python）
+E       整串属性与偏移范围的校验要放在两个分支的**共用**位置，不能只写在省略规则那一支里。
+E   assert <app.core.display_tz._PosixTZ object at 0x136a90ac0> is None
+_ test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA24BBB,M3.2.0,M11.1.0-std \u4fa7 \u221224h \u4e0d\u53ef\u8868\u793a\uff08\u26a0\ufe0f C \u5e93**\u63a5\u53d7**\u5b83\u5e76\u7ed9 \u221224h\uff1b\u629b\u7684\u662f Python\uff09-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1467: in test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules
+    assert got is None, (
+E   AssertionError: [scripts] 显式规则分支未校验偏移取值域: parse_posix_tz('AAA24BBB,M3.2.0,M11.1.0') 返回 <_g69c_local_tz_probe._PosixTZ object at 0x136a90940>
+E       std 侧 −24h 不可表示（⚠️ C 库**接受**它并给 −24h；抛的是 Python）
+E       整串属性与偏移范围的校验要放在两个分支的**共用**位置，不能只写在省略规则那一支里。
+E   assert <_g69c_local_tz_probe._PosixTZ object at 0x136a90940> is None
+_ test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA0:60BBB,M3.2.0,M11.1.0-\u5206\u949f 60 \u8d8a\u754c\uff08C \u5e93\u9000 UTC\uff0c\u4e0e\u672c\u5b9e\u73b0\u4e00\u81f4\uff09-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1467: in test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules
+    assert got is None, (
+E   AssertionError: [backend] 显式规则分支未校验偏移取值域: parse_posix_tz('AAA0:60BBB,M3.2.0,M11.1.0') 返回 <app.core.display_tz._PosixTZ object at 0x136a91000>
+E       分钟 60 越界（C 库退 UTC，与本实现一致）
+E       整串属性与偏移范围的校验要放在两个分支的**共用**位置，不能只写在省略规则那一支里。
+E   assert <app.core.display_tz._PosixTZ object at 0x136a91000> is None
+_ test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA0:60BBB,M3.2.0,M11.1.0-\u5206\u949f 60 \u8d8a\u754c\uff08C \u5e93\u9000 UTC\uff0c\u4e0e\u672c\u5b9e\u73b0\u4e00\u81f4\uff09-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1467: in test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules
+    assert got is None, (
+E   AssertionError: [scripts] 显式规则分支未校验偏移取值域: parse_posix_tz('AAA0:60BBB,M3.2.0,M11.1.0') 返回 <_g69c_local_tz_probe._PosixTZ object at 0x136a91d20>
+E       分钟 60 越界（C 库退 UTC，与本实现一致）
+E       整串属性与偏移范围的校验要放在两个分支的**共用**位置，不能只写在省略规则那一支里。
+E   assert <_g69c_local_tz_probe._PosixTZ object at 0x136a91d20> is None
+_ test_non_utf8_key_never_reaches_response_on_any_branch[explicit-rules-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1492: in test_non_utf8_key_never_reaches_response_on_any_branch
+    json.dumps({"display_tz": key}, ensure_ascii=False).encode("utf-8")
+E   UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 21: surrogates not allowed
+
+The above exception was the direct cause of the following exception:
+tests/regression/test_g6_9c_single_tz_source.py:1494: in test_non_utf8_key_never_reaches_response_on_any_branch
+    raise AssertionError(
+E   AssertionError: [backend] TZ=b'AAA0<\xff>,M3.2.0,M11.1.0'（explicit-rules）的 .key='AAA0<\udcff>,M3.2.0,M11.1.0' 过不了响应序列化: UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 21: surrogates not allowed
+E     整串编码校验要对**所有**形态生效，不能只写在省略规则分支里。
+_ test_non_utf8_key_never_reaches_response_on_any_branch[explicit-rules-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1492: in test_non_utf8_key_never_reaches_response_on_any_branch
+    json.dumps({"display_tz": key}, ensure_ascii=False).encode("utf-8")
+E   UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 21: surrogates not allowed
+
+The above exception was the direct cause of the following exception:
+tests/regression/test_g6_9c_single_tz_source.py:1494: in test_non_utf8_key_never_reaches_response_on_any_branch
+    raise AssertionError(
+E   AssertionError: [scripts] TZ=b'AAA0<\xff>,M3.2.0,M11.1.0'（explicit-rules）的 .key='AAA0<\udcff>,M3.2.0,M11.1.0' 过不了响应序列化: UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 21: surrogates not allowed
+E     整串编码校验要对**所有**形态生效，不能只写在省略规则分支里。
+____ test_non_utf8_key_never_reaches_response_on_any_branch[no-dst-backend] ____
+tests/regression/test_g6_9c_single_tz_source.py:1492: in test_non_utf8_key_never_reaches_response_on_any_branch
+    json.dumps({"display_tz": key}, ensure_ascii=False).encode("utf-8")
+E   UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 17: surrogates not allowed
+
+The above exception was the direct cause of the following exception:
+tests/regression/test_g6_9c_single_tz_source.py:1494: in test_non_utf8_key_never_reaches_response_on_any_branch
+    raise AssertionError(
+E   AssertionError: [backend] TZ=b'<\xff>0'（no-dst）的 .key='<\udcff>0' 过不了响应序列化: UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 17: surrogates not allowed
+E     整串编码校验要对**所有**形态生效，不能只写在省略规则分支里。
+____ test_non_utf8_key_never_reaches_response_on_any_branch[no-dst-scripts] ____
+tests/regression/test_g6_9c_single_tz_source.py:1492: in test_non_utf8_key_never_reaches_response_on_any_branch
+    json.dumps({"display_tz": key}, ensure_ascii=False).encode("utf-8")
+E   UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 17: surrogates not allowed
+
+The above exception was the direct cause of the following exception:
+tests/regression/test_g6_9c_single_tz_source.py:1494: in test_non_utf8_key_never_reaches_response_on_any_branch
+    raise AssertionError(
+E   AssertionError: [scripts] TZ=b'<\xff>0'（no-dst）的 .key='<\udcff>0' 过不了响应序列化: UnicodeEncodeError: 'utf-8' codec can't encode character '\udcff' in position 17: surrogates not allowed
+E     整串编码校验要对**所有**形态生效，不能只写在省略规则分支里。
+_ test_omitted_rule_offset_guard_does_not_overreach[AAA0:0:60BBB-\u79d2\u5b57\u6bb5 60\uff1aC \u5e93\u63a5\u53d7\u5e76\u7ed9 \u221200:01\uff0c\u672c\u5b9e\u73b0\u5fc5\u987b\u8ddf\u968f-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1612: in test_omitted_rule_offset_guard_does_not_overreach
+    assert got is not None, (
+E   AssertionError: [backend] 偏移收紧误伤了合法串: parse_posix_tz('AAA0:0:60BBB') 返回 None
+E       秒字段 60：C 库接受并给 −00:01，本实现必须跟随
+E       没有这条正控，「省略规则一律拒」的实现也能把上面那些拒绝用例跑绿。
+E   assert None is not None
+_ test_omitted_rule_offset_guard_does_not_overreach[AAA0:0:60BBB-\u79d2\u5b57\u6bb5 60\uff1aC \u5e93\u63a5\u53d7\u5e76\u7ed9 \u221200:01\uff0c\u672c\u5b9e\u73b0\u5fc5\u987b\u8ddf\u968f-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1612: in test_omitted_rule_offset_guard_does_not_overreach
+    assert got is not None, (
+E   AssertionError: [scripts] 偏移收紧误伤了合法串: parse_posix_tz('AAA0:0:60BBB') 返回 None
+E       秒字段 60：C 库接受并给 −00:01，本实现必须跟随
+E       没有这条正控，「省略规则一律拒」的实现也能把上面那些拒绝用例跑绿。
+E   assert None is not None
+_ test_omitted_rule_offset_guard_does_not_overreach[CET-1CEST-\u672c\u5361\u8981\u4fee\u7684\u6b63\u4f8b-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1612: in test_omitted_rule_offset_guard_does_not_overreach
+    assert got is not None, (
+E   AssertionError: [backend] 偏移收紧误伤了合法串: parse_posix_tz('CET-1CEST') 返回 None
+E       本卡要修的正例
+E       没有这条正控，「省略规则一律拒」的实现也能把上面那些拒绝用例跑绿。
+E   assert None is not None
+_ test_omitted_rule_offset_guard_does_not_overreach[CET-1CEST-\u672c\u5361\u8981\u4fee\u7684\u6b63\u4f8b-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1612: in test_omitted_rule_offset_guard_does_not_overreach
+    assert got is not None, (
+E   AssertionError: [scripts] 偏移收紧误伤了合法串: parse_posix_tz('CET-1CEST') 返回 None
+E       本卡要修的正例
+E       没有这条正控，「省略规则一律拒」的实现也能把上面那些拒绝用例跑绿。
+E   assert None is not None
+_ test_omitted_rule_offset_guard_does_not_overreach[XYZ5XYD-\u81ea\u9020\u540d\u6b63\u4f8b-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1612: in test_omitted_rule_offset_guard_does_not_overreach
+    assert got is not None, (
+E   AssertionError: [backend] 偏移收紧误伤了合法串: parse_posix_tz('XYZ5XYD') 返回 None
+E       自造名正例
+E       没有这条正控，「省略规则一律拒」的实现也能把上面那些拒绝用例跑绿。
+E   assert None is not None
+_ test_omitted_rule_offset_guard_does_not_overreach[XYZ5XYD-\u81ea\u9020\u540d\u6b63\u4f8b-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1612: in test_omitted_rule_offset_guard_does_not_overreach
+    assert got is not None, (
+E   AssertionError: [scripts] 偏移收紧误伤了合法串: parse_posix_tz('XYZ5XYD') 返回 None
+E       自造名正例
+E       没有这条正控，「省略规则一律拒」的实现也能把上面那些拒绝用例跑绿。
+E   assert None is not None
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from0-90-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='IST-1GMT0'(夏令时差 -1h) 在 2026-11-01T00:00:00+00:00
+E       本实现给 2026-11-01 00:00:00，C 库给 2026-11-01 01:00:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 11, 1, 0, 0) == datetime.datetime(2026, 11, 1, 1, 0)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from0-90-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [scripts] 省略规则的切换点与 C 库不符: TZ='IST-1GMT0'(夏令时差 -1h) 在 2026-11-01T00:00:00+00:00
+E       本实现给 2026-11-01 00:00:00，C 库给 2026-11-01 01:00:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 11, 1, 0, 0) == datetime.datetime(2026, 11, 1, 1, 0)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from1-90-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='ABC-1DEF-5'(夏令时差 +4h) 在 2026-10-31T23:30:00+00:00
+E       本实现给 2026-10-31 23:30:00，C 库给 2026-11-01 04:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 10, 31, 23, 30) == datetime.datetime(2026, 11, 1, 4, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from1-90-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [scripts] 省略规则的切换点与 C 库不符: TZ='ABC-1DEF-5'(夏令时差 +4h) 在 2026-10-31T23:30:00+00:00
+E       本实现给 2026-10-31 23:30:00，C 库给 2026-11-01 04:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 10, 31, 23, 30) == datetime.datetime(2026, 11, 1, 4, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[NZST-12NZDT-13:30-+1.5h-scan_from2-90-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='NZST-12NZDT-13:30'(夏令时差 +1.5h) 在 2026-10-31T12:30:00+00:00
+E       本实现给 2026-10-31 12:30:00，C 库给 2026-11-01 02:00:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 10, 31, 12, 30) == datetime.datetime(2026, 11, 1, 2, 0)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[NZST-12NZDT-13:30-+1.5h-scan_from2-90-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [scripts] 省略规则的切换点与 C 库不符: TZ='NZST-12NZDT-13:30'(夏令时差 +1.5h) 在 2026-10-31T12:30:00+00:00
+E       本实现给 2026-10-31 12:30:00，C 库给 2026-11-01 02:00:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 10, 31, 12, 30) == datetime.datetime(2026, 11, 1, 2, 0)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[AAA5BBB7--2h-scan_from3-90-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='AAA5BBB7'(夏令时差 -2h) 在 2026-11-01T05:30:00+00:00
+E       本实现给 2026-11-01 05:30:00，C 库给 2026-10-31 22:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 11, 1, 5, 30) == datetime.datetime(2026, 10, 31, 22, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[AAA5BBB7--2h-scan_from3-90-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [scripts] 省略规则的切换点与 C 库不符: TZ='AAA5BBB7'(夏令时差 -2h) 在 2026-11-01T05:30:00+00:00
+E       本实现给 2026-11-01 05:30:00，C 库给 2026-10-31 22:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 11, 1, 5, 30) == datetime.datetime(2026, 10, 31, 22, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[CET-1CEST-+1h-scan_from4-90-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='CET-1CEST'(夏令时差 +1h) 在 2026-10-31T23:30:00+00:00
+E       本实现给 2026-10-31 23:30:00，C 库给 2026-11-01 01:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 10, 31, 23, 30) == datetime.datetime(2026, 11, 1, 1, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[CET-1CEST-+1h-scan_from4-90-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [scripts] 省略规则的切换点与 C 库不符: TZ='CET-1CEST'(夏令时差 +1h) 在 2026-10-31T23:30:00+00:00
+E       本实现给 2026-10-31 23:30:00，C 库给 2026-11-01 01:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 10, 31, 23, 30) == datetime.datetime(2026, 11, 1, 1, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from5-90-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='IST-1GMT0'(夏令时差 -1h) 在 2026-03-08T00:30:00+00:00
+E       本实现给 2026-03-08 00:30:00，C 库给 2026-03-08 01:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 3, 8, 0, 30) == datetime.datetime(2026, 3, 8, 1, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from5-90-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [scripts] 省略规则的切换点与 C 库不符: TZ='IST-1GMT0'(夏令时差 -1h) 在 2026-03-08T00:30:00+00:00
+E       本实现给 2026-03-08 00:30:00，C 库给 2026-03-08 01:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 3, 8, 0, 30) == datetime.datetime(2026, 3, 8, 1, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from6-90-backend] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [backend] 省略规则的切换点与 C 库不符: TZ='ABC-1DEF-5'(夏令时差 +4h) 在 2026-03-08T00:30:00+00:00
+E       本实现给 2026-03-08 00:30:00，C 库给 2026-03-08 01:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 3, 8, 0, 30) == datetime.datetime(2026, 3, 8, 1, 30)
+_ test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from6-90-scripts] _
+tests/regression/test_g6_9c_single_tz_source.py:1669: in test_omitted_rule_transition_points_track_the_standard_side_offset
+    assert got == libc, (
+E   AssertionError: [scripts] 省略规则的切换点与 C 库不符: TZ='ABC-1DEF-5'(夏令时差 +4h) 在 2026-03-08T00:30:00+00:00
+E       本实现给 2026-03-08 00:30:00，C 库给 2026-03-08 01:30:00
+E       end 的切换时刻要按 `3600 + dst_off − std_off` 现算（C 库钉的是当地**标准**时
+E       01:00）；写死「当地 02:00」只在夏令时差恰为 +1 小时时才对。
+E   assert datetime.datetime(2026, 3, 8, 0, 30) == datetime.datetime(2026, 3, 8, 1, 30)
+_________ test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz __________
+tests/regression/test_g6_9c_single_tz_source.py:2100: in test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz
+    with pytest.raises(ValueError, match="display_tz 缺席或为 null"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE <class 'ValueError'>
+_ test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[missing] _
+tests/regression/test_g6_9c_single_tz_source.py:2188: in test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent
+    raise AssertionError(
+E   AssertionError: 固定偏移回退误放行·桶 due_today（display_tz missing）
+E     fsrs_due=2026-03-09T04:30:00Z 在生产者时区(America/New_York)是 03-09 00:30 EDT,
+E     与 generated_at=2026-03-08T00:30:00-05:00 的本地日 03-08 **不是同一天** ⇒ 它属 future;
+E     门却用 generated_at 自带的固定 -05:00 把它算成 03-08 23:30, 于是放行了这个伪造的
+E     due_today。这正是 Codex r5 HIGH-2 点名的误放行 —— 与误拒完全对称, 不是「只有
+E     兼容性损失」。
+_ test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[null] __
+tests/regression/test_g6_9c_single_tz_source.py:2188: in test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent
+    raise AssertionError(
+E   AssertionError: 固定偏移回退误放行·桶 due_today（display_tz null）
+E     fsrs_due=2026-03-09T04:30:00Z 在生产者时区(America/New_York)是 03-09 00:30 EDT,
+E     与 generated_at=2026-03-08T00:30:00-05:00 的本地日 03-08 **不是同一天** ⇒ 它属 future;
+E     门却用 generated_at 自带的固定 -05:00 把它算成 03-08 23:30, 于是放行了这个伪造的
+E     due_today。这正是 Codex r5 HIGH-2 点名的误放行 —— 与误拒完全对称, 不是「只有
+E     兼容性损失」。
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_two_copies_share_identical_localtz_class
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[CET-1CEST-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_posix_tz_string_resolves_to_process_local_not_etc_localtime[AAA1BBB0,365/3,365/2-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant0-2022 \u662f\u5e73\u5e74 \u21d2 start(2022) \u7684\u88f8 n=365 \u843d\u5230 2023-01-01T04:00Z, end(2023) \u843d\u5230 2024-01-01T02:00Z \u21d2 \u8be5\u5b63\u5ea6\u6a2a\u8de8\u6574\u4e2a 2023 \u5e74\u5e76\u5305\u4f4f 2024 \u5143\u65e6, \u540d\u4e49\u8d77\u59cb\u5e74\u662f y-2-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant0-2022 \u662f\u5e73\u5e74 \u21d2 start(2022) \u7684\u88f8 n=365 \u843d\u5230 2023-01-01T04:00Z, end(2023) \u843d\u5230 2024-01-01T02:00Z \u21d2 \u8be5\u5b63\u5ea6\u6a2a\u8de8\u6574\u4e2a 2023 \u5e74\u5e76\u5305\u4f4f 2024 \u5143\u65e6, \u540d\u4e49\u8d77\u59cb\u5e74\u662f y-2-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant1-\u540c\u5f62\u6001\u7684\u53e6\u4e00\u5e74(2021 \u4e5f\u662f\u5e73\u5e74) \u2014\u2014 \u4e24\u6761\u4e00\u8d77\u6392\u9664\u300c\u53ea\u662f\u67d0\u4e00\u5e74\u51d1\u5de7\u300d-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/3,365/2-instant1-\u540c\u5f62\u6001\u7684\u53e6\u4e00\u5e74(2021 \u4e5f\u662f\u5e73\u5e74) \u2014\u2014 \u4e24\u6761\u4e00\u8d77\u6392\u9664\u300c\u53ea\u662f\u67d0\u4e00\u5e74\u51d1\u5de7\u300d-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/167,365/166-instant2-\u540c\u4e00\u6f0f\u683c\u3001\u7ea2\u533a\u5bbd 166 \u5c0f\u65f6\u4e14\u9010\u5e74\u90fd\u6709 \u2014\u2014 \u65f6\u523b\u632a\u52a8\u540e\u4ecd\u7136\u627f\u91cd-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,365/167,365/166-instant2-\u540c\u4e00\u6f0f\u683c\u3001\u7ea2\u533a\u5bbd 166 \u5c0f\u65f6\u4e14\u9010\u5e74\u90fd\u6709 \u2014\u2014 \u65f6\u523b\u632a\u52a8\u540e\u4ecd\u7136\u627f\u91cd-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,J365/167,J365/167-instant3-Jn \u53e0\u5927 /N \u540c\u6837\u6eda\u51fa\u540d\u4e49\u5e74\uff082007..2037 \u5143\u65e6\u5468\u9010\u5c0f\u65f6\u7ea2 4433 \u70b9\uff09-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,J365/167,J365/167-instant3-Jn \u53e0\u5927 /N \u540c\u6837\u6eda\u51fa\u540d\u4e49\u5e74\uff082007..2037 \u5143\u65e6\u5468\u9010\u5c0f\u65f6\u7ea2 4433 \u70b9\uff09-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,M12.5.0/167,M12.5.0/167-instant4-\u7eaf Mm.w.d \u89c4\u5219\u4e5f\u80fd\u6eda\u5e74\uff08\u672b\u5468\u65e5\u9760\u8fd1\u6708\u672b\u7684\u5e74\u4efd\uff0c\u7ea2 2325 \u70b9\uff09-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_dst_window_candidates_cover_rules_that_roll_into_the_following_year[AAA1BBB0,M12.5.0/167,M12.5.0/167-instant4-\u7eaf Mm.w.d \u89c4\u5219\u4e5f\u80fd\u6eda\u5e74\uff08\u672b\u5468\u65e5\u9760\u8fd1\u6708\u672b\u7684\u5e74\u4efd\uff0c\u7ea2 2325 \u70b9\uff09-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[EST5EDT-summer0-winter0-\u6709\u540c\u540d tzfile, \u6545\u53ea\u6709\u76f4\u63a5\u8c03 parse_posix_tz \u624d\u591f\u5f97\u5230\u672c\u5206\u652f-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[EST5EDT-summer0-winter0-\u6709\u540c\u540d tzfile, \u6545\u53ea\u6709\u76f4\u63a5\u8c03 parse_posix_tz \u624d\u591f\u5f97\u5230\u672c\u5206\u652f-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[CET-1CEST-summer1-winter1-Codex r5 \u7684\u9010\u5b57\u53cd\u4f8b: \u4e24\u526f\u672c\u7ed9 22:30+00:00, libc \u7ed9 2026-08-01 00:30+02:00-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[CET-1CEST-summer1-winter1-Codex r5 \u7684\u9010\u5b57\u53cd\u4f8b: \u4e24\u526f\u672c\u7ed9 22:30+00:00, libc \u7ed9 2026-08-01 00:30+02:00-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[XYZ5XYD-summer2-winter2-\u81ea\u9020\u540d \u2014\u2014 /usr/share/zoneinfo \u4e0b\u65e0\u540c\u540d tzfile, \u6392\u9664\u300c\u5176\u5b9e\u8bfb\u5230\u4e86\u540c\u540d\u6587\u4ef6\u300d\u8fd9\u4e00\u66ff\u4ee3\u89e3\u91ca-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_transition_rules_use_the_libc_default_instead_of_falling_back_to_utc[XYZ5XYD-summer2-winter2-\u81ea\u9020\u540d \u2014\u2014 /usr/share/zoneinfo \u4e0b\u65e0\u540c\u540d tzfile, \u6392\u9664\u300c\u5176\u5b9e\u8bfb\u5230\u4e86\u540c\u540d\u6587\u4ef6\u300d\u8fd9\u4e00\u66ff\u4ee3\u89e3\u91ca-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_candidate_year_guard_keeps_extreme_epochs_from_raising[backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_candidate_year_guard_keeps_extreme_epochs_from_raising[scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[**\u53cc**\u5192\u53f7\uff1aC \u5e93\u53ea\u5265\u4e00\u4e2a\uff0c\u5269\u4e0b `:Asi-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[**\u53cc**\u5192\u53f7\uff1aC \u5e93\u53ea\u5265\u4e00\u4e2a\uff0c\u5269\u4e0b `:Asi-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u4e09\u5192\u53f7\uff1a\u540c\u4e0a-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u4e09\u5192\u53f7\uff1a\u540c\u4e0a-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u7edd\u5bf9\u8def\u5f84\uff1aC \u5e93\u76f4\u63a5\u6253\u5f00\u8be5 tzfile-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u7edd\u5bf9\u8def\u5f84\uff1aC \u5e93\u76f4\u63a5\u6253\u5f00\u8be5 tzfile-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u5192\u53f7 + \u7edd\u5bf9\u8def\u5f84-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u5192\u53f7 + \u7edd\u5bf9\u8def\u5f84-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u76f8\u5bf9 TZDIR \u7684\u8def\u5f84-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u76f8\u5bf9 TZDIR \u7684\u8def\u5f84-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u53cc\u659c\u6760-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[\u53cc\u659c\u6760-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[`..` \u8def\u5f84\uff1aC \u5e93\u63a5\u53d7\uff08`resolve()-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tz_path_forms_match_libc[`..` \u8def\u5f84\uff1aC \u5e93\u63a5\u53d7\uff08`resolve()-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo[backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_fromutc_rejects_foreign_tzinfo[scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_grid_matches_libc
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-4-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-4-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-10-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-10-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-11-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-11-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-12-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-12-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-13-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-13-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-14-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-14-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-15-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-15-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-16-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-16-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-17-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-17-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-18-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-18-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-19-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-19-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-21-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-21-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-22-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-22-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-23-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-23-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-26-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-26-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-27-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-27-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-28-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-28-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-29-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-29-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-30-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-30-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-31-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-31-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-32-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-32-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-33-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-33-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-35-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[accept-35-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-36-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-36-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-38-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_accepted_domain_matches_libc[reject-38-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_southern_season_in_year_9999_is_not_dropped[backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_southern_season_in_year_9999_is_not_dropped[scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tzname_uses_dst_membership_not_offset_equality[backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_tzname_uses_dst_membership_not_offset_equality[scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA24BBB,M3.2.0,M11.1.0-std \u4fa7 \u221224h \u4e0d\u53ef\u8868\u793a\uff08\u26a0\ufe0f C \u5e93**\u63a5\u53d7**\u5b83\u5e76\u7ed9 \u221224h\uff1b\u629b\u7684\u662f Python\uff09-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA24BBB,M3.2.0,M11.1.0-std \u4fa7 \u221224h \u4e0d\u53ef\u8868\u793a\uff08\u26a0\ufe0f C \u5e93**\u63a5\u53d7**\u5b83\u5e76\u7ed9 \u221224h\uff1b\u629b\u7684\u662f Python\uff09-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA0:60BBB,M3.2.0,M11.1.0-\u5206\u949f 60 \u8d8a\u754c\uff08C \u5e93\u9000 UTC\uff0c\u4e0e\u672c\u5b9e\u73b0\u4e00\u81f4\uff09-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_offset_domain_is_checked_on_every_branch_not_only_omitted_rules[AAA0:60BBB,M3.2.0,M11.1.0-\u5206\u949f 60 \u8d8a\u754c\uff08C \u5e93\u9000 UTC\uff0c\u4e0e\u672c\u5b9e\u73b0\u4e00\u81f4\uff09-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_non_utf8_key_never_reaches_response_on_any_branch[explicit-rules-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_non_utf8_key_never_reaches_response_on_any_branch[explicit-rules-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_non_utf8_key_never_reaches_response_on_any_branch[no-dst-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_non_utf8_key_never_reaches_response_on_any_branch[no-dst-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_offset_guard_does_not_overreach[AAA0:0:60BBB-\u79d2\u5b57\u6bb5 60\uff1aC \u5e93\u63a5\u53d7\u5e76\u7ed9 \u221200:01\uff0c\u672c\u5b9e\u73b0\u5fc5\u987b\u8ddf\u968f-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_offset_guard_does_not_overreach[AAA0:0:60BBB-\u79d2\u5b57\u6bb5 60\uff1aC \u5e93\u63a5\u53d7\u5e76\u7ed9 \u221200:01\uff0c\u672c\u5b9e\u73b0\u5fc5\u987b\u8ddf\u968f-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_offset_guard_does_not_overreach[CET-1CEST-\u672c\u5361\u8981\u4fee\u7684\u6b63\u4f8b-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_offset_guard_does_not_overreach[CET-1CEST-\u672c\u5361\u8981\u4fee\u7684\u6b63\u4f8b-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_offset_guard_does_not_overreach[XYZ5XYD-\u81ea\u9020\u540d\u6b63\u4f8b-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_offset_guard_does_not_overreach[XYZ5XYD-\u81ea\u9020\u540d\u6b63\u4f8b-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from0-90-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from0-90-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from1-90-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from1-90-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[NZST-12NZDT-13:30-+1.5h-scan_from2-90-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[NZST-12NZDT-13:30-+1.5h-scan_from2-90-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[AAA5BBB7--2h-scan_from3-90-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[AAA5BBB7--2h-scan_from3-90-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[CET-1CEST-+1h-scan_from4-90-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[CET-1CEST-+1h-scan_from4-90-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from5-90-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[IST-1GMT0--1h-scan_from5-90-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from6-90-backend]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_omitted_rule_transition_points_track_the_standard_side_offset[ABC-1DEF-5-+4h-scan_from6-90-scripts]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[missing]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[null]
+================= 125 failed, 164 passed, 10 warnings in 3.48s =================

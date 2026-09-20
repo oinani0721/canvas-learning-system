@@ -1,0 +1,13 @@
+# (i) tests/unit 收工 nodeid diff（r1 修复后）@ 2026-09-18T21:43:56+08:00 HEAD=6242aff4
+## 汇总
+= 32 failed, 5731 passed, 44 skipped, 13 xfailed, 231 warnings in 859.69s (0:14:19) =
+rc=1
+## 三次跑的对照（跑法逐字同 $BASE 头第 3 行）
+   开工      : 32 failed, 5731 passed (12:28)
+   r1 前收工 : 32 failed, 5731 passed (19:07)
+   r1 后收工 : 32 failed, 5731 passed, 44 skipped, 13 xfailed, 231 warnings in 859.69s (0:14:19)
+## nodeid diff（base 33 vs close，只允许 <）
+   base=      33  close=      32
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+   ⇒ 只允许 '<'；'>' 一条都不能有

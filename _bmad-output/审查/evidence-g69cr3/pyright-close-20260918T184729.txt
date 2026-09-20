@@ -1,0 +1,20 @@
+# (h) pyright 收工 + 「零新增 ignore」正确取值面 @ 2026-09-18T18:47:29+08:00 HEAD=c6a7f446
+## 汇总行（结构锚 ^[0-9]+ errors?, ，禁 tail 取末行）
+0 errors, 81 warnings, 0 informations
+## warning 80→81 的那一条（来自移植的 R2 fromutc 防御，保留不改）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/core/display_tz.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/core/display_tz.py:683:16 - warning: Unnecessary isinstance call; "datetime" is always an instance of "datetime" (reportUnnecessaryIsInstance)
+
+## ⛔ 判据取值面更正：pyright 只跑 `backend/app`，所以「零新增 ignore」必须在 app 下数
+--- 错误写法（全仓 diff）的结果：---
+2
+    ↑ 这 2 处都在 backend/tests/（pick 现取门的 import），不在 pyright 的取值面内
+      +    import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
+      +    import daily_review_pick as picker  # noqa: PLC0415  # pyright: ignore[reportMissingImports]
+--- 正确写法（只看 backend/app）：---
+    本卡在 backend/app 下新增的 pyright: ignore = 0
+--- 验伪锚：同命令数 backend/app 下**既有**的 ignore（须 >0，证明 grep 能命中）---
+    backend/app 全树既有 pyright: ignore 行数 = 53
+--- 本卡改的两个 app 文件各自的 ignore 数（BASE vs HEAD）---
+    backend/app/core/display_tz.py  base=0  head=0
+    backend/app/api/v1/endpoints/review_overview.py  base=1  head=1

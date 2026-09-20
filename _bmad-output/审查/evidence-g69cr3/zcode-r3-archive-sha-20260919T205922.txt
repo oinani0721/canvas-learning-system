@@ -1,0 +1,18 @@
+# zcode r3 存档哈希自证 (20260919T205922)
+pre-header(JSON 原文) sha256 = 2693d2441c48ab7449b028eeb688ed57aade040004e92eb212eba23ca5252452
+含首部全文 sha256         = 58eacd4b41cb103023d791e4656c95070909451908918920e3f076984cb93dda
+首部 blockquote sha256    = 091b60d31e75102b654ff86d4bab293c0bcaa69a72055109f40f3599a84e57b4
+
+== body JSON 复解析（跳首部 8 行：6 引述 + --- + 空行）==
+body-json-ok · sessionId: sess_5d5c6147-5e34-48dd-8e36-8c4e7941a4b3 · traceId: ecf664c4-38fc-4de1-bc93-26a678fb9229
+
+== first 9 lines ==
+> 批次: BATCH-2026-09-18-第十五批 · 车道 card-p5-review · 卡 CARD-G6-9c-R3 round-3（补审 · ZCode 通道 · 协议 §2.4.2）
+> 模型: `glm-5.3`（provider_config.defaultModelSelection: modelId=`glm-5.3` · reasoningLevel=`max`）
+> 工具: zcode-app-cli 3.12.3-26 / runtime 0.16.5
+> 命令: `zcode --prompt "$(cat _bmad-output/审查/prompts/zcode-review-prompt-CARD-G6-9c-R3-r3.md)" --cwd /Users/Heishing/Des
+> 审查绑定: `d062e2b1`（送审时 HEAD=`57d29464`；本卡 11 文件 `d062e2b1..HEAD` 零改动 + 全树 exclude `_bmad-output` 为零 ⇒ 树内代码内容 == 送审 SHA 内
+> 自证: sessionId=`sess_5d5c6147-5e34-48dd-8e36-8c4e7941a4b3` · traceId=`ecf664c4-38fc-4de1-bc93-26a678fb9229`（--json 原文抄录
+---
+
+{

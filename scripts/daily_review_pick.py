@@ -242,12 +242,28 @@ TITLE_LIMIT = 20
 #: CARD-G6-9c / D-18 (2026-09-07): 人话与桶位时区取**单一来源** local_tz —
 #: 缺省 = 机器本地的 IANA 名, CANVAS_TZ 显式覆盖。此前这里写死 Asia/Shanghai,
 #: 与 runner 的机器本地日构成两套时钟 (矩阵 8 组分叉的一半根因)。
-#: ⚠ 本模块用**模块级常量**(与显示侧 review_overview 的"每次调用现取"不同):
-#: pick 是 launchd 一次性进程 / 子进程, 生命周期内时区不会变; 而测试里
-#: machine_tz 夹具改 TZ 后不 reload 模块 ⇒ 需 monkeypatch 本常量
-#: (test_g6_9_boundary_matrix.py 三条非时区用例已按此处置)。改成每次现调
-#: 会与 U6-B / U6-C 卡文已引用的形态分裂 —— 要改先报主 session。
-_DISPLAY_TZ = local_tz.display_tz()
+#: ⛔ CARD-G6-9c-R3 (2026-09-18, 用户已裁 D-18): 本模块从**模块级常量**改为
+#: **每次调用现取**, 与显示侧 review_overview.py:110-112 / daily_review_run.py:709
+#: 同形, 也与两份 TZ 副本 docstring 里那条「消费侧必须每次调用现取, 禁止绑成模块级
+#: 常量」对齐 —— 在此之前 pick 是全仓唯一的例外。
+#: ⚠ 旧注释给的理由是「pick 是 launchd 一次性进程, 生命周期内时区不会变」。那句话
+#: 本身没错, 但它只说明「现取不会更贵」, 说明不了「常量是对的」: 求值时机一旦固化在
+#: import 那一刻, 任何在 import 之后改时区的调用路径 (CLI 直跑时先 import 后设 TZ、
+#: 同进程跑多个 vault、pytest 里 machine_tz 夹具) 拿到的都是旧时区, 而且**不报错**,
+#: 只是把「今天」算偏一天。
+#: ⚠ 行为等价声明: launchd 那条路径上时区在进程生命周期内不变, 所以改现取对**线上
+#: 产出零变化**; 真正变的是测试夹具的钉法 ——
+#:   monkeypatch.setattr(picker, "_display_tz", lambda: ZoneInfo("Asia/Shanghai"))
+#: 而不再是 setattr(picker, "_DISPLAY_TZ", ...)。
+#: ⚠ 同步面是 **11 处 / 6 个文件**, 不是卡文 §〇 说的「5 处」——那个数是在**移植之前**的
+#: 主干上数的。移植进来的 test_g6_9c 自带 5 组直接属性赋值、tests/unit/test_review_overview
+#: 还有第 6 处 monkeypatch。判据请用 AST 级**全仓**扫描, 别只 grep 卡文点名的那几个文件。
+
+
+def _display_tz():
+    """显示/归日用时区 —— 每次调用现取 (D-18)。与 local_tz 单一来源同步。"""
+    return local_tz.display_tz()
+
 
 #: CARD-G3-6a S1 五桶 — 级联优先级顺序即本元组顺序 (落盘 buckets 键序亦同)
 BUCKET_NEW = "new"
@@ -379,8 +395,16 @@ def _display_local(ts: str):
     清空)。年份极值 (9999-12-31T23:59:59Z + 8h) astimezone 会 OverflowError
     — 人话层绝不崩全轮, 交由调用方走兜底文案 / 归 future。
     """
+    # ⛔ 先把时区取出来, **不要**放进下面的 try（CARD-G6-9c-R3 自审）:
+    #    `local_tz.display_tz()` 对无效 `CANVAS_TZ` 抛 `ValueError`（「配置断裂要说话,
+    #    不静默退化」, 见 local_tz.display_tz 的 docstring / 用户裁定 D-18）。
+    #    本模块改成**每次现取**之前, 那个 ValueError 在 import 期就抛、永远到不了这里;
+    #    改现取之后它第一次有机会落进下面那个为「年份极值 OverflowError」准备的
+    #    `except ValueError` 里被吞掉 —— 配置写错会静默退化成「这条记录不可表示」,
+    #    而不是报错。那是纵深的丢失, 不是本卡想要的行为变化。
+    tz = _display_tz()
     try:
-        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(_DISPLAY_TZ)
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(tz)
     except (ValueError, OverflowError, OSError):
         return None
 
@@ -397,7 +421,7 @@ def _today_local(now: datetime):
     换算要减 14 小时 → 年份下溢), 故最后再退一档到 now 自身表示的日期 ——
     该值恒可得, 三档保证本函数永不抛。
     """
-    for tz in (_DISPLAY_TZ, timezone.utc):
+    for tz in (_display_tz(), timezone.utc):
         try:
             return now.astimezone(tz).date()
         except (OverflowError, OSError):
@@ -1007,7 +1031,7 @@ def build_payload(
     # 的显示时区日**恒同一天**, 不再依赖"生产机恰好在上海"这个非不变量。
     # (Y3-B 登记的 8 组分叉即由此消除; 旧注释引的 runner 行号早已过期, 见 :295-296。)
     if isinstance(board_done, dict) and board_done:
-        _today_key = now.astimezone(_DISPLAY_TZ).date().isoformat()
+        _today_key = now.astimezone(_display_tz()).date().isoformat()
         _undone = [r for r in ranked if board_done.get(r["board"]) != _today_key]
         if _undone:
             ranked = _undone + [r for r in ranked if board_done.get(r["board"]) == _today_key]
@@ -1019,7 +1043,7 @@ def build_payload(
     # 全部板都被推迟时分区退化为恒等 (awake 为空 → ranked 原样): 与完成那边
     # 同理, 没有"下一块"可让, 强行清空只会让当天通知凭空消失。
     # 时钟: active_snoozed 只拿 aware until 与入参 now 比绝对时刻, 不做任何
-    # 时区换算 —— 本函数里那个 _DISPLAY_TZ 是日历口径 (哪一天), 与"到没到点"
+    # 时区换算 —— 本函数里那个 _display_tz() 是日历口径 (哪一天), 与"到没到点"
     # 是两件事, 不许串用。
     _awake_snooze = active_snoozed(snoozed, now)
     if _awake_snooze:
@@ -1117,9 +1141,9 @@ def build_payload(
         # (Bogota 恒 -05:00 vs New_York 的 EST), DST 边界上就会把合法投影判成
         # corrupt、或反过来放行错误归桶的投影 (Codex r3 HIGH-2 两个方向都实测过)。
         # 末档固定偏移无 .key ⇒ None, 消费侧退回自己的显示时区。
-        "display_tz": getattr(_DISPLAY_TZ, "key", None),
-        "date": now.astimezone(_DISPLAY_TZ).date().isoformat(),
-        "generated_at": now.astimezone(_DISPLAY_TZ).isoformat(timespec="seconds"),
+        "display_tz": getattr(_display_tz(), "key", None),
+        "date": now.astimezone(_display_tz()).date().isoformat(),
+        "generated_at": now.astimezone(_display_tz()).isoformat(timespec="seconds"),
         # CARD-G3-6b: 字面量 3 换成具名常量 —— 值恒等 (行为零变化), 但让
         # truncated 的判据与截断本身同源, 不给"上限改了一处漏一处"留缝
         "top_boards": ranked[:TOP_BOARDS_LIMIT],
@@ -1300,7 +1324,7 @@ def main():
         # (不改任何冻结字段的计算)。
         try:
             now.astimezone()
-            now.astimezone(_DISPLAY_TZ)
+            now.astimezone(_display_tz())
         except (OverflowError, OSError):
             ap.error(f"--now 超出可换算范围 (本地/显示时区换算溢出): {args.now}")
     else:

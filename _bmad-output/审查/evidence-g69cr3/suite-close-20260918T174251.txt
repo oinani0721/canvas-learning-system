@@ -1,0 +1,147 @@
+# ⚠️ 这是承重套件的**首跑**（11 failed），保留作为「钉法漏改」的证据，不是收工态。
+# 11 条红全部源于同一个缺陷：pick 的 `_DISPLAY_TZ` 改成 `_display_tz()` 后，
+#   移植进来的 test_g6_9c 自带 5 组夹具 + tests/unit/test_review_overview 第 6 处
+#   仍在引用旧名 ⇒ AttributeError。修复 commit feb5a593。
+# ⛔ 不要拿这一跑与更早那次「test_g6_9c 单文件 289 passed」比较：那次是 17:07 启动的，
+#   跑的是 pick 改动**之前**的代码，两跑不可比。
+# 收工态见同目录 suite-close-<更晚的时间戳>.txt。
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 719 items
+
+tests/regression/test_g6_9c_single_tz_source.py ........................ [  3%]
+........................................................................ [ 13%]
+........................................................................ [ 23%]
+........................................................................ [ 33%]
+......................................FFFFFFFFF..................        [ 42%]
+tests/regression/test_local_tz_negctl_r3.py ....................         [ 45%]
+tests/regression/test_daily_review_pick.py ............................. [ 49%]
+...........................................................              [ 57%]
+tests/regression/test_daily_review_run.py .............................. [ 61%]
+.........F..................................                             [ 67%]
+tests/regression/test_g6_9_boundary_matrix.py ........................   [ 71%]
+tests/unit/test_review_overview.py .............F....................... [ 76%]
+........................................................................ [ 86%]
+........                                                                 [ 87%]
+tests/unit/test_vault_lint.py .......................................... [ 93%]
+.................................................                        [100%]
+
+=================================== FAILURES ===================================
+________ test_bucket_gate_uses_projection_own_tz_not_current_display_tz ________
+tests/regression/test_g6_9c_single_tz_source.py:1886: in test_bucket_gate_uses_projection_own_tz_not_current_display_tz
+    picker_tz_saved = picker._DISPLAY_TZ
+                      ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_ test_bucket_gate_reference_day_handles_dst_and_tz_switch[America/New_York-2026-03-08T05:30:00Z-2026-03-09T04:30:00Z-America/New_York-future-\u6625\u5b63\u524d\u8df3\xb7NY \u751f\u6210 NY \u663e\u793a] _
+tests/regression/test_g6_9c_single_tz_source.py:1991: in test_bucket_gate_reference_day_handles_dst_and_tz_switch
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_ test_bucket_gate_reference_day_handles_dst_and_tz_switch[America/New_York-2026-11-01T04:30:00Z-2026-11-02T04:30:00Z-America/New_York-due_today-\u79cb\u5b63\u56de\u62e8\xb7NY \u751f\u6210 NY \u663e\u793a] _
+tests/regression/test_g6_9c_single_tz_source.py:1991: in test_bucket_gate_reference_day_handles_dst_and_tz_switch
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_ test_bucket_gate_reference_day_handles_dst_and_tz_switch[America/Bogota-2026-03-08T05:30:00Z-2026-03-09T04:30:00Z-America/New_York-due_today-\u540c\u504f\u79fb\u4e0d\u540c\u89c4\u5219\xb7Bogota \u751f\u6210 NY \u663e\u793a] _
+tests/regression/test_g6_9c_single_tz_source.py:1991: in test_bucket_gate_reference_day_handles_dst_and_tz_switch
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_ test_bucket_gate_reference_day_handles_dst_and_tz_switch[Asia/Shanghai-2026-07-31T15:00:00Z-2026-07-31T17:00:00Z-UTC-future-\u5207\u65f6\u533a\xb7\u4e0a\u6d77\u751f\u6210 UTC \u663e\u793a] _
+tests/regression/test_g6_9c_single_tz_source.py:1991: in test_bucket_gate_reference_day_handles_dst_and_tz_switch
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_ test_bucket_gate_reference_day_handles_dst_and_tz_switch[Asia/Shanghai-2026-07-31T01:00:00Z-2026-07-31T13:00:00Z-Asia/Shanghai-due_today-\u540c\u533a\u5f53\u65e5] _
+tests/regression/test_g6_9c_single_tz_source.py:1991: in test_bucket_gate_reference_day_handles_dst_and_tz_switch
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_________ test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz __________
+tests/regression/test_g6_9c_single_tz_source.py:2048: in test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_ test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[missing] _
+tests/regression/test_g6_9c_single_tz_source.py:2165: in test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+_ test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[null] __
+tests/regression/test_g6_9c_single_tz_source.py:2165: in test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent
+    saved = picker._DISPLAY_TZ
+            ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'daily_review_pick' has no attribute '_DISPLAY_TZ'
+________ test_g67r_runner_save_does_not_clobber_web_written_board_done _________
+tests/regression/test_daily_review_run.py:1343: in test_g67r_runner_save_does_not_clobber_web_written_board_done
+    assert st["board_done"] == {"A板": TODAY}, (
+E   AssertionError: 窗口内 Web 落盘的完成账被 runner 整写覆盖了, 实为 {}
+E   assert {} == {'A板': '2026-07-30'}
+E     
+E     Right contains 1 more item:
+E     {'A板': '2026-07-30'}
+E     Use -v to get more diff
+_______________ test_buckets_gate_accepts_real_producer_payload ________________
+tests/unit/test_review_overview.py:1089: in test_buckets_gate_accepts_real_producer_payload
+    monkeypatch.setattr(picker, "_DISPLAY_TZ", _SH)
+E   AttributeError: <module 'daily_review_pick' from '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/scripts/daily_review_pick.py'> has no attribute '_DISPLAY_TZ'
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_uses_projection_own_tz_not_current_display_tz
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch[America/New_York-2026-03-08T05:30:00Z-2026-03-09T04:30:00Z-America/New_York-future-\u6625\u5b63\u524d\u8df3\xb7NY \u751f\u6210 NY \u663e\u793a]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch[America/New_York-2026-11-01T04:30:00Z-2026-11-02T04:30:00Z-America/New_York-due_today-\u79cb\u5b63\u56de\u62e8\xb7NY \u751f\u6210 NY \u663e\u793a]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch[America/Bogota-2026-03-08T05:30:00Z-2026-03-09T04:30:00Z-America/New_York-due_today-\u540c\u504f\u79fb\u4e0d\u540c\u89c4\u5219\xb7Bogota \u751f\u6210 NY \u663e\u793a]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch[Asia/Shanghai-2026-07-31T15:00:00Z-2026-07-31T17:00:00Z-UTC-future-\u5207\u65f6\u533a\xb7\u4e0a\u6d77\u751f\u6210 UTC \u663e\u793a]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_reference_day_handles_dst_and_tz_switch[Asia/Shanghai-2026-07-31T01:00:00Z-2026-07-31T13:00:00Z-Asia/Shanghai-due_today-\u540c\u533a\u5f53\u65e5]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_bucket_and_forged_display_tz
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[missing]
+FAILED tests/regression/test_g6_9c_single_tz_source.py::test_bucket_gate_rejects_wrong_buckets_even_when_display_tz_is_absent[null]
+FAILED tests/regression/test_daily_review_run.py::test_g67r_runner_save_does_not_clobber_web_written_board_done
+FAILED tests/unit/test_review_overview.py::test_buckets_gate_accepts_real_producer_payload
+=========== 11 failed, 708 passed, 10 warnings in 1358.77s (0:22:38) ===========
+rc=1

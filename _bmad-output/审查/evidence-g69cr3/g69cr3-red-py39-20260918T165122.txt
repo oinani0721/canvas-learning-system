@@ -1,0 +1,24 @@
+# 先红④ 兜底解释器 3.9.6 对 a8cefab4 版 local_tz.py
+Python 3.9.6
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmp.7yGOztnLbi/local_tz.py", line 117, in <module>
+    _POSIX_TZ_RE = re.compile(
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/re.py", line 252, in compile
+    return _compile(pattern, flags)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/re.py", line 304, in _compile
+    p = sre_compile.compile(pattern, flags)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/sre_compile.py", line 764, in compile
+    p = sre_parse.parse(p, flags)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/sre_parse.py", line 948, in parse
+    p = _parse_sub(source, state, flags & SRE_FLAG_VERBOSE, 0)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/sre_parse.py", line 443, in _parse_sub
+    itemsappend(_parse(source, state, verbose, nested + 1,
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/sre_parse.py", line 834, in _parse
+    p = _parse_sub(source, state, sub_verbose, nested + 1)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/sre_parse.py", line 443, in _parse_sub
+    itemsappend(_parse(source, state, verbose, nested + 1,
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/sre_parse.py", line 823, in _parse
+    raise source.error("unknown extension ?" + char,
+re.error: unknown extension ?> at position 10
+rc39_a8cefab4=1

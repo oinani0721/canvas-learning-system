@@ -1,0 +1,15 @@
+# (i) tests/unit 收工 nodeid diff @ 2026-09-18T19:44:32+08:00 HEAD=ccc2b48a
+## 跑法（与 $BASE 头第 3 行逐字同，不带 --ignore）
+   cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/unit -q -p no:cacheprovider -rfE
+## 收工汇总
+= 32 failed, 5731 passed, 44 skipped, 13 xfailed, 231 warnings in 1147.61s (0:19:07) =
+rc=1
+## 开工汇总（对照）
+= 32 failed, 5731 passed, 44 skipped, 13 xfailed, 231 warnings in 748.81s (0:12:28) =
+## nodeid diff（base 33 vs close 32，只允许 <）
+   base=      33  close=      32
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+   ⇒ 只有 1 条 '<'、0 条 '>' ⇒ (i) 通过
+   那 1 条是手册 §零.2 已标的 flaky: test_candidate_service::test_accept_candidate_already_accepted_returns_422
+   （开工那一跑同样缺它 ⇒ 本卡开工/收工两次都是 32，与本卡改动无关）

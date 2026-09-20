@@ -1,0 +1,14 @@
+R2(a8cefab4) 与 HEAD 两版均已加载; py 3.14.4
+样本 314702 条
+R2 vs HEAD 语义分歧 = 0 条
+HEAD 语义指纹: 6bdd084bf00f5a428516a72f6ba8abcee9612447e64288f77ac562436c9f0fb7
+
+--- H3 计时（HEAD 版 parse_posix_tz）---
+  n= 202 arabic: 0.000006s
+  n= 404 arabic: 0.000009s
+  n= 808 arabic: 0.000015s
+  arabic: n=202 ≤0.05s OK; 808/202=2.47 ≤3 OK
+  n= 202 ascii: 0.000006s
+  n= 404 ascii: 0.000009s
+  n= 808 ascii: 0.000014s
+  ascii: n=202 ≤0.05s OK; 808/202=2.43 ≤3 OK

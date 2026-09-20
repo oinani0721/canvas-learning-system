@@ -1,0 +1,9 @@
+# (i) tests/unit nodeid diff r3 @ 2026-09-19T00:01:29+08:00 HEAD=d062e2b1
+## 汇总
+= 32 failed, 5731 passed, 44 skipped, 13 xfailed, 231 warnings in 754.08s (0:12:34) =
+## nodeid diff（base 33 vs close-r3，只允许 '<'）
+   base=      33  close-r3=      32
+3d2
+< FAILED tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422
+   rc_of_diff=1
+   ⇒ 出现任何 '>' 行 = 本卡引入新红

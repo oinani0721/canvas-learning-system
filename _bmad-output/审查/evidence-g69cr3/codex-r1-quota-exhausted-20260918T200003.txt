@@ -1,0 +1,48 @@
+# ⛔ 本文件是第一次归因，**不完整** —— 最终归因见同目录 codex-final-attribution-20260918T202306.md
+# 真相是「token 失效 + 配额耗尽」两者叠加；本文件只抓到其中一个。
+---
+# ⚠️ 归因已更正：真因是**未登录**不是配额耗尽 —— 见同目录 codex-unavailable-root-cause-20260918T200708.md
+# 本文件记的事实（两次 0 字节、错误文本）无误，但「配额耗尽」这个归因是错的。
+---
+# Codex r1 两次尝试实测（配额耗尽）@ 2026-09-18T20:00:03
+
+## 命令（协议 §2 固定形态）
+    codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="ultra" \
+      "$(cat _bmad-output/审查/prompts/codex-prompt-CARD-G6-9c-R3-r1.md)" \
+      > _bmad-output/审查/codex-review-CARD-G6-9c-R3-r1.md 2> ...stderr </dev/null
+
+## codex 版本
+    codex-cli 0.153.3
+
+## 会话头（第 1 次 stderr 实抄，证明模型与 sandbox 确实按协议传了；括注行号）
+    (L2) OpenAI Codex v0.153.3
+    (L5) model: gpt-6-astra
+    (L7) sandbox: read-only
+    ⚠️ stderr 本身不入库（.gitignore:264 覆盖 `_bmad-output/审查/**/*.stderr*`）
+    ⚠️ 没有拿到 `reasoning effort` 那一行——请求在模型返回任何内容前就被配额拦下了，
+       会话头只打到 sandbox 行。**如实记，不追认**（协议 §2.1 的自证要求）。
+
+## 两次结果
+    19:57:11  第 1 次                          rc=1  md **0 字节**
+    19:58:42  第 2 次（协议 §2.1 的「重发一次」）  rc=1  md **0 字节**
+    两次 stderr 末行相同：
+      ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage
+      to purchase more credits or try again at Sep 24th, 2026 2:05 AM.
+
+## 处置（协议 §2.1 原文）
+    「0 字节存档重发一次，再 0 字节 → 主 session 人审替代，**不等配额**」
+    ⇒ 本卡转主 session 人审替代。两个 0 字节 md 与对应 stderr 均已删除，不入 commit。
+
+## ⛔ 关于「Sep 24th 才恢复」这句话：不作为结论继承
+    协议 §2.3 有明确先例——那条「Codex 配额耗尽至 09-15」的批级通告（commit dcaaaef9）
+    被 24 分钟后的实测推翻（commit f8dd5903），已撤回（R-05）。
+    **外部服务自报的「重置时间」是一次观测，不是不变量。**
+    接手本卡的人应先花几千 token 复测一次：
+      · 能跑通 ⇒ 按 D-15 正常走多轮，直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0；
+      · 仍跑不通 ⇒ 沿用人审替代，并在台账写明复测时刻与结果。
+
+## 本卡代码定稿点（人审或后续 Codex 轮次的绑定对象）
+    代码定稿 commit：c6a7f446
+    送审时 HEAD：967cf4cf（prompt 里写的审查绑定）
+    `git diff --stat c6a7f446 HEAD -- . ':(exclude)_bmad-output'` = 空
+    ⇒ 此后所有 commit 只动 `_bmad-output`，代码面绑定恒成立。

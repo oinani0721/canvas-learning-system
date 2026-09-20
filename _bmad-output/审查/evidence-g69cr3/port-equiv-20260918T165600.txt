@@ -1,0 +1,27 @@
+# 移植等价核 @ HEAD=e182f30f 2026-09-18T16:56:00+08:00
+## A 支：R2 独占三文件 vs a8cefab4（应空 = 逐字节同）
+(above empty => byte-identical)
+## A 支验伪锚：同命令换 9c4e7e82（必非空）
+ backend/app/core/display_tz.py                     |  498 ++++++-
+ .../regression/test_g6_9c_single_tz_source.py      | 1413 +++++++++++++++++++-
+ scripts/local_tz.py                                |  498 ++++++-
+ 3 files changed, 2330 insertions(+), 79 deletions(-)
+## C 支：两共享文件本卡 diff（应恰 = R2 的 38 行 4 hunk + 11 行）
+ backend/app/api/v1/endpoints/review_overview.py | 38 +++++++++++++++++++------
+ backend/tests/unit/test_review_overview.py      | 11 +++++++
+ 2 files changed, 40 insertions(+), 9 deletions(-)
+## C 支 hunk 起始（全 < 600）
+@@ -382,7 +382,9 @@ def _display_day(ts: str, tz=None):
+@@ -467,7 +469,8 @@ def _gate_buckets(
+@@ -515,8 +518,9 @@ def _gate_buckets(
+@@ -548,11 +552,27 @@ def _gate_buckets(
+## ⚠️ 卡文裁判 1 失实登记：diff a8cefab4 HEAD -- 五文件 不空（共享文件差 T3-C/T3-D 的 178+361 行）
+ backend/app/api/v1/endpoints/review_overview.py | 178 +++++++++++-
+ backend/tests/unit/test_review_overview.py      | 361 ++++++++++++++++++++++--
+ 2 files changed, 518 insertions(+), 21 deletions(-)
+## 主干 9c4e7e82 相对 08100483 在共享文件上的 hunk（证明上面 178+361 = T3-C/T3-D，全在 :775+ 之后）
+@@ -775,6 +775,12 @@ _STATUS_META = {
+@@ -1019,6 +1025,8 @@ def _vault_entry(
+@@ -1030,6 +1038,13 @@ def _vault_entry(
+## openapi net diff（应空）
+(above empty => net unchanged)

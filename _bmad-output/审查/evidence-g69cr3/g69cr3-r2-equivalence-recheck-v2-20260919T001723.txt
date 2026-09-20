@@ -1,0 +1,36 @@
+# 等价断言复核 **第二版**：补上我第一版枚举缺的那一维
+# @ 2026-09-19T00:17:23-07:00  HEAD=d062e2b1
+
+## 第一版为什么给出 0（我的取值面错在哪）
+   第一版按 名+偏移+dst名+dst偏移+规则 五段**拼接**生成串，
+   于是 dst 名一旦是 '<B>' 就必然紧跟偏移 —— 生成不出 'A1<B>C>2' 这类
+   **闭合 > 之后还有字符** 的畸形串，而 r1 HIGH-1 修的正是那一族。
+   ⇒ 「21600 组 0 分歧」是真的，但它证明不了「所有输入等价」。Codex 的面更宽。
+
+  枚举组合数        : 7280   （维度: std 7 × off 5 × dst段 13 × dstoff 4 × rule 4）
+  当前 vs a8cefab4  : 1600 处语义差异
+  ⇒ 「分歧 0」在这个更宽的面上 **不成立** —— Codex 是对的
+
+  差异样例（串 | a8cefab4 给 | 当前给）:
+    'A1<B>>'                 ('OK', 'A1<B>>', datetime.timedelta(days=-1,   ('NONE',)
+    'A1<B>>,J1,J365'         ('OK', 'A1<B>>,J1,J365', datetime.timedelta(   ('NONE',)
+    'A1<B>>,M3.2.0,M11.1.0'  ('OK', 'A1<B>>,M3.2.0,M11.1.0', datetime.tim   ('NONE',)
+    'A1<B>>,J15/9,J300'      ('OK', 'A1<B>>,J15/9,J300', datetime.timedel   ('NONE',)
+    'A1<B>>2'                ('OK', 'A1<B>>2', datetime.timedelta(days=-1   ('NONE',)
+    'A1<B>>2,J1,J365'        ('OK', 'A1<B>>2,J1,J365', datetime.timedelta   ('NONE',)
+    'A1<B>>2,M3.2.0,M11.1.0' ('OK', 'A1<B>>2,M3.2.0,M11.1.0', datetime.ti   ('NONE',)
+    'A1<B>>2,J15/9,J300'     ('OK', 'A1<B>>2,J15/9,J300', datetime.timede   ('NONE',)
+    'A1<B>>-2'               ('OK', 'A1<B>>-2', datetime.timedelta(days=-   ('NONE',)
+    'A1<B>>-2,J1,J365'       ('OK', 'A1<B>>-2,J1,J365', datetime.timedelt   ('NONE',)
+    'A1<B>>-2,M3.2.0,M11.1.0' ('OK', 'A1<B>>-2,M3.2.0,M11.1.0', datetime.t   ('NONE',)
+    'A1<B>>-2,J15/9,J300'    ('OK', 'A1<B>>-2,J15/9,J300', datetime.timed   ('NONE',)
+    'A1<B>>2:30'             ('OK', 'A1<B>>2:30', datetime.timedelta(days   ('NONE',)
+    'A1<B>>2:30,J1,J365'     ('OK', 'A1<B>>2:30,J1,J365', datetime.timede   ('NONE',)
+
+  与 libc 对拍（前 6 个差异样例）:
+    'A1<B>>'                 libc=(('UTC', 'UTC'), 0, 0, 0)
+    'A1<B>>,J1,J365'         libc=(('UTC', 'UTC'), 0, 0, 0)
+    'A1<B>>,M3.2.0,M11.1.0'  libc=(('UTC', 'UTC'), 0, 0, 0)
+    'A1<B>>,J15/9,J300'      libc=(('UTC', 'UTC'), 0, 0, 0)
+    'A1<B>>2'                libc=(('UTC', 'UTC'), 0, 0, 0)
+    'A1<B>>2,J1,J365'        libc=(('UTC', 'UTC'), 0, 0, 0)
