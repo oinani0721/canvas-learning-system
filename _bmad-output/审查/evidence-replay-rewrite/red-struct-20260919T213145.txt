@@ -1,0 +1,13 @@
+== red struct anchors 2026-09-19 21:31:45 ==
+-- overflow 零引用锚 --
+0
+-- 位置游标锚 --
+11
+-- 身份锚（卡文命令）--
+backend/app/services/fallback_sync_service.py:1015:        (``memory_service._vault_scoped_group_id`` → ``get_current_vault_id()``)
+backend/app/services/fallback_sync_service.py:1018:        现改为镜像主路径: vault_id 取进程 active vault (D1-A 单 active
+backend/app/services/fallback_sync_service.py:1027:            from app.config import get_current_vault_id
+backend/app/services/fallback_sync_service.py:1038:            vault_id = get_current_vault_id()
+backend/app/services/fallback_sync_service.py:1039:            if not vault_id:
+backend/app/services/fallback_sync_service.py:1041:            return build_vault_group_id(vault_id, canvas_path=canvas_name)
+identity_anchor_lines=backend/app/services/fallback_sync_service.py:6

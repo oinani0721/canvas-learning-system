@@ -1,0 +1,240 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 30 items
+
+tests/unit/test_story_38_8_fallback_sync.py .......F.................... [ 93%]
+..                                                                       [100%]
+
+=================================== FAILURES ===================================
+___________ TestAC2Idempotency.test_replay_same_entry_twice_is_safe ____________
+tests/unit/test_story_38_8_fallback_sync.py:409: in test_replay_same_entry_twice_is_safe
+    assert result["failed_writes"]["recovered"] == 1
+E   assert 0 == 1
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-C] 1 \u6761\u5386\u53f2\u6761\u76ee\u7f3a vault_id \u4e14\u65e0 group_id, \u9ed8\u8ba4\u9694\u79bb\u672a\u56de\u704c\uff08\u7559\u5728\u6587\u4ef6; \u8bbe CLS_REPLAY_LEGACY_NOSCOPE_VAULT=<vault_id> \u53ef\u663e\u5f0f\u5f52\u5c5e\uff09", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T06:49:54.550531Z"}
+{"event": "[Story 38.8] Fallback sync complete: 0 replayed, 2 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.550819Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:399 {'event': '[P2-C] 1 条历史条目缺 vault_id 且无 group_id, 默认隔离未回灌（留在文件; 设 CLS_REPLAY_LEGACY_NOSCOPE_VAULT=<vault_id> 可显式归属）', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T06:49:54.550531Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 0 replayed, 2 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.550819Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+___________ TestAC1StartupReplay.test_replays_failed_writes_to_neo4j ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.523334Z"}
+{"event": "[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.524145Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.523334Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.524145Z'}
+_____________ TestAC1StartupReplay.test_replays_canvas_node_events _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated canvas_events_fallback.json \u2192 canvas_events_fallback.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.529952Z"}
+{"event": "[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.530235Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated canvas_events_fallback.json → canvas_events_fallback.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.529952Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.530235Z'}
+_____________ TestAC1StartupReplay.test_replays_canvas_edge_events _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated canvas_events_fallback.json \u2192 canvas_events_fallback.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.534930Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.535225Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated canvas_events_fallback.json → canvas_events_fallback.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.534930Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.535225Z'}
+_____________ TestAC1StartupReplay.test_replays_learning_memories ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.540566Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.540566Z'}
+________________ TestAC1StartupReplay.test_chronological_order _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated canvas_events_fallback.json \u2192 canvas_events_fallback.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.545802Z"}
+{"event": "[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.546106Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated canvas_events_fallback.json → canvas_events_fallback.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.545802Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.546106Z'}
+____________ TestAC3Checkpoint.test_checkpoint_created_during_sync _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.643848Z"}
+{"event": "[Story 38.8] Fallback sync complete: 55 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.644281Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.643848Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 55 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.644281Z'}
+________________ TestAC3Checkpoint.test_resumes_from_checkpoint ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.649540Z"}
+{"event": "[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.649945Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.649540Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.649945Z'}
+__________ TestAC3Checkpoint.test_checkpoint_cleared_after_full_sync ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.654624Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.655054Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.654624Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.655054Z'}
+________ TestAC4ConflictResolution.test_older_fallback_preserves_neo4j _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Conflict: Neo4j has newer data for 'Calculus', fallback timestamp=2026-02-01T10:00:00", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.660430Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:989 {'event': "[Story 38.8] Conflict: Neo4j has newer data for 'Calculus', fallback timestamp=2026-02-01T10:00:00", 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.660430Z'}
+________________ TestAC4ConflictResolution.test_conflict_logged ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Conflict: Neo4j has newer data for 'Calculus', fallback timestamp=2026-02-01T10:00:00", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.663347Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:989 {'event': "[Story 38.8] Conflict: Neo4j has newer data for 'Calculus', fallback timestamp=2026-02-01T10:00:00", 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.663347Z'}
+_ TestAC4ConflictResolution.test_learning_memory_older_fallback_preserves_neo4j _
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Conflict: Neo4j has newer data for 'Algebra', fallback timestamp=2026-01-01T10:00:00", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.667031Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1170 {'event': "[Story 38.8] Conflict: Neo4j has newer data for 'Algebra', fallback timestamp=2026-01-01T10:00:00", 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.667031Z'}
+________ TestAC4ConflictResolution.test_learning_memory_conflict_logged ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Conflict: Neo4j has newer data for 'Algebra', fallback timestamp=2026-01-01T10:00:00", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.671134Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1170 {'event': "[Story 38.8] Conflict: Neo4j has newer data for 'Algebra', fallback timestamp=2026-01-01T10:00:00", 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.671134Z'}
+________ TestAC5FileRotation.test_failed_writes_rotated_after_full_sync ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.675902Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.676394Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.675902Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.676394Z'}
+________ TestAC5FileRotation.test_canvas_events_rotated_after_full_sync ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated canvas_events_fallback.json \u2192 canvas_events_fallback.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.681110Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.681414Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated canvas_events_fallback.json → canvas_events_fallback.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.681110Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.681414Z'}
+____________ TestAC5FileRotation.test_learning_memories_not_rotated ____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.686805Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.686805Z'}
+_____________ TestAC5FileRotation.test_old_synced_files_cleaned_up _____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Cleaned up old synced file: failed_writes.synced.2026-08-15-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.690679Z"}
+{"event": "[Story 38.8] Cleaned up old synced file: failed_writes.synced.2026-08-15", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.691026Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1334 {'event': '[Story 38.8] Cleaned up old synced file: failed_writes.synced.2026-08-15-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.690679Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1334 {'event': '[Story 38.8] Cleaned up old synced file: failed_writes.synced.2026-08-15', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.691026Z'}
+______________ TestAC5FileRotation.test_pending_entries_rewritten ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Neo4j scoring replay failed: Neo4j connection lost", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T06:49:54.695014Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 1 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.696093Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:981 {'event': '[Story 38.8] Neo4j scoring replay failed: Neo4j connection lost', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T06:49:54.695014Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 1 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.696093Z'}
+________________________ TestEdgeCases.test_empty_files ________________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-19-234954", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.700905Z"}
+{"event": "[Story 38.8] Fallback sync complete: 0 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.701293Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1303 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-19-234954', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.700905Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 0 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.701293Z'}
+_____________________ TestEdgeCases.test_nonexistent_files _____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Fallback sync complete: 0 replayed, 0 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.705262Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 0 replayed, 0 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.705262Z'}
+______________ TestEdgeCases.test_malformed_jsonl_entries_skipped ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 1 still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.711570Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 1 still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.711570Z'}
+_______________ TestEdgeCases.test_malformed_canvas_events_json ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Cannot parse canvas_events_fallback: Expecting value: line 1 column 1 (char 0)", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T06:49:54.715338Z"}
+{"event": "[Story 38.8] Fallback sync complete: 0 replayed, \u22650 (+canvas_events unknown) still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.715489Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:728 {'event': '[Story 38.8] Cannot parse canvas_events_fallback: Expecting value: line 1 column 1 (char 0)', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T06:49:54.715338Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 0 replayed, ≥0 (+canvas_events unknown) still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.715489Z'}
+_________________ TestEdgeCases.test_partial_failure_continues _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Cannot parse canvas_events_fallback: Expecting value: line 1 column 1 (char 0)", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T06:49:54.721464Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, \u22650 (+canvas_events unknown) still pending", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T06:49:54.722548Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:728 {'event': '[Story 38.8] Cannot parse canvas_events_fallback: Expecting value: line 1 column 1 (char 0)', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T06:49:54.721464Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, ≥0 (+canvas_events unknown) still pending', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T06:49:54.722548Z'}
+_______________ TestEdgeCases.test_entry_without_concept_skipped _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Skipping entry with no concept", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T06:49:54.726461Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:896 {'event': '[Story 38.8] Skipping entry with no concept', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T06:49:54.726461Z'}
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC1StartupReplay::test_skips_when_neo4j_in_fallback_mode
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC1StartupReplay::test_skips_when_neo4j_unhealthy
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC1StartupReplay::test_replays_failed_writes_to_neo4j
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC1StartupReplay::test_replays_canvas_node_events
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC1StartupReplay::test_replays_canvas_edge_events
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC1StartupReplay::test_replays_learning_memories
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC1StartupReplay::test_chronological_order
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC2Idempotency::test_learning_memory_merge_no_duplicates
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC3Checkpoint::test_checkpoint_created_during_sync
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC3Checkpoint::test_resumes_from_checkpoint
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC3Checkpoint::test_checkpoint_cleared_after_full_sync
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC4ConflictResolution::test_newer_fallback_wins
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC4ConflictResolution::test_older_fallback_preserves_neo4j
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC4ConflictResolution::test_conflict_logged
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC4ConflictResolution::test_learning_memory_older_fallback_preserves_neo4j
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC4ConflictResolution::test_learning_memory_conflict_logged
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_failed_writes_rotated_after_full_sync
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_canvas_events_rotated_after_full_sync
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_learning_memories_not_rotated
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_old_synced_files_cleaned_up
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestAC5FileRotation::test_pending_entries_rewritten
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_empty_files
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_nonexistent_files
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_malformed_jsonl_entries_skipped
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_malformed_canvas_events_json
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_partial_failure_continues
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_entry_without_concept_skipped
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_edge_event_without_node_ids_skipped
+PASSED tests/unit/test_story_38_8_fallback_sync.py::TestEdgeCases::test_learning_memory_without_concept_skipped
+FAILED tests/unit/test_story_38_8_fallback_sync.py::TestAC2Idempotency::test_replay_same_entry_twice_is_safe
+================== 1 failed, 29 passed, 10 warnings in 1.86s ===================
+rc=1

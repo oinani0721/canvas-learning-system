@@ -1,0 +1,19 @@
+backend/app/clients/neo4j_client.py:254:        uri: str = "bolt://localhost:7687",
+backend/app/clients/neo4j_client.py:271:            uri: Neo4j Bolt connection URI (bolt://localhost:7687)
+backend/app/clients/neo4j_client.py:2717:        (等值 OR 前缀)。2026-08-30 现网 7691 只读实测: 全库唯一的 LEARNED
+backend/app/services/memory_service.py:346:        2026-08-30 现网 7691 只读实测全库唯一 LEARNED 边就在 active vault 的
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:22:- 只连 **7692** 测试容器 (``NEO4J_TEST_URI``); 探针指向现网 7691 一律拒绝,
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:54:# 模块级可达性探针 (决定整文件 skip; 7691 现网一律拒绝)
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:62:    ⚠️ 这里**不能**用 `":7691" in uri` 这类字符串判据 (Codex round-2 HIGH-1):
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:63:    未被拦下的输入 `bolt://127.0.0.1:07691` —— 子串检查放行, 而驱动
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:64:    `Address.parse` 解析后端口是 **7691**, 即现网。字符串面与驱动面是两个
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:84:        # 禁碰 live: 端口不在测试白名单内 (含 :07691 这类绕过写法) 一律拒绝运行
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:110:            "7691 — refused). Start: docker compose --profile test up -d neo4j-test"
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:373:def test_gate_never_targets_live_7691() -> None:
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:376:    Codex round-2 HIGH-1: 原断言是 `":7691" not in NEO4J_TEST_URI`,
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:377:    未被拦下的输入 `bolt://127.0.0.1:07691` 能通过它而驱动解析后连的是 7691。
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:388:    bypass_ports, _ = canonical_target_ports("bolt://127.0.0.1:07691")
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:389:    assert bypass_ports == (7691,), f"前导零 URI 的驱动解析结果意外: {bypass_ports}"
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:391:        "判据放行了 bolt://127.0.0.1:07691 —— 这正是 round-2 HIGH-1 的那条输入"
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:393:    assert ":7691" not in "bolt://127.0.0.1:07691", (
+backend/tests/integration/test_neo4j_replay_wire_t6b.py:510:# 进程默认单例, 它按 ``backend/.env`` 的 ``NEO4J_URI=bolt://localhost:7691``

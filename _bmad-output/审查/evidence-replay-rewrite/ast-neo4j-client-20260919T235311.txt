@@ -1,0 +1,7 @@
+_initialize_neo4j_driver: ast.dump equal = True
+initialize: ast.dump equal = True
+record_score_history: ast.dump equal = True
+run_query: ast.dump equal = True
+new function present: True
+verify-anchor (_sync_failed_writes differs) = True
+AST-GATE-PASS

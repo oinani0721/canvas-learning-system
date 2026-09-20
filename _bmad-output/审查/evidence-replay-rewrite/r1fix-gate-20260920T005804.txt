@@ -1,0 +1,204 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 7 items
+
+tests/integration/test_replay_rewrite_7692.py .......                    [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+_______________ test_identity_entry_replays_with_stable_episode ________________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.503851Z"}
+{"event": "Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.508411Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50
+INFO     app.clients.neo4j_client:neo4j_client.py:404 Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-20-005823", "request_id": "5213961728", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.622931Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "request_id": "5213961728", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.623478Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5213961728", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:23.623553Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 30.57, "event": "request.completed", "request_id": "5213961728", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:23.623858Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1322 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-20-005823', 'request_id': '5213961728', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.622931Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'request_id': '5213961728', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.623478Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 30.57, 'event': 'request.completed', 'request_id': '5213961728', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.623858Z'}
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.688171Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+______________________ test_crash_recovery_is_idempotent _______________________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.689728Z"}
+{"event": "Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.692933Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50
+INFO     app.clients.neo4j_client:neo4j_client.py:404 Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Score history record failed: p2cgate injected single-point failure \u2014 entry stays pending", "request_id": "5210192816", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T07:58:23.732765Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 1 still pending", "request_id": "5210192816", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.733495Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 1, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5210192816", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:23.733580Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 27.0, "event": "request.completed", "request_id": "5210192816", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:23.733875Z"}
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-20-005823", "request_id": "5210830464", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.758993Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "request_id": "5210830464", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.759258Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5210830464", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:23.759322Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 17.54, "event": "request.completed", "request_id": "5210830464", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:23.759553Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:957 {'event': '[Story 38.8] Score history record failed: p2cgate injected single-point failure — entry stays pending', 'request_id': '5210192816', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T07:58:23.732765Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 1 still pending', 'request_id': '5210192816', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.733495Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 1, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 27.0, 'event': 'request.completed', 'request_id': '5210192816', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.733875Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1322 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-20-005823', 'request_id': '5210830464', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.758993Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'request_id': '5210830464', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.759258Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 17.54, 'event': 'request.completed', 'request_id': '5210830464', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.759553Z'}
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.789543Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+________________________ test_overflow_generation_swept ________________________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.791053Z"}
+{"event": "Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.810410Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50
+INFO     app.clients.neo4j_client:neo4j_client.py:404 Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.overflow.2026-09-19-130000000000-00.jsonl \u2192 failed_writes.overflow.2026-09-19-130000000000-00.synced.2026-09-20-005823", "request_id": "5217017936", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.859915Z"}
+{"event": "[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending", "request_id": "5217017936", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.860185Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 2, 'pending': 0, 'confirmed': 2, 'quarantined': 0, 'deduped': 0, 'generations': 1}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5217017936", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:23.860246Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 37.72, "event": "request.completed", "request_id": "5217017936", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:23.860487Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1322 {'event': '[Story 38.8] Rotated failed_writes.overflow.2026-09-19-130000000000-00.jsonl → failed_writes.overflow.2026-09-19-130000000000-00.synced.2026-09-20-005823', 'request_id': '5217017936', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.859915Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 2 replayed, 0 still pending', 'request_id': '5217017936', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.860185Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 2, 'pending': 0, 'confirmed': 2, 'quarantined': 0, 'deduped': 0, 'generations': 1}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 37.72, 'event': 'request.completed', 'request_id': '5217017936', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.860487Z'}
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.887451Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+___________________ test_source_vault_wins_over_active_vault ___________________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.888861Z"}
+{"event": "Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.897405Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50
+INFO     app.clients.neo4j_client:neo4j_client.py:404 Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-20-005823", "request_id": "5216130384", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.925380Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "request_id": "5216130384", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.925629Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5216130384", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:23.925685Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 15.66, "event": "request.completed", "request_id": "5216130384", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:23.925899Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1322 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-20-005823', 'request_id': '5216130384', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.925380Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'request_id': '5216130384', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.925629Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 15.66, 'event': 'request.completed', 'request_id': '5216130384', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.925899Z'}
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.947993Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+________________ test_legacy_entry_without_vault_is_quarantined ________________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.949307Z"}
+{"event": "Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.951777Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50
+INFO     app.clients.neo4j_client:neo4j_client.py:404 Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-C] 1 \u6761\u5386\u53f2\u6761\u76ee\u7f3a vault_id \u4e14\u65e0 group_id, \u9ed8\u8ba4\u9694\u79bb\u672a\u56de\u704c\uff08\u7559\u5728\u6587\u4ef6; \u8bbe CLS_REPLAY_LEGACY_NOSCOPE_VAULT=<vault_id> \u53ef\u663e\u5f0f\u5f52\u5c5e\uff09", "request_id": "5216933392", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T07:58:23.965710Z"}
+{"event": "[Story 38.8] Fallback sync complete: 0 replayed, 1 still pending", "request_id": "5216933392", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:23.965845Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 1, 'confirmed': 0, 'quarantined': 1, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5216933392", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:23.965895Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 5.52, "event": "request.completed", "request_id": "5216933392", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:23.966115Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:405 {'event': '[P2-C] 1 条历史条目缺 vault_id 且无 group_id, 默认隔离未回灌（留在文件; 设 CLS_REPLAY_LEGACY_NOSCOPE_VAULT=<vault_id> 可显式归属）', 'request_id': '5216933392', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T07:58:23.965710Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 0 replayed, 1 still pending', 'request_id': '5216933392', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.965845Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 1, 'confirmed': 0, 'quarantined': 1, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 5.52, 'event': 'request.completed', 'request_id': '5216933392', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:23.966115Z'}
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.986225Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+____________ test_missing_timestamp_does_not_overwrite_newer_score _____________
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.987482Z"}
+{"event": "Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:23.992714Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:316 Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50
+INFO     app.clients.neo4j_client:neo4j_client.py:404 Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.8] Rotated failed_writes.jsonl \u2192 failed_writes.synced.2026-09-20-005824", "request_id": "5212139280", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:24.018076Z"}
+{"event": "[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending", "request_id": "5212139280", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:24.018361Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5212139280", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:24.018425Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 17.79, "event": "request.completed", "request_id": "5212139280", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:24.018669Z"}
+{"event": "[P2-C] scoring replay: \u7f3a timestamp \u4e14\u5e26 score, \u65e0\u53ef\u9760\u4e8b\u4ef6\u65f6\u95f4, \u6574\u6761\u7559\u5f85 (concept='p2cgate_concept_3db360597be9_ts')", "request_id": "5211940208", "logger": "app.services.fallback_sync_service", "level": "warning", "timestamp": "2026-09-20T07:58:24.031389Z"}
+{"event": "[Story 38.8] Fallback sync complete: 0 replayed, 1 still pending", "request_id": "5211940208", "logger": "app.services.fallback_sync_service", "level": "info", "timestamp": "2026-09-20T07:58:24.031920Z"}
+{"event": "[T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 1, 'confirmed': 0, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}", "request_id": "5211940208", "logger": "app.api.v1.endpoints.traces", "level": "info", "timestamp": "2026-09-20T07:58:24.031985Z"}
+{"method": "POST", "path": "/api/v1/traces/replay-fallbacks", "endpoint": "/api/v1/traces/replay-fallbacks", "status": 200, "duration_ms": 10.07, "event": "request.completed", "request_id": "5211940208", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-20T07:58:24.032203Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:1322 {'event': '[Story 38.8] Rotated failed_writes.jsonl → failed_writes.synced.2026-09-20-005824', 'request_id': '5212139280', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:24.018076Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 1 replayed, 0 still pending', 'request_id': '5212139280', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:24.018361Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 1, 'pending': 0, 'confirmed': 1, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 17.79, 'event': 'request.completed', 'request_id': '5212139280', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:24.018669Z'}
+WARNING  app.services.fallback_sync_service:fallback_sync_service.py:940 {'event': "[P2-C] scoring replay: 缺 timestamp 且带 score, 无可靠事件时间, 整条留待 (concept='p2cgate_concept_3db360597be9_ts')", 'request_id': '5211940208', 'logger': 'app.services.fallback_sync_service', 'level': 'warning', 'timestamp': '2026-09-20T07:58:24.031389Z'}
+INFO     app.services.fallback_sync_service:fallback_sync_service.py:229 {'event': '[Story 38.8] Fallback sync complete: 0 replayed, 1 still pending', 'request_id': '5211940208', 'logger': 'app.services.fallback_sync_service', 'level': 'info', 'timestamp': '2026-09-20T07:58:24.031920Z'}
+INFO     app.api.v1.endpoints.traces:traces.py:539 [T6-B] manual fallback replay via admin endpoint: {'failed_writes': {'recovered': 0, 'pending': 1, 'confirmed': 0, 'quarantined': 0, 'deduped': 0, 'generations': 0}, 'canvas_events': {'recovered': 0, 'pending': 0}, 'learning_memories': {'recovered': 0, 'pending': 0}}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/traces/replay-fallbacks', 'endpoint': '/api/v1/traces/replay-fallbacks', 'status': 200, 'duration_ms': 10.07, 'event': 'request.completed', 'request_id': '5211940208', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-20T07:58:24.032203Z'}
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T07:58:24.056433Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:496 Neo4j driver closed
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/integration/test_replay_rewrite_7692.py::test_gate_never_targets_live_7691
+PASSED tests/integration/test_replay_rewrite_7692.py::test_identity_entry_replays_with_stable_episode
+PASSED tests/integration/test_replay_rewrite_7692.py::test_crash_recovery_is_idempotent
+PASSED tests/integration/test_replay_rewrite_7692.py::test_overflow_generation_swept
+PASSED tests/integration/test_replay_rewrite_7692.py::test_source_vault_wins_over_active_vault
+PASSED tests/integration/test_replay_rewrite_7692.py::test_legacy_entry_without_vault_is_quarantined
+PASSED tests/integration/test_replay_rewrite_7692.py::test_missing_timestamp_does_not_overwrite_newer_score
+======================== 7 passed, 10 warnings in 1.02s ========================
+rc=0

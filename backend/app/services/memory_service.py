@@ -512,10 +512,15 @@ class MemoryService:
         """
         try:
             FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            # 局部 import 收 diff 于声明段内；serialize_failed_write 补身份戳
+            # （record_id/vault_id/recorded_at/schema_version=2；无 canvas_name
+            # 则无 group_id，回灌侧对无来源条目默认隔离）。
+            from app.core.failed_writes_constants import serialize_failed_write
+
             with failed_writes_lock:
                 # T6-C: 有界追加 —— 超 FAILED_WRITES_MAX_LINES 先轮转成
                 # .overflow.<ts>。helper 不自持锁（外层这把是非重入的）。
-                append_failed_writes_bounded(FAILED_WRITES_FILE, [json.dumps(entry, ensure_ascii=False)])
+                append_failed_writes_bounded(FAILED_WRITES_FILE, [serialize_failed_write(entry)])
             return True
         except OSError as e:
             logger.error("[A7] outbox 落盘失败 (数据可能丢失): %s", e)
@@ -2894,13 +2899,17 @@ class MemoryService:
 
         batch = list(self._pending_failed_writes)
 
+        # 局部 import 收 diff 于声明段内；身份戳在本方法（flush 时）打
+        # —— :1423 组装处不动（P2-C 声明）。
+        from app.core.failed_writes_constants import serialize_failed_write
+
         # 逐条序列化（Codex r2 MEDIUM）：原先是一句列表推导，任何**一条**坏条目都会
         # 让整批走进 TypeError 分支被丢掉，好条目跟着陪葬。序列化失败是确定性的
         # （同一条重试多少次都失败），所以只丢那一条、其余照常落盘。
         lines: List[str] = []
         for entry in batch:
             try:
-                line = json.dumps(entry, ensure_ascii=False)
+                line = serialize_failed_write(entry)
                 # Codex r3 MEDIUM: 提前验 UTF-8 可编码性。json.dumps(ensure_ascii=False)
                 # 对孤立代理（如 "\ud800"）会**成功**，真正炸的是写盘那一刻的
                 # UnicodeEncodeError —— 它是 ValueError 不是 OSError，会从本方法逃出去，

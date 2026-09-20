@@ -1,0 +1,6 @@
+backend/app/core/failed_writes_constants.py: changed=82 would_reformat=3 intersection=0 PASS []
+backend/app/services/agent_service.py: changed=7 would_reformat=497 intersection=0 PASS []
+backend/app/services/memory_service.py: changed=11 would_reformat=55 intersection=0 PASS []
+backend/app/clients/neo4j_client.py: changed=87 would_reformat=85 intersection=0 PASS []
+backend/app/services/fallback_sync_service.py: changed=564 would_reformat=0 intersection=0 PASS []
+ALL-PASS

@@ -1830,6 +1830,93 @@ class Neo4jClient:
         )
         return len(results) > 0
 
+    async def record_score_history_by_record_id(
+        self,
+        record_id: str,
+        concept_id: str,
+        canvas_name: str,
+        score: int,
+        timestamp: Optional[str] = None,
+        group_id: Optional[str] = None,
+    ) -> bool:
+        """CARD-REPLAY-REWRITE (P2-C): 以**稳定记录身份**幂等地补评分历史。
+
+        与 :meth:`record_score_history` 的唯一区别是 Episode 的身份口径：
+        后者 ``CREATE (e:Episode {id: randomUUID()})`` —— 同一条回灌记录重放两次
+        会留下两个 Episode（提交结果不确定时重复，见该方法 :1785-1795 注释自认）；
+        本方法 ``MERGE (e:Episode {record_id: $recordId, group_id: $groupId})``
+        （W1 复合键）—— 同一 record_id 无论重放多少次，图上**恰一个** Episode。
+        Node / Canvas / CONTAINS_NODE / SCORED 同样全部 MERGE，整条重放幂等。
+
+        Args:
+            record_id: 稳定记录身份（写侧 uuid4().hex；历史条目为 legacy-hash）
+            concept_id: Concept/Node ID
+            canvas_name: Canvas file name
+            score: Score value (0-100)
+            timestamp: 事件时间；调用方保证（缺 timestamp 的条目走图上现值分支，
+                本函数只在确有事件时间时被调用）
+            group_id: 来源 vault 解析出的 group_id（fail-closed，同既有口径）
+
+        Returns:
+            True if successful, False on failure or unresolved group_id
+
+        ⚠️ 既有 ``record_score_history`` 一字不改（P2-B 验收口径）；本函数只新增。
+        """
+        ts = timestamp or datetime.now().isoformat()
+
+        physical_group_id = _resolve_physical_group_id(group_id, canvas_name)
+        if not physical_group_id:
+            logger.error(
+                "[G2-3 W1 fail-closed] record_score_history_by_record_id refused: "
+                "unresolved group_id (record_id=%s, concept_id=%s, canvas_name=%r)",
+                record_id,
+                concept_id,
+                canvas_name,
+            )
+            return False
+
+        if self._use_json_fallback:
+            if "score_history" not in self._data:
+                self._data["score_history"] = []
+            existing = [r for r in self._data["score_history"] if r.get("record_id") == record_id]
+            if not existing:
+                self._data["score_history"].append(
+                    {
+                        "record_id": record_id,
+                        "concept_id": concept_id,
+                        "canvas_name": canvas_name,
+                        "score": score,
+                        "timestamp": ts,
+                        "group_id": physical_group_id,
+                    }
+                )
+            await self._save_json_data()
+            return True
+
+        query = """
+        MERGE (n:Node {id: $conceptId, group_id: $groupId})
+        MERGE (c:Canvas {path: $canvasPath, group_id: $groupId})
+        MERGE (c)-[:CONTAINS_NODE {group_id: $groupId}]->(n)
+        MERGE (e:Episode {record_id: $recordId, group_id: $groupId})
+          ON CREATE SET e.id = randomUUID(),
+                        e.type = 'scoring',
+                        e.timestamp = datetime($timestamp)
+        MERGE (e)-[s:SCORED {group_id: $groupId}]->(n)
+          ON CREATE SET s.score = $score,
+                        s.timestamp = datetime($timestamp)
+        RETURN e
+        """
+        results = await self.run_query(
+            query,
+            recordId=record_id,
+            conceptId=concept_id,
+            canvasPath=canvas_name,
+            score=score,
+            timestamp=ts,
+            groupId=physical_group_id,
+        )
+        return len(results) > 0
+
     # =========================================================================
     # Canvas Association CRUD Methods
     # Story 36.5: 跨Canvas讲座关联持久化

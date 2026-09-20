@@ -130,6 +130,10 @@ def _record_failed_write(
             "agent_feedback": agent_feedback,
         }
         FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        # 局部 import 以把 diff 收在写者段内（P2-B 先例）；serialize_failed_write
+        # 内部补身份戳（record_id/vault_id/group_id/recorded_at/schema_version=2）。
+        from app.core.failed_writes_constants import serialize_failed_write
+
         with failed_writes_lock:
             # CARD-STAGING-WRITERS-BOUNDED: 第三写者切有界追加 —— 超
             # FAILED_WRITES_MAX_LINES 先轮转成 .overflow.<ts>。helper 不自持锁
@@ -139,9 +143,9 @@ def _record_failed_write(
             # test_story_38_7_qa_supplement.py / test_qa_38_6_scoring_reliability_extra.py /
             # test_story_38_6_scoring_reliability.py 四个既有文件），改读
             # failed_writes_constants 的全局会让那些测试静默写进现网数据文件且仍绿。
-            # 序列化留在调用方，json.dumps 的 TypeError/ValueError 仍由下面既有的
-            # except 元组接住，异常语义不变。
-            append_failed_writes_bounded(FAILED_WRITES_FILE, [json.dumps(entry, ensure_ascii=False)])
+            # 序列化仍在本调用方内完成（serialize_failed_write 内部 json.dumps），
+            # TypeError/ValueError 仍由下面既有的 except 元组接住，异常语义不变。
+            append_failed_writes_bounded(FAILED_WRITES_FILE, [serialize_failed_write(entry)])
         logger.warning(
             f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}"
         )

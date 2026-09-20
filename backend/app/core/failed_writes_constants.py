@@ -8,6 +8,8 @@ import json
 import logging
 import threading
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -471,3 +473,83 @@ def append_failed_writes_bounded(
             for line in chunk:
                 f.write(sep + line + "\n")
                 sep = ""
+
+
+# --- 条目身份戳（CARD-REPLAY-REWRITE / P2-C）---
+#
+# 回灌算法重写的写侧半边：每条落盘条目带**稳定记录身份**（record_id）与
+# **来源 vault**（vault_id / group_id），回灌侧据此「按身份去重、按来源归属」，
+# 不再依赖「位置游标 + 快照长度比较」。schema_version=2 标记新格式
+# （旧条目无此键 = 历史格式，回灌侧按 legacy-hash 身份处理、缺 vault 默认隔离）。
+FAILED_WRITE_SCHEMA_VERSION: int = 2
+
+
+def _resolve_stamp_vault_id() -> Optional[str]:
+    """取进程 active vault；取不到**如实返回 None**（不猜、不回落字面量）。
+
+    None 的后果链（刻意如此）：回灌侧对「无 vault 且无 group_id」的条目
+    **默认隔离**（留在文件、计 quarantined），只有 env
+    ``CLS_REPLAY_LEGACY_NOSCOPE_VAULT`` 显式点名目标 vault 才归属 ——
+    宁可不写，也不把条目归错 vault（G2-2 的教训）。
+    """
+    try:
+        from app.config import get_current_vault_id
+
+        vault_id = get_current_vault_id()
+    except Exception:  # noqa: BLE001 — 取不到就 None（回灌侧有隔离兜底）
+        return None
+    if not isinstance(vault_id, str) or not vault_id.strip():
+        return None
+    return vault_id
+
+
+def _stamp_group_id(vault_id: Optional[str], canvas_name: str) -> Optional[str]:
+    """D16 逻辑格式组 id（``vault:<id>:<canvas>``）；无 vault / 无 canvas 均不写。"""
+    if not vault_id or not canvas_name:
+        return None
+    try:
+        from app.core.subject_config import build_vault_group_id
+
+        return build_vault_group_id(vault_id, canvas_path=canvas_name)
+    except (ImportError, AttributeError, ValueError):
+        return None
+
+
+def stamp_failed_write_identity(entry: dict) -> dict:
+    """给待落盘条目补稳定身份与来源（**原地补缺，已有值不覆盖**，返回同一 dict）。
+
+    补的字段与来源：
+
+    - ``record_id``: ``uuid.uuid4().hex``（服务端生成 ⇒ 生成点可追溯）
+    - ``vault_id``: 进程 active vault；取不到落 ``None``（如实，不猜）
+    - ``group_id``: D16 逻辑格式；``vault_id`` 与 ``canvas_name`` 都可解析时才写
+    - ``recorded_at``: 落盘时刻 UTC ISO（回灌侧对缺 ``timestamp`` 条目的时间兜底）
+    - ``schema_version``: :data:`FAILED_WRITE_SCHEMA_VERSION`
+
+    幂等：重复调用不覆盖任何已有值（同一进程内重试同一条 = 同一身份）。
+    """
+    if not isinstance(entry, dict):
+        return entry
+    if not entry.get("record_id"):
+        entry["record_id"] = uuid.uuid4().hex
+    if "vault_id" not in entry:
+        entry["vault_id"] = _resolve_stamp_vault_id()
+    if "group_id" not in entry:
+        canvas_name = entry.get("canvas_name") or entry.get("canvas_path") or ""
+        group_id = _stamp_group_id(entry.get("vault_id"), canvas_name)
+        if group_id is not None:
+            entry["group_id"] = group_id
+    if not entry.get("recorded_at"):
+        entry["recorded_at"] = datetime.now(timezone.utc).isoformat()
+    if "schema_version" not in entry:
+        entry["schema_version"] = FAILED_WRITE_SCHEMA_VERSION
+    return entry
+
+
+def serialize_failed_write(entry: dict) -> str:
+    """``stamp_failed_write_identity`` + ``json.dumps(ensure_ascii=False)``。
+
+    ⛔ 序列化仍留在调用方调用（本函数只是替掉裸 ``json.dumps``）：
+    ``TypeError`` / ``ValueError`` 的异常语义与调用方原有 except 子句完全一致。
+    """
+    return json.dumps(stamp_failed_write_identity(entry), ensure_ascii=False)

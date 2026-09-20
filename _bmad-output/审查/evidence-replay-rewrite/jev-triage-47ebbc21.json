@@ -1,0 +1,65 @@
+{
+  "commit": "fix(replay): 复核整改 r1——缺 ts 不确认 / 未知不外泄 / 坏 score 不阻代 [BATCH-2026-09-18-第十五批 / CARD-REPLAY-REWRITE]",
+  "ref": "47ebbc21",
+  "sha": "47ebbc215174704041da7e96fac5b7e40279c57e",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:02:30-0700",
+  "code_files": [
+    "backend/app/services/fallback_sync_service.py",
+    "backend/tests/integration/test_replay_rewrite_7692.py",
+    "backend/tests/unit/test_replay_rewrite_identity.py"
+  ],
+  "files": [
+    {
+      "file": "backend/app/services/fallback_sync_service.py",
+      "added": 40,
+      "removed": 18,
+      "runtime": 0.98,
+      "risk": "error_handling",
+      "risk_conf": 0.81,
+      "urgency": 2.99,
+      "urgency_conf": 0.95,
+      "review": 0.84,
+      "test": 0.66,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/integration/test_replay_rewrite_7692.py",
+      "added": 10,
+      "removed": 0,
+      "runtime": 0.05,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.51,
+      "urgency_conf": 0.36,
+      "review": 0.58,
+      "test": 0.91,
+      "truncated": false,
+      "flag": false
+    },
+    {
+      "file": "backend/tests/unit/test_replay_rewrite_identity.py",
+      "added": 60,
+      "removed": 0,
+      "runtime": 0.05,
+      "risk": "test_or_docs",
+      "risk_conf": 1.0,
+      "urgency": 1.11,
+      "urgency_conf": 0.44,
+      "review": 0.54,
+      "test": 0.92,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 5663,
+    "output_tokens": 475
+  },
+  "latency_ms": {
+    "min": 245,
+    "median": 252,
+    "max": 283
+  }
+}

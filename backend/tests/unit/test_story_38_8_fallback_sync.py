@@ -29,11 +29,18 @@ def mock_neo4j():
     client = AsyncMock()
     client.is_fallback_mode = False
     client.health_check = AsyncMock(return_value=True)
-    client.run_query = AsyncMock(return_value=[{"should_update": True}])
+
+    async def receipt_echo(query, **kwargs):
+        # CARD-REPLAY-REWRITE: 回灌侧「写完读回执才算成功」—— 替身按送入值回显
+        # 回执字段（should_update 支），与生产 RETURN 形状对齐。
+        return [_receipt_row(kwargs)]
+
+    client.run_query = AsyncMock(side_effect=receipt_echo)
     client.create_canvas_node_relationship = AsyncMock(return_value=True)
     client.create_edge_relationship = AsyncMock(return_value=True)
     client.create_learning_relationship = AsyncMock(return_value=True)
     client.record_score_history = AsyncMock(return_value=True)
+    client.record_score_history_by_record_id = AsyncMock(return_value=True)
     return client
 
 
@@ -77,7 +84,24 @@ def _patch_paths(tmp_failed_writes, tmp_canvas_events, tmp_learning_memories, tm
         "CANVAS_EVENTS_FALLBACK_FILE": tmp_canvas_events,
         "LEARNING_MEMORIES_FILE": tmp_learning_memories,
         "SYNC_CHECKPOINT_FILE": tmp_checkpoint,
+        "SYNC_CONFIRMED_IDS_FILE": tmp_checkpoint.parent / "sync_confirmed_ids.json",
     }
+
+
+def _receipt_row(kwargs, *, should_update=True, ts_after_ts=False):
+    """回灌回执替身行（CARD-REPLAY-REWRITE）：按送入值回显, 形状与生产 RETURN 对齐。"""
+    return {
+        "should_update": should_update,
+        "score_after": kwargs.get("score"),
+        "group_after": kwargs.get("groupId"),
+        "ts_equal": bool(should_update) and not ts_after_ts,
+        "ts_after_ts": ts_after_ts,
+    }
+
+
+def _vaulted(entries: list) -> list:
+    """给测试条目补来源 vault（CARD-REPLAY-REWRITE：无来源条目默认隔离不写图）。"""
+    return [{**e, "vault_id": e.get("vault_id", "test_vault")} for e in entries]
 
 
 # Helper to write JSONL entries
@@ -140,7 +164,7 @@ class TestAC1StartupReplay:
                 "concept": "Kinematics",
             },
         ]
-        write_jsonl(tmp_failed_writes, entries)
+        write_jsonl(tmp_failed_writes, _vaulted(entries))
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -154,7 +178,7 @@ class TestAC1StartupReplay:
         assert result["failed_writes"]["recovered"] == 2
         assert result["failed_writes"]["pending"] == 0
         assert mock_neo4j.run_query.call_count == 2
-        assert mock_neo4j.record_score_history.call_count == 2
+        assert mock_neo4j.record_score_history_by_record_id.call_count == 2
 
     @pytest.mark.asyncio
     async def test_replays_canvas_node_events(
@@ -369,7 +393,7 @@ class TestAC2Idempotency:
             "concept": "Calculus",
         }
         # Write same entry twice
-        write_jsonl(tmp_failed_writes, [entry, entry])
+        write_jsonl(tmp_failed_writes, _vaulted([entry, entry]))
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -380,9 +404,11 @@ class TestAC2Idempotency:
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
 
-        # Both replayed successfully (MERGE handles dedup in Neo4j)
-        assert result["failed_writes"]["recovered"] == 2
-        assert mock_neo4j.run_query.call_count == 2
+        # CARD-REPLAY-REWRITE: 内容逐字相同的两条 = 同一条身份（legacy-hash）⇒
+        # 只重放一次、第二条计 deduped（旧契约「两条都重放、靠图上 MERGE 去重」退场）。
+        assert result["failed_writes"]["recovered"] == 1
+        assert result["failed_writes"]["deduped"] == 1
+        assert mock_neo4j.run_query.call_count == 1
 
     @pytest.mark.asyncio
     async def test_learning_memory_merge_no_duplicates(
@@ -437,7 +463,7 @@ class TestAC3Checkpoint:
             }
             for i in range(55)
         ]
-        write_jsonl(tmp_failed_writes, entries)
+        write_jsonl(tmp_failed_writes, _vaulted(entries))
 
         checkpoint_path = tmp_path / "sync_checkpoint.json"
         patches = _patch_paths(
@@ -448,19 +474,22 @@ class TestAC3Checkpoint:
         )
 
         checkpoints_saved = []
-        original_save = sync_service._save_checkpoint
+        original_persist = sync_service._persist_confirmed_ids
 
-        def tracking_save(key, idx):
-            checkpoints_saved.append((key, idx))
-            return original_save(key, idx)
+        def tracking_persist(generation, ids):
+            checkpoints_saved.append((generation, set(ids)))
+            return original_persist(generation, ids)
 
-        sync_service._save_checkpoint = tracking_save
+        sync_service._persist_confirmed_ids = tracking_persist
 
         with patch.multiple("app.services.fallback_sync_service", **patches):
             await sync_service.sync_all_fallbacks()
 
-        # Should have saved checkpoint at index 50 (every 50 entries)
-        assert ("failed_writes", 50) in checkpoints_saved
+        # CARD-REPLAY-REWRITE: 进度载体 = 确认身份日志（逐条落盘）, 不再是位置游标。
+        assert checkpoints_saved, "确认身份日志从未落盘"
+        last_generation, last_ids = checkpoints_saved[-1]
+        assert last_generation == "failed_writes.jsonl"
+        assert len(last_ids) == 55, f"全部 55 条都该被确认并记入日志, 实得 {len(last_ids)}"
 
     @pytest.mark.asyncio
     async def test_resumes_from_checkpoint(
@@ -482,31 +511,17 @@ class TestAC3Checkpoint:
                 "score": 80,
                 "error_reason": "timeout",
                 "concept": f"Concept{i}",
+                "record_id": f"rid_{i}",
             }
             for i in range(5)
         ]
-        write_jsonl(tmp_failed_writes, entries)
+        write_jsonl(tmp_failed_writes, _vaulted(entries))
 
-        # Pre-set checkpoint at index 3 (first 3 already synced)
-        # ⚠️ 必须带 progress_version（CARD-NEO4J-REPLAY-WIRE / Codex round-5 HIGH）:
-        # checkpoint 的下标含义依赖「分行切法 + 游标推进规则」, 两者本卡都改了
-        # (splitlines→split("\n"); 游标从「已尝试」改为「连续成功前缀」)。
-        # 不带标记 = 历史 checkpoint = 无法证明其前缀全部成功 ⇒ 实现会回退到 0
-        # 重放, 本用例要测的「从 checkpoint 续跑」就无从谈起。
-        # 从被测模块取常量而不是硬编码字面量, 避免版本再变时这里静默失配。
-        from app.services.fallback_sync_service import _PROGRESS_VERSION
-
-        checkpoint_path = tmp_path / "sync_checkpoint.json"
-        checkpoint_path.write_text(
-            json.dumps(
-                {
-                    "failed_writes": {
-                        "index": 3,
-                        "progress_version": _PROGRESS_VERSION,
-                        "updated_at": "2026-02-07",
-                    }
-                }
-            ),
+        # CARD-REPLAY-REWRITE: 进度载体从「位置游标」换成「确认身份日志」——
+        # 预置前 3 条的 record_id 为已确认, 本用例测「续跑只重放未确认者」。
+        confirmed_path = tmp_path / "sync_confirmed_ids.json"
+        confirmed_path.write_text(
+            json.dumps({"failed_writes.jsonl": [f"rid_{i}" for i in range(3)]}),
             encoding="utf-8",
         )
 
@@ -514,13 +529,14 @@ class TestAC3Checkpoint:
             tmp_failed_writes,
             tmp_canvas_events,
             tmp_learning_memories,
-            checkpoint_path,
+            tmp_path / "sync_checkpoint.json",
         )
         with patch.multiple("app.services.fallback_sync_service", **patches):
             result = await sync_service.sync_all_fallbacks()
 
-        # Only entries 3, 4 should be replayed (indices 0,1,2 skipped)
+        # 只有后 2 条被重放; confirmed 含经日志跳过的 3 条 + 本轮 2 条 = 5。
         assert result["failed_writes"]["recovered"] == 2
+        assert result["failed_writes"]["confirmed"] == 5
         assert mock_neo4j.run_query.call_count == 2
 
     @pytest.mark.asyncio
@@ -545,7 +561,7 @@ class TestAC3Checkpoint:
                 "concept": "Calculus",
             },
         ]
-        write_jsonl(tmp_failed_writes, entries)
+        write_jsonl(tmp_failed_writes, _vaulted(entries))
 
         checkpoint_path = tmp_path / "sync_checkpoint.json"
         patches = _patch_paths(
@@ -559,6 +575,8 @@ class TestAC3Checkpoint:
 
         # Checkpoint should be cleared (file deleted since no other keys)
         assert not checkpoint_path.exists()
+        # CARD-REPLAY-REWRITE: 进度载体是确认身份日志 —— 全同步后该代日志应被清掉。
+        assert not (tmp_path / "sync_confirmed_ids.json").exists()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -572,14 +590,14 @@ class TestAC4ConflictResolution:
     @pytest.mark.asyncio
     async def test_newer_fallback_wins(self, sync_service, mock_neo4j):
         """When fallback timestamp is newer, Neo4j data gets updated."""
-        mock_neo4j.run_query = AsyncMock(return_value=[{"should_update": True}])
-
+        # 回执走夹具 echo（should_update=True + 按送入值回显 ⇒ 写入被确认）。
         entry = {
             "timestamp": "2026-02-07T12:00:00",
             "concept_id": "c1",
             "canvas_name": "math.canvas",
             "score": 95,
             "concept": "Calculus",
+            "vault_id": "test_vault",
         }
         result = await sync_service._replay_scoring_entry_to_neo4j(entry)
 
@@ -591,7 +609,8 @@ class TestAC4ConflictResolution:
     @pytest.mark.asyncio
     async def test_older_fallback_preserves_neo4j(self, sync_service, mock_neo4j):
         """When Neo4j has newer data, fallback entry doesn't overwrite."""
-        mock_neo4j.run_query = AsyncMock(return_value=[{"should_update": False}])
+        # 回执: should_update=False 支要求图上时间戳确实更新（ts_after_ts=True）。
+        mock_neo4j.run_query = AsyncMock(return_value=[_receipt_row({}, should_update=False, ts_after_ts=True)])
 
         entry = {
             "timestamp": "2026-02-01T10:00:00",
@@ -599,6 +618,7 @@ class TestAC4ConflictResolution:
             "canvas_name": "math.canvas",
             "score": 60,
             "concept": "Calculus",
+            "vault_id": "test_vault",
         }
         result = await sync_service._replay_scoring_entry_to_neo4j(entry)
 
@@ -608,7 +628,7 @@ class TestAC4ConflictResolution:
     @pytest.mark.asyncio
     async def test_conflict_logged(self, sync_service, mock_neo4j, caplog):
         """When Neo4j has newer data, a log message is emitted."""
-        mock_neo4j.run_query = AsyncMock(return_value=[{"should_update": False}])
+        mock_neo4j.run_query = AsyncMock(return_value=[_receipt_row({}, should_update=False, ts_after_ts=True)])
 
         entry = {
             "timestamp": "2026-02-01T10:00:00",
@@ -616,6 +636,7 @@ class TestAC4ConflictResolution:
             "canvas_name": "math.canvas",
             "score": 60,
             "concept": "Calculus",
+            "vault_id": "test_vault",
         }
         import logging
 
@@ -698,7 +719,7 @@ class TestAC5FileRotation:
                 "concept": "Calculus",
             },
         ]
-        write_jsonl(tmp_failed_writes, entries)
+        write_jsonl(tmp_failed_writes, _vaulted(entries))
 
         patches = _patch_paths(
             tmp_failed_writes,
@@ -840,7 +861,7 @@ class TestAC5FileRotation:
                 "concept": "Kinematics",
             },
         ]
-        write_jsonl(tmp_failed_writes, entries)
+        write_jsonl(tmp_failed_writes, _vaulted(entries))
 
         # Make run_query fail on second call
         call_count = {"n": 0}
@@ -855,7 +876,7 @@ class TestAC5FileRotation:
                 # 裸 Exception 按设计穿透——本用例要验的是 AC-5「pending 条目重写」，
                 # 故注入契约内的连接类故障，而不是放宽生产的 except。[CARD-RED-C2]
                 raise ConnectionError("Neo4j connection lost")
-            return [{"should_update": True}]
+            return [_receipt_row(kwargs)]
 
         mock_neo4j.run_query = AsyncMock(side_effect=run_query_side_effect)
 
@@ -947,7 +968,7 @@ class TestEdgeCases:
         tmp_path,
     ):
         """Malformed JSONL lines are preserved as pending (not lost)."""
-        content = 'NOT VALID JSON\n{"timestamp":"2026-02-07","concept":"X","concept_id":"c1","canvas_name":"test","score":80,"event_type":"scoring","error_reason":"err"}\n'
+        content = 'NOT VALID JSON\n{"timestamp":"2026-02-07","concept":"X","concept_id":"c1","canvas_name":"test","score":80,"event_type":"scoring","error_reason":"err","vault_id":"test_vault"}\n'
         tmp_failed_writes.write_text(content, encoding="utf-8")
 
         patches = _patch_paths(

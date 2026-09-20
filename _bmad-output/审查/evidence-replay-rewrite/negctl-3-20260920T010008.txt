@@ -1,0 +1,26 @@
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.278 seconds.
+Prefix dict has been built successfully.
+ImportError while loading conftest '/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/conftest.py'.
+tests/conftest.py:32: in <module>
+    from app.main import app  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+app/main.py:55: in <module>
+    from app.api.v1.router import router as api_v1_router  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/router.py:56: in <module>
+    from app.api.v1.endpoints.traces import router as traces_router
+app/api/v1/endpoints/traces.py:31: in <module>
+    from app.services.fallback_sync_service import (
+E     File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/fallback_sync_service.py", line 377
+E       unknown = f"cannot list overflow generations: {e}"
+E   IndentationError: unexpected indent
+{"event": "cohere not installed. Cohere API reranking unavailable.", "logger": "agentic_rag.reranking", "level": "info", "timestamp": "2026-09-20T08:00:14.286552Z"}
+{"event": "Agentic RAG module loaded successfully. AGENTIC_RAG_AVAILABLE=True", "logger": "agentic_rag", "level": "info", "timestamp": "2026-09-20T08:00:14.316084Z"}
+{"event": "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True", "logger": "app.services.rag_service", "level": "info", "timestamp": "2026-09-20T08:00:14.316166Z"}
+{"event": "AgentService not available, canvas uses template questions only", "logger": "app.api.v1.endpoints.review", "level": "info", "timestamp": "2026-09-20T08:00:14.471247Z"}
+{"event": "src.rollback not available \u2014 rollback endpoints will return 503", "logger": "app.api.v1.endpoints.rollback", "level": "warning", "timestamp": "2026-09-20T08:00:14.482841Z"}
+<sys>:0: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+rc=4
+# 注: 本段 rc=4 为**负控脚本锚点漂移**（M1 修复新增一行致变异产出缩进错误）, 非产品缺陷; 已由同目录 negctl-3-<新ts>.txt 取代。

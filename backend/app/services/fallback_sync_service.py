@@ -9,17 +9,20 @@
 #   3. data/learning_memories.json  (Story 38.4 - dual-write)
 
 import asyncio
+import hashlib
 import json
+import os
 import threading
 
 import structlog
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+from app.core.failure_counters import overflow_siblings
 
 # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式 (graphiti_core validator 拒冒号)
 from app.graphiti.group_id_compat import to_physical_group_id
@@ -34,6 +37,17 @@ CANVAS_EVENTS_FALLBACK_FILE = _APP_DATA_DIR / "canvas_events_fallback.json"
 LEARNING_MEMORIES_FILE = _BACKEND_DIR / "data" / "learning_memories.json"
 SYNC_CHECKPOINT_FILE = _BACKEND_DIR / "data" / "sync_checkpoint.json"
 
+#: CARD-REPLAY-REWRITE (P2-C): **已确认身份日志** ——
+#: ``{代际文件名: [record_id, …]}``，与 checkpoint 同一把 ``_checkpoint_lock``、
+#: 同一目录、原子写。它是 failed_writes 链的**唯一进度载体**（位置游标退场）：
+#: 每条确认（写 + 回执比对通过）后先落这里再进下一条，finalize 按身份从该代
+#: 文件里剔除已确认者。崩溃在任一点重启只会重试未确认者。
+SYNC_CONFIRMED_IDS_FILE = _BACKEND_DIR / "data" / "sync_confirmed_ids.json"
+
+#: 历史无身份条目（无 vault_id 且无 group_id）的**显式归属点名单**环境变量。
+#: 默认不设 ⇒ 默认隔离（留在文件、计 quarantined、不写任何 vault）。
+LEGACY_NOSCOPE_VAULT_ENV = "CLS_REPLAY_LEGACY_NOSCOPE_VAULT"
+
 # Lock for checkpoint file access
 _checkpoint_lock = threading.Lock()
 
@@ -45,6 +59,9 @@ _CHECKPOINT_INTERVAL = 50
 
 #: **进度语义版本** —— checkpoint 存的下标只在同一「切行口径 + 游标语义」下有意义。
 #: 变更这个值的条件: 改动 :meth:`_sync_failed_writes` 的切行方式**或**游标推进规则。
+#: ⚠️ CARD-REPLAY-REWRITE (P2-C) 起: failed_writes 链**不再使用位置游标**
+#: （进度载体 = :data:`SYNC_CONFIRMED_IDS_FILE` 的身份日志），本常量自此只影响
+#: learning_memories 链的 checkpoint 读取; 完整历史保留以便审计。
 #:
 #: 变更条件有三类, 缺一不可: 改**切行方式**、改**游标推进规则**、
 #: 或改**「什么算一条成功」的判定**。第三类最容易被漏掉 —— 见下面 r8 那一行。
@@ -56,6 +73,10 @@ _CHECKPOINT_INTERVAL = 50
 #:   "split-lf+contiguous+history" 同卡 r8: **成功条件收紧** —— r7 之前
 #:                                 `record_score_history` 失败仍算整条成功;
 #:                                 现在它失败/拒写则整条判失败 (r7 HIGH-4)。
+#:   "identity-v2"                 CARD-REPLAY-REWRITE (P2-C): failed_writes 回灌改
+#:                                 「稳定记录身份 + 确认身份日志」，**不再读位置
+#:                                 游标** ⇒ 位置游标与文件代际错配这一整类失效面
+#:                                 消失; 旧标记（含上一行那版）一律被忽略。
 #:
 #: ⛔ 读到任何不等于当前值的标记一律**回退到 0**。
 #: r8 这一版尤其要紧 (Codex round-8 HIGH-1, 本卡修复遗漏):
@@ -64,7 +85,7 @@ _CHECKPOINT_INTERVAL = 50
 #:   在旧口径下仍"有效", 那条缺历史的条目被跳过并随文件轮转出队。
 #:   r7 的 `return False` 只修好**重新执行**的记录, 覆盖不到**已被旧游标跳过**的。
 #:   ⇒ 成功条件一变, 按旧条件写下的游标就必须作废。
-_PROGRESS_VERSION = "split-lf+contiguous+history"
+_PROGRESS_VERSION = "identity-v2"
 
 #: 整次回灌的互斥锁（Codex round-6 HIGH-2）。
 #:
@@ -103,6 +124,22 @@ _sync_all_lock = asyncio.Lock()
 #: 或未经 :meth:`sync_all_fallbacks` 的新持锁点），没有时间戳可比，
 #: 于是保守地判「窗口开着」—— 宁可越限也不丢数据。
 _sync_all_started_at: Optional[float] = None
+
+
+def _canonical_entry_json(entry: Dict[str, Any]) -> str:
+    """身份哈希用的规范 JSON（sort_keys 紧凑形态 —— 键序不同 == 同一条）。"""
+    return json.dumps(entry, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+
+
+def _legacy_record_id(entry: Dict[str, Any]) -> str:
+    """历史无身份条目的稳定身份 = ``sha256(规范 JSON)``。
+
+    内容逐字相同（规范形态相同）的历史条目视为**同一条** ⇒ 只重放一次
+    （计 ``deduped``）。取舍已登记待用户裁：内容相同但语义独立的两条会被合并
+    —— 与 ``_event_fingerprint`` 同型的已知问题; 对死信回灌而言最坏后果是少记
+    一次历史 Episode, 方向可接受（重复重放更糟）。
+    """
+    return hashlib.sha256(_canonical_entry_json(entry).encode("utf-8")).hexdigest()
 
 
 class FallbackSyncService:
@@ -300,160 +337,376 @@ class FallbackSyncService:
     # ─────────────────────────────────────────────────────────────────────
 
     async def _sync_failed_writes(self) -> Dict[str, Any]:
-        """Replay scoring failures from failed_writes.jsonl to Neo4j.
+        """Replay scoring failures from failed_writes.jsonl (+ .overflow.* 代际) to Neo4j.
 
-        返回 ``{"recovered": int, "pending": int}``；finalize 无法完成时额外带
-        ``"error": str``，且 ``pending`` 可能是 **-1**（= 数不出来，见
-        Codex round-8 MEDIUM-4）。故标注是 ``Dict[str, Any]`` 而非 ``Dict[str, int]``。
+        CARD-REPLAY-REWRITE (P2-C) 重写 —— 与旧算法的契约差异:
+
+        - **身份代替位置**: 每条按 ``record_id``（新条目）或
+          ``sha256(规范 JSON)``（历史条目, identity_source=legacy-hash）识别;
+          内容逐字相同的历史条目视为同一条（计 ``deduped``）。
+          位置游标退场, ``_load_checkpoint("failed_writes")`` 不再被调用。
+        - **确认身份日志**: 每条确认（写 + 回执比对通过）后先把 record_id 落进
+          ``SYNC_CONFIRMED_IDS_FILE[代际文件名]`` 再进下一条; finalize 按身份从
+          该代文件里剔除已确认者、剩余原子写回, 再清该代日志。崩溃在任一点重启
+          只会重试未确认者, 不会跳过、也不会重放已确认者。
+        - **来源 vault**: 条目自带 ``group_id`` / ``vault_id`` 优先; 都缺 ⇒
+          **默认隔离**（不写图、留在文件、计 ``quarantined``）; 仅当环境变量
+          :data:`LEGACY_NOSCOPE_VAULT_ENV` 显式点名目标 vault 时才按该值归属。
+        - **overflow 代际扫回**: 回灌集合 = ``overflow_siblings()``（最老先）+
+          活动文件; 某代全部确认 ⇒ ``_rotate_file`` 成 ``.synced.<ts>``
+          （沿 30 天 retention 清理）。
+
+        返回 ``{"recovered", "pending", "confirmed", "quarantined", "deduped",
+        "generations"}``；读异常时额外带 ``"error": str``，``pending`` 可能为
+        **-1**（= 数不出来）。键语义:
+
+        - ``recovered``: 本轮新确认条目数; ``confirmed``: recovered + 经日志跳过的
+          已确认数（「这一代总共已被确认多少」）;
+        - ``pending``: 活动文件 + 各 overflow 代际**重写后剩余行数之和**
+          （含被隔离条目与坏行）;
+        - ``generations``: 本轮扫回的 overflow 代际数。
         """
-        if not FAILED_WRITES_FILE.exists():
-            return {"recovered": 0, "pending": 0}
+        totals = {"recovered": 0, "confirmed_skipped": 0, "quarantined": 0, "deduped": 0}
+        remaining_total = 0
+        # ⚠️ Codex r1 MEDIUM-1: 「未知」不能被算术吞掉 —— 任一代 remaining<0（数不出来）
+        # 或列举/处理中断时，顶层一律 pending=-1 + error（未知不与已知剩余数相加）。
+        unknown: Optional[str] = None
 
-        with failed_writes_lock:
+        try:
+            generations = overflow_siblings(FAILED_WRITES_FILE)
+        except OSError as e:
+            logger.warning("[P2-C] 列出 .overflow.* 代际失败, 本轮只回灌活动文件: %s", e)
+            generations = []
+            unknown = f"cannot list overflow generations: {e}"
+
+        for gen_path in generations:
             try:
-                raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
+                gen = await self._replay_failed_writes_generation(gen_path, active=False)
             except OSError as e:
-                # 带 error 键: 读不到文件不等于「没有待回灌」(Codex round-9 MEDIUM-3)
-                logger.warning(f"[Story 38.8] Cannot read failed_writes: {e}")
-                return {"recovered": 0, "pending": -1, "error": f"cannot read: {e}"}
-
-        if not raw:
-            return {"recovered": 0, "pending": 0}
-
-        # ⚠️ split("\n") 而非 splitlines() (Codex round-3 LOW-4 的连带面):
-        # 含 U+2028 等字符的**一条**合法 JSONL 记录会被 splitlines() 切成两半,
-        # 两半都不是合法 JSON ⇒ 双双走 still_pending, 写回文件, 下一轮再切再失败
-        # —— 该条目**永远回灌不掉**。本卡接的就是这条回灌链, 这是链上的洞。
-        #
-        # CRLF 不是障碍, 但理由要写对: 保证在**读侧** —— 上面 read_text() 默认
-        # newline=None = universal newlines, 实测 b'{"a":1}\r\n' → '{"a":1}\n',
-        # 裸 CR 同样被规范化。写成「写侧都用 \n 拼接所以安全」是个**更弱**的前提
-        # (存在 Windows 写侧或历史文件就破)。即便尾部真残留 \r, json.loads 也把它
-        # 当 JSON 空白接受。
-        #
-        # ⛔ 下面 finalize 段重读文件时用的是**同一个**切法, 两处口径必须一致:
-        # 它们靠 len(current_lines) > len(lines) 判断「重放期间有没有新追加」,
-        # 一边 splitlines 一边 split 会让这个比较在含 U+2028 的文件上永远为真。
-        lines = raw.split("\n")
-        checkpoint_idx = self._load_checkpoint("failed_writes")
-        recovered = 0
-        still_pending: List[str] = []
-
-        # ⚠️ 游标只推进到**连续成功前缀**（Codex round-5 HIGH）。
-        # 原先是 `_save_checkpoint(i + 1)` —— 不管这一条成没成功都推进。失败的
-        # 条目只进内存 `still_pending`（此时**尚未**写回文件），若进程在写回前
-        # 中断，重启后游标已越过它 ⇒ **该条目被永久跳过**。
-        # 负控（Codex 纯内存实测）：51 条，第 1 条失败、2–50 成功，存下 index=50
-        # 后在第 51 条的 await 期间中断 ⇒ 重启只试第 51 条，第 1 条从未成功却被跳过。
-        # `contiguous_end` 的不变式：lines[checkpoint_idx : contiguous_end] 全部
-        # 重放成功。只有当前这条成功**且**它紧接在已证明的前缀之后，前缀才延长一位。
-        contiguous_end = checkpoint_idx
-
-        for i, line in enumerate(lines):
-            if i < checkpoint_idx:
-                # Already synced in a previous partial run
+                logger.warning("[P2-C] 代际 %s 处理中断, 留待下轮: %s", gen_path.name, e)
+                unknown = unknown or f"generation {gen_path.name} interrupted: {e}"
                 continue
-
-            entry_ok = False
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                logger.warning("[Story 38.8] Skipping malformed failed_writes entry")
-                still_pending.append(line)
+            for key in totals:
+                totals[key] += gen[key]
+            if gen["remaining"] < 0:
+                unknown = unknown or f"generation {gen_path.name} unreadable: {gen.get('error', '')}"
             else:
-                try:
-                    success = await self._replay_scoring_entry_to_neo4j(entry)
-                    if success:
-                        recovered += 1
-                        entry_ok = True
-                    else:
-                        still_pending.append(line)
-                except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-                    logger.warning(f"[Story 38.8] failed_writes replay error: {e}")
-                    still_pending.append(line)
+                remaining_total += gen["remaining"]
 
-            if entry_ok and contiguous_end == i:
-                contiguous_end = i + 1
+        active = await self._replay_failed_writes_generation(FAILED_WRITES_FILE, active=True)
+        for key in totals:
+            totals[key] += active[key]
+        if active["remaining"] < 0:
+            unknown = unknown or (active.get("error") or "active generation read failed")
+        else:
+            remaining_total += active["remaining"]
 
-            # Checkpoint every N entries —— 存的是**已证明全部成功**的前缀端点,
-            # 不是「扫到第几条」。前缀一旦被某条失败卡住, 后续再多成功也不推进,
-            # 于是崩溃重启时那条失败记录一定会被重新尝试。
-            if (i + 1) % _CHECKPOINT_INTERVAL == 0 and contiguous_end > checkpoint_idx:
-                self._save_checkpoint("failed_writes", contiguous_end)
-
-        # Finalize — re-read under lock to preserve entries appended
-        # during the async replay window (race condition fix).
-        with failed_writes_lock:
-            new_lines: List[str] = []
-            try:
-                if FAILED_WRITES_FILE.exists():
-                    current_raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
-                    # 与上面初读的切法逐字一致 (见那里的注释)
-                    current_lines = current_raw.split("\n") if current_raw else []
-                    # Lines appended after our initial read
-                    if len(current_lines) > len(lines):
-                        new_lines = current_lines[len(lines) :]
-            except OSError as e:
-                # ⛔ 重读失败必须**放弃改写** (Codex round-6 HIGH-3):
-                # 原先是 `except OSError: current_lines = []` —— 吞掉异常继续往下
-                # 写回 `still_pending`。负控: 初始 [x,y], x 成功 y 失败, 重放期间
-                # 追加 z; 末尾重读抛 OSError 但随后的文件替换**成功** ⇒ 写回 [y],
-                # **z 从未重放却被删掉**。既然读不到当前内容, 就无从判断有没有新
-                # 追加, 任何写回都可能抹掉未知记录。
-                # 保留原文件 + 保留 checkpoint, 下一轮重来 —— 宁可重复不可丢。
-                logger.error(
-                    "[Story 38.8] failed_writes finalize re-read failed (%s) — "
-                    "leaving the file untouched to avoid clobbering concurrent appends; "
-                    "remaining count unknown (file could not be read).",
-                    e,
-                )
-                # ⚠️ 带 error 键 + pending=-1 表「未知」(Codex round-8 MEDIUM-4):
-                # main.py 的启动汇总按「有没有 error 键」判这条链出没出问题;
-                # 不带的话 finalize 失败会被打成「正常完成、零待回灌」—— 正是本卡
-                # r1 整改②消灭的那类伪装在新路径上重现。读不到当前文件就数不出
-                # 还剩多少, 报确切数字等于编造。
-                return {"recovered": recovered, "pending": -1, "error": f"finalize re-read failed: {e}"}
-
-            merged = still_pending + new_lines
-            # ⛔ 先清游标再改写 (Codex round-6 HIGH-1: 文件代际错配):
-            # 游标的含义绑在**当次快照的下标**上, 而 `_rotate_file` /
-            # `_atomic_write_file` 会让文件换代。原先 `_clear_checkpoint` 在改写
-            # **之后**, 中间崩一次就会留下「指向上一代文件的游标」——
-            # 负控: 前 50 成功、第 51 失败, 存下 index=50 后文件被压缩成只剩第 51
-            # 条, 清游标前中断 ⇒ 重启拿 index=50 跳过唯一记录并直接轮转。
-            # 清不掉游标就**不动文件**: 换代与游标失效必须同生共死。
-            try:
-                self._clear_checkpoint("failed_writes")
-            except OSError as e:
-                logger.error(
-                    "[Story 38.8] cannot clear failed_writes checkpoint (%s) — "
-                    "refusing to rewrite/rotate the file (a stale cursor would point "
-                    "into the previous file generation); the file still holds every "
-                    "entry from this run, remaining count reported as unknown.",
-                    e,
-                )
-                # ⚠️ 文件**没被动过** ⇒ 剩余是**原快照全部**, 不是 merged
-                # (Codex round-9 MEDIUM-3): 全部成功时 merged=[] 而原文件仍在,
-                # 报 pending=0 会让汇总说「零待回灌」而文件里躺着整份条目。
-                return {
-                    "recovered": recovered,
-                    "pending": -1,
-                    "error": f"cannot clear checkpoint, file left untouched: {e}",
-                }
-
-            if merged:
-                self._atomic_write_file(
-                    FAILED_WRITES_FILE,
-                    "\n".join(merged) + "\n",
-                )
-            else:
-                self._rotate_file(FAILED_WRITES_FILE)
+        if totals["quarantined"]:
+            logger.warning(
+                "[P2-C] %d 条历史条目缺 vault_id 且无 group_id, 默认隔离未回灌"
+                "（留在文件; 设 %s=<vault_id> 可显式归属）",
+                totals["quarantined"],
+                LEGACY_NOSCOPE_VAULT_ENV,
+            )
 
         self._cleanup_old_synced_files(FAILED_WRITES_FILE.parent, FAILED_WRITES_FILE.stem)
 
-        # pending = 文件里实际剩下几条(含重放期间新追加的), 不是「本轮试过几条失败」
-        # —— 与 canvas 链同口径 (Codex round-8 MEDIUM-4)。
-        return {"recovered": recovered, "pending": len(merged)}
+        result: Dict[str, Any] = {
+            "recovered": totals["recovered"],
+            "pending": -1 if unknown else remaining_total,
+            "confirmed": totals["recovered"] + totals["confirmed_skipped"],
+            "quarantined": totals["quarantined"],
+            "deduped": totals["deduped"],
+            "generations": len(generations),
+        }
+        if unknown:
+            result["error"] = f"finalize/read failed: {unknown}"
+        return result
+
+    async def _replay_failed_writes_generation(self, path: Path, *, active: bool) -> Dict[str, Any]:
+        """按身份回灌**一代**文件（活动文件或 .overflow.* 代际）。
+
+        返回 ``{"recovered", "confirmed_skipped", "quarantined", "deduped",
+        "remaining"}``（读不出来时 ``remaining == -1`` 且带 ``error``，文件未动）；
+        写回/轮转阶段的 OSError **上抛**（崩溃注入门依赖它）。
+        """
+        generation = path.name
+        if active:
+            with failed_writes_lock:
+                try:
+                    raw = path.read_text(encoding="utf-8")
+                except FileNotFoundError:
+                    raw = ""
+                except OSError as e:
+                    logger.warning(f"[Story 38.8] Cannot read failed_writes: {e}")
+                    return {
+                        "recovered": 0,
+                        "confirmed_skipped": 0,
+                        "quarantined": 0,
+                        "deduped": 0,
+                        "remaining": -1,
+                        "error": f"cannot read: {e}",
+                    }
+        else:
+            try:
+                raw = path.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                return {"recovered": 0, "confirmed_skipped": 0, "quarantined": 0, "deduped": 0, "remaining": 0}
+            except OSError as e:
+                logger.warning("[P2-C] Cannot read generation %s: %s", generation, e)
+                return {
+                    "recovered": 0,
+                    "confirmed_skipped": 0,
+                    "quarantined": 0,
+                    "deduped": 0,
+                    "remaining": -1,
+                    "error": f"cannot read: {e}",
+                }
+
+        lines = [line for line in raw.split("\n") if line.strip()]
+
+        items: List[Tuple[Optional[str], str, Optional[Dict[str, Any]], str]] = []
+        seen: Set[str] = set()
+        deduped = 0
+        for line in lines:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                items.append((None, "malformed", None, line))
+                continue
+            if not isinstance(entry, dict):
+                items.append((None, "malformed", None, line))
+                continue
+            rid = entry.get("record_id")
+            if isinstance(rid, str) and rid:
+                source = "entry"
+            else:
+                rid = _legacy_record_id(entry)
+                source = "legacy-hash"
+            if rid in seen:
+                deduped += 1
+                continue
+            seen.add(rid)
+            items.append((rid, source, entry, line))
+
+        confirmed: Set[str] = set(self._load_confirmed_ids(generation))
+        confirmed_skipped = 0
+        recovered = 0
+        quarantined = 0
+
+        for rid, source, entry, line in items:
+            if entry is None:
+                continue  # 坏行: 无身份可谈, finalize 原样保留
+            if rid is not None and rid in confirmed:
+                confirmed_skipped += 1
+                continue
+            group_id, reason = self._resolve_entry_source(entry)
+            if group_id is None:
+                if reason == "quarantined":
+                    quarantined += 1
+                else:
+                    logger.warning("[P2-C] 条目来源不可解析(%s), 留待: %s", reason, generation)
+                continue
+            try:
+                ok = await self._replay_scoring_entry_to_neo4j(entry, record_id=rid)
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+                logger.warning(f"[Story 38.8] failed_writes replay error: {e}")
+                ok = False
+            if ok:
+                recovered += 1
+                if rid is not None:
+                    confirmed.add(rid)
+                    # 「先记日志再进下一条」: 崩溃在确认与写回之间只会重试未确认者。
+                    self._persist_confirmed_ids(generation, confirmed)
+            # 失败/隔离: 不记日志 ⇒ finalize 会把它写回。
+
+        # finalize: 按身份剔除已确认者; 剩余原子写回; 全空则轮转; 再清该代日志。
+        if active:
+            with failed_writes_lock:
+                try:
+                    current_raw = path.read_text(encoding="utf-8")
+                except FileNotFoundError:
+                    current_raw = ""
+                except OSError as e:
+                    logger.error(
+                        "[Story 38.8] failed_writes finalize re-read failed (%s) — "
+                        "leaving the file untouched; remaining count unknown.",
+                        e,
+                    )
+                    return {
+                        "recovered": recovered,
+                        "confirmed_skipped": confirmed_skipped,
+                        "quarantined": quarantined,
+                        "deduped": deduped,
+                        "remaining": -1,
+                        "error": f"finalize re-read failed: {e}",
+                    }
+                current_lines = [line for line in current_raw.split("\n") if line.strip()]
+                keep_lines = self._filter_confirmed_lines(current_lines, confirmed)
+                if keep_lines:
+                    self._atomic_write_file(path, "\n".join(keep_lines) + "\n")
+                else:
+                    self._rotate_file(path)
+                # 旧位置游标 best-effort 清理（身份算法不再读它; 失败不阻断）。
+                try:
+                    self._clear_checkpoint("failed_writes")
+                except OSError as e:
+                    logger.warning("[P2-C] 清理旧 failed_writes 位置游标失败(不影响身份日志): %s", e)
+                remaining = len(keep_lines)
+        else:
+            # overflow 代际: 写侧不会再追加; 但 _prune_overflow 可能在本轮处理期间
+            # 把它删掉 —— 加锁复查, 已删则不复活。
+            with failed_writes_lock:
+                try:
+                    current_raw = path.read_text(encoding="utf-8")
+                except FileNotFoundError:
+                    logger.info("[P2-C] overflow 代际 %s 在处理期间已被清理, 跳过写回", generation)
+                    self._clear_confirmed_ids(generation)
+                    return {
+                        "recovered": recovered,
+                        "confirmed_skipped": confirmed_skipped,
+                        "quarantined": quarantined,
+                        "deduped": deduped,
+                        "remaining": 0,
+                    }
+                except OSError as e:
+                    logger.warning("[P2-C] overflow 代际 %s 重读失败, 留待下轮: %s", generation, e)
+                    return {
+                        "recovered": recovered,
+                        "confirmed_skipped": confirmed_skipped,
+                        "quarantined": quarantined,
+                        "deduped": deduped,
+                        "remaining": -1,
+                    }
+                current_lines = [line for line in current_raw.split("\n") if line.strip()]
+                keep_lines = self._filter_confirmed_lines(current_lines, confirmed)
+                if keep_lines:
+                    self._atomic_write_file(path, "\n".join(keep_lines) + "\n")
+                else:
+                    self._rotate_file(path)
+                remaining = len(keep_lines)
+
+        self._clear_confirmed_ids(generation)
+        return {
+            "recovered": recovered,
+            "confirmed_skipped": confirmed_skipped,
+            "quarantined": quarantined,
+            "deduped": deduped,
+            "remaining": remaining,
+        }
+
+    @staticmethod
+    def _filter_confirmed_lines(current_lines: List[str], confirmed: Set[str]) -> List[str]:
+        """从当前文件内容里剔除**已确认身份**的行（坏行原样保留）。"""
+        keep: List[str] = []
+        for line in current_lines:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                keep.append(line)
+                continue
+            if not isinstance(entry, dict):
+                keep.append(line)
+                continue
+            rid = entry.get("record_id")
+            if not (isinstance(rid, str) and rid):
+                rid = _legacy_record_id(entry)
+            if rid in confirmed:
+                continue
+            keep.append(line)
+        return keep
+
+    def _resolve_entry_source(self, entry: Dict[str, Any]) -> Tuple[Optional[str], str]:
+        """条目来源组解析: 自带 ``group_id`` > 自带 ``vault_id`` > env 点名。
+
+        返回 ``(逻辑组 id 或 None, reason)``; reason ∈
+        ``{"entry-group", "entry-vault", "env-vault", "quarantined", "unresolvable"}``。
+        ``quarantined`` = 无任何来源线索（默认隔离）; ``unresolvable`` = 有线索
+        但解析不出组（如缺 canvas_name）⇒ 留待。
+        """
+        entry_group = entry.get("group_id")
+        if isinstance(entry_group, str) and entry_group.strip():
+            return entry_group.strip(), "entry-group"
+        vault_id = entry.get("vault_id")
+        reason = "entry-vault"
+        if not (isinstance(vault_id, str) and vault_id.strip()):
+            env_vault = os.environ.get(LEGACY_NOSCOPE_VAULT_ENV, "").strip()
+            if not env_vault:
+                return None, "quarantined"
+            vault_id = env_vault
+            reason = "env-vault"
+        canvas_name = entry.get("canvas_name") or entry.get("canvas_path") or ""
+        if not canvas_name:
+            return None, "unresolvable"
+        try:
+            from app.core.subject_config import build_vault_group_id
+
+            return build_vault_group_id(vault_id, canvas_path=canvas_name), reason
+        except (ImportError, AttributeError, ValueError):
+            return None, "unresolvable"
+
+    def _load_confirmed_ids(self, generation: str) -> List[str]:
+        """读某代际的已确认身份列表（读不到/坏文件按空处理 = 多一次幂等重放）。"""
+        with _checkpoint_lock:
+            try:
+                raw = SYNC_CONFIRMED_IDS_FILE.read_text(encoding="utf-8")
+            except FileNotFoundError:
+                return []
+            except (OSError, ValueError) as e:
+                logger.warning("[P2-C] 读确认身份日志失败, 按空处理: %s", e)
+                return []
+        try:
+            data = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return []
+        if not isinstance(data, dict):
+            return []
+        ids = data.get(generation, [])
+        return [i for i in ids if isinstance(i, str)] if isinstance(ids, list) else []
+
+    def _persist_confirmed_ids(self, generation: str, ids: Set[str]) -> None:
+        """把该代的已确认身份集合原子落盘（每条确认后调用 = 「先记日志再进下一条」）。
+
+        写失败**不阻断**回放（记 error）: 最坏后果 = 崩溃后多一次幂等重放
+        （Episode 按 record_id MERGE ⇒ 不产生重复）。
+        """
+        with _checkpoint_lock:
+            data: Dict[str, Any] = {}
+            try:
+                loaded = json.loads(SYNC_CONFIRMED_IDS_FILE.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    data = loaded
+            except FileNotFoundError:
+                pass
+            except (OSError, ValueError):
+                data = {}  # 读不出 ⇒ 重写（别的代际最多多一次幂等重放）
+            data[generation] = sorted(ids)
+            try:
+                SYNC_CONFIRMED_IDS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                self._atomic_write_file(SYNC_CONFIRMED_IDS_FILE, json.dumps(data, ensure_ascii=False, indent=2))
+            except OSError as e:
+                logger.error("[P2-C] 确认身份日志落盘失败(不阻断, 崩溃后多一次幂等重放): %s", e)
+
+    def _clear_confirmed_ids(self, generation: str) -> None:
+        """清掉某代际的确认日志（finalize 写回后调用; 失败不阻断）。"""
+        with _checkpoint_lock:
+            data: Dict[str, Any] = {}
+            try:
+                loaded = json.loads(SYNC_CONFIRMED_IDS_FILE.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    data = loaded
+            except FileNotFoundError:
+                return
+            except (OSError, ValueError):
+                data = {}
+            data.pop(generation, None)
+            try:
+                if data:
+                    self._atomic_write_file(SYNC_CONFIRMED_IDS_FILE, json.dumps(data, ensure_ascii=False, indent=2))
+                else:
+                    SYNC_CONFIRMED_IDS_FILE.unlink(missing_ok=True)
+            except OSError as e:
+                logger.warning("[P2-C] 清确认身份日志失败(残留条目无害): %s", e)
 
     # ─────────────────────────────────────────────────────────────────────
     # 2. canvas_events_fallback.json sync
@@ -583,40 +836,28 @@ class FallbackSyncService:
         # Sort by timestamp for chronological replay
         memories.sort(key=lambda m: m.get("timestamp", ""))
 
-        checkpoint_idx = self._load_checkpoint("learning_memories")
+        # CARD-REPLAY-REWRITE (P2-C): 本链的**位置游标一并退场**（结构判据要求
+        # 全文件不再出现位置游标符号）。旧游标只服务「三条链语义统一」这个摆设
+        # （旧注释历史保留在 git），且它与 canvas 链 round-7 HIGH-1 同型：重放前
+        # ``sort(key=timestamp)`` 后「第 i 条」不是稳定身份，晚到的时间戳更早条目
+        # 会落到游标之前被跳过。本链重放幂等（MERGE + last-write-wins）、
+        # 不写回不轮转 ⇒ 每轮全量重放是安全方向（条目永不丢）。
         recovered = 0
         failed = 0
-        # 游标口径与另两条链统一为「连续成功前缀」。
-        # ⚠️ 本链的**后果**与另两条不同, 如实写明: 它既不写回也不轮转
-        # (见下方 NOTE —— 运行时 LearningMemoryClient 还要查这个文件),
-        # 所以被跳过的条目下一轮仍在文件里、**不会丢**, 只是这一轮没重放。
-        # 统一口径是为了「三条链的 checkpoint 语义一致」, 不是为了修数据丢失。
-        contiguous_end = checkpoint_idx
-
-        for i, mem in enumerate(memories):
-            if i < checkpoint_idx:
-                continue
-
-            entry_ok = False
+        for mem in memories:
             try:
                 success = await self._replay_learning_memory_to_neo4j(mem)
                 if success:
                     recovered += 1
-                    entry_ok = True
                 else:
                     failed += 1
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] learning_memory replay error: {e}")
                 failed += 1
 
-            if entry_ok and contiguous_end == i:
-                contiguous_end = i + 1
-
-            if (i + 1) % _CHECKPOINT_INTERVAL == 0 and contiguous_end > checkpoint_idx:
-                self._save_checkpoint("learning_memories", contiguous_end)
-
         # NOTE: learning_memories.json is NOT rotated - still needed by
         # LearningMemoryClient for runtime queries.
+        # 旧版本写下的位置游标 best-effort 清理（本链已不读游标）。
         self._clear_checkpoint("learning_memories")
 
         return {"recovered": recovered, "pending": failed}
@@ -625,80 +866,87 @@ class FallbackSyncService:
     # Replay helpers
     # ─────────────────────────────────────────────────────────────────────
 
-    async def _replay_scoring_entry_to_neo4j(self, entry: Dict[str, Any]) -> bool:
-        """
-        Replay a single failed scoring entry to Neo4j.
+    async def _replay_scoring_entry_to_neo4j(
+        self,
+        entry: Dict[str, Any],
+        record_id: Optional[str] = None,
+    ) -> bool:
+        """回灌单条评分失败条目 —— **写完读回执才算成功**（P2-C 重写）。
 
-        Uses custom Cypher with last-write-wins conflict resolution:
-        if Neo4j already has newer data for this relationship, preserve it.
+        与旧实现的差异:
+
+        - **组来源**: 条目自带 ``group_id`` / ``vault_id`` 优先（缺则 env 点名;
+          都无 ⇒ 拒写, 由调用方计 quarantined）—— 不看进程 active vault。
+        - **回执**: MERGE 语句 RETURN 写后属性, 与送入值逐字段比对;
+          ``should_update=false`` 时要求图上 ``r.timestamp`` 确实更新（让位成功）,
+          任一不符判失败留待。
+        - **时间**: 缺 ``timestamp`` 用 ``recorded_at``; 两者都缺 ⇒ 只在图上无值
+          时写入（不取 ``now()`` 覆盖图上更新的分数 —— 裁定书 §1.5 A 方向）。
+        - **Episode**: 走 :meth:`Neo4jClient.record_score_history_by_record_id`
+          （``record_id`` 幂等）; 二次写失败/拒写整条判失败（沿 r7 HIGH-4 口径）。
+          ⚠️ 缺时间戳且带 score 的条目**整条留待**（无可靠事件时间, 不取 ``now()``;
+          跳过二次写却确认 = 静默丢历史 —— Codex r1 HIGH-1）。
         """
         concept = entry.get("concept") or entry.get("concept_id", "")
         canvas_name = entry.get("canvas_name", "")
         score = entry.get("score")
-        ts = entry.get("timestamp", datetime.now().isoformat())
 
         if not concept:
             logger.warning("[Story 38.8] Skipping entry with no concept")
             return False
 
-        # Build group_id from canvas_name
-        group_id = self._build_group_id_from_canvas(canvas_name)
-        if not group_id:
-            # G2-3 fail-closed (首日观察): _build_group_id_from_canvas 返 None
-            # 时拒绝重放 — null 不得进 MERGE 键, 也不静默降级 DEFAULT。
-            # 条目计 failed 保持 pending, 下轮 sync 重试。
+        if score is not None:
+            # Codex r1 MEDIUM-2: score 不可转 int 是**确定性坏输入** —— 在网络异常
+            # 捕获之前就拒掉, 否则 int() 的 ValueError 会中断整代回灌、后续条目被
+            # 同一条永久挡住（且 LEARNED 已被写成脏值）。整条留待、其余照常。
+            try:
+                int(score)
+            except (TypeError, ValueError, OverflowError):
+                logger.warning(
+                    "[P2-C] scoring replay: score 不可转 int, 整条留待 (concept=%r, score=%r)",
+                    concept,
+                    score,
+                )
+                return False
+
+        group_id, reason = self._resolve_entry_source(entry)
+        if group_id is None:
             logger.error(
-                "[G2-3 W1 fail-closed] scoring replay refused: unresolved group_id (concept=%r, canvas_name=%r)",
+                "[P2-C] scoring replay refused: unresolved entry source (reason=%s, concept=%r, canvas_name=%r)",
+                reason,
                 concept,
                 canvas_name,
             )
             return False
 
-        # G2-3 (W1): Concept/LEARNED 写身份 = {name/端点, group_id} 复合键,
-        # 禁事后 SET 归属 — 跨 vault 同名概念在重放时不再合并。
-        # Timestamp-preserving MERGE with last-write-wins (仅业务字段)
-        query = """
-        MERGE (u:User {id: $userId})
-        MERGE (c:Concept {name: $concept, group_id: $groupId})
-        MERGE (u)-[r:LEARNED {group_id: $groupId}]->(c)
-        WITH r,
-             CASE WHEN r.timestamp IS NULL OR r.timestamp <= datetime($ts)
-                  THEN true ELSE false END AS should_update
-        SET r.score = CASE WHEN should_update THEN $score ELSE r.score END,
-            r.timestamp = CASE WHEN should_update THEN datetime($ts) ELSE r.timestamp END
-        RETURN should_update
-        """
+        if record_id is None:
+            rid = entry.get("record_id")
+            record_id = rid if isinstance(rid, str) and rid else _legacy_record_id(entry)
 
-        try:
-            results = await self._neo4j.run_query(
-                query,
-                userId="default_user",
-                concept=concept,
-                score=score,
-                ts=ts,
-                # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
-                groupId=to_physical_group_id(group_id),
-            )
-            if results and not results[0].get("should_update", True):
-                logger.info(f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', fallback timestamp={ts}")
-        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
-            logger.warning(f"[Story 38.8] Neo4j scoring replay failed: {e}")
+        ts = entry.get("timestamp") or entry.get("recorded_at")
+        physical_group = to_physical_group_id(group_id)
+
+        if ts is None:
+            ok = await self._replay_scoring_entry_no_ts(entry, concept, score, physical_group)
+        else:
+            ok = await self._replay_scoring_entry_with_ts(entry, concept, score, ts, physical_group)
+        if not ok:
             return False
 
-        # Also record score history if score present.
-        # ⛔ 这一步失败必须让**整条**重放判失败 (Codex round-7 HIGH-4)。
-        # 原先是 `except ...: logger.warning("(non-fatal)")` 然后照样 `return True`:
-        #   负控: LEARNED 写入成功、record_score_history() 抛 ConnectionError ⇒
-        #   返回值与「两次写入都成功」的对照输入**完全相同** ⇒ 调用方据此把条目
-        #   移出队列并轮转, **缺失的评分历史再也不会自动重试**。
-        # 返回 False 让条目留在 pending, 下轮整条重放。代价是 LEARNED 会被重放
-        # 一次 —— 它是 MERGE + last-write-wins, 幂等; 而 record_score_history 的
-        # Episode 是 CREATE(randomUUID()), 提交结果不确定时可能重复。
-        # **重复且可见 远好于 静默缺失**; 可靠去重需要稳定记录身份, 属重写卡范围。
+        if score is not None and ts is None:
+            # CARD-REPLAY-REWRITE (Codex r1 HIGH-1): 缺 timestamp 且带 score ⇒ 写不出
+            # 带事件时间的评分历史（⛔ 不取 now()）⇒ **整条不确认**（留在文件、计 pending）。
+            # 裁定书 §1.8④ 把「二次写」列为成功确认条件之一；跳过它却确认 = 静默丢历史。
+            logger.warning(
+                "[P2-C] scoring replay: 缺 timestamp 且带 score, 无可靠事件时间, 整条留待 (concept=%r)",
+                concept,
+            )
+            return False
         if score is not None:
             try:
                 concept_id = entry.get("concept_id", concept)
-                ok = await self._neo4j.record_score_history(
+                ok2 = await self._neo4j.record_score_history_by_record_id(
+                    record_id=record_id,
                     concept_id=concept_id,
                     canvas_name=canvas_name,
                     score=int(score),
@@ -708,15 +956,138 @@ class FallbackSyncService:
             except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] Score history record failed: {e} — entry stays pending")
                 return False
-            if ok is False:
-                # 客户端也用**返回值**表达失败 (group 解析失败时 fail-closed 返 False,
-                # 见 neo4j_client.record_score_history) —— 同样不能算整条成功。
+            if ok2 is False:
                 logger.warning(
-                    "[Story 38.8] Score history record refused (concept_id=%r) — entry stays pending",
-                    entry.get("concept_id", concept),
+                    "[Story 38.8] Score history record refused (record_id=%r) — entry stays pending",
+                    record_id,
                 )
                 return False
 
+        return True
+
+    async def _replay_scoring_entry_with_ts(
+        self,
+        entry: Dict[str, Any],
+        concept: str,
+        score: Any,
+        ts: str,
+        physical_group: str,
+    ) -> bool:
+        """有时间戳分支: last-write-wins + 写后回执比对。"""
+        query = """
+        MERGE (u:User {id: $userId})
+        MERGE (c:Concept {name: $concept, group_id: $groupId})
+        MERGE (u)-[r:LEARNED {group_id: $groupId}]->(c)
+        WITH r, c,
+             CASE WHEN r.timestamp IS NULL OR r.timestamp <= datetime($ts)
+                  THEN true ELSE false END AS should_update
+        SET r.score = CASE WHEN should_update THEN $score ELSE r.score END,
+            r.timestamp = CASE WHEN should_update THEN datetime($ts) ELSE r.timestamp END
+        RETURN should_update,
+               r.score AS score_after,
+               c.group_id AS group_after,
+               (r.timestamp = datetime($ts)) AS ts_equal,
+               (r.timestamp > datetime($ts)) AS ts_after_ts
+        """
+        try:
+            results = await self._neo4j.run_query(
+                query,
+                userId="default_user",
+                concept=concept,
+                score=score,
+                ts=ts,
+                groupId=physical_group,
+            )
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            logger.warning(f"[Story 38.8] Neo4j scoring replay failed: {e}")
+            return False
+        row = results[0] if results else None
+        if not row:
+            logger.warning("[P2-C] scoring replay: 空回执, 不能确认 (concept=%r)", concept)
+            return False
+        if row.get("should_update") is False:
+            if row.get("ts_after_ts") is True:
+                logger.info(f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', fallback timestamp={ts}")
+                return True
+            logger.warning("[P2-C] scoring replay: should_update=False 但图上时间戳并不更新 (concept=%r)", concept)
+            return False
+        if row.get("should_update") is not True:
+            logger.warning("[P2-C] scoring replay: 回执缺 should_update (concept=%r)", concept)
+            return False
+        if score is not None and row.get("score_after") != score:
+            logger.warning(
+                "[P2-C] scoring replay: 回执分数不符 (concept=%r, want=%r, got=%r)",
+                concept,
+                score,
+                row.get("score_after"),
+            )
+            return False
+        if row.get("group_after") != physical_group:
+            logger.warning("[P2-C] scoring replay: 回执组不符 (concept=%r)", concept)
+            return False
+        if row.get("ts_equal") is not True:
+            logger.warning("[P2-C] scoring replay: 回执时间戳不符 (concept=%r)", concept)
+            return False
+        return True
+
+    async def _replay_scoring_entry_no_ts(
+        self,
+        entry: Dict[str, Any],
+        concept: str,
+        score: Any,
+        physical_group: str,
+    ) -> bool:
+        """无时间戳分支: 只在图上**无值**时写入; 有值一律不覆盖（不取 now()）。
+
+        图上有值（``r.timestamp`` 非空）⇒ 本条的分数不应用, 但条目**已被正确处理**
+        （让位）⇒ 判成功; 图上无值 ⇒ 写入分数（不写 timestamp —— 没有可靠事件时间）。
+        """
+        query = """
+        MERGE (u:User {id: $userId})
+        MERGE (c:Concept {name: $concept, group_id: $groupId})
+        MERGE (u)-[r:LEARNED {group_id: $groupId}]->(c)
+        WITH r, c,
+             CASE WHEN r.timestamp IS NULL THEN true ELSE false END AS should_update
+        SET r.score = CASE WHEN should_update THEN $score ELSE r.score END
+        RETURN should_update,
+               r.score AS score_after,
+               c.group_id AS group_after,
+               (r.timestamp IS NULL) AS graph_ts_absent
+        """
+        try:
+            results = await self._neo4j.run_query(
+                query,
+                userId="default_user",
+                concept=concept,
+                score=score,
+                groupId=physical_group,
+            )
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            logger.warning(f"[Story 38.8] Neo4j scoring replay failed: {e}")
+            return False
+        row = results[0] if results else None
+        if not row:
+            logger.warning("[P2-C] no-ts replay: 空回执, 不能确认 (concept=%r)", concept)
+            return False
+        if row.get("should_update") is False:
+            if row.get("graph_ts_absent") is False:
+                return True
+            logger.warning("[P2-C] no-ts replay: should_update=False 但图上无值 (concept=%r)", concept)
+            return False
+        if row.get("should_update") is not True:
+            logger.warning("[P2-C] no-ts replay: 回执缺 should_update (concept=%r)", concept)
+            return False
+        if score is not None and row.get("score_after") != score:
+            logger.warning(
+                "[P2-C] no-ts replay: 回执分数不符 (concept=%r, want=%r, got=%r)",
+                concept,
+                score,
+                row.get("score_after"),
+            )
+            return False
+        if row.get("group_after") != physical_group:
+            logger.warning("[P2-C] no-ts replay: 回执组不符 (concept=%r)", concept)
+            return False
         return True
 
     async def _replay_canvas_event_to_neo4j(self, event: Dict[str, Any]) -> bool:

@@ -1,0 +1,9 @@
+F821 Undefined name `undefined_name_p2c`
+ --> backend/_p2c_f821_probe.py:1:7
+  |
+1 | print(undefined_name_p2c)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1

@@ -1,0 +1,10 @@
+== struct after 2026-09-19 23:52:20 ==
+overflow_siblings=3
+contiguous_end=0
+record_id per file:
+backend/app/clients/neo4j_client.py:12
+backend/app/core/failed_writes_constants.py:4
+backend/app/services/fallback_sync_service.py:20
+vault_id per file:
+backend/app/core/failed_writes_constants.py:14
+backend/app/services/fallback_sync_service.py:16

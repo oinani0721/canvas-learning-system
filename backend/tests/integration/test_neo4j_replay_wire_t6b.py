@@ -12,11 +12,9 @@
    ⚠️ 断言的是**图内内容**, 不是 stats 自述 —— stats 由被测代码自己产出,
    拿它当判据等于让被测对象给自己打分。
 2. **幂等**: 同一条目触发两次回灌, 第二次 ``recovered == 0`` 且门前缀节点数
-   与第一次后**逐一相同**。⚠️ 这条不是靠 Cypher MERGE 兜住的 ——
-   ``neo4j_client.record_score_history`` 是 ``CREATE (e:Episode {id: randomUUID()})``,
-   同一条目真被重放两次会多出一个 Episode。挡住重复的是
-   ``_sync_failed_writes`` 成功后的 ``_rotate_file``（文件搬走 ⇒ 第二轮无输入）。
-   所以节点数断言是在验**那条**防线, 不是验 MERGE。
+   与第一次后**逐一相同**。⚠️ 该断言验的是 ``_rotate_file``（文件搬走 ⇒ 第二轮
+   无输入）; 另有一条独立防线 —— CARD-REPLAY-REWRITE (P2-C) 起 Episode 按
+   ``record_id`` MERGE（同身份重放不产生第二个 Episode）。
 3. **鉴权与 /system/* 逐字同口径**: 缺 header → 403、key 不匹配 → 403、
    生产态未配置 key → 503（``security.py`` Branch 3 / 4 / 1）。
 
@@ -198,6 +196,10 @@ def _seed_entry() -> Dict[str, Any]:
 
     concept / concept_id 带一次性 uuid 后缀 —— 同一个 7692 容器被多条门共用,
     固定名字会让上一轮的残留节点把「回灌后图内可查」变成恒真。
+
+    CARD-REPLAY-REWRITE (P2-C): 新写侧条目带稳定身份与来源 vault —— seed 与
+    生产形态对齐（``record_id`` + ``vault_id``）; 无来源的历史条目默认隔离,
+    不再是本门的输入面（隔离面由 test_replay_rewrite_7692.py 门 5 覆盖）。
     """
     tag = uuid.uuid4().hex[:12]
     return {
@@ -206,6 +208,8 @@ def _seed_entry() -> Dict[str, Any]:
         "canvas_name": GATE_CANVAS,
         "score": 73,
         "timestamp": "2026-09-14T10:00:00",
+        "record_id": f"{GATE_PREFIX}_rid_{tag}",
+        "vault_id": f"{GATE_PREFIX}_vault",
     }
 
 
@@ -471,9 +475,9 @@ async def test_second_replay_is_idempotent(gate_client, authed_app, tmp_path: Pa
         # 那么 2 → 2 一样通过, 门就挡不住「同一条目在一轮内被重放两次」。
         # 期望的四个节点来自一条评分条目的完整重放:
         #   Concept          — _replay_scoring_entry_to_neo4j 的 MERGE
-        #   Node / Canvas    — record_score_history 的 MERGE
-        #   Episode          — record_score_history 的 CREATE(id: randomUUID()),
-        #                      全链路唯一非幂等的那个, 正是这条断言要盯住的
+        #   Node / Canvas    — record_score_history_by_record_id 的 MERGE
+        #   Episode          — 同上, MERGE {record_id, group_id}
+        #                      （CARD-REPLAY-REWRITE / P2-C 起按身份幂等）
         assert counts_after_first == {"Concept": 1, "Node": 1, "Canvas": 1, "Episode": 1}, (
             f"首次回灌后门前缀节点数不是逐标签各 1 条: {counts_after_first!r}"
         )
