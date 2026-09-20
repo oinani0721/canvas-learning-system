@@ -1,0 +1,2 @@
+3d1c3efc7af4159d1fde07dd43850d4fea3b3bc38688988fe99f028a0574c13b  canvas-vault/.claude/scripts/undo_journal.py
+98ca1cb2a7cd9842a233c434df56896a490cefee336ba94b5fa752bcd58f12d2  canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py

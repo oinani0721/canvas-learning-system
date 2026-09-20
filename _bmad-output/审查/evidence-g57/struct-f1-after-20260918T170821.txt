@@ -1,0 +1,4 @@
+=== F1 改后 (exclude _bmad-output) ===
+count=0
+=== F1 验伪锚: 去掉 exclude 应 ≥ 前值+1 ===
+count_all=0

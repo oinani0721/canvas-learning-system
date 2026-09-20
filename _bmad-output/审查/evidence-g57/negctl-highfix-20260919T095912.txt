@@ -1,0 +1,29 @@
+跑前 sha256:
+  3cb6e5c24f646f51472246939ff04f6beb279494664d8e1bb3f79ecc199d0b8f  undo_journal.py
+  5a1a14abe5a4e5e77dcae0d3f8d93d99fa1c85fec788cee77e66107d5d8099b1  inbox_apply.py
+
+==================================================================================
+【H-A dir_mtimes 过 safe_join】点名的门: test_undo_refuses_a_journal_dir_mtime_key_pointing_outside_the_vault
+  变异后该门 rc=1  → ✅ 红了(负控成立)
+
+==================================================================================
+【H-B 写入准入 assert_is_ours】点名的门: test_undo_writes_nothing_when_the_journal_is_unreadable
+  变异后该门 rc=1  → ✅ 红了(负控成立)
+
+==================================================================================
+【H-C dst 的 safe_join】点名的门: test_undo_shape_gate_covers_dst_and_backup_not_just_src
+  变异后该门 rc=0  → ❌ 仍绿 = 这道门测不到它声称测的事
+ class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 1.19s ========================
+
+
+==================================================================================
+跑后 sha256（须与跑前逐位相同）:
+  ✅ 3cb6e5c24f646f51472246939ff04f6beb279494664d8e1bb3f79ecc199d0b8f  undo_journal.py
+  ✅ 5a1a14abe5a4e5e77dcae0d3f8d93d99fa1c85fec788cee77e66107d5d8099b1  inbox_apply.py
+
+负控三组: 有未成立 ❌ · 还原逐字节: ✅

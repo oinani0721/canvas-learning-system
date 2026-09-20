@@ -1,0 +1,46 @@
+跑前 sha256:
+  ec380da74156ec80085df982f4c26cdeb88a76650134d31376e2525820ba552c  undo_journal.py
+  5a1a14abe5a4e5e77dcae0d3f8d93d99fa1c85fec788cee77e66107d5d8099b1  inbox_apply.py
+
+======================================================================================
+【C1 realpath 正向包含（安全）】点名: test_undo_skips_untrustworthy_dir_mtime_keys_but_still_restores
+  rc=0 → ❌ 仍绿 = 门测不到它声称测的事
+this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================== 1 passed, 10 warnings in 0.92s ========================
+
+
+======================================================================================
+【C2 目录时间『值』的类型校验】点名: test_undo_skips_untrustworthy_dir_mtime_keys_but_still_restores
+  rc=1 → ✅ 红了
+     失败正文: E   AssertionError: 装饰性字段里的坏键否决了整批还原（初版 fail-closed 的回退）: py", line 1329, in _dir_retime_plan
+
+======================================================================================
+【C3 回退重演：形状不过就抛（可用性）】点名: test_undo_skips_untrustworthy_dir_mtime_keys_but_still_restores
+  rc=1 → ✅ 红了
+     失败正文: E   AssertionError: 装饰性字段里的坏键否决了整批还原（初版 fail-closed 的回退）: ✗ ✗ 账上的目录时间的目录含 `..`, 拒绝越界: '../vault外的目录'
+
+======================================================================================
+【C4 H-B 写入准入 assert_is_ours】点名: test_undo_writes_nothing_when_the_journal_is_unreadable
+  rc=1 → ✅ 红了
+     失败正文: E   AssertionError: 往一个读不懂的账所在目录写了东西 —— 多出/改动: ['stale/undo-receipt.md', 'undo-receipt.json']
+
+======================================================================================
+【C5 H-C dst 的 safe_join】点名: test_undo_shape_gate_covers_dst_and_backup_not_just_src
+  rc=1 → ✅ 红了
+     失败正文: E   assert ('落点' in '✗ ✗ 第 1 件的去处已不存在, 原路径也没有可用的原件, 无从还原: /private/tmp/pytest-of-Heishing/pytest-45/test_undo_shape_gate_covers_ds
+
+======================================================================================
+【C6 H-C backup 的 safe_join】点名: test_undo_shape_gate_covers_dst_and_backup_not_just_src
+  rc=1 → ✅ 红了
+     失败正文: E   assert ('备份路径' in '✗ ✗ 第 1 件的备份不在或不是普通文件: /private/tmp/pytest-of-Heishing/pytest-46/test_undo_shape_gate_covers_ds0/backup/vau
+
+======================================================================================
+跑后 sha256:
+  ✅ ec380da74156ec80085df982f4c26cdeb88a76650134d31376e2525820ba552c  undo_journal.py
+  ✅ 5a1a14abe5a4e5e77dcae0d3f8d93d99fa1c85fec788cee77e66107d5d8099b1  inbox_apply.py
+
+负控 6 组: 有未成立 ❌ · 还原逐字节 ✅

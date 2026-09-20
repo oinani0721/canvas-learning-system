@@ -1,0 +1,43 @@
+# CARD-G5-7 结构门 F1–F5 终态 (绑定 HEAD d6c4537a03bc4339fefe3d8539fe6a70444c84d4)
+=== F1 (期望 ≥3) ===
+backend/tests/skills/test_g5_7_inbox_apply.py
+canvas-vault/.claude/scripts/undo_journal.py
+canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+count=3
+=== F2 (期望 0) ===
+delete_calls= 0
+--- 验伪锚 (期望 1) ---
+delete_calls= 1
+=== F3 ===
+scripts
+inbox_apply.py
+inbox_preview.py
+no-skill-md
+=== F4 (期望 []) ===
+[]
+--- 验伪锚 (期望 ['basis']) ---
+['basis']
+=== F5 只读面 (期望空) ===
+[F5 输出结束]
+--- 验伪锚 (期望非空) ---
+ .../skills/clear-inbox/scripts/inbox_apply.py      | 940 +++++++++++++++++++++
+ 1 file changed, 940 insertions(+)
+=== 地盘门 ===
+ backend/tests/skills/test_g5_7_inbox_apply.py      | 2523 ++++++++++++++++++++
+ canvas-vault/.claude/scripts/undo_journal.py       | 1212 ++++++++++
+ .../skills/clear-inbox/scripts/inbox_apply.py      |  940 ++++++++
+ 3 files changed, 4675 insertions(+)
+=== 现网只读 grep (期望 0) ===
+       0
+=== 零写者收工 shasum ===
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+=== 两份新脚本 sha ===
+1ac8b5bc38256276dce93a22c93e27fdd6a8705b807907e9ff7b326e28d33bf0  canvas-vault/.claude/scripts/undo_journal.py
+f68f7a02eaeb07b73e7b2f546ced70cbb2e6e84f5444dfadee42bbc3dbffc699  canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+=== ruff ===
+files=3
+All checks passed!
+rc=0
+3 files already formatted
+fmt_rc=0

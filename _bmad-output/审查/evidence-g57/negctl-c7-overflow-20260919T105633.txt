@@ -1,0 +1,8 @@
+跑前 sha256: e8796ae68d760f4237a216e50b072306b3a9743fe207424d2d05f709380b505e  undo_journal.py
+
+【C7 从 except 摘掉 OverflowError】点名: test_undo_skips_untrustworthy_dir_mtime_keys_but_still_restores
+  rc=1 → ✅ 红了(负控成立)
+  失败正文: E   AssertionError: 装饰性字段里的坏键否决了整批还原（初版 fail-closed 的回退）: /inbox_apply.py", line 955, in run_undo_mode
+
+跑后 sha256: e8796ae68d760f4237a216e50b072306b3a9743fe207424d2d05f709380b505e  ✅ 逐字节同
+rc=0

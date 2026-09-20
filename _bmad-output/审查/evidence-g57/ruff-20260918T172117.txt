@@ -1,0 +1,20 @@
+=== ruff (zsh 数组, 本卡 diff 文件) ===
+files=3
+backend/tests/skills/test_g5_7_inbox_apply.py
+canvas-vault/.claude/scripts/undo_journal.py
+canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+All checks passed!
+rc=0
+3 files already formatted
+fmt_rc=0
+=== ruff 验伪锚 (仓内 F821 探针, 期望 rc=1) ===
+F821 Undefined name `undefined_name_xyz`
+ --> backend/tests/skills/_probe_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_xyz
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1

@@ -1,0 +1,4 @@
+=== F2 AST 删除原语门 (本卡两份新脚本) ===
+delete_calls= 0
+=== F2 验伪锚 (scratchpad 样本, 期望 1) ===
+delete_calls= 1

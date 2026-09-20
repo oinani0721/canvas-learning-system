@@ -1,0 +1,8 @@
+=== ① 原样（守卫在）===
+  [原样] rc=1  裸栈=False
+           拒绝理由: ✗ 源材料已不在原处, preview 已过期, 请重跑 preview: _待处理/双失.md (No such file or directory)
+=== ② 中和 perform L591 之后 ===
+  [中和后] rc=1  裸栈=False
+           拒绝理由: ✗ 源材料已不在原处, preview 已过期, 请重跑 preview: _待处理/双失.md (No such file or directory)
+
+已还原, sha 逐字同 ✅

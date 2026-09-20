@@ -1,0 +1,24 @@
+=== F1 承重 (commit 后; exclude _bmad-output) ===
+backend/tests/skills/test_g5_7_inbox_apply.py
+canvas-vault/.claude/scripts/undo_journal.py
+canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+count=3
+=== F1 验伪锚: 去掉 exclude ===
+count_all=3
+
+=== F5 只读面零改动 (期望空) ===
+[F5 输出结束]
+=== F5 验伪锚: 换成本卡新文件 (期望非空) ===
+ .../skills/clear-inbox/scripts/inbox_apply.py      | 715 +++++++++++++++++++++
+ 1 file changed, 715 insertions(+)
+
+=== 地盘门 (exclude _bmad-output) ===
+ backend/tests/skills/test_g5_7_inbox_apply.py      | 969 +++++++++++++++++++++
+ canvas-vault/.claude/scripts/undo_journal.py       | 601 +++++++++++++
+ .../skills/clear-inbox/scripts/inbox_apply.py      | 715 +++++++++++++++
+ 3 files changed, 2285 insertions(+)
+=== 地盘门验伪锚: 去掉 exclude ===
+ backend/tests/skills/test_g5_7_inbox_apply.py      | 969 +++++++++++++++++++++
+ canvas-vault/.claude/scripts/undo_journal.py       | 601 +++++++++++++
+ .../skills/clear-inbox/scripts/inbox_apply.py      | 715 +++++++++++++++
+ 3 files changed, 2285 insertions(+)

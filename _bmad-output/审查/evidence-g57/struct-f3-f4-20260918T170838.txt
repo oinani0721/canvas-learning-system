@@ -1,0 +1,10 @@
+=== F3 skill 目录形态 ===
+scripts
+--- scripts ---
+inbox_apply.py
+inbox_preview.py
+no-skill-md
+=== F4 文本字段零消费门 ===
+[]
+=== F4 验伪锚 (期望 ['basis']) ===
+['basis']

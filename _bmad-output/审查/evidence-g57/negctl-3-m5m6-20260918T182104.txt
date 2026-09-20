@@ -1,0 +1,13 @@
+=== M5 变异: 删掉 _assert_bound_to 调用 (Codex round-2 M5 点名的对照) ===
+mutated
+collected 64 items / 62 deselected / 2 selected
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_journal_without_fingerprint_is_refused
+================== 1 failed, 1 passed, 62 deselected in 1.07s ==================
+--- 还原 ---
+c47252eb3cc01141d25a
+=== M6 变异: 让「跳过回填」那一支照样把时间改回批前值 ===
+mutated
+collected 64 items / 62 deselected / 2 selected
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_does_not_retime_a_directory_touched_after_apply
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_dir_retime_needs_an_unbroken_chain
+======================= 2 failed, 62 deselected in 1.19s =======================

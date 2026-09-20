@@ -1,0 +1,17 @@
+镜像已对齐 HEAD eca080f8
+基线: 全绿 ✅
+
+── canvas-vault/.claude/scripts/undo_journal.py: 17 个含守卫的函数
+   ⚠ 整组中和仍全绿: json_line()  1 道守卫 (L173…)
+   ⚠ 整组中和仍全绿: free_path()  1 道守卫 (L457…)
+
+── canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py: 14 个含守卫的函数
+   ⚠ 整组中和仍全绿: perform()  1 道守卫 (L591…)
+
+==========================================================================
+分组普查完成, 用时 16.2 分钟
+有门盯着的函数: 28 个
+**整组守卫全部中和后仍全绿（= 真空洞）的函数: 3 个**
+  undo_journal.py::json_line  (1 道守卫, 起于 L173)
+  undo_journal.py::free_path  (1 道守卫, 起于 L457)
+  inbox_apply.py::perform  (1 道守卫, 起于 L591)

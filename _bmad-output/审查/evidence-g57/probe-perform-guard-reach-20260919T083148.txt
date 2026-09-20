@@ -1,0 +1,10 @@
+=== ① 原样（守卫在）===
+
+已还原, sha 逐字同 ✅
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/probe_perform_guard.py", line 72, in <module>
+    build_and_run("原样")
+    ~~~~~~~~~~~~~^^^^^^^^
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/probe_perform_guard.py", line 39, in build_and_run
+    pv = next(out.glob("*.json"))
+StopIteration

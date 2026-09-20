@@ -1,0 +1,59 @@
+=== Codex round-6 无法执行（批级事件，协议 §2.3）===
+时刻:        2026-09-19 04:20:43 PDT
+审查绑定:    242026f5e16dcb4af263a64fdb6d6713c22625c2（本轮本应绑最终 HEAD）
+codex:       codex-cli 0.153.3
+登录态:      Logged in using ChatGPT
+配置钉模型:  16:model = "gpt-6-astra"
+环境 OPENAI_API_KEY 是否已设置: False（实测；值本身不打印）
+
+--- 实测①: 完整 r6 prompt（存档 0 字节, 依协议不入库）---
+codex_rc=1 · codex-review-CARD-G5-7-r6.md = 0 字节
+stderr 末两行（逐字抄，stderr 本身不入库）:
+ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."}}
+ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."}}
+
+--- 实测②: 最小 prompt「回一个字：ok」+ -m gpt-6-astra ⇒ 同一条 400 ---
+  ⇒ 排除「是 r6 prompt 本身的问题」
+--- 实测③: **不带** -m（走配置默认）⇒ 同一条 400 ---
+  ⇒ 排除「是命令行 -m 写法的问题」; 模型钉在 ~/.codex/config.toml:16
+
+=== 判定 ===
+三次实测同一条 400 invalid_request：'gpt-6-astra' is not supported when using Codex
+with a ChatGPT account。确定性复现，不是限流（限流是 429 且会给重置时间），
+也不是未登录（codex login status 报 Logged in）。
+
+用户 2026-09-05 裁定：Codex 复核模型**固定** gpt-6-astra。换模型 = 违反该裁定，
+且按协议 §2.1「首部缺模型字段该轮不计入配额」，换模型跑出来的那一轮等于没审。
+因此本轮**不换模型**，按协议 §2.1「再 0 字节 → 主 session 人审替代」交接。
+
+=== 追加实测（2026-09-19 04:3x）：不是「错误信息推断」，是账号侧硬事实 ===
+`codex debug models` 返回本账号可用模型 **5 个**，gpt-6-astra **不在其中**：
+    gpt-reserve        visibility=hide   ultra=False
+    gpt-5.6-terra      visibility=list   ultra=True
+    gpt-5.6-luna       visibility=list   ultra=False
+    gpt-5.5            visibility=list   ultra=False
+    codex-auto-review  visibility=hide   ultra=False
+`~/.codex/auth.json`: auth_mode = "chatgpt"，`OPENAI_API_KEY` 字段为 **null**
+（= 没有可回退的 key，改配置也救不回来）。
+注意 gpt-5.6-terra 是支持 ultra 的 —— 「换它跑一轮」技术上可行，但见下方「为什么不换模型」。
+
+=== 解除条件（只能用户本人做, 不是 Claude 能代办的）===
+codex login --with-api-key 从 stdin 读 API key —— 凭据操作，Claude 不代执行。
+
+⛔ 追加实测（2026-09-19 05:5x）：这台机器上**根本没有可用的 OPENAI_API_KEY**，
+所以「printenv OPENAI_API_KEY | codex login --with-api-key」这条指令是无效的：
+  · 进程环境: OPENAI_API_KEY set=False（对照锚: GOOGLE_API_KEY set=True, len=39
+    ⇒ 证明本 shell 确实加载了用户 profile，不是「没读到 .zshrc」）
+  · ~/.zshrc / ~/.zshenv / ~/.zprofile: grep -c 'OPENAI_API_KEY' 全部 = 0
+  · keychain: security find-generic-password -s codex ⇒ item could not be found
+
+⇒ 用户需要**自己拿一个有 gpt-6-astra 权限的 key** 喂给它，例如在自己的终端里:
+    export OPENAI_API_KEY='...'; printenv OPENAI_API_KEY | codex login --with-api-key
+  （或任何等价方式。key 不要贴进对话。）
+解除后可用 `codex login status` 确认 auth_mode 变成 apikey，再用
+`codex debug models | head -c 2000` 确认 gpt-6-astra 出现在清单里。
+解除后 round-6 的 prompt 已就位, 可直接开跑:
+    _bmad-output/审查/prompts/codex-prompt-CARD-G5-7-r6.md
+
+=== 影响面（批级, 不止本卡）===
+第十五批所有还需要 Codex 轮次的车道都跑不动。建议主 session 在手册 §零 追加一行。

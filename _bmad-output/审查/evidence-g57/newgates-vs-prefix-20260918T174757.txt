@@ -1,0 +1,161 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-tree/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 48 items
+
+tests/skills/test_g5_7_inbox_apply.py .............................FFFF. [ 70%]
+FFFFFFFF.FFFFF                                                           [100%]
+
+=================================== FAILURES ===================================
+_______ test_planned_row_alone_does_not_authorize_overwriting_user_file ________
+tests/skills/test_g5_7_inbox_apply.py:1041: in test_planned_row_alone_does_not_authorize_overwriting_user_file
+    assert r.returncode != 0, "落点上不是自家产物时必须拒绝, 而不是覆写"
+E   AssertionError: 落点上不是自家产物时必须拒绝, 而不是覆写
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-171/test_planned_row_alone_does_no0/vault/outputs/clear-inbox/8e6bfe9c9a1a/journal.jsonl\n', stderr='').returncode
+______________ test_recycle_destination_is_also_ownership_checked ______________
+tests/skills/test_g5_7_inbox_apply.py:1064: in test_recycle_destination_is_also_ownership_checked
+    assert r.returncode != 0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-171/test_recycle_destination_is_al0/vault/outputs/clear-inbox/26608f9666b9/journal.jsonl\n', stderr='').returncode
+________ test_temp_file_name_is_unique_and_never_truncates_a_neighbour _________
+tests/skills/test_g5_7_inbox_apply.py:1081: in test_temp_file_name_is_unique_and_never_truncates_a_neighbour
+    assert bait.read_bytes() == bait_bytes, "同名邻居被截断了"
+           ^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:777: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   FileNotFoundError: [Errno 2] No such file or directory: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-171/test_temp_file_name_is_unique_0/vault/节点/临时.md.undo-journal.tmp'
+______________ test_inbox_swapped_to_symlink_ancestor_is_rejected ______________
+tests/skills/test_g5_7_inbox_apply.py:1101: in test_inbox_swapped_to_symlink_ancestor_is_rejected
+    assert r.returncode != 0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-171/test_inbox_swapped_to_symlink_0/vault/outputs/clear-inbox/d57fa8819ac6/journal.jsonl\n', stderr='').returncode
+________________ test_undo_refuses_a_journal_from_another_vault ________________
+tests/skills/test_g5_7_inbox_apply.py:1146: in test_undo_refuses_a_journal_from_another_vault
+    assert snapshot(vault_b) == before_b
+E   AssertionError: assert {'_待处理': ('di...27815, 16877)} == {'_待处理': ('di..., 16877), ...}
+E     
+E     Omitting 3 identical items, use -vv to show
+E     Differing items:
+E     {'节点': ('dir', 1789724896437027815, 16877)} != {'节点': ('dir', 1789724896358465092, 16877)}
+E     Right contains 1 more item:
+E     {'节点/跨库.md': ('055ebba67935c022d77bc191951d7e68bbdc071096bc6e2781234087443bbabd',
+E                   1788883200000000000,
+E                   33188)}
+E     Use -v to get more diff
+___________ test_undo_refuses_modified_copy_product_before_moving_it ___________
+tests/skills/test_g5_7_inbox_apply.py:1165: in test_undo_refuses_modified_copy_product_before_moving_it
+    assert u.returncode != 0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ishing/pytest-171/test_undo_refuses_modified_cop0/vault/outputs/clear-inbox/e4c617f5600b/undo-receipt.md\n', stderr='').returncode
+__________ test_rerun_after_successful_move_and_recycle_is_idempotent __________
+tests/skills/test_g5_7_inbox_apply.py:1187: in test_rerun_after_successful_move_and_recycle_is_idempotent
+    assert r2.returncode == 0, r2.stdout + r2.stderr
+E   AssertionError: ✗ 源材料已不在原处, preview 已过期, 请重跑 preview: _待处理/回收.md (No such file or directory)
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...le'], returncode=1, stdout='', stderr='✗ 源材料已不在原处, preview 已过期, 请重跑 preview: _待处理/回收.md (No such file or directory)\n').returncode
+_______________ test_undo_covers_an_item_acted_but_not_committed _______________
+tests/skills/test_g5_7_inbox_apply.py:1214: in test_undo_covers_an_item_acted_but_not_committed
+    assert files_only(after) == files_only(before)
+E   AssertionError: assert {'归档/漏记.md': ...00000, 33188)} == {'_待处理/漏记.md'...00000, 33188)}
+E     
+E     Left contains 1 more item:
+E     {'归档/漏记.md': ('de7cd4b598111450f05015a93ed20b9647bd97715aac57a4c69c446427316745',
+E                   1789401600000000000,
+E                   33188)}
+E     Right contains 1 more item:
+E     {'_待处理/漏记.md': ('2a4f2116b434f3c6f88100e0e2ecc2bdff71cdcd25f01b1d042687becef60110',...
+E     
+E     ...Full output truncated (3 lines hidden), use '-vv' to show
+_______________ test_second_undo_after_lost_undone_row_completes _______________
+tests/skills/test_g5_7_inbox_apply.py:1236: in test_second_undo_after_lost_undone_row_completes
+    assert u2.returncode == 0, u2.stdout + u2.stderr
+E   AssertionError: ✗ ✗ 第 1 件的去处已不存在, 无从还原: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-171/test_second_undo_after_lost_un0/vault/归档/补记.md（备份仍在 backup/_待处理/补记.md）
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...c_ft2w0000gn/T/pytest-of-Heishing/pytest-171/test_second_undo_after_lost_un0/vault/归档/补记.md（备份仍在 backup/_待处理/补记.md）\n').returncode
+________________ test_tail_line_missing_final_newline_is_sealed ________________
+tests/skills/test_g5_7_inbox_apply.py:1267: in test_tail_line_missing_final_newline_is_sealed
+    rows = journal_rows(only_batch_dir(vault))  # 解析不了就会在这里抛
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/skills/test_g5_7_inbox_apply.py:262: in journal_rows
+    rows.append(json.loads(line))
+                ^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py:348: in decode
+    raise JSONDecodeError("Extra data", s, end)
+E   json.decoder.JSONDecodeError: Extra data: line 1 column 507 (char 506)
+_____________ test_undo_seals_a_half_written_tail_before_appending _____________
+tests/skills/test_g5_7_inbox_apply.py:1301: in test_undo_seals_a_half_written_tail_before_appending
+    assert any(r.get("state") == "undone" for r in parsed), "撤销记账丢了"
+E   AssertionError: 撤销记账丢了
+E   assert False
+E    +  where False = any(<generator object test_undo_seals_a_half_written_tail_before_appending.<locals>.<genexpr> at 0x13956cc80>)
+____________________ test_file_mode_survives_move_and_undo _____________________
+tests/skills/test_g5_7_inbox_apply.py:1317: in test_file_mode_survives_move_and_undo
+    assert stat.S_IMODE(dst.stat().st_mode) == 0o600, "搬过去之后权限位被放宽了"
+E   AssertionError: 搬过去之后权限位被放宽了
+E   assert 420 == 384
+E    +  where 420 = <built-in function S_IMODE>(33188)
+E    +    where <built-in function S_IMODE> = stat.S_IMODE
+E    +    and   33188 = os.stat_result(st_mode=33188, st_ino=51209278, st_dev=16777230, st_nlink=1, st_uid=501, st_gid=20, st_size=216, st_atime=1789401600, st_mtime=1789401600, st_ctime=1789724898).st_mode
+E    +      where os.stat_result(st_mode=33188, st_ino=51209278, st_dev=16777230, st_nlink=1, st_uid=501, st_gid=20, st_size=216, st_atime=1789401600, st_mtime=1789401600, st_ctime=1789724898) = stat()
+E    +        where stat = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-171/test_file_mode_survives_move_a0/vault/归档/私密.md').stat
+__________ test_undo_does_not_retime_a_directory_touched_after_apply ___________
+tests/skills/test_g5_7_inbox_apply.py:1358: in test_undo_does_not_retime_a_directory_touched_after_apply
+    assert "节点" not in receipt["dirs_retimed"]
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'dirs_retimed'
+____________ test_created_directories_are_reported_and_left_behind _____________
+tests/skills/test_g5_7_inbox_apply.py:1375: in test_created_directories_are_reported_and_left_behind
+    assert "归档/二〇二六" in receipt["created_dirs"]
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'created_dirs'
+___________ test_strip_provenance_handles_blank_lines_and_quoted_key ___________
+tests/skills/test_g5_7_inbox_apply.py:1390: in test_strip_provenance_handles_blank_lines_and_quoted_key
+    assert b'  op: "copy"' not in out
+E   assert b'  op: "copy"' not in b'title: t\n\n  op: "copy"\nother_key:\n  kept: 1\n'
+_______________ test_unterminated_frontmatter_is_left_untouched ________________
+tests/skills/test_g5_7_inbox_apply.py:1410: in test_unterminated_frontmatter_is_left_untouched
+    assert (vault / "节点" / "未收尾.md").read_bytes() == raw, "看不懂结构的文件被改了"
+E   AssertionError: 看不懂结构的文件被改了
+E   assert b'---\nclear_...xe6\x96\x87\n' == b'---\ntitle:...xe6\x96\x87\n'
+E     
+E     At index 4 diff: b'c' != b't'
+E     Use -v to get more diff
+______________ test_work_dir_inside_inbox_is_rejected_zero_write _______________
+tests/skills/test_g5_7_inbox_apply.py:1427: in test_work_dir_inside_inbox_is_rejected_zero_write
+    assert r.returncode != 0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...pytest-of-Heishing/pytest-171/test_work_dir_inside_inbox_is_0/vault/_待处理/work/bcbdbc7afc15/journal.jsonl\n', stderr='').returncode
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_planned_row_alone_does_not_authorize_overwriting_user_file
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_recycle_destination_is_also_ownership_checked
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_temp_file_name_is_unique_and_never_truncates_a_neighbour
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_inbox_swapped_to_symlink_ancestor_is_rejected
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_refuses_a_journal_from_another_vault
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_refuses_modified_copy_product_before_moving_it
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_rerun_after_successful_move_and_recycle_is_idempotent
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_covers_an_item_acted_but_not_committed
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_second_undo_after_lost_undone_row_completes
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_tail_line_missing_final_newline_is_sealed
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_seals_a_half_written_tail_before_appending
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_file_mode_survives_move_and_undo
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_does_not_retime_a_directory_touched_after_apply
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_created_directories_are_reported_and_left_behind
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_strip_provenance_handles_blank_lines_and_quoted_key
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_unterminated_frontmatter_is_left_untouched
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_work_dir_inside_inbox_is_rejected_zero_write
+======================== 17 failed, 31 passed in 10.88s ========================
+rc=1

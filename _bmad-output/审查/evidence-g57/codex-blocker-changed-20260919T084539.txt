@@ -1,0 +1,27 @@
+=== ⛔ 条件 (n) 的阻塞点**已经变了** —— 重测实录 ===
+时刻: 2026-09-19 08:45:39 PDT
+
+--- 此前（§6.8，04:20）---
+  400 invalid_request_error: The 'gpt-6-astra' model is not supported when using
+  Codex with a ChatGPT account.
+  codex debug models 解析 models[].slug ⇒ 5 个，**不含** gpt-6-astra
+
+--- 现在 ---
+  登录态: Logged in using ChatGPT
+  可用模型 slug: gpt-6-astra gpt-reserve gpt-5.6-sol gpt-5.6-terra gpt-5.6-luna gpt-5.5 codex-auto-review
+  最小实测 (-m gpt-6-astra -c ultra, prompt='回一个字：ok'):
+    ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 23rd, 2026 11:05 AM.
+
+=== 判定 ===
+  · 账号类型那条 400 **已经消失** —— gpt-6-astra 现在在清单里、也不再报不支持。
+  · 新的阻塞是**用量上限**（quota），标称 reset 2026-09-23 11:05。
+  · ⛔ 那个 reset 时间是**一次观测不是不变量**：本项目有先例（dcaaaef9 通告「配额
+    耗尽至 09-15」，24 分钟后 f8dd5903 实测即恢复，通告被撤回 R-05）。
+    ⇒ 不要把 09-23 当成事实写进任何结论；接手时先花几千 token 复测。
+
+=== 这对交接意味着什么（与 §6.8 的旧结论不同）===
+  旧: 需要用户提供一个有 gpt-6-astra 权限的 API key（账号类型问题）。
+  新: 两条路 ——
+      (a) 等配额恢复后直接跑 RESUME-CARD-G5-7-codex-r6.sh（先复测，别信标称时间）；
+      (b) 仍可用 API key 登录绕开 ChatGPT 账号的配额池（按量计费，另一个池子）。
+  两条都**只能用户本人做**（购买额度 / 凭据操作），Claude 不代办。

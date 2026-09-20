@@ -1,0 +1,9 @@
+=== 负控⑧b L11 残片就地留着 ===
+HEAD: 077e7149cdfafb6599872407d5a9e5b46e923e18
+变异前/后 sha: 2db52c44ca2e716b1122b08ca14a3f518a559bc4e38f7953c439b5a97fd85e33 / bd4029d4937e31b0220f5029756049ce5f0bee0124e77f4be5f04860186cd49a
+期望红: test_stale_dir_swapped_to_symlink_keeps_residue_inside
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================ 1 passed, 127 deselected, 10 warnings in 0.59s ================
+还原正确: YES

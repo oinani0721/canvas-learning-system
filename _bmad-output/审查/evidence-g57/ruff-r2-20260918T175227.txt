@@ -1,0 +1,5 @@
+files=3
+All checks passed!
+rc=0
+3 files already formatted
+fmt_rc=0

@@ -1,0 +1,74 @@
+=== 负控⑦ 零覆盖门的点名变异 ===
+HEAD: be3c4d3608fa9eb575e016050d8f4d597205f283
+
+  变异已注入: atomic
+── M2-atomic (canvas-vault/.claude/scripts/undo_journal.py) 期望红: hardlinked_neighbour
+   变异前 sha: 6c8f8f9c99a568b8b0985ccf2673ac8f2b4425c581d8ee07b05f68c4ee535f4c
+   变异后 sha: 3b4e33504d38874adcc9089edf37718e782d7621fb23f365605f10c967e7c9ad
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_provenance_write_never_touches_a_hardlinked_neighbour
+=========== 1 failed, 1 passed, 120 deselected, 10 warnings in 0.54s ===========
+   pytest_rc=1
+   还原正确: YES
+
+  变异已注入: freepath
+── M3-freepath (canvas-vault/.claude/scripts/undo_journal.py) 期望红: free_path_never_overwrites
+   变异前 sha: 6c8f8f9c99a568b8b0985ccf2673ac8f2b4425c581d8ee07b05f68c4ee535f4c
+   变异后 sha: 60c745ce66ad350d7b3eeacb2f3f4a7a4c795d395dc1528d32f06345c6ac2554
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_free_path_never_overwrites_an_existing_parked_item
+================ 1 failed, 121 deselected, 10 warnings in 0.73s ================
+   pytest_rc=1
+   还原正确: YES
+
+  变异已注入: chmod
+── M9-chmod (canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py) 期望红: keeps_the_source_permission_bits
+   变异前 sha: 05cf57845a698d3c06ea0765425e9a2e69ad8852a91852a932eee356abe5f18f
+   变异后 sha: 4998afe4dd89752124b43b65d33c8c40d8860a4be3bf8dcdd349c2a43d158a32
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_copy_destination_keeps_the_source_permission_bits
+================ 1 failed, 121 deselected, 10 warnings in 0.54s ================
+   pytest_rc=1
+   还原正确: YES
+
+  变异已注入: resumable
+── M10-resumable (canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py) 期望红: move_resumes_when_the_action_landed
+   变异前 sha: 05cf57845a698d3c06ea0765425e9a2e69ad8852a91852a932eee356abe5f18f
+   变异后 sha: 0bd8d732a97aee0885f1264997486ab002d0de393373da1a474e59f8e0dfc6f0
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_move_resumes_when_the_action_landed_but_done_was_not_recorded
+================ 1 failed, 121 deselected, 10 warnings in 0.60s ================
+   pytest_rc=1
+   还原正确: YES
+
+  变异已注入: tgtsymlink
+── M11-tgtsymlink (canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py) 期望红: target_symlink_pointing_back
+   变异前 sha: 05cf57845a698d3c06ea0765425e9a2e69ad8852a91852a932eee356abe5f18f
+   变异后 sha: ce823a7e1430e72c510f6a5a1197dd55fd3398d8497b7e7f1270020846f997f7
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_target_symlink_pointing_back_into_the_vault_is_rejected
+================ 1 failed, 121 deselected, 10 warnings in 0.54s ================
+   pytest_rc=1
+   还原正确: YES
+
+  变异已注入: relshape
+  变异已注入: relshape#2
+── M12-relshape (canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py) 期望红: tampered_rel_path_shape
+   变异前 sha: 05cf57845a698d3c06ea0765425e9a2e69ad8852a91852a932eee356abe5f18f
+   变异后 sha: d79e933ea9138dfab3106c30f203623dd26ed445822339575ce0b285627b2840
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_tampered_rel_path_shape_is_rejected_on_its_own
+================ 1 failed, 121 deselected, 10 warnings in 0.61s ================
+   pytest_rc=1
+   还原正确: YES
+
+  变异已注入: mtime
+── M13-mtime (canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py) 期望红: equal_length_edit_after_preview
+   变异前 sha: 05cf57845a698d3c06ea0765425e9a2e69ad8852a91852a932eee356abe5f18f
+   变异后 sha: 7d3b32473803841efce2de9f3ed0f5b5b372090237683c0e9187c2b7bdf9ff09
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_equal_length_edit_after_preview_is_rejected_on_first_run
+================ 1 failed, 121 deselected, 10 warnings in 0.53s ================
+   pytest_rc=1
+   还原正确: YES
+

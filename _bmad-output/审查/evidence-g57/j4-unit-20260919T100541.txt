@@ -1,0 +1,63 @@
+HEAD: e1d39c31fa0af81b32dc97bf1570ad3c15d0775f
+跑法逐字照抄基线头第 3 行
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_queries_graphiti
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_queries_graphiti
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_weight_distribution
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_weight_distribution
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_custom_weights_applied
+tests/unit/test_review_mode_support.py::TestReviewModeFallback::test_targeted_mode_no_fallback_with_history
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/services/weight_calculator.py:181: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    days_since = (datetime.utcnow() - last_review).days
+
+tests/unit/test_sync_batch_auth.py: 2 warnings
+tests/unit/test_sync_exception_classification.py: 6 warnings
+tests/unit/test_sync_group_isolation.py: 1 warning
+tests/unit/test_vault_scope_409.py: 1 warning
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_inheritance_distill_mismatch_409
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/app/api/v1/endpoints/inheritance.py:83: DeprecationWarning: deprecated
+    request.vault_id, legacy_group_id=request.group_id
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+FAILED tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+FAILED tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format
+FAILED tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+FAILED tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_normalizes_schema
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_passes_node_id_filter_to_search_memories
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean - AssertionError: [2m台账[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/scripts/vault_doc_roles.yaml
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+= 32 failed, 5731 passed, 44 skipped, 13 xfailed, 231 warnings in 329.52s (0:05:29) =
+rc=1

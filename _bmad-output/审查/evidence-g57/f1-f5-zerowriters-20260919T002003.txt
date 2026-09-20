@@ -1,0 +1,30 @@
+HEAD: bb64db7d8edd7be3adfca0970dca53b4ef2e7716
+=== F1: 新名字在代码树里的落点 (改后应 ≥3) ===
+backend/tests/skills/test_g5_7_inbox_apply.py
+canvas-vault/.claude/scripts/undo_journal.py
+canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+F1_count=3
+--- 验伪锚: 同一条命令在基线 9c4e7e82 上必须是 0 ---
+F1_before=0
+
+=== F5/地盘: 9c4e7e82..HEAD 排除 _bmad-output ===
+backend/tests/skills/test_g5_7_inbox_apply.py
+canvas-vault/.claude/scripts/undo_journal.py
+canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+--- numstat (不用 --stat, 它会把长路径首段缩成 .../) ---
+2691	0	backend/tests/skills/test_g5_7_inbox_apply.py
+1252	0	canvas-vault/.claude/scripts/undo_journal.py
+965	0	canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+
+=== 零写者 shasum (fsrs_bridge / decay_beta, 同目录新增须贴前后) ===
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+--- 与基线 9c4e7e82 对照 ---
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  BASE:canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  BASE:canvas-vault/.claude/scripts/decay_beta.py
+
+=== 本卡两份新脚本 sha (终态) ===
+b144dcf185b0791965e971c4c35f347536d3b2edd8f8cd47253812b82d4d6fff  canvas-vault/.claude/scripts/undo_journal.py
+33172ae2683dc79484f51701bbd22095dce746b3f655607aa2d6a2140f94fd72  canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+d5a71be868e6297941eb6830ae2099fbd5a64726d8595da129aee4700ea46c2c  backend/tests/skills/test_g5_7_inbox_apply.py
+rc=0

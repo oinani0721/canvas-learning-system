@@ -1,0 +1,4 @@
+baseline_n = 33 | close_n = 32
+gt_count = 0 （本卡引入 —— 必须为 0）
+lt_count = 1
+  <  tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422

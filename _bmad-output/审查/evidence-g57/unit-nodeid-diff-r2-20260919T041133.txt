@@ -1,0 +1,6 @@
+跑法: PYTHONDONTWRITEBYTECODE=1 pytest tests/unit -q -p no:cacheprovider -rfE （逐字照抄基线头第 3 行）
+baseline_n = 33 unique 33
+close_n    = 32 unique 32
+gt_count   = 0 （本卡引入 —— 必须为 0）
+lt_count   = 1 （本卡侧消失）
+  <  tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422

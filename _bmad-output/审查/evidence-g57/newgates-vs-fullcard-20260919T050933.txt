@@ -1,0 +1,117 @@
+对照树: 5207f899 归档（全卡复核整改**之前**）+ 当前测试文件
+被测脚本 sha:
+1edecbafe0a75c548ea76ff722a3bd43b54516887baa702dd4cb725ff108680f  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/canvas-vault/.claude/scripts/undo_journal.py
+33172ae2683dc79484f51701bbd22095dce746b3f655607aa2d6a2140f94fd72  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+测试文件 sha（两侧须逐字同）:
+540087d3e110250984dc7f9be2ae7c5cf464ace749919ff35c4e753c582d9582  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py
+540087d3e110250984dc7f9be2ae7c5cf464ace749919ff35c4e753c582d9582  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend/tests/skills/test_g5_7_inbox_apply.py
+def_test_count: 110
+---
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 110 items
+
+tests/skills/test_g5_7_inbox_apply.py .................................. [ 30%]
+.....................................................................FFF [ 96%]
+FFFF                                                                     [100%]
+
+=================================== FAILURES ===================================
+E   AssertionError: 越界的账本被接受了: ✓ 已撤销 0 件 · 批次 我的笔记
+        回执 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1647/test_undo_refuses_a_journal_ou0/我的笔记/undo-receipt.md
+      
+    assert 0 != 0
+     +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1647/test_undo_refuses_a_journal_ou0/我的笔记/undo-receipt.md\n', stderr='').returncode
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py:2888: AssertionError: 越界的账本被接受了: ✓ 已撤销 0 件 · 批次 我的笔记
+E   AssertionError: 被拒绝的那本账所在的批次目录被动过了
+    assert {'backup': ('..., 33188), ...} == {'backup': ('..., 33188), ...}
+      
+      Omitting 6 identical items, use -vv to show
+      Differing items:
+      {'undo-receipt.json': ('5d33ac0efafd61237bead8b65053647512d5db2b741f4a8ffc565b1cb68e750e', 1789819801396371620, 33152)} != {'undo-receipt.json': ('44f8129370d49921f45d27a9b86d188206def43d13cf909b4f32e569c737beb4', 1789819801307293683, 33152)}
+      {'undo-receipt.md': ('8e2c30bf5cee0c3d4ee37fa08e5eb666de233325d54da980fe3ab229a2896a9d', 1789819801396512579, 33152)} != {'undo-receipt.md': ('93c70a076d5dc6a28d8e281da6283b5457cbdeacb50950b65dfd7e5c2295fa2d', 1789819801307383267, 33152)}
+      {'journal.jsonl': ('32722cdbfef392ba6...
+      
+      ...Full output truncated (10 lines hidden), use '-vv' to show
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py:2931: AssertionError: 被拒绝的那本账所在的批次目录被动过了
+E   undo_journal_under_test.JournalError: ✗ 这本账不是当前 vault 的 (第 1 条记的是 '别人的指纹', 现算 '我的指纹'), 拒绝拿别处的记录来动这里的文件: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1647/test_undo_does_not_seal_a_jour0/root/work/b0/journal.jsonl
+
+During handling of the above exception, another exception occurred:
+E   AttributeError: module 'undo_journal_under_test' has no attribute 'JournalNotOursError'
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py:2965: AttributeError: module 'undo_journal_under_test' has no attribute 'JournalNotOursError'
+E   AssertionError: 带 `..` 的账本被采信了: ✓ 已撤销 1 件 · 批次 96360358f75e
+        回执 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1647/test_undo_refuses_a_journal_ro0/vault/outputs/clear-inbox/96360358f75e/undo-receipt.md
+      
+    assert 0 != 0
+     +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...shing/pytest-1647/test_undo_refuses_a_journal_ro0/vault/outputs/clear-inbox/96360358f75e/undo-receipt.md\n', stderr='').returncode
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py:3003: AssertionError: 带 `..` 的账本被采信了: ✓ 已撤销 1 件 · 批次 96360358f75e
+E   AssertionError: 非账本文件被当成空账通过了: ✓ 已撤销 0 件 · 批次 看起来像个批次
+        回执 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1647/test_undo_refuses_a_file_that_0/vault/outputs/clear-inbox/看起来像个批次/undo-receipt.md
+      
+    assert 0 != 0
+     +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...f-Heishing/pytest-1647/test_undo_refuses_a_file_that_0/vault/outputs/clear-inbox/看起来像个批次/undo-receipt.md\n', stderr='').returncode
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py:3023: AssertionError: 非账本文件被当成空账通过了: ✓ 已撤销 0 件 · 批次 看起来像个批次
+E   AssertionError: target='.Claude' 被接受了
+    assert 0 != 0
+     +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...eishing/pytest-1647/test_target_whitelist_is_case_0/vault/outputs/clear-inbox/0f2c1450e033/journal.jsonl\n', stderr='').returncode
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py:3048: AssertionError: target='.Claude' 被接受了
+E   AssertionError: stale/ 是 symlink 却照样搬了: ✓ 清仓完成: 1/1 件 · 批次 6f42d7e59a34
+        回执 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-1647/test_link_half_state_park_refu0/vault/outputs/clear-inbox/6f42d7e59a34/receipt.md
+        后悔了就撤销: --undo /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/
+    assert 0 != 0
+     +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...eishing/pytest-1647/test_link_half_state_park_refu0/vault/outputs/clear-inbox/6f42d7e59a34/journal.jsonl\n', stderr='').returncode
+/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/tests/skills/test_g5_7_inbox_apply.py:3096: AssertionError: stale/ 是 symlink 却照样搬了: ✓ 清仓完成: 1/1 件 · 批次 6f42d7e59a34
+=============================== warnings summary ===============================
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fullcard-tree/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../../../../../../../Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_refuses_a_journal_outside_the_vault_and_writes_nothing
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_bound_to_another_vault_leaves_that_batch_byte_identical
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_does_not_seal_a_journal_it_is_about_to_refuse
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_refuses_a_journal_row_pointing_outside_the_vault
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_refuses_a_file_that_is_not_a_batch_journal
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_target_whitelist_is_case_insensitive
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_link_half_state_park_refuses_a_symlinked_stale_dir
+================= 7 failed, 103 passed, 10 warnings in 21.74s ==================
+pytest_rc=1

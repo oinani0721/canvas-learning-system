@@ -1,0 +1,179 @@
+⛔⛔ 结论标签更正（跑完后加，正文一字未改）⛔⛔
+
+本脚本把「中和某道守卫之后整套仍全绿」标成了「无门覆盖」——**那个标签是错的**。
+
+实测验伪（同一棵镜像树）：中和 `inbox_apply.py:227` 的「target 含 `..`, 拒绝越界」之后，
+`test_target_escape_variants_are_rejected_zero_write` 与 `test_target_whitelist_is_case_insensitive`
+**两条门仍然全绿** —— 也就是说 `../外面` 这个输入**仍然被拦下**了，只是被**后面一道**
+守卫（:239 的 realpath 边界判定）拦的。同族的 `账上的路径含 '..'`（undo_journal.py:345）
+更是一小时前刚配过门、并在 4ce44da3 归档树上验过会红。
+
+正确的结论只能写成：
+
+    对这 69 道守卫，**没有任何一条门的判定依赖于它单独存在**。
+
+这和「没有门覆盖那条性质」是两回事 —— 本卡的准入是**有意分层**的（词法 → realpath →
+祖先 symlink 三层各拦一次），所以单点中和不改变任何门的判定，属预期。
+
+本普查**分不出**下面两种情形，如实声明：
+  (a) 冗余纵深：中和它之后，**另一道**守卫仍拦得住同一个输入（上面实测的那一类）；
+  (b) 真空洞：中和它之后那个输入就过去了，只是**没有任何门喂过那个输入**。
+要分开必须为每道守卫构造一个「恰好只有它能拦」的独占输入 —— 那等于给 69 道守卫各写
+一条门，本卡**没有做**。
+
+⚠️ 它仍然说明一件真事：**这 69 道守卫里任何一道被后人删掉，现有 128 条门都不会响。**
+那是维护期的风险，不是当下的正确性缺口。
+
+（同族教训：「并列同层判据 ≠ 换了一层」——一小时前在 L11 上刚踩过一次，单点变异
+证明不了一道被双重守卫保护的门。）
+
+────────────────────────────────────────────────────────────────────────
+
+镜像自 HEAD b6262c4f
+基线: 全绿 ✅
+
+── canvas-vault/.claude/scripts/undo_journal.py: 44 道守卫
+   ⚠ L173   无门覆盖: raise JournalError("journal 记录里出现裸换行, 拒绝写入 (会把一条记录切成两条)")
+   ⚠ L187   无门覆盖: raise JournalError(f"✗ journal 追加不完整 ({n}/{len(payload)} 字节): {path}")
+   ⚠ L340   无门覆盖: raise JournalError(f"✗ 账上的{what}不是一个路径: {rel!r}")
+   ⚠ L343   无门覆盖: raise JournalError(f"✗ 账上的{what}是绝对路径, 拒绝采信: {rel!r}")
+   ⚠ L345   无门覆盖: raise JournalError(f"✗ 账上的{what}含 `..`, 拒绝越界: {rel!r}")
+   ⚠ L354   无门覆盖: raise JournalError(f"✗ 账上的{what}归一化后落在 {base} 之外, 拒绝越界: {rel!r}")
+   ⚠ L390   无门覆盖: raise JournalError(f"✗ {what}上有别的文件且无处留痕, 拒绝覆盖")
+   ⚠ L393   无门覆盖: raise JournalError(f"✗ 留痕目录是一条 symlink, 拒绝跟随: {p}")
+   ⚠ L401   无门覆盖: raise JournalError(f"✗ 留痕目录的祖先链上有 symlink, 无处安全留痕: {p}") from e
+   ⚠ L457   无门覆盖: raise JournalError(f"✗ 回收目录同名条目过多, 无法安放: {path}")
+   ⚠ L756   无门覆盖: raise JournalError(f"✗ 目标目录的父目录不存在, 拒绝创建祖先链: {parent}")
+   ⚠ L760   无门覆盖: raise JournalError(f"✗ 创建上界不是普通目录: {self.root}")
+   ⚠ L764   无门覆盖: raise JournalError(f"✗ 目标落在允许创建的上界之外, 拒绝: {target}") from e
+   ⚠ L772   无门覆盖: raise JournalError(f"✗ 工作目录路径上的 {d} 不是普通目录, 拒绝写入")
+   ⚠ L930   无门覆盖: raise JournalError(f"✗ 未知动作: {op!r}")
+   ⚠ L1015  无门覆盖: raise JournalError(f"✗ 备份与原件不一致, 拒绝继续 (备份不可信就等于没有退路): {src_rel}")
+   ⚠ L1303  无门覆盖: raise JournalError(f"✗ 第 {row.get('seq')} 件账上没有备份路径, 无从还原")
+   ⚠ L1305  无门覆盖: raise JournalError(f"✗ 第 {row.get('seq')} 件的备份不在或不是普通文件: {bak}")
+   ⚠ L1319  无门覆盖: raise JournalError(f"✗ 第 {row.get('seq')} 件的原路径不是普通文件, 拒绝在它上面动手: {src}")
+   ⚠ L1322  无门覆盖: raise JournalError(                 f"✗ 第 {row.get('seq')} 件的原路径上不是当初那一份 (当前 {actual[:12]}… ≠ 原 "             
+   ⚠ L1366  无门覆盖: raise JournalError(f"✗ 账上出现未知动作, 拒绝还原: {op!r}")
+   ⚠ L1399  无门覆盖: raise JournalError(                     f"✗ 第 {seq} 件的去处已不存在, 原路径也没有可用的原件, 无从还原: {dst}"                     f"
+   ⚠ L1410  无门覆盖: raise JournalError(                         f"✗ 第 {seq} 件的去处已不存在, 而原路径上的内容既不是原件也不是本批次的产物, 拒绝继续: {src}"        
+   ⚠ L1448  无门覆盖: raise JournalError(f"✗ 还原后原路径不是普通文件: {src}")
+   ⚠ L1451  无门覆盖: raise JournalError(                 f"✗ 第 {row.get('seq')} 件还原后内容对不上 (当前 {actual[:12]}… ≠ 原 "                 
+   ⚠ L1457  无门覆盖: raise JournalError(                 f"✗ 第 {row.get('seq')} 件还原后修改时间对不上 "                 f"(mtime_ns 当前 {st.st
+   ⚠ L1463  无门覆盖: raise JournalError(                 f"✗ 第 {row.get('seq')} 件还原后权限位对不上 "                 f"(当前 {stat_mod.S_IMOD
+
+── canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py: 58 道守卫
+   ⚠ L131   无门覆盖: die(f"{what} 本身是 symlink, 拒绝读取: {path}")
+   ⚠ L133   无门覆盖: die(f"{what} 不存在或不是普通文件: {path}")
+   ⚠ L138   无门覆盖: die(f"{what} 不是合法 UTF-8 JSON: {path} ({e})")
+   ⚠ L140   无门覆盖: die(f"{what} 顶层必须是对象: {path}")
+   ⚠ L142   无门覆盖: die(             f"{what} 的 schema_version 不是 {SCHEMA_VERSION} "             f"(实得 {data.get('schema_version')
+   ⚠ L158   无门覆盖: die(f"vault 路径本身是 symlink, 拒绝越界写入: {vault}")
+   ⚠ L160   无门覆盖: die(f"vault 不存在或不是目录: {vault}")
+   ⚠ L174   无门覆盖: die(f"--work-dir 必须落在 vault 内, 拒绝越界: {work}")
+   ⚠ L216   无门覆盖: die(f"target 必须是非空的 vault 内相对目录, 实得 {raw!r}")
+   ⚠ L219   无门覆盖: die(f"target 必须是相对目录, 不接受绝对路径: {raw!r}")
+   ⚠ L227   无门覆盖: die(f"target 含 `..`, 拒绝越界: {raw!r}")
+   ⚠ L233   无门覆盖: die(f"target 指回收件箱本身, 那不叫清仓: {raw!r}")
+   ⚠ L239   无门覆盖: die(f"target 解析后落在 vault 之外 ({real}), 拒绝越界: {raw!r}")
+   ⚠ L242   无门覆盖: die(f"target 解析后落在收件箱内 ({real}), 拒绝: {raw!r}")
+   ⚠ L245   无门覆盖: die(f"target 解析后落在工作目录内 ({real}), 拒绝: {raw!r}")
+   ⚠ L264   无门覆盖: die(f"preview 条目缺少 rel_path 或格式不对: {rel!r}")
+   ⚠ L267   无门覆盖: die(f"preview 条目的 rel_path 不是 vault 内的相对路径, 拒绝: {rel!r}")
+   ⚠ L272   无门覆盖: die(f"preview 条目的 rel_path 与 name 对不上 ({parts[1]!r} ≠ {item.get('name')!r})")
+   ⚠ L277   无门覆盖: die(f"preview 条目解析后不在收件箱内, 拒绝: {rel!r}")
+   ⚠ L288   无门覆盖: die(f"源材料已不在原处, preview 已过期, 请重跑 preview: {rel} ({e.strerror})")
+   ⚠ L290   无门覆盖: die(f"源材料现在是一条 symlink, 拒绝跟随 (可能指向 vault 外): {rel}")
+   ⚠ L292   无门覆盖: die(f"源材料不是普通文件, 拒绝搬动: {rel}")
+   ⚠ L294   无门覆盖: die(f"源材料大小与 preview 不符 ({st.st_size} ≠ {item['size_bytes']}), preview 已过期, 请重跑 preview: {rel}")
+   ⚠ L324   无门覆盖: die("preview 缺少 label (收件箱目录名), 拒绝执行")
+   ⚠ L329   无门覆盖: die("preview 里没有任何条目, 没有可执行的事")
+   ⚠ L333   无门覆盖: die("decisions 必须是非空列表")
+   ⚠ L346   无门覆盖: die(f"第 {idx} 条拍板不是对象: {d!r}")
+   ⚠ L349   无门覆盖: die(f"第 {idx} 条拍板的 stable_id 不在这份 preview 里 (可能拿错了盘点单): {sid!r}")
+   ⚠ L356   无门覆盖: die(f"第 {idx} 条拍板的 action 未知 (只认 {'/'.join(ACTIONS)}): {action!r}")
+   ⚠ L360   无门覆盖: die(f"第 {idx} 条拍板与账上第 {idx} 条对不上 (账 {prior.get('stable_id')!r} ≠ 拍板 {sid!r})")
+   ⚠ L373   无门覆盖: die(f"第 {idx} 条拍板的 action={action} 不该带 target, 实得 {target_raw!r}")
+   ⚠ L474   无门覆盖: die(f"第 {p['seq']} 件的落点是一条 symlink, 拒绝跟随: {p['dst_rel']}")
+   ⚠ L591   无门覆盖: raise OSError(f"源与落点都不存在, 不猜它去哪了: {plan['src_rel']}（备份在 {entry.get('backup')}）")
+   ⚠ L618   无门覆盖: die(f"账上说第 {plan['seq']} 件已完成, 但落点已不在: {dst}（请检查后重跑 preview）")
+   ⚠ L620   无门覆盖: die(f"账上说第 {plan['seq']} 件已完成, 但落点现在是一条 symlink: {dst}")
+   ⚠ L628   无门覆盖: die(f"账上说第 {plan['seq']} 件已搬走, 但原路径又有东西了: {plan['src_rel']}")
+   ⚠ L634   无门覆盖: die(f"账上说第 {plan['seq']} 件已硬链接, 但原路径已不是普通文件: {plan['src_rel']}")
+   ⚠ L806   无门覆盖: die(str(e))  # ⛔ 账本损坏要给干净的拒绝, 不是裸 traceback（零写不受影响）
+   ⚠ L922   无门覆盖: die(f"账本是一条 symlink, 拒绝跟随: {journal_path}")
+   ⚠ L924   无门覆盖: die(f"账本不存在或不是普通文件: {journal_path}")
+   ⚠ L1062  无门覆盖: die("--undo 与执行模式互斥, 请分两次跑")
+   ⚠ L1066  无门覆盖: die("执行模式必须同时给 --preview 与 --decisions（撤销请用 --undo）")
+
+========================================================================
+普查完成: 102 道守卫, 用时 46.3 分钟
+**中和后整套仍全绿（= 没有任何门覆盖）的守卫: 69 道**
+  undo_journal.py:173  [raise JournalError]  raise JournalError("journal 记录里出现裸换行, 拒绝写入 (会把一条记录切成两条)")
+  undo_journal.py:187  [raise JournalError]  raise JournalError(f"✗ journal 追加不完整 ({n}/{len(payload)} 字节): {path}")
+  undo_journal.py:340  [raise JournalError]  raise JournalError(f"✗ 账上的{what}不是一个路径: {rel!r}")
+  undo_journal.py:343  [raise JournalError]  raise JournalError(f"✗ 账上的{what}是绝对路径, 拒绝采信: {rel!r}")
+  undo_journal.py:345  [raise JournalError]  raise JournalError(f"✗ 账上的{what}含 `..`, 拒绝越界: {rel!r}")
+  undo_journal.py:354  [raise JournalError]  raise JournalError(f"✗ 账上的{what}归一化后落在 {base} 之外, 拒绝越界: {rel!r}")
+  undo_journal.py:390  [raise JournalError]  raise JournalError(f"✗ {what}上有别的文件且无处留痕, 拒绝覆盖")
+  undo_journal.py:393  [raise JournalError]  raise JournalError(f"✗ 留痕目录是一条 symlink, 拒绝跟随: {p}")
+  undo_journal.py:401  [raise JournalError]  raise JournalError(f"✗ 留痕目录的祖先链上有 symlink, 无处安全留痕: {p}") from e
+  undo_journal.py:457  [raise JournalError]  raise JournalError(f"✗ 回收目录同名条目过多, 无法安放: {path}")
+  undo_journal.py:756  [raise JournalError]  raise JournalError(f"✗ 目标目录的父目录不存在, 拒绝创建祖先链: {parent}")
+  undo_journal.py:760  [raise JournalError]  raise JournalError(f"✗ 创建上界不是普通目录: {self.root}")
+  undo_journal.py:764  [raise JournalError]  raise JournalError(f"✗ 目标落在允许创建的上界之外, 拒绝: {target}") from e
+  undo_journal.py:772  [raise JournalError]  raise JournalError(f"✗ 工作目录路径上的 {d} 不是普通目录, 拒绝写入")
+  undo_journal.py:930  [raise JournalError]  raise JournalError(f"✗ 未知动作: {op!r}")
+  undo_journal.py:1015  [raise JournalError]  raise JournalError(f"✗ 备份与原件不一致, 拒绝继续 (备份不可信就等于没有退路): {src_rel}")
+  undo_journal.py:1303  [raise JournalError]  raise JournalError(f"✗ 第 {row.get('seq')} 件账上没有备份路径, 无从还原")
+  undo_journal.py:1305  [raise JournalError]  raise JournalError(f"✗ 第 {row.get('seq')} 件的备份不在或不是普通文件: {bak}")
+  undo_journal.py:1319  [raise JournalError]  raise JournalError(f"✗ 第 {row.get('seq')} 件的原路径不是普通文件, 拒绝在它上面动手: {src}")
+  undo_journal.py:1322  [raise JournalError]  raise JournalError(                 f"✗ 第 {row.get('seq')} 件的原路径上不是当初那一份 (当前 {actual[:12]}… ≠ 原 "             
+  undo_journal.py:1366  [raise JournalError]  raise JournalError(f"✗ 账上出现未知动作, 拒绝还原: {op!r}")
+  undo_journal.py:1399  [raise JournalError]  raise JournalError(                     f"✗ 第 {seq} 件的去处已不存在, 原路径也没有可用的原件, 无从还原: {dst}"                     f"
+  undo_journal.py:1410  [raise JournalError]  raise JournalError(                         f"✗ 第 {seq} 件的去处已不存在, 而原路径上的内容既不是原件也不是本批次的产物, 拒绝继续: {src}"        
+  undo_journal.py:1448  [raise JournalError]  raise JournalError(f"✗ 还原后原路径不是普通文件: {src}")
+  undo_journal.py:1451  [raise JournalError]  raise JournalError(                 f"✗ 第 {row.get('seq')} 件还原后内容对不上 (当前 {actual[:12]}… ≠ 原 "                 
+  undo_journal.py:1457  [raise JournalError]  raise JournalError(                 f"✗ 第 {row.get('seq')} 件还原后修改时间对不上 "                 f"(mtime_ns 当前 {st.st
+  undo_journal.py:1463  [raise JournalError]  raise JournalError(                 f"✗ 第 {row.get('seq')} 件还原后权限位对不上 "                 f"(当前 {stat_mod.S_IMOD
+  inbox_apply.py:131  [die]  die(f"{what} 本身是 symlink, 拒绝读取: {path}")
+  inbox_apply.py:133  [die]  die(f"{what} 不存在或不是普通文件: {path}")
+  inbox_apply.py:138  [die]  die(f"{what} 不是合法 UTF-8 JSON: {path} ({e})")
+  inbox_apply.py:140  [die]  die(f"{what} 顶层必须是对象: {path}")
+  inbox_apply.py:142  [die]  die(             f"{what} 的 schema_version 不是 {SCHEMA_VERSION} "             f"(实得 {data.get('schema_version')
+  inbox_apply.py:158  [die]  die(f"vault 路径本身是 symlink, 拒绝越界写入: {vault}")
+  inbox_apply.py:160  [die]  die(f"vault 不存在或不是目录: {vault}")
+  inbox_apply.py:174  [die]  die(f"--work-dir 必须落在 vault 内, 拒绝越界: {work}")
+  inbox_apply.py:216  [die]  die(f"target 必须是非空的 vault 内相对目录, 实得 {raw!r}")
+  inbox_apply.py:219  [die]  die(f"target 必须是相对目录, 不接受绝对路径: {raw!r}")
+  inbox_apply.py:227  [die]  die(f"target 含 `..`, 拒绝越界: {raw!r}")
+  inbox_apply.py:233  [die]  die(f"target 指回收件箱本身, 那不叫清仓: {raw!r}")
+  inbox_apply.py:239  [die]  die(f"target 解析后落在 vault 之外 ({real}), 拒绝越界: {raw!r}")
+  inbox_apply.py:242  [die]  die(f"target 解析后落在收件箱内 ({real}), 拒绝: {raw!r}")
+  inbox_apply.py:245  [die]  die(f"target 解析后落在工作目录内 ({real}), 拒绝: {raw!r}")
+  inbox_apply.py:264  [die]  die(f"preview 条目缺少 rel_path 或格式不对: {rel!r}")
+  inbox_apply.py:267  [die]  die(f"preview 条目的 rel_path 不是 vault 内的相对路径, 拒绝: {rel!r}")
+  inbox_apply.py:272  [die]  die(f"preview 条目的 rel_path 与 name 对不上 ({parts[1]!r} ≠ {item.get('name')!r})")
+  inbox_apply.py:277  [die]  die(f"preview 条目解析后不在收件箱内, 拒绝: {rel!r}")
+  inbox_apply.py:288  [die]  die(f"源材料已不在原处, preview 已过期, 请重跑 preview: {rel} ({e.strerror})")
+  inbox_apply.py:290  [die]  die(f"源材料现在是一条 symlink, 拒绝跟随 (可能指向 vault 外): {rel}")
+  inbox_apply.py:292  [die]  die(f"源材料不是普通文件, 拒绝搬动: {rel}")
+  inbox_apply.py:294  [die]  die(f"源材料大小与 preview 不符 ({st.st_size} ≠ {item['size_bytes']}), preview 已过期, 请重跑 preview: {rel}")
+  inbox_apply.py:324  [die]  die("preview 缺少 label (收件箱目录名), 拒绝执行")
+  inbox_apply.py:329  [die]  die("preview 里没有任何条目, 没有可执行的事")
+  inbox_apply.py:333  [die]  die("decisions 必须是非空列表")
+  inbox_apply.py:346  [die]  die(f"第 {idx} 条拍板不是对象: {d!r}")
+  inbox_apply.py:349  [die]  die(f"第 {idx} 条拍板的 stable_id 不在这份 preview 里 (可能拿错了盘点单): {sid!r}")
+  inbox_apply.py:356  [die]  die(f"第 {idx} 条拍板的 action 未知 (只认 {'/'.join(ACTIONS)}): {action!r}")
+  inbox_apply.py:360  [die]  die(f"第 {idx} 条拍板与账上第 {idx} 条对不上 (账 {prior.get('stable_id')!r} ≠ 拍板 {sid!r})")
+  inbox_apply.py:373  [die]  die(f"第 {idx} 条拍板的 action={action} 不该带 target, 实得 {target_raw!r}")
+  inbox_apply.py:474  [die]  die(f"第 {p['seq']} 件的落点是一条 symlink, 拒绝跟随: {p['dst_rel']}")
+  inbox_apply.py:591  [raise OSError]  raise OSError(f"源与落点都不存在, 不猜它去哪了: {plan['src_rel']}（备份在 {entry.get('backup')}）")
+  inbox_apply.py:618  [die]  die(f"账上说第 {plan['seq']} 件已完成, 但落点已不在: {dst}（请检查后重跑 preview）")
+  inbox_apply.py:620  [die]  die(f"账上说第 {plan['seq']} 件已完成, 但落点现在是一条 symlink: {dst}")
+  inbox_apply.py:628  [die]  die(f"账上说第 {plan['seq']} 件已搬走, 但原路径又有东西了: {plan['src_rel']}")
+  inbox_apply.py:634  [die]  die(f"账上说第 {plan['seq']} 件已硬链接, 但原路径已不是普通文件: {plan['src_rel']}")
+  inbox_apply.py:806  [die]  die(str(e))  # ⛔ 账本损坏要给干净的拒绝, 不是裸 traceback（零写不受影响）
+  inbox_apply.py:922  [die]  die(f"账本是一条 symlink, 拒绝跟随: {journal_path}")
+  inbox_apply.py:924  [die]  die(f"账本不存在或不是普通文件: {journal_path}")
+  inbox_apply.py:1062  [die]  die("--undo 与执行模式互斥, 请分两次跑")
+  inbox_apply.py:1066  [die]  die("执行模式必须同时给 --preview 与 --decisions（撤销请用 --undo）")

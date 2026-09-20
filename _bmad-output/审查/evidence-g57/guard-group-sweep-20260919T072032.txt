@@ -1,0 +1,33 @@
+镜像已对齐 HEAD c44efde7
+基线: 全绿 ✅
+
+── canvas-vault/.claude/scripts/undo_journal.py: 17 个含守卫的函数
+   ⚠ 整组中和仍全绿: json_line()  1 道守卫 (L173…)
+   ⚠ 整组中和仍全绿: free_path()  1 道守卫 (L457…)
+   ⚠ 整组中和仍全绿: mkdir_chain()  4 道守卫 (L756…)
+   ⚠ 整组中和仍全绿: plan()  1 道守卫 (L930…)
+   ⚠ 整组中和仍全绿: _finish_restore()  2 道守卫 (L1319…)
+   ⚠ 整组中和仍全绿: _verify_restored()  4 道守卫 (L1448…)
+
+── canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py: 14 个含守卫的函数
+   ⚠ 整组中和仍全绿: load_json_file()  5 道守卫 (L131…)
+   ⚠ 整组中和仍全绿: resolve_vault()  2 道守卫 (L158…)
+   ⚠ 整组中和仍全绿: resolve_work_dir()  1 道守卫 (L174…)
+   ⚠ 整组中和仍全绿: perform()  1 道守卫 (L591…)
+   ⚠ 整组中和仍全绿: main()  2 道守卫 (L1062…)
+
+==========================================================================
+分组普查完成, 用时 11.1 分钟
+有门盯着的函数: 20 个
+**整组守卫全部中和后仍全绿（= 真空洞）的函数: 11 个**
+  undo_journal.py::json_line  (1 道守卫, 起于 L173)
+  undo_journal.py::free_path  (1 道守卫, 起于 L457)
+  undo_journal.py::mkdir_chain  (4 道守卫, 起于 L756)
+  undo_journal.py::plan  (1 道守卫, 起于 L930)
+  undo_journal.py::_finish_restore  (2 道守卫, 起于 L1319)
+  undo_journal.py::_verify_restored  (4 道守卫, 起于 L1448)
+  inbox_apply.py::load_json_file  (5 道守卫, 起于 L131)
+  inbox_apply.py::resolve_vault  (2 道守卫, 起于 L158)
+  inbox_apply.py::resolve_work_dir  (1 道守卫, 起于 L174)
+  inbox_apply.py::perform  (1 道守卫, 起于 L591)
+  inbox_apply.py::main  (2 道守卫, 起于 L1062)

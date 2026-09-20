@@ -1,0 +1,26 @@
+# CARD-G5-7 结构门 F1–F5 交接态 (绑定 HEAD 6114be0be881f485351f1fb7e2ee1d2b4c86032e)
+count=3
+F2 delete_calls= 0
+F2 验伪锚= 1
+inbox_apply.py
+inbox_preview.py
+no-skill-md
+F4= []
+F4 验伪锚= ['basis']
+--- F5 只读面 (期望空) ---
+[F5 结束]
+--- 地盘门 ---
+ backend/tests/skills/test_g5_7_inbox_apply.py      | 2565 ++++++++++++++++++++
+ canvas-vault/.claude/scripts/undo_journal.py       | 1218 ++++++++++
+ .../skills/clear-inbox/scripts/inbox_apply.py      |  950 ++++++++
+ 3 files changed, 4733 insertions(+)
+现网只读 grep=0
+a766fbcc28e3ff917e740843c633e800aa8a75e949295f83efc90f55105f90f0  canvas-vault/.claude/scripts/fsrs_bridge.py
+3bf4ed9402a4c8edfde16630a79094a5d4518fd181fa60810319fe46d37abb90  canvas-vault/.claude/scripts/decay_beta.py
+5be661b67e6572eeb596d4fe528928c9fc6fbde222f683e274cdd08d91d14cd4  canvas-vault/.claude/scripts/undo_journal.py
+3872a6399368d14949398fea8b398f35ad4fde5149afa758c0d0bee3d3ae6dc3  canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+files=3
+All checks passed!
+ruff_rc=0
+3 files already formatted
+fmt_rc=0

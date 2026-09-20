@@ -1,0 +1,29 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-selfreview-tree/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 95 items
+
+tests/skills/test_g5_7_inbox_apply.py .................................. [ 35%]
+...........................................................FF            [100%]
+
+=================================== FAILURES ===================================
+_____________ test_preserve_refuses_when_there_is_nowhere_to_park ______________
+tests/skills/test_g5_7_inbox_apply.py:2538: in test_preserve_refuses_when_there_is_nowhere_to_park
+    assert uj.preserve_foreign_file(victim, None, None) is False
+E   AssertionError: assert True is False
+E    +  where True = <function preserve_foreign_file at 0x138b7d220>(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-712/test_preserve_refuses_when_the0/别人的.md'), None, None)
+E    +    where <function preserve_foreign_file at 0x138b7d220> = <module 'undo_journal_under_test' from '/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system-...ls-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-selfreview-tree/canvas-vault/.claude/scripts/undo_journal.py'>.preserve_foreign_file
+__________ test_undo_receipt_failure_does_not_swallow_the_undo_error ___________
+tests/skills/test_g5_7_inbox_apply.py:2565: in test_undo_receipt_failure_does_not_swallow_the_undo_error
+    assert "回执没写成" in u.stderr
+E   assert '回执没写成' in 'Traceback (most recent call last):\n  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-sy...t_undo_receipt_failure_does0/vault/outputs/clear-inbox/3356e4122abf/.undo-receipt.md.21909-0a863d69.undo-journal-tmp\n'
+E    +  where 'Traceback (most recent call last):\n  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-sy...t_undo_receipt_failure_does0/vault/outputs/clear-inbox/3356e4122abf/.undo-receipt.md.21909-0a863d69.undo-journal-tmp\n' = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/..._undo_receipt_failure_does0/vault/outputs/clear-inbox/3356e4122abf/.undo-receipt.md.21909-0a863d69.undo-journal-tmp\n').stderr
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_preserve_refuses_when_there_is_nowhere_to_park
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_receipt_failure_does_not_swallow_the_undo_error
+======================== 2 failed, 93 passed in 28.06s =========================
+rc=1

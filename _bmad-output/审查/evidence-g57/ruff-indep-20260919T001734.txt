@@ -1,0 +1,14 @@
+files=3
+All checks passed!
+ruff_rc=0
+--- 验伪锚: 仓内已知含未定义名的探针必须 rc=1 ---
+F821 Undefined name `未定义的名字`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/_anchor_f821.py:1:5
+  |
+1 | x = 未定义的名字
+  |     ^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_rc=1
+rc=0

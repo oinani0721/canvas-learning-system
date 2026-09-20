@@ -1,0 +1,36 @@
+# CARD-G5-7 结构门 F1–F5 (绑定 HEAD 1d3e75b3f3785d799bf5e31bc1c4534e386c5e38)
+
+=== F1 改后 (期望 ≥3) ===
+backend/tests/skills/test_g5_7_inbox_apply.py
+canvas-vault/.claude/scripts/undo_journal.py
+canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+count=3
+[F1 改前基线 = 0, 见 f1-before-*.txt]
+
+=== F2 AST 删除原语门 (期望 delete_calls= 0) ===
+delete_calls= 0
+--- F2 验伪锚 (scratchpad 样本, 期望 delete_calls= 1) ---
+delete_calls= 1
+
+=== F3 skill 目录形态 ===
+scripts
+inbox_apply.py
+inbox_preview.py
+no-skill-md
+
+=== F4 文本字段零消费门 (期望 []) ===
+[]
+--- F4 验伪锚 (期望 ['basis']) ---
+['basis']
+
+=== F5 只读面零改动 (期望空) ===
+[F5 输出结束 — 上面为空即达标]
+--- F5 验伪锚 (换成本卡新文件, 期望非空) ---
+ .../skills/clear-inbox/scripts/inbox_apply.py      | 715 +++++++++++++++++++++
+ 1 file changed, 715 insertions(+)
+
+=== 地盘门 (exclude _bmad-output) ===
+ backend/tests/skills/test_g5_7_inbox_apply.py      | 981 +++++++++++++++++++++
+ canvas-vault/.claude/scripts/undo_journal.py       | 602 +++++++++++++
+ .../skills/clear-inbox/scripts/inbox_apply.py      | 715 +++++++++++++++
+ 3 files changed, 2298 insertions(+)

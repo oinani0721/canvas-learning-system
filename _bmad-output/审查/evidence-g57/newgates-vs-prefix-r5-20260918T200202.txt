@@ -1,0 +1,69 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r5-tree/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 93 items
+
+tests/skills/test_g5_7_inbox_apply.py .................................. [ 36%]
+.................................................F....FFFFF              [100%]
+
+=================================== FAILURES ===================================
+_________________ test_unknown_state_is_treated_as_corruption __________________
+tests/skills/test_g5_7_inbox_apply.py:2287: in test_unknown_state_is_treated_as_corruption
+    j.read_rows()
+../canvas-vault/.claude/scripts/undo_journal.py:665: in read_rows
+    raise JournalError(
+E   undo_journal_under_test.JournalError: ✗ journal 中间存在损坏记录 (第 2 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-452/test_unknown_state_is_treated_0/root/work/b0/journal.jsonl
+
+During handling of the above exception, another exception occurred:
+tests/skills/test_g5_7_inbox_apply.py:2290: in test_unknown_state_is_treated_as_corruption
+    assert "认不出来" in str(e), str(e)
+E   AssertionError: ✗ journal 中间存在损坏记录 (第 2 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-452/test_unknown_state_is_treated_0/root/work/b0/journal.jsonl
+E   assert '认不出来' in '✗ journal 中间存在损坏记录 (第 2 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-452/test_unknown_state_is_treated_0/root/work/b0/journal.jsonl'
+E    +  where '✗ journal 中间存在损坏记录 (第 2 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-452/test_unknown_state_is_treated_0/root/work/b0/journal.jsonl' = str(JournalError('✗ journal 中间存在损坏记录 (第 2 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-452/test_unknown_state_is_treated_0/root/work/b0/journal.jsonl'))
+_________ test_receipt_refuses_when_the_foreign_file_cannot_be_parked __________
+tests/skills/test_g5_7_inbox_apply.py:2431: in test_receipt_refuses_when_the_foreign_file_cannot_be_parked
+    uj.write_pair_atomically(
+E   TypeError: write_pair_atomically() got an unexpected keyword argument 'owned_marker'
+____________ test_provenance_write_does_not_park_the_business_file _____________
+tests/skills/test_g5_7_inbox_apply.py:2460: in test_provenance_write_does_not_park_the_business_file
+    assert parked == [], f"业务文件被留存逻辑挪走了: {parked}"
+E   AssertionError: 业务文件被留存逻辑挪走了: ['作用域.md']
+E   assert ['作用域.md'] == []
+E     
+E     Left contains one more item: '作用域.md'
+E     Use -v to get more diff
+___________________ test_rerun_does_not_pile_up_old_receipts ___________________
+tests/skills/test_g5_7_inbox_apply.py:2477: in test_rerun_does_not_pile_up_old_receipts
+    assert piled == [], f"重跑把旧回执堆进 stale/: {piled}"
+E   AssertionError: 重跑把旧回执堆进 stale/: ['receipt-2.json', 'receipt-2.md', 'receipt.json', 'receipt.md', '不堆积.md']
+E   assert ['receipt-2.j...md', '不堆积.md'] == []
+E     
+E     Left contains 5 more items, first extra item: 'receipt-2.json'
+E     Use -v to get more diff
+________________ test_legacy_sentinel_without_count_still_reads ________________
+tests/skills/test_g5_7_inbox_apply.py:2491: in test_legacy_sentinel_without_count_still_reads
+    parsed = j.read_rows()
+             ^^^^^^^^^^^^^
+../canvas-vault/.claude/scripts/undo_journal.py:665: in read_rows
+    raise JournalError(
+E   undo_journal_under_test.JournalError: ✗ journal 中间存在损坏记录 (第 2 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-452/test_legacy_sentinel_without_c0/root/work/b0/journal.jsonl
+___________ test_receipt_failure_does_not_swallow_the_original_error ___________
+tests/skills/test_g5_7_inbox_apply.py:2522: in test_receipt_failure_does_not_swallow_the_original_error
+    assert "停在第 1 件" in r.stderr, f"原始失败摘要被回执的失败吞了: {r.stderr[:300]}"
+E   AssertionError: 原始失败摘要被回执的失败吞了: Traceback (most recent call last):
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r5-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py", line 929, in <m
+E   assert '停在第 1 件' in 'Traceback (most recent call last):\n  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-sy...2/test_receipt_failure_does_not_0/vault/outputs/clear-inbox/4d6e23205124/.receipt.md.46437-a7a13d03.undo-journal-tmp\n'
+E    +  where 'Traceback (most recent call last):\n  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-sy...2/test_receipt_failure_does_not_0/vault/outputs/clear-inbox/4d6e23205124/.receipt.md.46437-a7a13d03.undo-journal-tmp\n' = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../test_receipt_failure_does_not_0/vault/outputs/clear-inbox/4d6e23205124/.receipt.md.46437-a7a13d03.undo-journal-tmp\n').stderr
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_unknown_state_is_treated_as_corruption
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_receipt_refuses_when_the_foreign_file_cannot_be_parked
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_provenance_write_does_not_park_the_business_file
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_rerun_does_not_pile_up_old_receipts
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_legacy_sentinel_without_count_still_reads
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_receipt_failure_does_not_swallow_the_original_error
+======================== 6 failed, 87 passed in 27.05s =========================
+rc=1

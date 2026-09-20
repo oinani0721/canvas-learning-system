@@ -1,0 +1,142 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r2-tree/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 64 items
+
+tests/skills/test_g5_7_inbox_apply.py .................................. [ 53%]
+..............FFFFFFFFFFFFFFFF                                           [100%]
+
+=================================== FAILURES ===================================
+___________________ test_batch_marker_alone_is_not_ownership ___________________
+tests/skills/test_g5_7_inbox_apply.py:1481: in test_batch_marker_alone_is_not_ownership
+    assert r.returncode != 0, "保留印记不等于归属 —— 这份被改过的内容不该被覆盖"
+E   AssertionError: 保留印记不等于归属 —— 这份被改过的内容不该被覆盖
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-242/test_batch_marker_alone_is_not0/vault/outputs/clear-inbox/7f0aeea5be5f/journal.jsonl\n', stderr='').returncode
+___________________ test_undo_finishes_a_half_restored_item ____________________
+tests/skills/test_g5_7_inbox_apply.py:1502: in test_undo_finishes_a_half_restored_item
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件的去处已不存在, 无从还原: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_finishes_a_half_rest0/vault/归档/半还原.md（备份仍在 backup/_待处理/半还原.md）
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_finishes_a_half_rest0/vault/归档/半还原.md（备份仍在 backup/_待处理/半还原.md）\n').returncode
+_____________ test_undo_after_reapply_is_not_masked_by_old_undone ______________
+tests/skills/test_g5_7_inbox_apply.py:1521: in test_undo_after_reapply_is_not_masked_by_old_undone
+    assert run_apply(vault, pv, dec).returncode == 0, "撤销之后再执行一次"
+E   AssertionError: 撤销之后再执行一次
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...1lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_after_reapply_is_not0/vault/节点/再执行.md（请检查后重跑 preview）\n').returncode
+E    +    where CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...1lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_after_reapply_is_not0/vault/节点/再执行.md（请检查后重跑 preview）\n') = run_apply(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_after_reapply_is_not0/vault'), PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_after_reapply_is_not0/preview-out/inbox-preview-_待处理.json'), PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_after_reapply_is_not0/d.json'))
+_________________ test_read_only_markdown_can_still_be_undone __________________
+tests/skills/test_g5_7_inbox_apply.py:1544: in test_read_only_markdown_can_still_be_undone
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ [Errno 13] Permission denied: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_read_only_markdown_can_st0/vault/_待处理/只读.md'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_read_only_markdown_can_st0/vault/_待处理/只读.md'\n").returncode
+________________ test_undone_dir_swapped_to_symlink_is_rejected ________________
+tests/skills/test_g5_7_inbox_apply.py:1565: in test_undone_dir_swapped_to_symlink_is_rejected
+    assert u.returncode != 0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ishing/pytest-242/test_undone_dir_swapped_to_sym0/vault/outputs/clear-inbox/615719766c06/undo-receipt.md\n', stderr='').returncode
+_________________ test_undo_verifies_backup_before_overwriting _________________
+tests/skills/test_g5_7_inbox_apply.py:1587: in test_undo_verifies_backup_before_overwriting
+    assert dst.is_file() and dst.read_bytes() == good, "正确的产物在拒绝之前就被覆盖了"
+E   AssertionError: 正确的产物在拒绝之前就被覆盖了
+E   assert (False)
+E    +  where False = is_file()
+E    +    where is_file = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_undo_verifies_backup_befo0/vault/归档/坏备份.md').is_file
+___________ test_backup_write_never_clobbers_a_hardlinked_neighbour ____________
+tests/skills/test_g5_7_inbox_apply.py:1602: in test_backup_write_never_clobbers_a_hardlinked_neighbour
+    assert victim.read_bytes() == b"user content\n", "连着的那份用户文件被改写了"
+E   AssertionError: 连着的那份用户文件被改写了
+E   assert b'source bytes\n' == b'user content\n'
+E     
+E     At index 0 diff: b's' != b'u'
+E     Use -v to get more diff
+_________________ test_journal_without_fingerprint_is_refused __________________
+tests/skills/test_g5_7_inbox_apply.py:1625: in test_journal_without_fingerprint_is_refused
+    assert u.returncode != 0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ishing/pytest-242/test_journal_without_fingerpri0/vault/outputs/clear-inbox/d2ff1dfc61a3/undo-receipt.md\n', stderr='').returncode
+_____________ test_tampered_preview_cannot_point_outside_the_inbox _____________
+tests/skills/test_g5_7_inbox_apply.py:1649: in test_tampered_preview_cannot_point_outside_the_inbox
+    assert r.returncode != 0
+E   AssertionError: assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-242/test_tampered_preview_cannot_p0/vault/outputs/clear-inbox/d1278fdbf9eb/journal.jsonl\n', stderr='').returncode
+_____________ test_never_acted_planned_does_not_block_earlier_undo _____________
+tests/skills/test_g5_7_inbox_apply.py:1677: in test_never_acted_planned_does_not_block_earlier_undo
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 2 件的去处已不存在, 无从还原: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_never_acted_planned_does_0/vault/节点/先做.md（备份仍在 backup/_待处理/先做.md）
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...c_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_never_acted_planned_does_0/vault/节点/先做.md（备份仍在 backup/_待处理/先做.md）\n').returncode
+____________ test_two_consecutive_bad_tail_lines_are_still_readable ____________
+tests/skills/test_g5_7_inbox_apply.py:1698: in test_two_consecutive_bad_tail_lines_are_still_readable
+    assert r.returncode == 0, r.stdout + r.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r2-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py", line 839, in <module>
+E         raise SystemExit(main())
+E                          ~~~~^^
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r2-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py", line 835, in main
+E         return run_apply(vault, args, applied_at)
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r2-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py", line 598, in run_apply
+E         rows = journal.read_rows()
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r2-tree/canvas-vault/.claude/scripts/undo_journal.py", line 533, in read_rows
+E         raise JournalError(
+E         ...<2 lines>...
+E         )
+E     _g57_undo_journal.JournalError: ✗ journal 中间存在损坏记录 (第 3 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_two_consecutive_bad_tail_0/vault/outputs/clear-inbox/b574b09ff582/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../pytest-of-Heishing/pytest-242/test_two_consecutive_bad_tail_0/vault/outputs/clear-inbox/b574b09ff582/journal.jsonl\n').returncode
+___________________ test_dir_retime_needs_an_unbroken_chain ____________________
+tests/skills/test_g5_7_inbox_apply.py:1740: in test_dir_retime_needs_an_unbroken_chain
+    assert "节点" not in receipt["dirs_retimed"], "链断了还把目录时间改回去 = 掩盖了那次插入"
+E   AssertionError: 链断了还把目录时间改回去 = 掩盖了那次插入
+E   assert '节点' not in ['_待处理', '节点']
+_________________ test_strip_provenance_handles_comment_lines __________________
+tests/skills/test_g5_7_inbox_apply.py:1750: in test_strip_provenance_handles_comment_lines
+    assert b'  op: "copy"' not in out
+E   assert b'  op: "copy"' not in b'title: t\n# a comment\n  op: "copy"\nother_key:\n  kept: 1\n'
+_______________ test_settled_link_rechecks_the_hardlink_relation _______________
+tests/skills/test_g5_7_inbox_apply.py:1769: in test_settled_link_rechecks_the_hardlink_relation
+    assert r.returncode != 0, "硬链接关系已断, 不该报完成"
+E   AssertionError: 硬链接关系已断, 不该报完成
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-242/test_settled_link_rechecks_the0/vault/outputs/clear-inbox/fbff677cb620/journal.jsonl\n', stderr='').returncode
+____________________ test_failed_pair_publish_parks_its_tmp ____________________
+tests/skills/test_g5_7_inbox_apply.py:1785: in test_failed_pair_publish_parks_its_tmp
+    assert strays == [], f"残片留在批次目录里: {strays}"
+E   AssertionError: 残片留在批次目录里: [PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_failed_pair_publish_parks0/root/work/b0/.receipt.md.69163-c1a1b82f.undo-journal-tmp')]
+E   assert [PosixPath('/...journal-tmp')] == []
+E     
+E     Left contains one more item: PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-242/test_failed_pair_publish_parks0/root/work/b0/.receipt.md.69163-c1a1b82f.undo-journal-tmp')
+E     Use -v to get more diff
+____________________ test_rerun_receipt_keeps_created_dirs _____________________
+tests/skills/test_g5_7_inbox_apply.py:1802: in test_rerun_receipt_keeps_created_dirs
+    assert "归档/新层" in receipt["created_dirs"]
+E   AssertionError: assert '归档/新层' in []
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_batch_marker_alone_is_not_ownership
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_finishes_a_half_restored_item
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_after_reapply_is_not_masked_by_old_undone
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_read_only_markdown_can_still_be_undone
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undone_dir_swapped_to_symlink_is_rejected
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_verifies_backup_before_overwriting
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_backup_write_never_clobbers_a_hardlinked_neighbour
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_journal_without_fingerprint_is_refused
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_tampered_preview_cannot_point_outside_the_inbox
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_never_acted_planned_does_not_block_earlier_undo
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_two_consecutive_bad_tail_lines_are_still_readable
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_dir_retime_needs_an_unbroken_chain
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_strip_provenance_handles_comment_lines
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_settled_link_rechecks_the_hardlink_relation
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_failed_pair_publish_parks_its_tmp
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_rerun_receipt_keeps_created_dirs
+======================== 16 failed, 48 passed in 13.38s ========================
+rc=1

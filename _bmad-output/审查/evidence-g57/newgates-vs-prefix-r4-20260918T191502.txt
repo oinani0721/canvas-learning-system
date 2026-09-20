@@ -1,0 +1,93 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r4-tree/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 88 items
+
+tests/skills/test_g5_7_inbox_apply.py .................................. [ 38%]
+...........................................FFFFFFFFF.F                   [100%]
+
+=================================== FAILURES ===================================
+________________ test_equal_length_edit_after_acting_is_refused ________________
+tests/skills/test_g5_7_inbox_apply.py:2159: in test_equal_length_edit_after_acting_is_refused
+    assert r.returncode != 0, "账上已有 sha 却还信粗判据 —— 新内容会被旧内容盖掉"
+E   AssertionError: 账上已有 sha 却还信粗判据 —— 新内容会被旧内容盖掉
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-386/test_equal_length_edit_after_a0/vault/outputs/clear-inbox/82b94ed3e224/journal.jsonl\n', stderr='').returncode
+_______________ test_backup_reuse_requires_an_independent_inode ________________
+tests/skills/test_g5_7_inbox_apply.py:2176: in test_backup_reuse_requires_an_independent_inode
+    assert victim.stat().st_mtime_ns == victim_ns, "沿用共享 inode 的备份, 改到了用户文件的时间"
+E   AssertionError: 沿用共享 inode 的备份, 改到了用户文件的时间
+E   assert 1789730135236691500 == 123456789
+E    +  where 1789730135236691500 = os.stat_result(st_mode=33188, st_ino=52325279, st_dev=16777230, st_nlink=2, st_uid=501, st_gid=20, st_size=11, st_atime=1789730135, st_mtime=1789730135, st_ctime=1789730135).st_mtime_ns
+E    +    where os.stat_result(st_mode=33188, st_ino=52325279, st_dev=16777230, st_nlink=2, st_uid=501, st_gid=20, st_size=11, st_atime=1789730135, st_mtime=1789730135, st_ctime=1789730135) = stat()
+E    +      where stat = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-386/test_backup_reuse_requires_an_0/root/用户的东西.md').stat
+__________________ test_seal_covers_only_the_lines_it_sealed ___________________
+tests/skills/test_g5_7_inbox_apply.py:2202: in test_seal_covers_only_the_lines_it_sealed
+    raise AssertionError("后来损坏的完整业务行被当成旧封口区放过了")
+E   AssertionError: 后来损坏的完整业务行被当成旧封口区放过了
+______________ test_rerun_after_action_completed_but_uncommitted _______________
+tests/skills/test_g5_7_inbox_apply.py:2221: in test_rerun_after_action_completed_but_uncommitted
+    assert r.returncode == 0, r.stdout + r.stderr
+E   AssertionError: ✗ 第 1 件的落点已经有东西了, 而且它不是本批次造的, 不会覆盖它: 节点/未记账.md（先改个落点, 或自己处理掉那份同名文件）
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...00:00+08:00'], returncode=1, stdout='', stderr='✗ 第 1 件的落点已经有东西了, 而且它不是本批次造的, 不会覆盖它: 节点/未记账.md（先改个落点, 或自己处理掉那份同名文件）\n').returncode
+__________________ test_journal_from_another_batch_is_refused __________________
+tests/skills/test_g5_7_inbox_apply.py:2254: in test_journal_from_another_batch_is_refused
+    assert r.returncode != 0, "拿 A 批的账去复核 B 批, 会拿 A 的落点报完成"
+E   AssertionError: 拿 A 批的账去复核 B 批, 会拿 A 的落点报完成
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-386/test_journal_from_another_batc0/vault/outputs/clear-inbox/ee85f987445c/journal.jsonl\n', stderr='').returncode
+_____________ test_receipt_does_not_silently_overwrite_a_user_file _____________
+tests/skills/test_g5_7_inbox_apply.py:2269: in test_receipt_does_not_silently_overwrite_a_user_file
+    assert "用户自己放的东西\n".encode() in parked, "被无声覆盖了, 没留痕"
+E   AssertionError: 被无声覆盖了, 没留痕
+E   assert b'\xe7\x94\xa8\xe6\x88\xb7\xe8\x87\xaa\xe5\xb7\xb1\xe6\x94\xbe\xe7\x9a\x84\xe4\xb8\x9c\xe8\xa5\xbf\n' in []
+E    +  where b'\xe7\x94\xa8\xe6\x88\xb7\xe8\x87\xaa\xe5\xb7\xb1\xe6\x94\xbe\xe7\x9a\x84\xe4\xb8\x9c\xe8\xa5\xbf\n' = <built-in method encode of str object at 0x136edf6e0>()
+E    +    where <built-in method encode of str object at 0x136edf6e0> = '用户自己放的东西\n'.encode
+_________________ test_unknown_state_is_treated_as_corruption __________________
+tests/skills/test_g5_7_inbox_apply.py:2283: in test_unknown_state_is_treated_as_corruption
+    raise AssertionError("拼错的 state 被当成不存在")
+E   AssertionError: 拼错的 state 被当成不存在
+__________________ test_undo_requires_the_journal_file_itself __________________
+tests/skills/test_g5_7_inbox_apply.py:2302: in test_undo_requires_the_journal_file_itself
+    assert u.returncode != 0, "指了 receipt.json 却把 journal.jsonl 撤了"
+E   AssertionError: 指了 receipt.json 却把 journal.jsonl 撤了
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...ishing/pytest-386/test_undo_requires_the_journal0/vault/outputs/clear-inbox/43af9eab43a3/undo-receipt.md\n', stderr='').returncode
+_____________ test_backup_failure_still_produces_a_precise_receipt _____________
+tests/skills/test_g5_7_inbox_apply.py:2342: in test_backup_failure_still_produces_a_precise_receipt
+    assert "备份落点" in receipt["failed"]["reason"], receipt["failed"]["reason"]
+E   AssertionError: ✗ 临时文件已被占用或不可创建, 拒绝写入: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-386/test_backup_failure_still_prod0/vault/节点/.b先.md.58559-2fe68380.undo-journal-tmp ([Errno 13] Permission denied: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-386/test_backup_failure_still_prod0/vault/节点/.b先.md.58559-2fe68380.undo-journal-tmp')
+E   assert '备份落点' in "✗ 临时文件已被占用或不可创建, 拒绝写入: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-386/test_ba...00gn/T/pytest-of-Heishing/pytest-386/test_backup_failure_still_prod0/vault/节点/.b先.md.58559-2fe68380.undo-journal-tmp')"
+________________ test_park_failure_reports_where_the_residue_is ________________
+tests/skills/test_g5_7_inbox_apply.py:2388: in test_park_failure_reports_where_the_residue_is
+    uj.write_pair_atomically(
+../canvas-vault/.claude/scripts/undo_journal.py:486: in write_pair_atomically
+    _replace_or_park(tmp, path, stale_dir)
+../canvas-vault/.claude/scripts/undo_journal.py:238: in _replace_or_park
+    os.replace(str(tmp), str(path))
+E   IsADirectoryError: [Errno 21] Is a directory: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-386/test_park_failure_reports_wher0/root/work/b0/.receipt.md.55058-4f5d6415.undo-journal-tmp' -> '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-386/test_park_failure_reports_wher0/root/work/b0/receipt.md'
+
+During handling of the above exception, another exception occurred:
+tests/skills/test_g5_7_inbox_apply.py:2395: in test_park_failure_reports_where_the_residue_is
+    assert "残片位置" in notes, "调用方无从知道哪一份残片需要处理"
+E   AssertionError: 调用方无从知道哪一份残片需要处理
+E   assert '残片位置' in ''
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_equal_length_edit_after_acting_is_refused
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_backup_reuse_requires_an_independent_inode
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_seal_covers_only_the_lines_it_sealed
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_rerun_after_action_completed_but_uncommitted
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_journal_from_another_batch_is_refused
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_receipt_does_not_silently_overwrite_a_user_file
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_unknown_state_is_treated_as_corruption
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_requires_the_journal_file_itself
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_backup_failure_still_produces_a_precise_receipt
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_park_failure_reports_where_the_residue_is
+======================== 10 failed, 78 passed in 15.30s ========================
+rc=1

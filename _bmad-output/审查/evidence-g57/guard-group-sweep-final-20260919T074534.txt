@@ -1,0 +1,9 @@
+镜像已对齐 HEAD eca080f8
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/guard_group_sweep.py", line 131, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/guard_group_sweep.py", line 91, in main
+    assert run_suite() == 0, "基线不是全绿, 普查无意义"
+           ^^^^^^^^^^^^^^^^
+AssertionError: 基线不是全绿, 普查无意义

@@ -1,0 +1,133 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r3-tree/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 77 items
+
+tests/skills/test_g5_7_inbox_apply.py .................................. [ 44%]
+..............................FFFFFFFFF.FFF                              [100%]
+
+=================================== FAILURES ===================================
+____________ test_undo_touches_nothing_when_source_became_a_symlink ____________
+tests/skills/test_g5_7_inbox_apply.py:1842: in test_undo_touches_nothing_when_source_became_a_symlink
+    assert outside.stat().st_mtime_ns == before_ns, "拒绝之前已经改了别人的时间"
+E   AssertionError: 拒绝之前已经改了别人的时间
+E   assert 1789401600000000000 == 1787068800000000000
+E    +  where 1789401600000000000 = os.stat_result(st_mode=33188, st_ino=51992903, st_dev=16777230, st_nlink=1, st_uid=501, st_gid=20, st_size=12, st_atime=1789401600, st_mtime=1789401600, st_ctime=1789728487).st_mtime_ns
+E    +    where os.stat_result(st_mode=33188, st_ino=51992903, st_dev=16777230, st_nlink=1, st_uid=501, st_gid=20, st_size=12, st_atime=1789401600, st_mtime=1789401600, st_ctime=1789728487) = stat()
+E    +      where stat = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-323/test_undo_touches_nothing_when0/vault外的东西.md').stat
+________________ test_planned_row_claims_no_destination_at_all _________________
+tests/skills/test_g5_7_inbox_apply.py:1863: in test_planned_row_claims_no_destination_at_all
+    assert r.returncode != 0, "planned 阶段落点上不该有我们的东西, 出现了就得停下问"
+E   AssertionError: planned 阶段落点上不该有我们的东西, 出现了就得停下问
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-323/test_planned_row_claims_no_des0/vault/outputs/clear-inbox/88f8aedbc8f9/journal.jsonl\n', stderr='').returncode
+_________ test_backup_path_holding_a_user_file_is_parked_not_replaced __________
+tests/skills/test_g5_7_inbox_apply.py:1878: in test_backup_path_holding_a_user_file_is_parked_not_replaced
+    assert any(p.read_bytes() == b"user put this here\n" for p in parked), "用户那份被换掉且没留痕"
+E   AssertionError: 用户那份被换掉且没留痕
+E   assert False
+E    +  where False = any(<generator object test_backup_path_holding_a_user_file_is_parked_not_replaced.<locals>.<genexpr> at 0x1395b7780>)
+____________ test_stale_dir_swapped_to_symlink_keeps_residue_inside ____________
+tests/skills/test_g5_7_inbox_apply.py:1895: in test_stale_dir_swapped_to_symlink_keeps_residue_inside
+    assert sorted(p.name for p in outside.iterdir()) == [], "残片被搬到 vault 外面去了"
+E   AssertionError: 残片被搬到 vault 外面去了
+E   assert ['.receipt.md...-journal-tmp'] == []
+E     
+E     Left contains one more item: '.receipt.md.39911-220d1f28.undo-journal-tmp'
+E     Use -v to get more diff
+____________ test_sealed_bad_line_stays_readable_after_more_records ____________
+tests/skills/test_g5_7_inbox_apply.py:1925: in test_sealed_bad_line_stays_readable_after_more_records
+    assert r3.returncode == 0, r3.stdout + r3.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r3-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py", line 876, in <module>
+E         raise SystemExit(main())
+E                          ~~~~^^
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r3-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py", line 872, in main
+E         return run_apply(vault, args, applied_at)
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r3-tree/canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py", line 624, in run_apply
+E         rows = journal.read_rows()
+E       File "/private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p7-skills-x/699cb11e-bd6c-44df-bde7-11a617153454/scratchpad/pre-fix-r3-tree/canvas-vault/.claude/scripts/undo_journal.py", line 595, in read_rows
+E         raise JournalError(
+E         ...<2 lines>...
+E         )
+E     _g57_undo_journal.JournalError: ✗ journal 中间存在损坏记录 (第 4 条可解析行), 这不是掉电截断, 拒绝在看不懂的账上继续动盘: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-323/test_sealed_bad_line_stays_rea0/vault/outputs/clear-inbox/2adf0ecce01e/journal.jsonl
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../pytest-of-Heishing/pytest-323/test_sealed_bad_line_stays_rea0/vault/outputs/clear-inbox/2adf0ecce01e/journal.jsonl\n').returncode
+____________ test_resume_writes_the_provenance_the_journal_promised ____________
+tests/skills/test_g5_7_inbox_apply.py:1959: in test_resume_writes_the_provenance_the_journal_promised
+    assert promised in body, f"写进去的溯源时刻与账上承诺的不一致: 期望 {promised}"
+E   AssertionError: 写进去的溯源时刻与账上承诺的不一致: 期望 2026-09-17T16:00:00Z
+E   assert '2026-09-17T16:00:00Z' in '---\nclear_inbox_provenance:\n  source_rel_path: "_待处理/续跑溯源.md"\n  source_mtime_utc: "2026-09-16T16:00:00Z"\n  batch_id: "fc6582423b9b"\n  applied_at_utc: "2026-09-19T00:00:00Z"\n  op: "copy"\n---\n\n# 续跑溯源\n\n正文\n'
+____________ test_undo_of_an_acting_move_with_provenance_completes _____________
+tests/skills/test_g5_7_inbox_apply.py:1983: in test_undo_of_an_acting_move_with_provenance_completes
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件的去处已不存在, 而原路径上的内容既不是原件也不是本批次的产物, 拒绝继续: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-323/test_undo_of_an_acting_move_wi0/vault/_待处理/半态溯源.md
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...q/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-323/test_undo_of_an_acting_move_wi0/vault/_待处理/半态溯源.md\n').returncode
+___________________ test_no_raw_copyfile_on_production_paths ___________________
+tests/skills/test_g5_7_inbox_apply.py:1996: in test_no_raw_copyfile_on_production_paths
+    assert "shutil.copyfile(" not in src, f"{f.name} 仍在用会先截断的 copyfile"
+E   AssertionError: undo_journal.py 仍在用会先截断的 copyfile
+E   assert 'shutil.copyfile(' not in '#!/usr/bin/...         )\n'
+E     
+E     'shutil.copyfile(' is contained here:
+E       
+E               shutil.copyfile(str(bak), str(src))
+E     ?         ++++++++++++++++
+E       
+E           def _park_product(self, row: dict, dst: Path) -> str:...
+E     
+E     ...Full output truncated (96 lines hidden), use '-vv' to show
+____________ test_apply_also_refuses_a_journal_without_fingerprint _____________
+tests/skills/test_g5_7_inbox_apply.py:2018: in test_apply_also_refuses_a_journal_without_fingerprint
+    assert r.returncode != 0, "apply 拿一本不绑 vault 的账也能报完成"
+E   AssertionError: apply 拿一本不绑 vault 的账也能报完成
+E   assert 0 != 0
+E    +  where 0 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...Heishing/pytest-323/test_apply_also_refuses_a_jour0/vault/outputs/clear-inbox/adeaa5e8cb68/journal.jsonl\n', stderr='').returncode
+_______________ test_non_markdown_is_skipped_without_reading_it ________________
+tests/skills/test_g5_7_inbox_apply.py:2057: in test_non_markdown_is_skipped_without_reading_it
+    assert uj.write_provenance(big, {"batch_id": "x"}) == "skipped:not-markdown"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../canvas-vault/.claude/scripts/undo_journal.py:424: in write_provenance
+    raw = p.read_bytes()
+          ^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:777: in read_bytes
+    with self.open(mode='rb', buffering=0) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:771: in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   PermissionError: [Errno 13] Permission denied: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-323/test_non_markdown_is_skipped_w0/不是markdown.pdf'
+________________ test_first_receipt_failure_parks_the_other_tmp ________________
+tests/skills/test_g5_7_inbox_apply.py:2075: in test_first_receipt_failure_parks_the_other_tmp
+    assert strays == [], f"第二份 tmp 留在正式目录里: {strays}"
+E   AssertionError: 第二份 tmp 留在正式目录里: ['.receipt.md.39911-6af2de61.undo-journal-tmp']
+E   assert ['.receipt.md...-journal-tmp'] == []
+E     
+E     Left contains one more item: '.receipt.md.39911-6af2de61.undo-journal-tmp'
+E     Use -v to get more diff
+_________________ test_second_undo_still_reports_created_dirs __________________
+tests/skills/test_g5_7_inbox_apply.py:2093: in test_second_undo_still_reports_created_dirs
+    assert "归档/新层二" in receipt["created_dirs"]
+E   AssertionError: assert '归档/新层二' in []
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_touches_nothing_when_source_became_a_symlink
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_planned_row_claims_no_destination_at_all
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_backup_path_holding_a_user_file_is_parked_not_replaced
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_stale_dir_swapped_to_symlink_keeps_residue_inside
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_sealed_bad_line_stays_readable_after_more_records
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_resume_writes_the_provenance_the_journal_promised
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_of_an_acting_move_with_provenance_completes
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_no_raw_copyfile_on_production_paths
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_apply_also_refuses_a_journal_without_fingerprint
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_non_markdown_is_skipped_without_reading_it
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_first_receipt_failure_parks_the_other_tmp
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_second_undo_still_reports_created_dirs
+======================== 12 failed, 65 passed in 16.41s ========================
+rc=1

@@ -1,0 +1,6 @@
+# tests/skills 收工 nodeid 集合 —— 绑定 HEAD 6114be0b
+# 原始跑: skills-close-HANDOFF-20260918T223016.txt
+FAILED tests/skills/test_skill_portability_lint.py::test_layer3_scripts_counts_and_fileset_match_baseline
+FAILED tests/skills/test_skill_portability_lint.py::test_managed_files_match_digest_baseline
+FAILED tests/skills/test_skill_portability_lint.py::test_negative_control_hardcoded_port_in_script_reddens_layer3
+FAILED tests/skills/test_skill_portability_lint.py::test_negative_control_untouched_copy_is_green

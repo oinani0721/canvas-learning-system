@@ -424,3 +424,91 @@ worktree: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktre
 > 这五条各配一道定向测试与一条回退变异。⚠️ 同样如实：这不证明没有第六条。
 
 **User：**
+
+---
+
+## X1 开放面收口（CARD-G5-7，2026-09-18）
+
+> 本节由 CARD-G5-7（`[BATCH-2026-09-18-第十五批 / CARD-G5-7]`）**追加**。
+> ⛔ 以上正文与 frontmatter 一字未改 —— 里面的数字是当时的快照，改掉就没有历史了。
+> 本节只做一件事：把台账 §一.b「X1 G5-6c-R1」登记的四条开放面逐条收口，并写清楚
+> 收口依据。**解除动作本身属主 session**（台账 §一.b 那一行），本节不代改台账。
+
+台账原文（实测 `未合卡追踪台账.md:30` —— 卡文写 `:31`，行号漂移 1）：
+
+> **X1 G5-6c-R1**（squash `c4213a6a`，含 G5-6c 本体）… | G5-7 真删执行侧落地前不得解除开放面；文档三处并入 G5-7
+
+CARD-G5-7 就是那个「真删执行侧」。
+
+### ① 13 行裸 `.strip()` 的 Unicode 口径 —— 收口方式：证明执行侧数据面零消费
+
+`inbox_preview.py` 里 `.strip()` 共 **16** 处命中（`grep -c '\.strip()'`），其中
+`:476` / `:765` / `:840` 三处在注释或 docstring 里（实测逐行核过），真正的代码命中
+是台账列的 13 行：`620 624 633 654 655 756 1422 1424 1436 1438 1440 1442 1734`。
+
+**本卡不改这 13 行**（卡文硬边界）。收口依据是换一个角度：这些 `.strip()` 处理的是
+`basis` / `ask` / `uncertain_reason` / `criterion` / `near_duplicates` / `conflicts` /
+`exact_duplicate_others` 这类**给人看的自由文本**。执行侧 `inbox_apply.py` 对它们
+**零消费** —— 它只认 `stable_id` / `rel_path` / `size_bytes` / `mtime_utc` / `label`
+这些机械字段，落点由用户在 decisions 里显式给出，脚本只按 target 白名单规则判，
+不认 verdict 语义。
+
+这条不是靠读代码下的结论，是一道 AST 门（F4，数字符串常量，不是文本 grep）：
+
+```
+python3 -c "import ast;t=ast.parse(open('canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py',encoding='utf-8').read());S={n.value for n in ast.walk(t) if isinstance(n,ast.Constant) and isinstance(n.value,str)};print(sorted(S&{'basis','ask','uncertain_reason','criterion','near_duplicates','conflicts','exact_duplicate_others'}))"
+→ []
+验伪锚（同命令喂一个含 it["basis"] 的样本）→ ['basis']
+```
+
+同一道门以测试用例形式入树常驻：`backend/tests/skills/test_g5_7_inbox_apply.py::
+test_apply_does_not_consume_stripped_text_fields`（自带同跑验伪锚）。
+
+⚠️ **如实声明本条证明了什么、没证明什么**：证明了「那 13 行的 Unicode 口径进不到
+写侧数据面」；**没有**证明这 13 行在 preview 的**展示面**上口径正确 —— 那仍是开放的，
+只是不再挡着执行侧落地。
+
+### ② 本文件三处数字/口径不一致 —— 收口方式：逐条给出实测值（不改原文）
+
+| 位置 | 原文说法 | 实测 | 实测命令 |
+|---|---|---|---|
+| `:333` | 「3 条回退变异」 | 与 `:5` 自述的 **21** 条矛盾；`:333` 指的是 CARD-G5-6c 那一批的 3 条，`:5` 指终态 21 条 —— 两个数各自有出处，但同一份文档里不加限定地并列就会互相打架 | `sed -n '5p;333p' <本文件>` |
+| `:366` | 「其余已知缺陷（偏差 19，未修）」 | **已修（R11-H1）** —— 同文件 `:89` 已写「原写『未修』，与 `md_splitlines()`（`:704`）矛盾 —— 改为『已修（R11-H1）』」。`:366` 是漏改的旧口径 | `sed -n '89p;366p' <本文件>` |
+| `:101` | 「验收单 +113/-7」 | **+107/-7** | `git -c core.quotepath=false --no-pager show --numstat --no-color 69fce02c -- '<本文件>'` → `107 7` |
+
+同一条命令给出的另两个数字与自述一致：生产 `inbox_preview.py` **+14/-5**、
+测试 `test_g5_6_clear_inbox.py` **+90/-0**。X1 本体 commit = `69fce02c`
+（`fix(G5-6c-R1): 三处残留 Unicode 口径 strip 收到 ASCII`）。
+
+### ③ frontmatter `:5` 的「到顶不合并」—— 收口方式：已被第十批裁定推翻
+
+`:5` 的 `status` 仍写「⛔ 十一轮独立审查全判『未清零』，按卡文『到顶不合并』」。
+台账 `:178`（卡文写 `:21`，行号漂移）的第十批裁定是：
+
+> | 第十批 | **X1 G5-6c-R1 + G5-6c 本体**（`card/v6-inbox` tip `69fce02c`） | ✅ squash `c4213a6a`（101 绿…）；tag `merged-squash/v6-inbox` |
+
+即**已合入**。`:5` 是那一刻的快照，保留不改；以本节与台账 `:178` 为准。
+
+### ④ X1 三处生产改动无独立复审 —— 收口方式：写进 CARD-G5-7 的 Codex 最小读取面
+
+CARD-G5-7 的 Codex prompt 把
+`git --no-pager diff --no-color ac949f6f 69fce02c -- canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py`（+14/-5）
+**写死**进最小读取面，并在提问清单里单列一条「这三处改动本身是否引入缺陷」。
+Codex 对该 diff 的意见抄录在 `_bmad-output/验收单/UAT-CARD-G5-7-2026-09-18.md`
+的「X1 三处生产改动的独立复审意见」一节。
+
+### live 半边：SKIP 登记
+
+真实板全链（preview → decisions → apply → undo）需用户**当次授权**。本卡未获授权，
+且线上 `canvas-learning-system/canvas-vault/_待处理/` 实测**不存在**（`ls -d` 报
+No such file），故 live 只读不跑，**SKIP 登记**。
+
+### 给主 session 的解除依据（本卡不改台账）
+
+- CARD-G5-7 commit：见 `UAT-CARD-G5-7-2026-09-18.md` 文首终态字段
+- F2「默认路径 0 物理删除」AST 门 + F4 本节 ① 的门：`_bmad-output/审查/evidence-g57/struct-final-*.txt`
+- 承重行为门 29 用例全绿：`_bmad-output/审查/evidence-g57/apply-green-*.txt`
+- Codex 各轮存档：`_bmad-output/审查/codex-review-CARD-G5-7*.md`
+
+建议台账 `:30` 改为「已解除（G5-7，2026-09-18）」，并把本节 ① 的「展示面口径仍开放」
+另立一条 LOW 登记。

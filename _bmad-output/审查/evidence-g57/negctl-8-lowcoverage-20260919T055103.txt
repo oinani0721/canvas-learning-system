@@ -1,0 +1,20 @@
+=== 负控⑧ LOW 覆盖门的点名变异 ===
+HEAD: 077e7149cdfafb6599872407d5a9e5b46e923e18
+  变异已注入: bkstale
+── L2-backupstale 期望红: backup_refuses_when_the_stale_dir_is_a_symlink
+   变异前/后 sha: 2db52c44ca2e716b1122b08ca14a3f518a559bc4e38f7953c439b5a97fd85e33 / 06a59374d4a66bda9ce862b52956a0350550d3f9e544b0d6f79b98e8704a5c11
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_backup_refuses_when_the_stale_dir_is_a_symlink
+================ 1 failed, 127 deselected, 10 warnings in 0.65s ================
+   还原正确: YES
+  变异已注入: sealfirst
+── L9-sealfirst 期望红: record_receipt_shas_seals_before_appending
+   变异前/后 sha: 2db52c44ca2e716b1122b08ca14a3f518a559bc4e38f7953c439b5a97fd85e33 / cdd02f6a7c6c21254d6564c1c6849c3ab22325b3301b86c13e130d439b266fca
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_record_receipt_shas_seals_before_appending
+================ 1 failed, 127 deselected, 10 warnings in 0.60s ================
+   还原正确: YES
+  变异已注入: residue
+── L11-residue 期望红: stale_dir_swapped_to_symlink_keeps_residue_inside
+   变异前/后 sha: 2db52c44ca2e716b1122b08ca14a3f518a559bc4e38f7953c439b5a97fd85e33 / 2b36a7ce18c5f57215405880e301ed8cca2994718163396c1bb3a4a1f4cbb6e9
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+================ 1 passed, 127 deselected, 10 warnings in 0.56s ================
+   还原正确: YES

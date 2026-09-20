@@ -1,0 +1,14 @@
+=== CARD-G5-7 配额守候（有界：10 次 × 300s）===
+起始: 2026-09-19 08:50:52 PDT  HEAD=e1d39c31
+[1/10 08:50:56] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[2/10 08:55:59] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[3/10 09:01:03] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[4/10 09:06:06] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[5/10 09:11:10] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[6/10 09:16:13] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[7/10 09:21:17] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[8/10 09:26:20] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[9/10 09:31:24] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+[10/10 09:36:27] 仍受限: ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/se
+QUOTA-WEND: 守候到点, 配额未恢复 —— 交主 session（协议 §2.1 不等配额）
+QUOTA-WATCH-END: 未恢复

@@ -1,0 +1,80 @@
+{
+  "commit": "feat(clear-inbox): 执行侧 inbox_apply + undo_journal 备份/撤销/回收留痕 [BATCH-2026-09-18-第十五批 / CARD-G5-7]",
+  "ref": "10a2799e",
+  "sha": "10a2799e510602dad4a1d267040701e8bdd80d28",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:28:42-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/RESUME-CARD-G5-7-codex-r6.sh\"",
+    "backend/tests/skills/test_g5_7_inbox_apply.py",
+    "canvas-vault/.claude/scripts/undo_journal.py",
+    "canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py"
+  ],
+  "files": [
+    {
+      "file": "canvas-vault/.claude/scripts/undo_journal.py",
+      "added": 1570,
+      "removed": 0,
+      "runtime": 0.94,
+      "risk": "security",
+      "risk_conf": 0.3,
+      "urgency": 3.36,
+      "urgency_conf": 0.7,
+      "review": 0.91,
+      "test": 0.71,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py",
+      "added": 1083,
+      "removed": 0,
+      "runtime": 0.96,
+      "risk": "security",
+      "risk_conf": 0.62,
+      "urgency": 3.33,
+      "urgency_conf": 0.71,
+      "review": 0.91,
+      "test": 0.8,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/skills/test_g5_7_inbox_apply.py",
+      "added": 4160,
+      "removed": 0,
+      "runtime": 0.05,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 2.04,
+      "urgency_conf": 0.18,
+      "review": 0.81,
+      "test": 0.91,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/RESUME-CARD-G5-7-codex-r6.sh\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/RESUME-CARD-G5-7-codex-r6.sh\"",
+      "added": 116,
+      "removed": 0,
+      "runtime": 0.46,
+      "risk": "security",
+      "risk_conf": 0.47,
+      "urgency": 1.83,
+      "urgency_conf": 0.01,
+      "review": 0.68,
+      "test": 0.42,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 19326,
+    "output_tokens": 626
+  },
+  "latency_ms": {
+    "min": 278,
+    "median": 335,
+    "max": 343
+  }
+}

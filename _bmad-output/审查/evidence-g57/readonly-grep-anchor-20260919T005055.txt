@@ -1,0 +1,17 @@
+HEAD: 37c383321cb934cf46efe8facf669a295538d24e
+⛔ 上一份 f1-f5-zerowriters-final 里的验伪锚选错了文件（test_vault_lint.py 不含 7691，
+   锚本身 0 命中 = 空洞）。这里换成实测已知含 7691 的 backend/tests/conftest.py 重做。
+
+=== 正例（锚）: 已知含 7691 的文件, 同一条 grep 必须命中 ===
+3
+anchor_rc=0  (0 = 命中 ✅ 证明这条 grep 真的会开火)
+
+=== 被测面: 本卡三份新文件, 期望零命中 ===
+target_rc=1  (1 = 零命中 ✅)
+
+=== 输入面非空自证（三个文件都存在且非空）===
+   61424 canvas-vault/.claude/scripts/undo_journal.py
+   44711 canvas-vault/.claude/skills/clear-inbox/scripts/inbox_apply.py
+  121859 backend/tests/skills/test_g5_7_inbox_apply.py
+  227994 total
+rc=0

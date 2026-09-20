@@ -1,0 +1,61 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 584 items
+
+tests/skills/test_ai_linked_doc_writer.py .........                      [  1%]
+tests/skills/test_g5_6_clear_inbox.py .................................. [  7%]
+...................................................................      [ 18%]
+tests/skills/test_g5_7_inbox_apply.py .............................      [ 23%]
+tests/skills/test_g5_9_recap_exam.py ................................... [ 29%]
+........................................................................ [ 42%]
+.................                                                        [ 45%]
+tests/skills/test_skill_portability_lint.py ............................ [ 49%]
+...F................................F..........F........................ [ 62%]
+.............................................................F.......... [ 74%]
+.....                                                                    [ 75%]
+tests/skills/test_split_preview.py ..................................    [ 81%]
+tests/skills/test_split_stable_id.py ................................... [ 87%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+
+=================================== FAILURES ===================================
+___________________ test_managed_files_match_digest_baseline ___________________
+tests/skills/test_skill_portability_lint.py:1303: in test_managed_files_match_digest_baseline
+    assert not problems, "受管文件基线漂移:\n" + "\n".join(problems)
+E   AssertionError: 受管文件基线漂移:
+E     [受管文件] 新增: scripts/undo_journal.py sha16=0600c8f12cb3d880d4eba98218ba79e88a6bb9ab299106cc481ca6db73b62b82 —— 新文件必须先登记再纳管
+E     [受管文件] 新增: skills/clear-inbox/scripts/inbox_apply.py sha16=98ca1cb2a7cd9842a233c434df56896a490cefee336ba94b5fa752bcd58f12d2 —— 新文件必须先登记再纳管
+E   assert not ['[受管文件] 新增: scripts/undo_journal.py sha16=0600c8f12cb3d880d4eba98218ba79e88a6bb9ab299106cc481ca6db73b62b82 —— 新文件必须先登...ar-inbox/scripts/inbox_apply.py sha16=98ca1cb2a7cd9842a233c434df56896a490cefee336ba94b5fa752bcd58f12d2 —— 新文件必须先登记再纳管']
+____________ test_layer3_scripts_counts_and_fileset_match_baseline _____________
+tests/skills/test_skill_portability_lint.py:1759: in test_layer3_scripts_counts_and_fileset_match_baseline
+    assert not problems, "scripts 基线漂移:\n" + "\n".join(problems)
+E   AssertionError: scripts 基线漂移:
+E     [层3] scripts 文件集合漂移: 期望 7 份 实测 9 份 (新增=['scripts/undo_journal.py', 'skills/clear-inbox/scripts/inbox_apply.py'] 缺失=[]) —— 新增脚本必须登记进 SCRIPTS_BASELINE 或 U6_SCRIPTS_BASELINE
+E   assert not ["[层3] scripts 文件集合漂移: 期望 7 份 实测 9 份 (新增=['scripts/undo_journal.py', 'skills/clear-inbox/scripts/inbox_apply.py'] 缺失=[]) —— 新增脚本必须登记进 SCRIPTS_BASELINE 或 U6_SCRIPTS_BASELINE"]
+________________ test_negative_control_untouched_copy_is_green _________________
+tests/skills/test_skill_portability_lint.py:2013: in test_negative_control_untouched_copy_is_green
+    assert not check_scripts(sandbox, _merged_scripts_baseline()), check_scripts(sandbox, _merged_scripts_baseline())
+E   AssertionError: ["[层3] scripts 文件集合漂移: 期望 7 份 实测 9 份 (新增=['scripts/undo_journal.py', 'skills/clear-inbox/scripts/inbox_apply.py'] 缺失=[]) —— 新增脚本必须登记进 SCRIPTS_BASELINE 或 U6_SCRIPTS_BASELINE"]
+E   assert not ["[层3] scripts 文件集合漂移: 期望 7 份 实测 9 份 (新增=['scripts/undo_journal.py', 'skills/clear-inbox/scripts/inbox_apply.py'] 缺失=[]) —— 新增脚本必须登记进 SCRIPTS_BASELINE 或 U6_SCRIPTS_BASELINE"]
+E    +  where ["[层3] scripts 文件集合漂移: 期望 7 份 实测 9 份 (新增=['scripts/undo_journal.py', 'skills/clear-inbox/scripts/inbox_apply.py'] 缺失=[]) —— 新增脚本必须登记进 SCRIPTS_BASELINE 或 U6_SCRIPTS_BASELINE"] = check_scripts(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-75/test_negative_control_untouche0/.claude'), {'scripts/decay_beta.py': {'localhost': 0, 'p8011_all': 0, 'p8011_ns': 0, 'tmp': 0, ...}, 'scripts/fsrs_bridge.py': {'... 'skills/board-recap/scripts/recap_exam_build.py': {'localhost': 0, 'p8011_all': 0, 'p8011_ns': 0, 'tmp': 0, ...}, ...})
+E    +    where {'scripts/decay_beta.py': {'localhost': 0, 'p8011_all': 0, 'p8011_ns': 0, 'tmp': 0, ...}, 'scripts/fsrs_bridge.py': {'... 'skills/board-recap/scripts/recap_exam_build.py': {'localhost': 0, 'p8011_all': 0, 'p8011_ns': 0, 'tmp': 0, ...}, ...} = _merged_scripts_baseline()
+________ test_negative_control_hardcoded_port_in_script_reddens_layer3 _________
+tests/skills/test_skill_portability_lint.py:2923: in test_negative_control_hardcoded_port_in_script_reddens_layer3
+    assert not any("文件集合漂移" in x for x in problems), f"改内容不该报文件集合漂移: {joined}"
+E   AssertionError: 改内容不该报文件集合漂移: [层3] scripts 文件集合漂移: 期望 7 份 实测 9 份 (新增=['scripts/undo_journal.py', 'skills/clear-inbox/scripts/inbox_apply.py'] 缺失=[]) —— 新增脚本必须登记进 SCRIPTS_BASELINE 或 U6_SCRIPTS_BASELINE
+E     [层3] skills/board-recap/scripts/recap_scan.py: 指标 p8011_all 期望=0 实测=1
+E     [层3] skills/board-recap/scripts/recap_scan.py: 指标 localhost 期望=0 实测=1
+E   assert not True
+E    +  where True = any(<generator object test_negative_control_hardcoded_port_in_script_reddens_layer3.<locals>.<genexpr> at 0x147b34380>)
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_skill_portability_lint.py::test_managed_files_match_digest_baseline
+FAILED tests/skills/test_skill_portability_lint.py::test_layer3_scripts_counts_and_fileset_match_baseline
+FAILED tests/skills/test_skill_portability_lint.py::test_negative_control_untouched_copy_is_green
+FAILED tests/skills/test_skill_portability_lint.py::test_negative_control_hardcoded_port_in_script_reddens_layer3
+=================== 4 failed, 580 passed in 74.98s (0:01:14) ===================
+rc=1

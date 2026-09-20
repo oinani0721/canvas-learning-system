@@ -1,0 +1,77 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 77 items / 57 deselected / 20 selected
+
+tests/skills/test_g5_7_inbox_apply.py F.....FFFF.F.F....F.               [100%]
+
+=================================== FAILURES ===================================
+___________________ test_undo_restores_whole_tree_byte_exact ___________________
+tests/skills/test_g5_7_inbox_apply.py:514: in test_undo_restores_whole_tree_byte_exact
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件还原后修改时间对不上 (mtime_ns 当前 1789728858988215288 ≠ 记录 1789228800000000000), 拒绝继续: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_restores_whole_tree_0/vault/_待处理/戊.md
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...s/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_restores_whole_tree_0/vault/_待处理/戊.md\n').returncode
+_______________ test_undo_covers_an_item_acted_but_not_committed _______________
+tests/skills/test_g5_7_inbox_apply.py:1230: in test_undo_covers_an_item_acted_but_not_committed
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件还原后修改时间对不上 (mtime_ns 当前 1789728860400854498 ≠ 记录 1789401600000000000), 拒绝继续: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_covers_an_item_acted0/vault/_待处理/漏记.md
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_covers_an_item_acted0/vault/_待处理/漏记.md\n').returncode
+_______________ test_second_undo_after_lost_undone_row_completes _______________
+tests/skills/test_g5_7_inbox_apply.py:1253: in test_second_undo_after_lost_undone_row_completes
+    assert run_undo(vault, batch_dir / "journal.jsonl").returncode == 0
+E   AssertionError: assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_second_undo_after_lost_un0/vault/_待处理/补记.md\n').returncode
+E    +    where CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_second_undo_after_lost_un0/vault/_待处理/补记.md\n') = run_undo(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_second_undo_after_lost_un0/vault'), (PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_second_undo_after_lost_un0/vault/outputs/clear-inbox/f408e5b2d03d') / 'journal.jsonl'))
+_____________ test_undo_seals_a_half_written_tail_before_appending _____________
+tests/skills/test_g5_7_inbox_apply.py:1310: in test_undo_seals_a_half_written_tail_before_appending
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件还原后修改时间对不上 (mtime_ns 当前 1789728860855966692 ≠ 记录 1789401600000000000), 拒绝继续: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_seals_a_half_written0/vault/_待处理/撤销封口.md
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...q/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_seals_a_half_written0/vault/_待处理/撤销封口.md\n').returncode
+____________________ test_file_mode_survives_move_and_undo _____________________
+tests/skills/test_g5_7_inbox_apply.py:1341: in test_file_mode_survives_move_and_undo
+    assert run_undo(vault, batch_dir / "journal.jsonl").returncode == 0
+E   AssertionError: assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_file_mode_survives_move_a0/vault/_待处理/私密.md\n').returncode
+E    +    where CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_file_mode_survives_move_a0/vault/_待处理/私密.md\n') = run_undo(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_file_mode_survives_move_a0/vault'), (PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_file_mode_survives_move_a0/vault/outputs/clear-inbox/a196d7b02068') / 'journal.jsonl'))
+___________________ test_undo_finishes_a_half_restored_item ____________________
+tests/skills/test_g5_7_inbox_apply.py:1515: in test_undo_finishes_a_half_restored_item
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件还原后修改时间对不上 (mtime_ns 当前 1789728861515949156 ≠ 记录 1789401600000000000), 拒绝继续: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_finishes_a_half_rest0/vault/_待处理/半还原.md
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_finishes_a_half_rest0/vault/_待处理/半还原.md\n').returncode
+_________________ test_read_only_markdown_can_still_be_undone __________________
+tests/skills/test_g5_7_inbox_apply.py:1557: in test_read_only_markdown_can_still_be_undone
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件还原后修改时间对不上 (mtime_ns 当前 1789728862130154165 ≠ 记录 1789401600000000000), 拒绝继续: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_read_only_markdown_can_st0/vault/_待处理/只读.md
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.../vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_read_only_markdown_can_st0/vault/_待处理/只读.md\n').returncode
+____________ test_undo_of_an_acting_move_with_provenance_completes _____________
+tests/skills/test_g5_7_inbox_apply.py:1994: in test_undo_of_an_acting_move_with_provenance_completes
+    assert u.returncode == 0, u.stdout + u.stderr
+E   AssertionError: ✗ ✗ 第 1 件还原后修改时间对不上 (mtime_ns 当前 1789728863294662681 ≠ 记录 1789401600000000000), 拒绝继续: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_of_an_acting_move_wi0/vault/_待处理/半态溯源.md
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...q/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-342/test_undo_of_an_acting_move_wi0/vault/_待处理/半态溯源.md\n').returncode
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_restores_whole_tree_byte_exact
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_covers_an_item_acted_but_not_committed
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_second_undo_after_lost_undone_row_completes
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_seals_a_half_written_tail_before_appending
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_file_mode_survives_move_and_undo
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_finishes_a_half_restored_item
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_read_only_markdown_can_still_be_undone
+FAILED tests/skills/test_g5_7_inbox_apply.py::test_undo_of_an_acting_move_with_provenance_completes
+================= 8 failed, 12 passed, 57 deselected in 5.35s ==================
+rc=1
