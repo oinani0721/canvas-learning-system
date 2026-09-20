@@ -506,12 +506,18 @@ async def test_canvas_association_scoped_update_and_delete(gate_client):
     assert [(r["gid"], r["conf"]) for r in rows] == [(GID_B, 1.0)], f"delete crossed groups: {rows}"
 
 
-async def test_fallback_replay_write_identity_dual_vault(gate_client):
+async def test_fallback_replay_write_identity_dual_vault(gate_client, monkeypatch):
     """fallback_sync 行为门: 双 vault replay 不合并, 分数互不覆盖.
 
     对应 fallback_sync_service._replay_scoring_entry_to_neo4j (原 :352 违规)
     与 _replay_learning_memory_to_neo4j (原 :458 违规) 的复合键修复。
-    ContextVar 切换 vault (业务真实机制), 不 mock 组解析。
+
+    组来源 = **条目自带** (CARD-REPLAY-REWRITE 新契约: 条目 ``group_id`` >
+    条目 ``vault_id`` > env ``CLS_REPLAY_LEGACY_NOSCOPE_VAULT`` > 拒写隔离),
+    **不再读进程 active vault** —— 下方两笔 scoring 故意把 ContextVar 设成
+    **对方组**作负控: 若实现回退去读 active vault, 分数就串到对方组, 身份断言
+    立刻红。learning 链 (卡文列明的「不做的相邻面」, 重写归后续候选卡) 仍从
+    active vault 解析组, 故只有它的两笔保留 set/reset。不 mock 组解析。
     """
     from app.core.subject_config import _current_subject_id
     from app.services.fallback_sync_service import FallbackSyncService
@@ -528,26 +534,39 @@ async def test_fallback_replay_write_identity_dual_vault(gate_client):
     # 已有他组同名节点"时显形 —— 若某个 replay 函数只承担**第一笔**写入,
     # 把它退回单键+SET 也测不出来 (无可劫持对象)。故两个函数各承担一次
     # "第二笔": scoring A → learning B → scoring B(二笔) → learning A(二笔)。
-    async def _replay(fn, gid_logical, entry):
-        token = _current_subject_id.set(gid_logical)
+    async def _replay(fn, active_vault, entry):
+        token = _current_subject_id.set(active_vault)
         try:
             return await fn(entry)
         finally:
             _current_subject_id.reset(token)
 
     ok = [
-        await _replay(svc._replay_scoring_entry_to_neo4j, GID_A_LOGICAL, {**base_entry, "score": 80}),
-        await _replay(svc._replay_learning_memory_to_neo4j, GID_B_LOGICAL, {**base_entry, "score": 60}),
-        # 第二笔: 此时库里已有他组同名节点, 单键回退必然 clobber
+        # scoring A: 组来源 = 条目自带 group_id (A); active vault 负控 = B。
         await _replay(
             svc._replay_scoring_entry_to_neo4j,
             GID_B_LOGICAL,
-            {**base_entry, "score": 61, "timestamp": "2026-08-28T01:00:00"},
+            {**base_entry, "group_id": GID_A_LOGICAL, "score": 80},
         ),
+        # learning B: 该链未随本卡改造, 定组的仍是 active vault = B (条目的
+        # group_id 先随契约带上, 待该链重写后成为唯一来源)。
+        await _replay(
+            svc._replay_learning_memory_to_neo4j,
+            GID_B_LOGICAL,
+            {**base_entry, "group_id": GID_B_LOGICAL, "score": 60},
+        ),
+        # 第二笔 scoring B: 此时库里已有他组同名节点, 单键回退必然 clobber;
+        # 组来源 = 条目自带 group_id (B), active vault 负控 = A。
+        await _replay(
+            svc._replay_scoring_entry_to_neo4j,
+            GID_A_LOGICAL,
+            {**base_entry, "group_id": GID_B_LOGICAL, "score": 61, "timestamp": "2026-08-28T01:00:00"},
+        ),
+        # 第二笔 learning A: active vault = A。
         await _replay(
             svc._replay_learning_memory_to_neo4j,
             GID_A_LOGICAL,
-            {**base_entry, "score": 81, "timestamp": "2026-08-28T01:00:00"},
+            {**base_entry, "group_id": GID_A_LOGICAL, "score": 81, "timestamp": "2026-08-28T01:00:00"},
         ),
     ]
     assert all(ok), f"replay returned False: {ok}"
@@ -564,6 +583,23 @@ async def test_fallback_replay_write_identity_dual_vault(gate_client):
         (GID_A, GID_A, 81),
         (GID_B, GID_B, 61),
     ], f"fallback replay merged across vaults: {rows}"
+
+    # 新契约反面 (CARD-REPLAY-REWRITE 有意行为): 条目无 group_id、无 vault_id
+    # = 无任何来源线索 ⇒ quarantined 拒写返 False, 不猜 vault、不写图。
+    # delenv 让本断言不依赖运行环境是否点名了 legacy vault; 概念名独立, 万一
+    # 回归写出也只由本断言与文件级清理处理 (不污染上面的身份断言)。
+    monkeypatch.delenv("CLS_REPLAY_LEGACY_NOSCOPE_VAULT", raising=False)
+    unscoped_concept = f"{GATE_PREFIX}_replay_unscoped_concept"
+    refused = await svc._replay_scoring_entry_to_neo4j(
+        {**base_entry, "concept": unscoped_concept, "score": 50},
+        record_id=f"{GATE_PREFIX}_replay_unscoped_rid",
+    )
+    assert refused is False, "无来源线索条目未被隔离: 新契约要求拒写 (quarantined)"
+    written = await gate_client.run_query(
+        "MATCH (c:Concept {name: $name}) RETURN count(c) AS n",
+        name=unscoped_concept,
+    )
+    assert written[0]["n"] == 0, f"quarantined 条目仍被写图: {written}"
 
 
 async def test_group_unresolvable_fail_closed_no_500(gate_client, caplog):
@@ -808,11 +844,7 @@ _SCORE_ALIAS_CASES = {
 #: A vault 根组读**应当**看到的全集 (保召回门的正向期望)。
 #: 注意 `gid.startswith(GID_A)` 是错的 —— 它会把 `vault__g21gate_ab` 也算进来
 #: (正是本门要抓的误配)。锚点必须带 `__` 定界符, 与 read_group_filter 同口径。
-_A_SCOPE_EXPECTED = {
-    name
-    for name, gid in _G41A_CONCEPTS.items()
-    if gid == GID_A or gid.startswith(GID_A + "__")
-}
+_A_SCOPE_EXPECTED = {name for name, gid in _G41A_CONCEPTS.items() if gid == GID_A or gid.startswith(GID_A + "__")}
 
 
 def test_g41a_punycode_subgroup_is_really_punycode():
@@ -857,14 +889,11 @@ async def g41a_seed(gate_client):
         )
     # 自证 seed 真的落库了 —— 否则下面每一条"看不到 B"都可能是空库假绿
     planted = await gate_client.run_query(
-        "MATCH (c:Concept) WHERE c.probe = $probe AND c.name STARTS WITH $p "
-        "RETURN count(c) AS c",
+        "MATCH (c:Concept) WHERE c.probe = $probe AND c.name STARTS WITH $p RETURN count(c) AS c",
         probe=GATE_PREFIX,
         p=f"{GATE_PREFIX}_g41a",
     )
-    assert planted and planted[0]["c"] == len(_G41A_CONCEPTS), (
-        f"g41a seed 未完整落库: {planted}"
-    )
+    assert planted and planted[0]["c"] == len(_G41A_CONCEPTS), f"g41a seed 未完整落库: {planted}"
     return _G41A_CONCEPTS
 
 
@@ -881,19 +910,14 @@ async def test_g41a_contract_fragment_recall_and_isolation(gate_client, g41a_see
 
     params = read_scope_params(GID_A_LOGICAL, context="gate")
     rows = await gate_client.run_query(
-        f"MATCH (n:Concept) WHERE {read_group_filter('n')} AND n.probe = $probe "
-        "RETURN n.name AS concept",
+        f"MATCH (n:Concept) WHERE {read_group_filter('n')} AND n.probe = $probe RETURN n.name AS concept",
         probe=GATE_PREFIX,
         **params,
     )
     got = _names(rows)
-    assert _A_SCOPE_EXPECTED <= got, (
-        f"保召回门红: A vault 子组数据被误挡, 缺失 {_A_SCOPE_EXPECTED - got}"
-    )
+    assert _A_SCOPE_EXPECTED <= got, f"保召回门红: A vault 子组数据被误挡, 缺失 {_A_SCOPE_EXPECTED - got}"
     assert f"{GATE_PREFIX}_g41a_b_root" not in got, "零泄漏门红: 读到了 B vault"
-    assert f"{GATE_PREFIX}_g41a_ab_root" not in got, (
-        "防误配门红: `vault__x` 前缀吃掉了另一个 vault `vault__xy`"
-    )
+    assert f"{GATE_PREFIX}_g41a_ab_root" not in got, "防误配门红: `vault__x` 前缀吃掉了另一个 vault `vault__xy`"
 
 
 async def test_g41a_canvas_scope_still_isolates_sibling_board(gate_client, g41a_seed):
@@ -906,8 +930,7 @@ async def test_g41a_canvas_scope_still_isolates_sibling_board(gate_client, g41a_
 
     params = read_scope_params(f"{GID_A_LOGICAL}:board_x", context="gate")
     rows = await gate_client.run_query(
-        f"MATCH (n:Concept) WHERE {read_group_filter('n')} AND n.probe = $probe "
-        "RETURN n.name AS concept",
+        f"MATCH (n:Concept) WHERE {read_group_filter('n')} AND n.probe = $probe RETURN n.name AS concept",
         probe=GATE_PREFIX,
         **params,
     )
@@ -921,9 +944,7 @@ async def test_g41a_canvas_scope_still_isolates_sibling_board(gate_client, g41a_
 # ── 6.2 真实生产读路径 (Neo4jClient 方法) ────────────────────────────────
 
 
-async def test_g41a_review_suggestions_recall_and_isolation_in_one_read(
-    gate_client, g41a_seed
-):
+async def test_g41a_review_suggestions_recall_and_isolation_in_one_read(gate_client, g41a_seed):
     """用户可感门: vault 根组读"复习建议"必须**在同一个结果集里**同时满足
     保召回与零泄漏。
 
@@ -936,15 +957,12 @@ async def test_g41a_review_suggestions_recall_and_isolation_in_one_read(
     现网风险背景: 存量 Concept/LEARNED 全在 punycode 子组, 等值过滤会让
     这个接口整页空。
     """
-    rows = await gate_client.get_review_suggestions(
-        user_id=G41A_USER, limit=50, group_id=GID_A_LOGICAL
-    )
+    rows = await gate_client.get_review_suggestions(user_id=G41A_USER, limit=50, group_id=GID_A_LOGICAL)
     got = _names(rows)
 
     # 一次断言同时覆盖三面 (缺失 / 多出 均会被 == 抓到)
     assert got == _A_SCOPE_EXPECTED, (
-        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; "
-        f"多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
+        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; 多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
     )
     # 冗余但可读: 点名三类子组各自在内, 门红时能一眼看出是哪类丢了
     for kind, name in (
@@ -964,16 +982,12 @@ async def test_g41a_review_suggestions_recall_and_isolation_in_one_read(
 
 async def test_g41a_review_suggestions_zero_cross_vault_leak(gate_client, g41a_seed):
     """同一次读: B vault 与近似前缀 vault 的待复习概念 0 条。"""
-    rows = await gate_client.get_review_suggestions(
-        user_id=G41A_USER, limit=50, group_id=GID_A_LOGICAL
-    )
+    rows = await gate_client.get_review_suggestions(user_id=G41A_USER, limit=50, group_id=GID_A_LOGICAL)
     got = _names(rows)
     assert f"{GATE_PREFIX}_g41a_b_root" not in got
     assert f"{GATE_PREFIX}_g41a_ab_root" not in got
     # 反向: B 作用域看得到自己、看不到 A
-    rows_b = await gate_client.get_review_suggestions(
-        user_id=G41A_USER, limit=50, group_id=GID_B_LOGICAL
-    )
+    rows_b = await gate_client.get_review_suggestions(user_id=G41A_USER, limit=50, group_id=GID_B_LOGICAL)
     got_b = _names(rows_b)
     assert got_b == {f"{GATE_PREFIX}_g41a_b_root"}, got_b
 
@@ -984,13 +998,10 @@ async def test_g41a_learning_history_recall_and_isolation(gate_client, g41a_seed
     与 review 门同口径: 对**同一个结果集**断言精确集合相等 —— 一次性蕴含
     "A 的四类组全在内"与"B / 近似前缀 vault 一条不在内"。
     """
-    rows = await gate_client.get_learning_history(
-        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=100
-    )
+    rows = await gate_client.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=100)
     got = _names(rows)
     assert got == _A_SCOPE_EXPECTED, (
-        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; "
-        f"多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
+        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; 多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
     )
     assert f"{GATE_PREFIX}_g41a_a_puny" in got, "punycode 子组的学习历史看不见"
     assert f"{GATE_PREFIX}_g41a_b_root" not in got
@@ -1016,9 +1027,7 @@ async def test_g41a_score_history_scoped_read(gate_client):
     b_rows = await gate_client.get_concept_score_history(
         concept_id=G41A_NODE, canvas_name=G41A_CANVAS, limit=10, group_id=GID_B_LOGICAL
     )
-    assert [r["score"] for r in a_rows] == [11], (
-        f"A 作用域读到了非 A 的分数 (保召回/零泄漏双检): {a_rows}"
-    )
+    assert [r["score"] for r in a_rows] == [11], f"A 作用域读到了非 A 的分数 (保召回/零泄漏双检): {a_rows}"
     assert [r["score"] for r in b_rows] == [99], b_rows
 
 
@@ -1046,9 +1055,7 @@ async def test_g41a_score_history_fail_closed_on_unresolved_group(gate_client, m
     token = _current_subject_id.set("general")
     try:
         with pytest.raises(VaultScopeUnresolved):
-            await gate_client.get_concept_score_history(
-                concept_id=G41A_NODE, canvas_name=G41A_CANVAS, limit=5
-            )
+            await gate_client.get_concept_score_history(concept_id=G41A_NODE, canvas_name=G41A_CANVAS, limit=5)
     finally:
         _current_subject_id.reset(token)
 
@@ -1080,8 +1087,12 @@ async def g41a_alias_seed(gate_client):
             SET r.score = 7, r.review_count = 1, r.timestamp = $ts,
                 r.next_review = datetime() - duration('P1D')
             """,
-            name=name, cgid=cgid, rgid=rgid, uid=G41A_ALIAS_USER,
-            probe=GATE_PREFIX, ts="2026-08-30T00:00:00",
+            name=name,
+            cgid=cgid,
+            rgid=rgid,
+            uid=G41A_ALIAS_USER,
+            probe=GATE_PREFIX,
+            ts="2026-08-30T00:00:00",
         )
 
     # score history: n / c / cn / r / e 五个 alias 各错一次 + 一条全 A 对照
@@ -1096,10 +1107,15 @@ async def g41a_alias_seed(gate_client):
             CREATE (e)-[:SCORED {score: $score, group_id: $rgid,
                                  timestamp: datetime($ts)}]->(n)
             """,
-            nid=f"{GATE_PREFIX}_g41a_sc_{tag}", path=f"{GATE_PREFIX}_g41a_sc_{tag}.canvas",
-            ngid=gids["n"], cgid=gids["c"], cngid=gids["cn"],
-            egid=gids["e"], rgid=gids["r"],
-            score=1, ts="2026-08-30T02:00:00",
+            nid=f"{GATE_PREFIX}_g41a_sc_{tag}",
+            path=f"{GATE_PREFIX}_g41a_sc_{tag}.canvas",
+            ngid=gids["n"],
+            cgid=gids["c"],
+            cngid=gids["cn"],
+            egid=gids["e"],
+            rgid=gids["r"],
+            score=1,
+            ts="2026-08-30T02:00:00",
         )
     return True
 
@@ -1109,16 +1125,12 @@ async def g41a_alias_seed(gate_client):
     [
         (f"{GATE_PREFIX}_g41a_xr", False),  # r 在 B → r 过滤失效则现形
         (f"{GATE_PREFIX}_g41a_xc", False),  # c 在 B → c 过滤失效则现形
-        (f"{GATE_PREFIX}_g41a_ok", True),   # 全 A 正向对照 (防"写死成空"假绿)
+        (f"{GATE_PREFIX}_g41a_ok", True),  # 全 A 正向对照 (防"写死成空"假绿)
     ],
 )
 async def test_g41a_review_suggestions_per_alias(gate_client, g41a_alias_seed, crossed, visible):
-    rows = await gate_client.get_review_suggestions(
-        user_id=G41A_ALIAS_USER, limit=50, group_id=GID_A_LOGICAL
-    )
-    assert (crossed in _names(rows)) is visible, (
-        f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
-    )
+    rows = await gate_client.get_review_suggestions(user_id=G41A_ALIAS_USER, limit=50, group_id=GID_A_LOGICAL)
+    assert (crossed in _names(rows)) is visible, f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
 
 
 @pytest.mark.parametrize(
@@ -1130,12 +1142,8 @@ async def test_g41a_review_suggestions_per_alias(gate_client, g41a_alias_seed, c
     ],
 )
 async def test_g41a_learning_history_per_alias(gate_client, g41a_alias_seed, crossed, visible):
-    rows = await gate_client.get_learning_history(
-        user_id=G41A_ALIAS_USER, group_id=GID_A_LOGICAL, limit=100
-    )
-    assert (crossed in _names(rows)) is visible, (
-        f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
-    )
+    rows = await gate_client.get_learning_history(user_id=G41A_ALIAS_USER, group_id=GID_A_LOGICAL, limit=100)
+    assert (crossed in _names(rows)) is visible, f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
 
 
 @pytest.mark.parametrize("tag", sorted(_SCORE_ALIAS_CASES))
@@ -1150,9 +1158,7 @@ async def test_g41a_score_history_per_alias(gate_client, g41a_alias_seed, tag):
     if tag == "ok":
         assert [r["score"] for r in rows] == [1], f"正向对照读不到分数: {rows}"
     else:
-        assert rows == [], (
-            f"alias {tag!r} 在 B 组却被 A 作用域读到 —— 该 alias 的过滤失效: {rows}"
-        )
+        assert rows == [], f"alias {tag!r} 在 B 组却被 A 作用域读到 —— 该 alias 的过滤失效: {rows}"
 
 
 async def test_g41a_canvas_scope_via_production_methods(gate_client, g41a_seed):
@@ -1164,10 +1170,8 @@ async def test_g41a_canvas_scope_via_production_methods(gate_client, g41a_seed):
     scope = f"{GID_A_LOGICAL}:board_x"
     expected = {f"{GATE_PREFIX}_g41a_a_brdx", f"{GATE_PREFIX}_g41a_a_brdx_sem"}
     for label, rows in (
-        ("review", await gate_client.get_review_suggestions(
-            user_id=G41A_USER, limit=50, group_id=scope)),
-        ("history", await gate_client.get_learning_history(
-            user_id=G41A_USER, group_id=scope, limit=100)),
+        ("review", await gate_client.get_review_suggestions(user_id=G41A_USER, limit=50, group_id=scope)),
+        ("history", await gate_client.get_learning_history(user_id=G41A_USER, group_id=scope, limit=100)),
     ):
         got = _names(rows)
         assert got == expected, f"{label}: canvas 作用域可见面不对 {sorted(got)}"
@@ -1200,12 +1204,8 @@ async def test_g41a_inheritance_neighbors_are_vault_scoped(gate_client, monkeypa
         )
 
     try:
-        a_records = await _fetch_neighbor_records_for_inheritance(
-            anchor, GID_A_LOGICAL
-        )
-        b_records = await _fetch_neighbor_records_for_inheritance(
-            anchor, GID_B_LOGICAL
-        )
+        a_records = await _fetch_neighbor_records_for_inheritance(anchor, GID_A_LOGICAL)
+        b_records = await _fetch_neighbor_records_for_inheritance(anchor, GID_B_LOGICAL)
         a_names = {r.get("name") for r in a_records}
         b_names = {r.get("name") for r in b_records}
         assert a_names == {f"{GATE_PREFIX}_g41a_nbr_a"}, (
@@ -1237,10 +1237,10 @@ async def test_g41a_inheritance_per_alias_negative(gate_client, monkeypatch):
     anchor = f"{GATE_PREFIX}_g41a_ali_anchor"
     # (邻居名, 锚点组, 邻居组, 边组 — None 表示边不带 group_id)
     cases = [
-        (f"{GATE_PREFIX}_g41a_ali_ok", GID_A, GID_A, GID_A),        # 全 A: 可见
-        (f"{GATE_PREFIX}_g41a_ali_xnbr", GID_A, GID_B, GID_A),      # 邻居在 B
-        (f"{GATE_PREFIX}_g41a_ali_xrel", GID_A, GID_A, GID_B),      # 边在 B
-        (f"{GATE_PREFIX}_g41a_ali_xnull", GID_A, GID_A, None),      # 边无 group
+        (f"{GATE_PREFIX}_g41a_ali_ok", GID_A, GID_A, GID_A),  # 全 A: 可见
+        (f"{GATE_PREFIX}_g41a_ali_xnbr", GID_A, GID_B, GID_A),  # 邻居在 B
+        (f"{GATE_PREFIX}_g41a_ali_xrel", GID_A, GID_A, GID_B),  # 边在 B
+        (f"{GATE_PREFIX}_g41a_ali_xnull", GID_A, GID_A, None),  # 边无 group
     ]
     try:
         for neighbor, ngid, mgid, rgid in cases:
@@ -1251,7 +1251,10 @@ async def test_g41a_inheritance_per_alias_negative(gate_client, monkeypatch):
                     MERGE (m:EntityNode {name: $neighbor, group_id: $mgid})
                     MERGE (n)-[r:RELATES_TO {label: $neighbor}]->(m)
                     """,
-                    anchor=anchor, neighbor=neighbor, ngid=ngid, mgid=mgid,
+                    anchor=anchor,
+                    neighbor=neighbor,
+                    ngid=ngid,
+                    mgid=mgid,
                 )
             else:
                 await gate_client.run_query(
@@ -1261,16 +1264,16 @@ async def test_g41a_inheritance_per_alias_negative(gate_client, monkeypatch):
                     MERGE (n)-[r:RELATES_TO {group_id: $rgid}]->(m)
                     SET r.label = $neighbor
                     """,
-                    anchor=anchor, neighbor=neighbor, ngid=ngid, mgid=mgid, rgid=rgid,
+                    anchor=anchor,
+                    neighbor=neighbor,
+                    ngid=ngid,
+                    mgid=mgid,
+                    rgid=rgid,
                 )
 
-        got = {
-            r.get("name")
-            for r in await _fetch_neighbor_records_for_inheritance(anchor, GID_A_LOGICAL)
-        }
+        got = {r.get("name") for r in await _fetch_neighbor_records_for_inheritance(anchor, GID_A_LOGICAL)}
         assert got == {f"{GATE_PREFIX}_g41a_ali_ok"}, (
-            "逐 alias 负门失败 — 期望只见全 A 的那条; 实得 "
-            f"{sorted(x for x in got if x)}"
+            f"逐 alias 负门失败 — 期望只见全 A 的那条; 实得 {sorted(x for x in got if x)}"
         )
     finally:
         await gate_client.run_query(
@@ -1321,9 +1324,7 @@ def _json_client(tmp_path, rows, name="g41b_mirror.json"):
     path = tmp_path / name
     data = {
         "users": [{"id": G41A_USER}],
-        "concepts": [
-            {"id": cname, "name": cname, "group_id": gid} for cname, gid in rows.items()
-        ],
+        "concepts": [{"id": cname, "name": cname, "group_id": gid} for cname, gid in rows.items()],
         "relationships": [
             {
                 "id": f"rel-{i}",
@@ -1373,9 +1374,7 @@ async def test_g41b_concept_history_recall_and_isolation(gate_client, g41a_seed)
     cross_ab = await gate_client.get_concept_history(b_name, group_id=GID_A_LOGICAL)
     cross_ba = await gate_client.get_concept_history(a_name, group_id=GID_B_LOGICAL)
 
-    assert _names(a_rows) == {a_name}, (
-        f"保召回红: A 根组作用域读不到自己 punycode 子组的概念历史 {a_rows}"
-    )
+    assert _names(a_rows) == {a_name}, f"保召回红: A 根组作用域读不到自己 punycode 子组的概念历史 {a_rows}"
     assert _names(b_rows) == {b_name}, b_rows
     assert cross_ab == [], f"零泄漏红: A 作用域读到了 B 的概念历史 {cross_ab}"
     assert cross_ba == [], f"零泄漏红: B 作用域读到了 A 的概念历史 {cross_ba}"
@@ -1392,9 +1391,7 @@ async def test_g41b_concept_history_is_not_reading_the_json_simulator(gate_clien
     assert not gate_client._data.get("relationships"), (
         "前置条件: JSON 模拟器必须是空的 —— 否则读到数据也证明不了走的是 Cypher"
     )
-    rows = await gate_client.get_concept_history(
-        f"{GATE_PREFIX}_g41a_a_root", group_id=GID_A_LOGICAL
-    )
+    rows = await gate_client.get_concept_history(f"{GATE_PREFIX}_g41a_a_root", group_id=GID_A_LOGICAL)
     assert _names(rows) == {f"{GATE_PREFIX}_g41a_a_root"}, (
         f"名实一致红: Neo4j 模式下 get_concept_history 仍然没有查到图上的数据 {rows}"
     )
@@ -1405,14 +1402,12 @@ async def test_g41b_concept_history_is_not_reading_the_json_simulator(gate_clien
     [
         (f"{GATE_PREFIX}_g41a_xr", False),  # 关系在 B → r 过滤失效则现形
         (f"{GATE_PREFIX}_g41a_xc", False),  # 概念在 B → c 过滤失效则现形
-        (f"{GATE_PREFIX}_g41a_ok", True),   # 全 A 正向对照 (防"写死成空"假绿)
+        (f"{GATE_PREFIX}_g41a_ok", True),  # 全 A 正向对照 (防"写死成空"假绿)
     ],
 )
 async def test_g41b_concept_history_per_alias(gate_client, g41a_alias_seed, crossed, visible):
     rows = await gate_client.get_concept_history(crossed, group_id=GID_A_LOGICAL)
-    assert (crossed in _names(rows)) is visible, (
-        f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
-    )
+    assert (crossed in _names(rows)) is visible, f"{crossed} 可见性应为 {visible}; 实得 {sorted(_names(rows))}"
 
 
 # ── 7.3/7.4 get_all_recent_episodes + 启动恢复 ───────────────────────────
@@ -1429,9 +1424,7 @@ async def test_g41b_all_recent_episodes_scoped(gate_client, g41a_seed):
     assert _names(rows_b) == {f"{GATE_PREFIX}_g41a_b_root"}, _names(rows_b)
 
 
-async def test_g41b_recovery_loads_only_active_vault_family(
-    gate_client, g41a_seed, monkeypatch
-):
+async def test_g41b_recovery_loads_only_active_vault_family(gate_client, g41a_seed, monkeypatch):
     """方案甲行为门: 启动恢复只装 **active vault 族**, 且不受请求级作用域影响。
 
     两半缺一不可:
@@ -1445,9 +1438,7 @@ async def test_g41b_recovery_loads_only_active_vault_family(
     from app.core.subject_config import _current_subject_id
     from app.services.memory_service import MemoryService
 
-    monkeypatch.setattr(
-        subject_config_mod, "default_vault_group_id", lambda: GID_A_LOGICAL
-    )
+    monkeypatch.setattr(subject_config_mod, "default_vault_group_id", lambda: GID_A_LOGICAL)
 
     async def _recovered_names(ctx_scope=None):
         svc = MemoryService(neo4j_client=gate_client)
@@ -1458,16 +1449,11 @@ async def test_g41b_recovery_loads_only_active_vault_family(
             if token is not None:
                 _current_subject_id.reset(token)
         assert svc._episodes_recovered is True
-        return {
-            e["concept"]
-            for e in svc._episodes
-            if str(e.get("concept", "")).startswith(GATE_PREFIX)
-        }
+        return {e["concept"] for e in svc._episodes if str(e.get("concept", "")).startswith(GATE_PREFIX)}
 
     got = await _recovered_names()
     assert got == _A_SCOPE_EXPECTED, (
-        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; "
-        f"多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
+        f"缺失(保召回红): {sorted(_A_SCOPE_EXPECTED - got)}; 多出(零泄漏红): {sorted(got - _A_SCOPE_EXPECTED)}"
     )
 
     # 惰性恢复可能发生在某块白板的请求里 —— 缓存是进程级的, 作用域不得被
@@ -1475,8 +1461,7 @@ async def test_g41b_recovery_loads_only_active_vault_family(
     # 已置 True, 不会再恢复)。
     got_under_board_ctx = await _recovered_names(ctx_scope=f"{GID_A_LOGICAL}:board_x")
     assert got_under_board_ctx == _A_SCOPE_EXPECTED, (
-        "恢复被请求级 ContextVar 收窄成板级作用域 —— 进程级缓存会永久缺其余白板: "
-        f"{sorted(got_under_board_ctx)}"
+        f"恢复被请求级 ContextVar 收窄成板级作用域 —— 进程级缓存会永久缺其余白板: {sorted(got_under_board_ctx)}"
     )
 
 
@@ -1522,31 +1507,20 @@ async def test_g41b_json_mirror_visibility_equals_cypher(gate_client, g41a_seed,
         ),
         (
             "learning_history",
-            await gate_client.get_learning_history(
-                user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500
-            ),
-            await mirror.get_learning_history(
-                user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500
-            ),
+            await gate_client.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500),
+            await mirror.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500),
         ),
         (
             "concept_history",
-            await gate_client.get_concept_history(
-                f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL
-            ),
-            await mirror.get_concept_history(
-                f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL
-            ),
+            await gate_client.get_concept_history(f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL),
+            await mirror.get_concept_history(f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL),
         ),
     ):
         assert _names(cypher_rows) == _names(json_rows), (
-            f"{label}: 降级前后可见面不同 —— Cypher={sorted(_names(cypher_rows))} "
-            f"JSON={sorted(_names(json_rows))}"
+            f"{label}: 降级前后可见面不同 —— Cypher={sorted(_names(cypher_rows))} JSON={sorted(_names(json_rows))}"
         )
     # 正向对照: 两侧都真的读到了东西 (否则"相等"可能只是双双为空的假绿)
-    assert _names(await mirror.get_all_recent_episodes(limit=500, group_id=GID_A_LOGICAL)) == (
-        _A_SCOPE_EXPECTED
-    )
+    assert _names(await mirror.get_all_recent_episodes(limit=500, group_id=GID_A_LOGICAL)) == (_A_SCOPE_EXPECTED)
     await mirror.cleanup()
 
 
@@ -1600,23 +1574,16 @@ async def test_g41b_midflight_fallback_misroute_stays_scoped(tmp_path, monkeypat
     )
 
     _rearm()
-    hist = await client.get_learning_history(
-        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500
-    )
+    hist = await client.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500)
     assert _names(hist) == _A_SCOPE_EXPECTED, (
-        "误路由旁路: get_learning_history 中途降级后越出作用域 —— "
-        f"多出 {sorted(_names(hist) - _A_SCOPE_EXPECTED)}"
+        f"误路由旁路: get_learning_history 中途降级后越出作用域 —— 多出 {sorted(_names(hist) - _A_SCOPE_EXPECTED)}"
     )
 
     _rearm()
-    one = await client.get_concept_history(
-        f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL
-    )
+    one = await client.get_concept_history(f"{GATE_PREFIX}_g41a_a_puny", group_id=GID_A_LOGICAL)
     assert _names(one) == {f"{GATE_PREFIX}_g41a_a_puny"}, one
     _rearm()
-    cross = await client.get_concept_history(
-        f"{GATE_PREFIX}_g41a_b_root", group_id=GID_A_LOGICAL
-    )
+    cross = await client.get_concept_history(f"{GATE_PREFIX}_g41a_b_root", group_id=GID_A_LOGICAL)
     assert cross == [], f"误路由旁路: A 作用域降级后读到了 B 的概念历史 {cross}"
 
     # limit 不得在降级路径上丢失。
@@ -1625,9 +1592,7 @@ async def test_g41b_midflight_fallback_misroute_stays_scoped(tmp_path, monkeypat
     # 根本抓不到 `_handle_query_history` 丢 limit —— 那才是降级时真正在跑的
     # 代码。`get_learning_history` 没有外层切片, 它才是有效探针。
     _rearm()
-    capped_hist = await client.get_learning_history(
-        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=2
-    )
+    capped_hist = await client.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=2)
     assert len(capped_hist) == 2, (
         f"降级路径丢了 limit: 要 2 条, 实得 {len(capped_hist)} 条 —— "
         "handler 忽略了 params['limit'] (外层无切片, 这里是唯一能抓到它的地方)"
@@ -1638,12 +1603,8 @@ async def test_g41b_midflight_fallback_misroute_stays_scoped(tmp_path, monkeypat
 
     # date / concept 过滤同样不得在降级路径上被静默丢弃 (Codex round-2 Q3)
     _rearm()
-    named = await client.get_learning_history(
-        user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500, concept="a_puny"
-    )
-    assert _names(named) == {f"{GATE_PREFIX}_g41a_a_puny"}, (
-        f"降级路径丢了 concept 过滤: {sorted(_names(named))}"
-    )
+    named = await client.get_learning_history(user_id=G41A_USER, group_id=GID_A_LOGICAL, limit=500, concept="a_puny")
+    assert _names(named) == {f"{GATE_PREFIX}_g41a_a_puny"}, f"降级路径丢了 concept 过滤: {sorted(_names(named))}"
     from datetime import datetime as _dt
 
     _rearm()
@@ -1686,8 +1647,11 @@ async def g41b_idname_seed(gate_client):
         MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
         SET r.score = 5, r.timestamp = $ts
         """,
-        name=G41B_NAME_ONLY, gid=GID_A_PUNY, uid=G41B_IDNAME_USER,
-        probe=GATE_PREFIX, ts="2026-08-31T00:00:00",
+        name=G41B_NAME_ONLY,
+        gid=GID_A_PUNY,
+        uid=G41B_IDNAME_USER,
+        probe=GATE_PREFIX,
+        ts="2026-08-31T00:00:00",
     )
     await gate_client.run_query(
         """
@@ -1698,48 +1662,38 @@ async def g41b_idname_seed(gate_client):
         MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
         SET r.score = 6, r.timestamp = $ts
         """,
-        name=G41B_ID_DIFFERS, gid=GID_A_PUNY, cid=G41B_DISTINCT_ID,
-        uid=G41B_IDNAME_USER, probe=GATE_PREFIX, ts="2026-08-31T00:00:01",
+        name=G41B_ID_DIFFERS,
+        gid=GID_A_PUNY,
+        cid=G41B_DISTINCT_ID,
+        uid=G41B_IDNAME_USER,
+        probe=GATE_PREFIX,
+        ts="2026-08-31T00:00:01",
     )
     # 自证: 生产形态那条**确实**没有 id 属性 (否则下面测的不是生产形态)
-    probe = await gate_client.run_query(
-        "MATCH (c:Concept {name: $name}) RETURN c.id AS cid", name=G41B_NAME_ONLY
-    )
+    probe = await gate_client.run_query("MATCH (c:Concept {name: $name}) RETURN c.id AS cid", name=G41B_NAME_ONLY)
     assert probe and probe[0]["cid"] is None, f"seed 形态不对, c.id 应为 null: {probe}"
     return True
 
 
-async def test_g41b_concept_history_matches_production_shape_without_c_id(
-    gate_client, g41b_idname_seed
-):
+async def test_g41b_concept_history_matches_production_shape_without_c_id(gate_client, g41b_idname_seed):
     """生产形态 (Concept 无 `c.id`) 必须能按**名字**查到历史。
 
     这条是"名实一致修复"的真正判据: 只按 `c.id` 点查, 换了真 Cypher 之后端点
     **仍然**恒空 —— 因为生产写侧从不落 id。把匹配片段的 `OR` 改成 `AND`,
     本条立即红。
     """
-    rows = await gate_client.get_concept_history(
-        G41B_NAME_ONLY, group_id=GID_A_LOGICAL
-    )
-    assert _names(rows) == {G41B_NAME_ONLY}, (
-        f"按名字点查生产形态的概念读不到历史 (c.id 为 null): {rows}"
-    )
+    rows = await gate_client.get_concept_history(G41B_NAME_ONLY, group_id=GID_A_LOGICAL)
+    assert _names(rows) == {G41B_NAME_ONLY}, f"按名字点查生产形态的概念读不到历史 (c.id 为 null): {rows}"
 
 
-async def test_g41b_concept_history_matches_by_distinct_id(
-    gate_client, g41b_idname_seed
-):
+async def test_g41b_concept_history_matches_by_distinct_id(gate_client, g41b_idname_seed):
     """id 与 name **不同**时, 按 id 也必须能查到 —— 证明 id 分支不是摆设。
 
     与上一条合起来才构成 `OR` 的完整判据: 一条只有 name 能命中, 一条只有 id
     能命中 (按名字查这条会命中它自己, 所以这里断言的是 id 那一半)。
     """
-    rows = await gate_client.get_concept_history(
-        G41B_DISTINCT_ID, group_id=GID_A_LOGICAL
-    )
-    assert _names(rows) == {G41B_ID_DIFFERS}, (
-        f"按 c.id 点查 (id != name) 读不到历史: {rows}"
-    )
+    rows = await gate_client.get_concept_history(G41B_DISTINCT_ID, group_id=GID_A_LOGICAL)
+    assert _names(rows) == {G41B_ID_DIFFERS}, f"按 c.id 点查 (id != name) 读不到历史: {rows}"
 
 
 async def test_g41b_handle_query_history_fail_closed_without_scope(tmp_path, caplog):
@@ -1756,13 +1710,9 @@ async def test_g41b_handle_query_history_fail_closed_without_scope(tmp_path, cap
     with caplog.at_level(logging.ERROR):
         refused = await client._handle_query_history({"userId": G41A_USER})
     assert refused == [], f"无 scope 时仍返回了 {len(refused)} 条跨 vault 记录"
-    assert any("G4-1b" in r.message for r in caplog.records), (
-        "fail-closed 必须留下 ERROR 级痕迹, 否则是静默断读"
-    )
+    assert any("G4-1b" in r.message for r in caplog.records), "fail-closed 必须留下 ERROR 级痕迹, 否则是静默断读"
 
-    allowed = await client._handle_query_history(
-        {"userId": G41A_USER, "group_id": GID_A}
-    )
+    allowed = await client._handle_query_history({"userId": G41A_USER, "group_id": GID_A})
     assert _names(allowed) == _A_SCOPE_EXPECTED, (
         f"正向对照红: 带 scope 也读不到数据, 上面的空结果不能证明是 fail-closed {allowed}"
     )
@@ -1808,12 +1758,14 @@ async def g41b_production_shape_seed(gate_client):
         MERGE (u)-[r:LEARNED {group_id: $gid}]->(c)
         SET r.timestamp = datetime(), r.score = 80
         """,
-        uid=G41B_PROD_USER, name=G41B_PROD_CONCEPT, gid=GID_A_PUNY, probe=GATE_PREFIX,
+        uid=G41B_PROD_USER,
+        name=G41B_PROD_CONCEPT,
+        gid=GID_A_PUNY,
+        probe=GATE_PREFIX,
     )
     # 自证种子确实是 temporal 且 review_count 确实缺失 —— 否则本门测的不是生产形态
     probe = await gate_client.run_query(
-        "MATCH ()-[r:LEARNED]->(c:Concept {name: $name}) "
-        "RETURN valueType(r.timestamp) AS vt, r.review_count AS rc",
+        "MATCH ()-[r:LEARNED]->(c:Concept {name: $name}) RETURN valueType(r.timestamp) AS vt, r.review_count AS rc",
         name=G41B_PROD_CONCEPT,
     )
     assert probe, "seed 未落库"
@@ -1824,9 +1776,7 @@ async def g41b_production_shape_seed(gate_client):
     return True
 
 
-async def test_g41b_production_shape_reaches_api_response_model(
-    gate_client, g41b_production_shape_seed
-):
+async def test_g41b_production_shape_reaches_api_response_model(gate_client, g41b_production_shape_seed):
     """生产形态数据必须能一路走到 API 响应模型而不抛 —— 端点不 500。
 
     链路: Cypher → client → memory_service 的 timeline 构造(逐字复刻) → pydantic。
@@ -1834,9 +1784,7 @@ async def test_g41b_production_shape_reaches_api_response_model(
     from app.models.memory_schemas import ConceptHistoryResponse
     from app.services.memory_service import MemoryService
 
-    rows = await gate_client.get_concept_history(
-        G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL
-    )
+    rows = await gate_client.get_concept_history(G41B_PROD_CONCEPT, group_id=GID_A_LOGICAL)
     assert len(rows) == 1, f"生产形态种子读不到 (保召回红): {rows}"
 
     # ⚠️ 走**真实的 service 调用链**, 不复刻它的逻辑。
@@ -1864,8 +1812,7 @@ async def test_g41b_learned_reads_return_same_timestamp_type_as_json_mirror(
     这是"降级前后同一套可见面"在**类型**维度上的补充 —— 门 7.5 只比 concept 名
     集合, 类型分叉它看不见。而类型一分叉, 去重键 / 排序 / 上层 pydantic 全会错。
     """
-    mirror = _json_client(tmp_path, {f"{GATE_PREFIX}_g41b_mirror_ts": GID_A_PUNY},
-                          name="g41b_ts_parity.json")
+    mirror = _json_client(tmp_path, {f"{GATE_PREFIX}_g41b_mirror_ts": GID_A_PUNY}, name="g41b_ts_parity.json")
     await mirror.initialize()
     try:
         pairs = (
