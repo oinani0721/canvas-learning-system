@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 """RAG-S2 评测门禁 (RAG-S2-2026-08-09): vault 检索 gold set 回归。
 
-对 tests/regression/vault_gold_set.yaml 的 60 条 query 跑三层评测, 产出排序/
-交付指标并与固化基线比较 — 任一指标回退超容差即 fail。阶段 2 每个改动批次
+对 tests/regression/vault_gold_set.yaml 的全部 query 跑三层评测, 产出排序/
+交付指标并与固化基线比较 — 任一指标回退超容差即 fail。
+(条数以 tests/regression/gold_set_manifest.yaml 为准 — 曾写死「60 条」, v2 移 2 条进
+ shadow 后实为 58, CARD-G4-13 再补 17 条跨 vault 攻击后为 75; 写死的数字必然过期。)
+阶段 2 每个改动批次
 (chunk 策略 / 权重 / dedup / rerank) 完成必跑, 作为强制验收挡板。
 
 三层 (fork 自 run_memory_retrieval_regression.py, 结构与纪律同源):
@@ -57,6 +60,11 @@ SHADOW_SET = BACKEND_DIR / "tests" / "regression" / "vault_gold_set_shadow.yaml"
 BASELINE_FILE = BACKEND_DIR / "tests" / "fixtures" / "regression_baselines" / "vault_retrieval_baseline.json"
 LAST_RUN_FILE = BASELINE_FILE.with_name("vault_retrieval_last_run.json")
 BASELINE_HISTORY = BASELINE_FILE.with_name("vault_retrieval_baseline_history.jsonl")
+
+# CARD-G4-13: 金集冻结校验。工具与本文件同在 scripts/ 下，不是包，所以把
+# scripts/ 也放进 sys.path（上面只放了 BACKEND_DIR 与 BACKEND_DIR/lib）。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gold_set_manifest_tool import verify_gold_set_file  # noqa: E402
 
 # ⚠️ 必须在 backend 容器内执行 (docker exec canvas-learning-system-backend
 # python scripts/run_vault_retrieval_regression.py ...) — 生产 LanceDB 在
@@ -475,6 +483,16 @@ def main() -> int:
         return 2
 
     gold_path = SHADOW_SET if args.shadow else GOLD_SET
+
+    # CARD-G4-13: 金集与 gold_set_manifest.yaml 对不上就拒跑。
+    # 金集是这道门的**真值**；真值能被悄悄改掉，门就只是在给自己打分。
+    # rc=2 沿用本文件既有的「环境/输入错 ≠ 指标回退」语义（同 :475 / :488 / :498）。
+    ok, detail = verify_gold_set_file(gold_path)
+    if not ok:
+        print(f"{RED}⛔ 金集与 gold_set_manifest.yaml 不符 ({detail}){RESET}")
+        return 2
+    print(detail)
+
     gold = yaml.safe_load(gold_path.read_text(encoding="utf-8"))
     tolerance = float(gold["config"].get("tolerance", 0.02))
     if args.shadow and not gold.get("queries"):

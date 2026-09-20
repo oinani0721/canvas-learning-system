@@ -1,0 +1,33 @@
+# CARD-G4-13 补审（zcode r1）第 0 分钟核验落档
+date: 2026-09-19T23:31:05-0700
+pwd: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra
+branch: card/p9-testinfra
+HEAD: ff3e5fce506a55fd6524a56394fe11cd38610f9b
+anchor-check: git merge-base --is-ancestor 96da70c6 HEAD = TRUE (HEAD = ff3e5fce)
+status-line-count(before-tee): (recorded after; see note below)
+--- zcode --version ---
+zcode-app-cli 3.12.3-26
+zcode-runtime 0.16.5
+cfg-ok
+--- binding: diff --stat d06f7127 HEAD -- <8 files> (expect EMPTY) ---
+binding-diff-rc=0
+--- review face: diff --stat 47c94bab d06f7127 -- <8 files> ---
+ backend/scripts/gold_set_manifest_tool.py          | 570 +++++++++++++++++++++
+ backend/scripts/run_memory_retrieval_regression.py |  16 +
+ backend/scripts/run_vault_retrieval_regression.py  |  22 +-
+ backend/tests/regression/gold_set_manifest.yaml    |  98 ++++
+ backend/tests/regression/memory_gold_set.yaml      | 138 ++++-
+ .../regression/test_gold_set_manifest_g413.py      | 411 +++++++++++++++
+ backend/tests/regression/vault_gold_set.yaml       | 448 +++++++++++++++-
+ .../tests/regression/vault_gold_set_shadow.yaml    |   8 +
+ 8 files changed, 1707 insertions(+), 4 deletions(-)
+--- sha256 at HEAD (8 card files) ---
+033ede8afb05215dccb59e46d77b8e8543852384d98bbf01880ab890a7d52651  backend/scripts/gold_set_manifest_tool.py
+417339818fcc8f42fc79b25a1d8f9703dd3b47a3242f3b5b9c44707ee55268f3  backend/scripts/run_memory_retrieval_regression.py
+f9761dda27cdda5ae177f035bcbcf0da75bcb2b288d719c3f5a5f3b2a53a64ff  backend/scripts/run_vault_retrieval_regression.py
+b3adccb62c0c73c3fdea55f6d1754b9af7a4400690c1a9cb31f17fa2fe012df4  backend/tests/regression/gold_set_manifest.yaml
+d88d3a0a70b77280627c45b96476560750d57fc93f4e248d4bfef58a8a76fffb  backend/tests/regression/memory_gold_set.yaml
+a45d693f3d03dc00f16765f24be50657f95ef1a378181247c2d3f12dc0b0c218  backend/tests/regression/test_gold_set_manifest_g413.py
+650c5d46e7ca4d990fb740b9543cc3fdd6280ba62f3064ad07c3a28aa4234b4d  backend/tests/regression/vault_gold_set.yaml
+c7b25fcc9c0b28d3993199016d665133986eff55c8afdb3660e5085f522b4bec  backend/tests/regression/vault_gold_set_shadow.yaml
+note: git status --porcelain before tee = 0 lines (独立核验于本命令外，本文件自身为 tee 产物)

@@ -1,0 +1,1 @@
+OK collect n=10 -> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p9-testinfra/bad82308-6686-452c-aebb-193ca9a5f456/scratchpad/live-candidates.json（⛔ 候选而已，没有入集）

@@ -1,0 +1,50 @@
+{
+  "commit": "fix(regression): CARD-G4-13 r2 H-1 fail-closed + H-2 sha 门 [BATCH-2026-09-18-第十五批 / CARD-G4-13]",
+  "ref": "2e0642aa",
+  "sha": "2e0642aae20668e6e32399e6e735c8d841744560",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T00:17:48-0700",
+  "code_files": [
+    "backend/scripts/gold_set_manifest_tool.py",
+    "backend/tests/regression/test_gold_set_manifest_g413.py"
+  ],
+  "files": [
+    {
+      "file": "backend/scripts/gold_set_manifest_tool.py",
+      "added": 19,
+      "removed": 5,
+      "runtime": 0.98,
+      "risk": "error_handling",
+      "risk_conf": 0.99,
+      "urgency": 2.7,
+      "urgency_conf": 0.73,
+      "review": 0.66,
+      "test": 0.57,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/regression/test_gold_set_manifest_g413.py",
+      "added": 147,
+      "removed": 34,
+      "runtime": 0.1,
+      "risk": "test_or_docs",
+      "risk_conf": 0.96,
+      "urgency": 2.68,
+      "urgency_conf": 0.72,
+      "review": 0.79,
+      "test": 0.93,
+      "truncated": true,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 6741,
+    "output_tokens": 317
+  },
+  "latency_ms": {
+    "min": 237,
+    "median": 344,
+    "max": 344
+  }
+}

@@ -1,0 +1,4 @@
+  已制造一处重复键
+collected 12 items / 10 deselected / 2 selected
+FAILED tests/regression/test_gold_set_manifest_g413.py::test_no_duplicate_annotation_keys
+=========== 1 failed, 1 passed, 10 deselected, 10 warnings in 0.44s ============

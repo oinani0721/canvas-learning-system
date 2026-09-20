@@ -1,0 +1,98 @@
+# gold_set_manifest.yaml — CARD-G4-13 金集冻结清单（由 backend/scripts/gold_set_manifest_tool.py 生成）
+#
+# ⛔ 不要手改这个文件：sha256 / 计数都是实算的，手改只会让 verify 红。
+#    要改金集 → 改 yaml → `python scripts/gold_set_manifest_tool.py build --bump-revision --reason '...'`。
+#
+# 两个 retrieval runner 在跑之前都会调 verify_gold_set_file()；不符就拒跑（rc=2）。
+
+revision: 2
+frozen_at: '2026-09-19T11:56:41Z'
+base_commit: 9c4e7e82
+frozen: true
+files:
+- path: backend/tests/regression/vault_gold_set.yaml
+  config_version: 3
+  sha256: 650c5d46e7ca4d990fb740b9543cc3fdd6280ba62f3064ad07c3a28aa4234b4d
+  query_count: 75
+  class_key: query_type
+  by_class:
+    appended_content: 5
+    cross_vault_attack: 17
+    crosslingual: 5
+    definition_recall: 10
+    example_recall: 6
+    file_locate: 5
+    handwritten_vs_transcript: 7
+    homograph_ambiguous: 6
+    meta_annotation: 5
+    nonexistent: 4
+    zero_lexical_overlap: 5
+  verdict_counts:
+    pending: 75
+    relevant: 0
+    irrelevant: 0
+    ambiguous: 0
+    needs_split: 0
+- path: backend/tests/regression/memory_gold_set.yaml
+  config_version: 2
+  sha256: d88d3a0a70b77280627c45b96476560750d57fc93f4e248d4bfef58a8a76fffb
+  query_count: 28
+  class_key: category
+  by_class:
+    ambiguous: 3
+    annotation: 1
+    cross_vault_attack: 3
+    crosslingual: 2
+    knowledge: 10
+    meta: 2
+    nonexistent: 3
+    paraphrase: 3
+    session: 1
+  verdict_counts:
+    pending: 28
+    relevant: 0
+    irrelevant: 0
+    ambiguous: 0
+    needs_split: 0
+- path: backend/tests/regression/vault_gold_set_shadow.yaml
+  config_version: 2
+  sha256: c7b25fcc9c0b28d3993199016d665133986eff55c8afdb3660e5085f522b4bec
+  query_count: 2
+  class_key: query_type
+  by_class:
+    file_locate: 1
+    handwritten_vs_transcript: 1
+  verdict_counts:
+    pending: 2
+    relevant: 0
+    irrelevant: 0
+    ambiguous: 0
+    needs_split: 0
+- path: backend/tests/regression/memory_gold_set_shadow.yaml
+  config_version: 0
+  sha256: 582df3afe892843b7d0bcb65a10a368c7907d55f3a38a49b8e9a5bdc3284a081
+  query_count: 0
+  class_key: category
+  by_class: {}
+  verdict_counts:
+    pending: 0
+    relevant: 0
+    irrelevant: 0
+    ambiguous: 0
+    needs_split: 0
+totals:
+  main_set_queries: 103
+  cross_vault_attack: 20
+  all_registered_queries: 105
+adjudication:
+  status: pending
+  signed_by: null
+  signed_at: null
+  checklist_path: null
+revision_history:
+- revision: 1
+  at: '2026-09-19T11:54:21Z'
+  reason: 负控① 还原：manifest 尚未入库，git show HEAD 不可用，改用 build 重算复原
+- revision: 2
+  at: '2026-09-19T11:56:41Z'
+  reason: 修复迁移幂等缺陷：annotate 曾给自带标注的 17+3 条重复写键，yaml 静默取后者导致 source.ref 被覆盖为 null（负控③ 挖出）

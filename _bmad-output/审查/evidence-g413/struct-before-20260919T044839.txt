@@ -1,0 +1,12 @@
+vault_gold_set.yaml ids=58 verdict=0 source=0 xattack=0
+memory_gold_set.yaml ids=25 verdict=0 source=0 xattack=0
+vault_gold_set_shadow.yaml ids=2 verdict=0 source=0 xattack=0
+memory_gold_set_shadow.yaml ids=0 verdict=0 source=0 xattack=0
+runner_hook=backend/scripts/run_memory_retrieval_regression.py:0 backend/scripts/run_vault_retrieval_regression.py:0 
+manifest=0
+tool=0
+--- 冻结基准 sha256 ---
+2e9138c10d6c56b17d6ee2606c5d3034728032a6d23ae55ab581b7bd8b8f4d59  backend/tests/regression/vault_gold_set.yaml
+82b532e519353c3de930665fc12c56b7193a65f3968f42f62cb2451e7bc6fe36  backend/tests/regression/memory_gold_set.yaml
+f84cf167d2935c057a691c5f681a1ec0bb70fefbb4ff54230b0776c96d790781  backend/tests/regression/vault_gold_set_shadow.yaml
+582df3afe892843b7d0bcb65a10a368c7907d55f3a38a49b8e9a5bdc3284a081  backend/tests/regression/memory_gold_set_shadow.yaml

@@ -1,0 +1,7 @@
+# CARD-G4-13 r2 · ruff（冻结态 2e0642aa）
+date: 2026-09-20T00:26:28-0700
+cmd: backend/.venv/bin/ruff check <两文件>; backend/.venv/bin/ruff format --check <两文件>
+All checks passed!
+check_rc=0
+2 files already formatted
+fmt_rc=0

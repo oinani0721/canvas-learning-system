@@ -1,0 +1,21 @@
+# CARD-G4-13 r2 · H-2 旧路径探针（scratchpad 脚本，不入库；输出落档）
+date: 2026-09-19T23:53:48-0700
+cmd: backend/.venv/bin/python /var/folders/.../g413-h2-probe.py {old,new}（翻 manifest sha 首字符版）
+
+=== mode=old ===
+rc = 2
+文案含「不符」      : True
+文案含「在仓外」    : True   ← True = 走了早退分支（r1 假绿路径）
+文案含「sha256 期望」: False   ← True = 真到了 sha 比较
+文案含「未登记」    : False
+--- runner stdout 首行 ---
+[91m⛔ 金集与 gold_set_manifest.yaml 不符 (/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/g413-h2-probe-x2y0z86j/vault_gold_set_shadow.yaml 在仓外 —— manifest 只登记仓内路径，无法校验)[0m
+
+=== mode=new ===
+rc = 2
+文案含「不符」      : True
+文案含「在仓外」    : False   ← True = 走了早退分支（r1 假绿路径）
+文案含「sha256 期望」: True   ← True = 真到了 sha 比较
+文案含「未登记」    : False
+--- runner stdout 首行 ---
+[91m⛔ 金集与 gold_set_manifest.yaml 不符 (backend/tests/regression/vault_gold_set_shadow.yaml sha256 期望 07b25fcc9c0b… 实测 c7b25fcc9c0b…)[0m

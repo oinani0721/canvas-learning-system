@@ -1,0 +1,5 @@
+=== 验伪锚①：tmp 副本里把 vq-d01 的 query 改一字 ⇒ 必须报 diffs≥1 ===
+  diffs=1 -> ['vq-d01.query']
+=== 验伪锚②：tmp 副本里给 grade_of 加一行 pass ⇒ AST 必须报 False ===
+  grade_of same=False
+两个验伪锚均如期红 ✅

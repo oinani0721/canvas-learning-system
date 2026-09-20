@@ -1,0 +1,80 @@
+{
+  "commit": "feat(regression): CARD-G4-13 金集补齐103条+用户裁定标签+SHA冻结manifest [BATCH-2026-09-18-第十五批 / CARD-G4-13]",
+  "ref": "d06f7127",
+  "sha": "d06f712756dc5deca546b3dfe8e75691544fb103",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-19T23:31:07-0700",
+  "code_files": [
+    "backend/scripts/gold_set_manifest_tool.py",
+    "backend/scripts/run_memory_retrieval_regression.py",
+    "backend/scripts/run_vault_retrieval_regression.py",
+    "backend/tests/regression/test_gold_set_manifest_g413.py"
+  ],
+  "files": [
+    {
+      "file": "backend/scripts/gold_set_manifest_tool.py",
+      "added": 570,
+      "removed": 0,
+      "runtime": 0.64,
+      "risk": "logic",
+      "risk_conf": 0.29,
+      "urgency": 3.09,
+      "urgency_conf": 0.86,
+      "review": 0.85,
+      "test": 0.61,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "backend/scripts/run_vault_retrieval_regression.py",
+      "added": 20,
+      "removed": 2,
+      "runtime": 0.92,
+      "risk": "error_handling",
+      "risk_conf": 0.52,
+      "urgency": 2.77,
+      "urgency_conf": 0.78,
+      "review": 0.75,
+      "test": 0.65,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/regression/test_gold_set_manifest_g413.py",
+      "added": 411,
+      "removed": 0,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 1.0,
+      "urgency": 2.75,
+      "urgency_conf": 0.77,
+      "review": 0.82,
+      "test": 0.94,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "backend/scripts/run_memory_retrieval_regression.py",
+      "added": 16,
+      "removed": 0,
+      "runtime": 0.96,
+      "risk": "error_handling",
+      "risk_conf": 0.54,
+      "urgency": 2.6,
+      "urgency_conf": 0.65,
+      "review": 0.7,
+      "test": 0.52,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 12906,
+    "output_tokens": 632
+  },
+  "latency_ms": {
+    "min": 218,
+    "median": 311,
+    "max": 349
+  }
+}

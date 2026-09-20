@@ -1,0 +1,33 @@
+vault_gold_set.yaml  (query_type)  n=75
+    appended_content             5
+    cross_vault_attack           17
+    crosslingual                 5
+    definition_recall            10
+    example_recall               6
+    file_locate                  5
+    handwritten_vs_transcript    7
+    homograph_ambiguous          6
+    meta_annotation              5
+    nonexistent                  4
+    zero_lexical_overlap         5
+    verdicts: {'pending': 75}
+memory_gold_set.yaml  (category)  n=28
+    ambiguous                    3
+    annotation                   1
+    cross_vault_attack           3
+    crosslingual                 2
+    knowledge                    10
+    meta                         2
+    nonexistent                  3
+    paraphrase                   3
+    session                      1
+    verdicts: {'pending': 28}
+vault_gold_set_shadow.yaml  (query_type)  n=2
+    file_locate                  1
+    handwritten_vs_transcript    1
+    verdicts: {'pending': 2}
+memory_gold_set_shadow.yaml  (category)  n=0
+    verdicts: {}
+
+main_set_queries=103  cross_vault_attack=20  all_registered=105
+adjudication.status=pending  signed_by=None

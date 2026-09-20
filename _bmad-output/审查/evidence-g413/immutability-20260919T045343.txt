@@ -1,0 +1,17 @@
+unchanged_vault=58 diffs=0
+unchanged_memory=25 diffs=0
+diffs=0
+--- 判分函数 AST 逐字比较 ---
+  run_vault_retrieval_regression.norm_text True
+  run_vault_retrieval_regression.material_text True
+  run_vault_retrieval_regression.grade_of True
+  run_vault_retrieval_regression.is_contaminated True
+  run_vault_retrieval_regression.forbidden_violations True
+  run_vault_retrieval_regression.ndcg_at_k True
+  run_vault_retrieval_regression.compare_with_baseline True
+  run_memory_retrieval_regression.norm_text True
+  run_memory_retrieval_regression.result_text True
+  run_memory_retrieval_regression.is_relevant True
+  run_memory_retrieval_regression.is_leaked True
+  run_memory_retrieval_regression.compare_with_baseline True
+ALL_SCORING_FUNCS_UNCHANGED = True

@@ -19,6 +19,10 @@ queries:
     expect_hit:
       - {file: "线性代数", grade: 3}
       - {file: "特征值与特征向量", grade: 2}
+    user_verdict: pending
+    verdict_by: null
+    verdict_at: null
+    source: {kind: whiteboard, ref: "原白板/线性代数.md"}
   - id: vq-h07
     query: "CS 61B 这门课的白板里都挂了什么主题？"
     language: zh
@@ -26,3 +30,7 @@ queries:
     origin: "原白板/CS 61B.md; 2026-08-10 自主集 v1 降档 (whiteboard 排除死档)"
     expect_hit:
       - {file: "CS 61B", grade: 3}
+    user_verdict: pending
+    verdict_by: null
+    verdict_at: null
+    source: {kind: whiteboard, ref: null}

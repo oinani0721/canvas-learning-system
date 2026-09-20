@@ -1,0 +1,8 @@
+  已翻 sha 末位
+MISMATCH backend/tests/regression/vault_gold_set.yaml sha256=d5cf2766b60eeeea32a3894ed834cb8f0f98d21594fe5a61640738a2dd3f6330 actual=d5cf2766b60eeeea32a3894ed834cb8f0f98d21594fe5a61640738a2dd3f633b
+OK backend/tests/regression/memory_gold_set.yaml sha256=de894eec8665… queries=28
+verify_rc=1
+collected 11 items / 9 deselected / 2 selected
+FAILED tests/regression/test_gold_set_manifest_g413.py::test_manifest_sha_matches_independently_computed
+FAILED tests/regression/test_gold_set_manifest_g413.py::test_tool_verify_returns_zero_on_repo_files
+================= 2 failed, 9 deselected, 10 warnings in 0.67s =================

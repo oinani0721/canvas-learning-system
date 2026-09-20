@@ -1,0 +1,7 @@
+vault_gold_set.yaml ids=75 verdict=75 source=75 xattack=18
+memory_gold_set.yaml ids=28 verdict=28 source=28 xattack=4
+vault_gold_set_shadow.yaml ids=2 verdict=2 source=2 xattack=0
+memory_gold_set_shadow.yaml ids=0 verdict=0 source=0 xattack=0
+runner_hook=backend/scripts/run_vault_retrieval_regression.py:2 backend/scripts/run_memory_retrieval_regression.py:2 
+manifest=1
+tool=1

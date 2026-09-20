@@ -1,0 +1,12 @@
+=== vault runner --shadow（真入口）===
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+rc=120
+=== memory runner --shadow（真入口）===
+OK backend/tests/regression/memory_gold_set_shadow.yaml sha256=582df3afe892… queries=0
+[91m⛔ backend 不可达 (http://localhost:8011/api/v1/health) — 先起 backend 再跑门禁。环境不可用 ≠ 指标回退, exit 2。[0m
+rc=2

@@ -55,6 +55,11 @@ BASELINE_HISTORY = BASELINE_FILE.with_name("memory_retrieval_baseline_history.js
 JUDGE_REVIEW = BASELINE_FILE.with_name("memory_retrieval_judge_review.jsonl")
 QWEN_URL = "http://127.0.0.1:12341/v1/chat/completions"
 
+# CARD-G4-13: 金集冻结校验（工具与本文件同在 scripts/ 下，不是包，所以把
+# scripts/ 也放进 sys.path）。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from gold_set_manifest_tool import verify_gold_set_file  # noqa: E402
+
 GREEN, RED, YELLOW, RESET = "\033[92m", "\033[91m", "\033[93m", "\033[0m"
 
 # 指标方向: True = 越高越好 (回退=下降), False = 越低越好 (回退=上升)
@@ -345,6 +350,17 @@ def main() -> int:
     if args.update_baseline and not args.reason:
         print(f"{RED}⛔ --update-baseline 必须带 --reason (基线 churn 可审计){RESET}")
         return 2
+
+    # CARD-G4-13: 金集与 gold_set_manifest.yaml 对不上就拒跑。
+    # ⚠️ 这一段**必须在 check_backend_alive() 之前**：读 yaml 不需要 backend，
+    # 而两种失败都是 rc=2 —— 放在后面的话，离线机器上门会被 alive 检查恒久短路，
+    # 「金集被改了」和「8011 没起」就再也分不开了。两者靠**文案**区分。
+    gold_path_for_check = SHADOW_SET if args.shadow else GOLD_SET
+    ok, detail = verify_gold_set_file(gold_path_for_check)
+    if not ok:
+        print(f"{RED}⛔ 金集与 gold_set_manifest.yaml 不符 ({detail}){RESET}")
+        return 2
+    print(detail)
 
     if not check_backend_alive():
         print(

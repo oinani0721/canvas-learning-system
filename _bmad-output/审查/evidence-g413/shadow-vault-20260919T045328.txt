@@ -1,0 +1,17 @@
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+  from pydantic.v1.fields import FieldInfo as FieldInfoV1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+Building prefix dict from the default dictionary ...
+Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+Loading model cost 0.265 seconds.
+Prefix dict has been built successfully.
+OK backend/tests/regression/vault_gold_set_shadow.yaml sha256=c7b25fcc9c0b… queries=2
+2026-09-19 04:53:33 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+2026-09-19 04:53:33 [warning  ] [SupplementarySearch] vault 专属表不存在 — fail-closed, 不回退裸表 query=线性代数的白板叫什么名字？ table=canvas_vault_vault_notes
+2026-09-19 04:53:33 [warning  ] [SupplementarySearch] vault 专属表不存在 — fail-closed, 不回退裸表 query=线性代数的白板叫什么名字？ table=canvas_vault_vault_notes
+2026-09-19 04:53:33 [warning  ] [SupplementarySearch] vault 专属表不存在 — fail-closed, 不回退裸表 query='CS 61B 这门课的白板里都挂了什么主题？' table=canvas_vault_vault_notes
+2026-09-19 04:53:33 [warning  ] [SupplementarySearch] vault 专属表不存在 — fail-closed, 不回退裸表 query='CS 61B 这门课的白板里都挂了什么主题？' table=canvas_vault_vault_notes
+[91m⛔ 全部 query 零返回 — 索引不可见。请在 backend 容器内运行:
+  docker exec canvas-learning-system-backend python scripts/run_vault_retrieval_regression.py[0m
+rc=2
