@@ -1,0 +1,65 @@
+# (j)(l)(m) 静态裁判 (20260920T001214) PREV=6d8ca20263f86464c583bc4cf6853eab6f11c9de HEAD=9922d0bf
+
+== (j) openapi 不入库: git show --stat HEAD | grep -c ==
+0
+
+== (j) diff PREV..HEAD -- backend/openapi.json (期望空) ==
+rc=0
+
+== (l) 地盘门 diff --stat PREV..HEAD (exclude _bmad-output) ==
+ backend/app/api/v1/endpoints/review_app.py         | 13 +++-
+ backend/app/api/v1/endpoints/review_overview.py    | 26 ++++++--
+ backend/scripts/g68_five_view_contract.py          | 72 ++++++++++++++++++----
+ backend/tests/regression/test_daily_review_run.py  | 44 +++++++++++++
+ .../regression/test_g68_five_view_contract.py      | 39 ++++++++++++
+ .../tests/regression/test_g6_9_boundary_matrix.py  | 13 ++--
+ backend/tests/unit/test_review_app.py              | 17 +++++
+ backend/tests/unit/test_review_overview.py         | 63 +++++++++++++++++++
+ scripts/daily_review_run.py                        |  2 +
+ 9 files changed, 266 insertions(+), 23 deletions(-)
+rc=0
+
+== (l) 验伪锚: 去掉 exclude 多出 _bmad-output/ ==
+0
+
+== (l) runner 改动行全部落在 :749-753 段? ==
+diff --git a/scripts/daily_review_run.py b/scripts/daily_review_run.py
+index 50373c7b..c74f6ec0 100755
+--- a/scripts/daily_review_run.py
++++ b/scripts/daily_review_run.py
+@@ -751,6 +751,8 @@ def main() -> int:
+             if rc != 2:
+                 st["last_result"] = "generated_push_failed"
+                 st["last_error"] = "bark-send"
++            else:
++                st["last_result"], st["last_error"] = "generated_push_skipped_nokey", "bark-nokey"
+             # 本地兜底每日一次 (Code-Review L1 去重门); 无 key 也提醒一条
+             # (Code-Review H1: key 配好前不能一切静默)
+             if st.get("last_local_notify_date") != today:
+
+== (l) canvas-vault/ 零 diff ==
+empty-rc=0
+
+== (m) 本卡九文件 fsrs_bridge/decay_beta 命中 ==
+scripts/daily_review_run.py : 0
+backend/app/api/v1/endpoints/review_overview.py : 8
+backend/app/api/v1/endpoints/review_app.py : 0
+backend/scripts/g68_five_view_contract.py : 1
+backend/tests/regression/test_daily_review_run.py : 2
+backend/tests/regression/test_g68_five_view_contract.py : 0
+backend/tests/regression/test_g6_9_boundary_matrix.py : 1
+backend/tests/unit/test_review_overview.py : 14
+backend/tests/unit/test_review_app.py : 0
+
+== (m) 新增测试 7691/7687 命中 ==
+backend/tests/regression/test_daily_review_run.py:0
+backend/tests/regression/test_g68_five_view_contract.py:0
+backend/tests/unit/test_review_overview.py:0
+backend/tests/unit/test_review_app.py:1
+
+== (m) env 无 7691/7687 ==
+0
+
+== jev 脚本存在? ==
+-rwxr-xr-x@ 1 Heishing  staff  511 Sep 19 17:31 /Users/Heishing/.b15b-drive/jev_triage.sh
+JEV-OK

@@ -4930,3 +4930,66 @@ def test_overview_page_degrade_badge_only_when_failed(board_done_env):
     assert _PUSH_DEGRADED_LABEL not in cards["vault-pc-none"], "缺失态卡片不许出徽标 (验伪锚)"
     assert page.count(_PUSH_DEGRADED_LABEL) == 1, "整页只该有一枚降级徽标"
     assert "bark-send" in cards["vault-pb-bad"], "徽标须把 last_error 带到用户眼前"
+
+
+def test_overview_push_degraded_true_when_skipped_nokey(board_done_env):
+    """CARD-REVIEW-CHAIN-PUSH-STATE: runner 的第三个枚举 `generated_push_skipped_nokey`
+    (Bark key 未配置) 必须与 `generated_push_failed` 同级可见 —— True / "bark-nokey"。
+
+    改前: 读侧只认两个枚举, 新值落进「未知」出口 ⇒ (None, None) ⇒ 页面无徽标;
+    而真实情况是「今天根本没推出去」。本门改前红在 `push_degraded` (实得 None)。
+    验伪锚: 同一页里 "pushed" 的库不许出徽标 (整页恰一枚)。
+    """
+    root, client, runner, _mod = board_done_env
+    gen = _now_local().isoformat(timespec="seconds")
+    nokey = _mk_vault(root, "vault-push-nokey", _two_board_projection("vault-push-nokey", gen))
+    ok = _mk_vault(root, "vault-push-ok2", _two_board_projection("vault-push-ok2", gen))
+    _push_state(
+        runner, nokey, {"schema_version": 1, "last_result": "generated_push_skipped_nokey", "last_error": "bark-nokey"}
+    )
+    _push_state(runner, ok, {"schema_version": 1, "last_result": "pushed", "last_error": ""})
+
+    entry = _overview_entry(client, "vault-push-nokey")
+    assert entry["push_degraded"] is True, "key 未配置 = 今天没推出去 = 降级; 不许报 None/False"
+    assert entry["last_error"] == "bark-nokey"
+
+    resp = client.get(_PAGE_URL)
+    assert resp.status_code == 200
+    cards = _cards_by_vault(resp.text, ["vault-push-nokey", "vault-push-ok2"])
+    assert _PUSH_DEGRADED_LABEL in cards["vault-push-nokey"], "新枚举的卡必须亮降级徽标"
+    assert "bark-nokey" in cards["vault-push-nokey"], "徽标 title 必须带上原因 bark-nokey"
+    assert _PUSH_DEGRADED_LABEL not in cards["vault-push-ok2"], "验伪锚: pushed 库不出徽标"
+    assert resp.text.count(_PUSH_DEGRADED_LABEL) == 1, "整页只该有一枚降级徽标"
+
+
+def test_overview_last_error_truncated_to_200(board_done_env):
+    """CARD-REVIEW-CHAIN-PUSH-STATE: last_error 在可编码门**之后**截 200 ——
+    state 里的超长原因串不得原样进响应/页面 (与本文件兜底条目 :1181 的 [:200] 同口径)。
+
+    改前: 整串放行 (1000 字符原样到响应)。本门改前红在 `== "x" * 200` 断言。
+    验伪锚两枚: 恰好 200 的串原样保留; 孤立 surrogate 仍走「编不出 → None」的
+    既有纪律 —— 截断只在 encode 门之后, 不在坏串上做切片。
+    """
+    root, client, runner, _mod = board_done_env
+    gen = _now_local().isoformat(timespec="seconds")
+    long_v = _mk_vault(root, "vault-push-long", _two_board_projection("vault-push-long", gen))
+    _push_state(runner, long_v, {"schema_version": 1, "last_result": "generated_push_failed", "last_error": "x" * 1000})
+    e = _overview_entry(client, "vault-push-long")
+    assert e["push_degraded"] is True
+    assert e["last_error"] == "x" * 200, "超长原因必须按 _LAST_ERROR_MAX_LEN=200 截断"
+
+    exact = _mk_vault(root, "vault-push-exact", _two_board_projection("vault-push-exact", gen))
+    _push_state(runner, exact, {"schema_version": 1, "last_result": "generated_push_failed", "last_error": "y" * 200})
+    assert _overview_entry(client, "vault-push-exact")["last_error"] == "y" * 200, "恰好 200 不许被动"
+
+    sur = _mk_vault(root, "vault-push-trunc-sur", _two_board_projection("vault-push-trunc-sur", gen))
+    sur_state = runner.state_path(sur)
+    sur_state.parent.mkdir(parents=True, exist_ok=True)
+    sur_state.write_text(
+        '{"schema_version": 1, "last_result": "generated_push_failed", "last_error": "bark\\ud800send"}\n',
+        encoding="utf-8",
+    )
+    raw = json.loads(sur_state.read_text(encoding="utf-8"))
+    assert not _utf8_encodable(raw["last_error"]), "夹具前提: last_error 必须真的编不出 UTF-8"
+    e_sur = _overview_entry(client, "vault-push-trunc-sur")
+    assert e_sur["push_degraded"] is True and e_sur["last_error"] is None, "截断不得给坏串开口子 (encode 门在先)"

@@ -277,6 +277,21 @@ def test_status_meta_and_buckets_shared_not_copied(page_html):
         assert label not in _PAGE_TEMPLATE, f"徽标文案 {label!r} 被硬编码进模板 (应只从注入常量取)"
 
 
+def test_push_degraded_badge_injected_and_placeholder_replaced(page_html):
+    """CARD-REVIEW-CHAIN-PUSH-STATE: 交互壳同款推送降级徽标 —— 文案共享注入, 不复制。
+
+    评估面: GET /overview 已下发 push_degraded / last_error, 而交互壳此前零消费
+    (`grep -c push_degraded review_app.py` = 0) ⇒ 用户在实际使用面看不到「今天没推出去」。
+    本卡默认实施: import _PUSH_DEGRADED_LABEL (共享不复制) + 占位符注入。
+    ⚠ 覆盖面上限: 本门只证「注入到场 + 模板恰有一处 `push_degraded === true` 条件」;
+    真正的浏览器渲染无 JS 执行环境 (与本文件四态面同纪律, 由模板条件形态背书)。
+    """
+    assert "__PUSH_DEGRADED_LABEL_JSON__" in _PAGE_TEMPLATE, "模板必须以占位符承载降级文案 (不硬编码)"
+    assert "__PUSH_DEGRADED_LABEL_JSON__" not in page_html, "占位符没被替换 — 页面发出去的是模板本身"
+    assert 'const PUSH_DEGRADED_LABEL = "推送降级"' in page_html, "注入值必须是共享常量 _PUSH_DEGRADED_LABEL"
+    assert _PAGE_TEMPLATE.count("push_degraded === true") == 1, "降级条件恰一处且严格 === true (False/None 不出)"
+
+
 def test_no_second_due_pipeline_in_python_module():
     """字符串黑名单快门 (便宜的一层) + AST 结构门 (下一道, 不可被措辞绕过)。"""
     src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
@@ -301,6 +316,8 @@ _ALLOWED_IMPORTS = {
     "app.api.v1.endpoints.review_overview._DONE_NOTE",
     # CARD-G6-6: 推迟那句诚实说明同上 (登记一项 = 正向合约, 不是放宽)
     "app.api.v1.endpoints.review_overview._SNOOZE_NOTE",
+    # CARD-REVIEW-CHAIN-PUSH-STATE: 推送降级徽标文案 (交互壳同款) 同上
+    "app.api.v1.endpoints.review_overview._PUSH_DEGRADED_LABEL",
 }
 _ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
 _ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}

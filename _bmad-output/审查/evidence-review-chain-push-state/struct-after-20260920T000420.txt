@@ -1,0 +1,23 @@
+# (f) 结构改后 (20260920T000420)
+
+== generated_push_skipped_nokey (改后 期望 ≥1/≥1/≥2) ==
+scripts/daily_review_run.py : 1
+backend/app/api/v1/endpoints/review_overview.py : 3
+backend/tests/regression/test_g6_9_boundary_matrix.py : 4
+
+== 验伪锚 generated_push_failed (应仍命中三文件) ==
+scripts/daily_review_run.py : 1
+backend/app/api/v1/endpoints/review_overview.py : 2
+backend/tests/regression/test_g6_9_boundary_matrix.py : 5
+
+== push_degraded in review_app (改后 ≥1) ==
+1
+
+== _LAST_ERROR_MAX_LEN (改后 ≥2) ==
+2
+
+== EXPECTED_HITS 改后 (2 行) ==
+    EXPECTED_HITS = [
+        "backend/app/api/v1/endpoints/review_overview.py:generated_push_failed",
+        # CARD-REVIEW-CHAIN-PUSH-STATE: 新枚举落账 = 多消费一个键, 必须显式登记 (改前 1 行 → 改后 2 行)
+        "backend/app/api/v1/endpoints/review_overview.py:generated_push_skipped_nokey",

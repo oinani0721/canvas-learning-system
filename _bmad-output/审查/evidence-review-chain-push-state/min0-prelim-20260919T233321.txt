@@ -1,0 +1,100 @@
+# P5-B min0 + before-facts (20260919T233211)
+== basic ==
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review
+card/p5-review
+6d8ca202 docs(p5-a): ZCode 补审 r3 绑 d062e2b1 达成 B/H=0（GLM-5.3） [BATCH-2026-09-18-第十五批 / CARD-G6-9c-R3]
+-- status lines --
+       0
+merge-base rc=0
+PREV=6d8ca20263f86464c583bc4cf6853eab6f11c9de
+== venv/env/pyright/BASE ==
+pytest-ok
+env-ok
+pyright-ok
+33
+== runner :746,:749-753,:768 ==
+        rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
+        if rc == 0:
+            st["last_push_accepted_date"] = today
+            # CARD-D2b: 语义账只在 accepted 时落 — 失败保持原 kind, 反转门
+            # 敞开, 次小时 launchd 触发自然幂等重试。缺 top_boards 键的
+            # legacy 缓存 payload 语义未知 → 保守记 due (关反转门, Codex M2)
+            st["last_push_kind"] = "due" if payload.get("top_boards", True) else "rest"
+            st["last_result"], st["last_error"] = "pushed", ""
+            save_state(st)
+            push = "accepted"
+        else:
+            push = "skip-nokey" if rc == 2 else "failed"
+            if rc != 2:
+                st["last_result"] = "generated_push_failed"
+                st["last_error"] = "bark-send"
+                if fallback == "ok":
+                    st["last_local_notify_date"] = today
+            save_state(st)
+
+    log_line(f"generate:{gen} push:{push} fallback:{fallback}")
+== grep skip-nokey (repo) ==
+scripts/daily_review_run.py:750:            push = "skip-nokey" if rc == 2 else "failed"
+== new enum before (expect 0/0) ==
+scripts/daily_review_run.py:0
+backend/app/api/v1/endpoints/review_overview.py:0
+== read-side ==
+        return {}
+    done = st.get("board_done") if isinstance(st, dict) else None
+    if not isinstance(done, dict):
+        return {}
+    return {k: v for k, v in done.items() if isinstance(k, str) and isinstance(v, str)}
+
+
+def _board_done_today(vault_dir: Path, vaults_root: Path, today: str) -> list[str]:
+    """该库今天被标完成的板名 (排序稳定)。读路径, 任何不可用 → 空列表。"""
+    try:
+        st = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return (None, None)
+    if not isinstance(st, dict) or "last_result" not in st:
+        # 键不在 = 这个库从来没跑过推送 (旧 state / 刚建的库), 与"没有文件"
+        # 同等对待 —— 两者在用户那里是同一件事: 今天的推送根本没发生。
+        return (None, None)
+    err = st.get("last_error")
+    # 三态**只**由 last_result 的两个明确枚举决定, last_error 一律不参与判定
+    # —— 它只是给用户看的原因文本 (Codex r1 MEDIUM-1 / r2 MEDIUM-1 两轮同一处):
+    #   · 拿「它不是失败」反推「它是成功」⇒ `{"last_result": null}` 被报成推成功,
+    #     可我们一次都没确认过它推过 —— 与开头那条「None 不得用 False 冒充」
+    #     是同一个缺陷换了个输入面;
+    #   · 拿「last_error 非空」反推「它失败了」⇒ `{"pushed", "陈旧原因"}` 给好好的
+    #     库挂假警报; 而且 `bool(err)` 跑在下面的 isinstance 门**之前**, 连
+    #     `{"last_result": null, "last_error": 123}` 这种连类型都不对的垃圾值
+    #     都能把徽标点亮。徽标天天喊狼来了就没人看了。
+    # 曾经这里留过一条「未知值但记了错误 ⇒ True」的余量, 想给将来 runner 新增
+    # 失败枚举打提前量。撤掉了: 当前 runner 只写那两个值 (daily_review_run.py
+    # :739/:745), 那条分支在今天的生产数据上永远走不到 = 一条没有门守着的
+    # 防御代码, 而未测的防御代码比没有更坏。真新增枚举时在这里加一行即可。
+    last_result = st.get("last_result")
+    if last_result == "pushed":
+        degraded = False
+    elif last_result == "generated_push_failed":
+        degraded = True
+    else:
+        # 未知 / null / 其它值: 说不准。一律 None, 绝不报成功也绝不报失败。
+        # 连带 last_error 也归 None —— 既然结果读不出, 就没资格顺带断言
+        # "而且没有错误"(`""` 正是这个断言)。与「无 last_result 键」那条出口
+== fallback [:200] :1156 ==
+    today_local = _display_today(now)
+    vaults = []
+    for v in vault_dirs:
+        try:
+            vaults.append(
+                _vault_entry(
+                    v,
+                    now.date(),
+                    _board_done_today(v, vaults_root, today_local),
+                    # CARD-G6-6: 与完成账共用同一次 now 读数 —— 两个账各读一次
+                    # 时钟, 跨 20:00 / 跨午夜那一秒会给出互相矛盾的页面
+                    _snoozed_active(v, vaults_root, now),
+                    # CARD-G6-9b: (push_degraded, last_error) 一次读出、按位展开
+                    *_push_status(v, vaults_root),
+                )
+            )
+== _LAST_ERROR_MAX_LEN before ==
+0

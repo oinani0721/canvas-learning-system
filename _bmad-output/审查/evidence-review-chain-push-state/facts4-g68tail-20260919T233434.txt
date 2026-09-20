@@ -1,0 +1,243 @@
+# P5-B facts-4 (g68 tail + tests) (20260919T233434)
+
+===== g68: 520-640 =====
+   520	    #    那是在描述它**不做**什么, 不是在做。
+   521	    for holder in ast.walk(tree):
+   522	        if isinstance(holder, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+   523	            body = getattr(holder, "body", [])
+   524	            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant):
+   525	                if isinstance(body[0].value.value, str):
+   526	                    exempt_nodes.add(id(body[0].value))
+   527	    for node in tree.body:
+   528	        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+   529	            if any(isinstance(t, ast.Name) and t.id in _EXEMPT_STRING_NAMES for t in node.targets):
+   530	                exempt_nodes.add(id(node.value))
+   531	    missing_exempt = [
+   532	        n
+   533	        for n in _EXEMPT_STRING_NAMES
+   534	        if not any(
+   535	            isinstance(b, ast.Assign) and any(isinstance(t, ast.Name) and t.id == n for t in b.targets)
+   536	            for b in tree.body
+   537	        )
+   538	    ]
+   539	    if missing_exempt:
+   540	        # 豁免名单里的名字不在了 ⇒ 要么页面模板改名了, 要么它被拆散了。
+   541	        # 任一情况下这条豁免的边界都变了, 必须有人重新判, 不能默默放宽。
+   542	        raise ContractError(f"页面模板常量 {missing_exempt} 不在 review_app 里了 —— AST 门的豁免边界变了, 需重判")
+   543	
+   544	    reads: set[str] = set()
+   545	    exempted: list[tuple[str, int]] = [
+   546	        (n, len(node.value.value))
+   547	        for node in tree.body
+   548	        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)
+   549	        for t in node.targets
+   550	        if isinstance(t, ast.Name) and (n := t.id) in _EXEMPT_STRING_NAMES
+   551	    ]
+   552	    for node in ast.walk(tree):
+   553	        if isinstance(node, ast.Attribute) and node.attr in _DUE_ALGO_MARKERS:
+   554	            reads.add(node.attr)
+   555	        elif isinstance(node, ast.Name) and node.id in _DUE_ALGO_MARKERS and isinstance(node.ctx, ast.Load):
+   556	            if node.id not in imported:
+   557	                reads.add(node.id)
+   558	        elif isinstance(node, ast.Constant) and isinstance(node.value, (str, bytes)):
+   559	            if id(node) in exempt_nodes:
+   560	                continue
+   561	            text = node.value.decode("utf-8", "replace") if isinstance(node.value, bytes) else node.value
+   562	            # ⛔ **裸包含 + 身份白名单**, 不用词边界（Codex r4 HIGH-1）: `r"\bfsrs_due\b"`
+   563	            #    这种正则源码里字段名紧邻字母 `b`, 任何边界规则都失效。白名单只放过
+   564	            #    确切的几个串（见 `_ALLOWED_MARKER_STRINGS`）, 其余含标识符的一律违约。
+   565	            if text in _ALLOWED_MARKER_STRINGS:
+   566	                continue
+   567	            for marker in _DUE_ALGO_MARKERS:
+   568	                if marker in text:
+   569	                    reads.add(marker)
+   570	        elif isinstance(node, ast.MatchClass):
+   571	            reads |= {a for a in (node.kwd_attrs or []) if a in _DUE_ALGO_MARKERS}
+   572	        elif isinstance(node, ast.keyword) and node.arg in _DUE_ALGO_MARKERS:
+   573	            reads.add(node.arg)
+   574	        # ⛔ 形参名也算（Codex r4 MEDIUM-4）: `def f(_BUCKET_ORDER=("future","new"))`
+   575	        #    ——形参在 `ast.arg`, 不进赋值检查; 函数体里读它又被模块级同名 import 豁免。
+   576	        elif isinstance(node, ast.arg) and node.arg in _DUE_ALGO_MARKERS:
+   577	            reads.add(node.arg)
+   578	    offenders += sorted(reads - set(offenders))
+   579	    if offenders:
+   580	        raise ContractError(
+   581	            f"review_app 出现独立 due 算法的迹象（在可执行代码里定义/读取 {offenders}）—— "
+   582	            "它必须是 /overview 投影的纯消费方"
+   583	        )
+   584	
+   585	    # ── 页面模板里碰 due 字段的调用点: **按身份冻结**（Codex r4 HIGH-2）──────
+   586	    # ⛔ 这道检查**不声称**模板里的 JS 是纯消费方 —— 同一个标识符既能用于把到期时刻
+   587	    #    渲染成人话（现状: `humanizeDue(n.fsrs_due, nowMs)`）, 也能用于自造到期判定
+   588	    #    （`rows[b].filter(r => Date.parse(r.fsrs_due) <= nowMs)`）, 区分靠语义, 而
+   589	    #    JS 的语义在 Python AST 门的射程之外。它声称的是一件**可判定**的事:
+   590	    #    这些调用点**没有变过**。变了就红, 由人判新的那一处还算不算纯消费。
+   591	    template = next(
+   592	        (
+   593	            n.value.value
+   594	            for n in tree.body
+   595	            if isinstance(n, ast.Assign)
+   596	            and isinstance(n.value, ast.Constant)
+   597	            and isinstance(n.value.value, str)
+   598	            and any(isinstance(t, ast.Name) and t.id == "_PAGE_TEMPLATE" for t in n.targets)
+   599	        ),
+   600	        "",
+   601	    )
+   602	    template_sites = {
+   603	        ln.strip() for ln in template.splitlines() if any(m in ln for m in ("fsrs_due", "due_reason", "fsrs_state"))
+   604	    }
+   605	    if template_sites != _TEMPLATE_DUE_CALLSITES:
+   606	        raise ContractError(
+   607	            "页面模板里碰 due 字段的调用点变了（该集合按身份冻结, 不是「JS 是纯消费方」的证明）: "
+   608	            f"新增 {sorted(template_sites - _TEMPLATE_DUE_CALLSITES)}; "
+   609	            f"消失 {sorted(_TEMPLATE_DUE_CALLSITES - template_sites)} —— 需人判新的那一处是否仍是纯消费"
+   610	        )
+   611	
+   612	    return {
+   613	        "imported_shared": sorted(imported & set(_APP_SHARED_IMPORTS)),
+   614	        "offenders": [],
+   615	        # 模板里被冻结的 due 调用点 —— 摊开可见, 免得这条豁免变成暗门。
+   616	        "template_due_callsites": sorted(template_sites),
+   617	        # 被豁免的那几个字符串常量（名字 + 长度）—— 摊开写出来, 免得豁免变成暗门。
+   618	        "exempted_strings": sorted(exempted),
+   619	        "docstring_len": len(docstring or ""),
+   620	    }
+   621	
+   622	
+   623	# ───────────────────────────── 面：两个 skill 脚本 ─────────────────────────────
+   624	
+   625	
+   626	#: inbox_preview 渲染里那行「基准时刻 `--now`：<本地时刻>（Asia/Shanghai）」的锚。
+   627	_INBOX_NOW_LINE = "基准时刻 `--now`："
+   628	
+   629	
+   630	def face_skill_inbox(now_raw: str, tmp_root: Path) -> str:
+   631	    """④b clear-inbox/inbox_preview.py —— 它的「今天」, **取自它真正的产物**。
+   632	
+   633	    ⛔ 不许在契约里自己按 `parse_now()` 再算一遍（Codex r2 HIGH-2）: 那样量的是
+   634	    「契约照着它的规则算出来的日期」, 不是「它实际交出来的日期」—— 把它的 `main()`
+   635	    改成用 2099 年、或者干脆提前 `return 0` 不产出任何东西, 契约都毫无反应。
+   636	    这里跑**真实入口** `main()`（`--vault` / `--now` 指向 tmp 空仓）, 再从它落盘的
+   637	    preview 里把那行「基准时刻」抠出来。产物缺席 / 抠不到 ⇒ 返回 `MISSING`, 由矩阵判红。
+   638	
+   639	    ⚠ 空收件箱是它的合法形态（`--inbox-dir` 缺省路径不存在 = 空仓回执）—— 本契约
+   640	    只要它的**日期结论**, 不需要真有待处理文件。
+
+===== g68: header/sys.path/main =====
+     1	#!/usr/bin/env python3
+     2	"""CARD-G6-8 — 五面复习视图一致性契约（可重跑）。
+     3	
+     4	同一份 state 输入喂给复习视图的五个面, 逐字段比对它们对每块板给出的结论
+     5	（桶位 / 显示日 / 推迟 / 完成）, 任一字段跨面不等即 FAIL。
+     6	
+     7	    五面（设计稿 §4 T3-B 逐字）
+     8	      ① review_overview   /overview 聚合 (_collect → _summarize → _gate_buckets)
+     9	      ② review_app        交互页 —— **纯消费方**, 不产出独立结论;
+    10	                          对它的契约是「不自造 due 算法」的静态断言
+    11	      ③ daily_review_pick Dashboard / outputs/今日复习.json 的生产器（**只读**）
+    12	      ④ 两个 skill 脚本    board-recap/recap_exam_build.py + clear-inbox/inbox_preview.py
+    13	      ⑤ 推送 payload      payload["notification"]（picker 产, daily_review_run 消费）
+    14	
+    15	用法::
+    16	
+    17	    cd backend && .venv/bin/python scripts/g68_five_view_contract.py \\
+    18	        --now 2026-09-12T03:00:00Z [--tz Asia/Shanghai] [--json 输出.json]
+    19	
+    20	rc: 0 = verdict=PASS（零未登记分歧）; 1 = FAIL; 2 = 用法/环境错误。
+    21	
+    22	⛔ 本脚本零 mock: 五面都跑**真实生产代码**, fixture 是 tmp 下的真 vault 目录与
+    23	真 JSON 文件。唯一被注入的是**时钟**（`--now`）与 `CANVAS_TZ`/`VAULTS_ROOT`/
+    24	`runner.BACKUPS` 三个作用域变量 —— 注入时钟是本契约成立的前提（不注入就没有
+    25	「同一 state 输入」可言）, 不是对被测行为打桩。
+    26	
+    27	⛔ 不连 7691/7687, 不读写 live vault, 不写仓库树: 全部产物在 tempfile 目录内,
+    28	退出时删除（`--keep` 保留供排障）。
+    29	"""
+    30	
+    31	from __future__ import annotations
+    32	
+    33	import argparse
+    34	import ast
+    35	import io
+    36	import json
+    37	import os
+    38	import re
+    39	import shutil
+    40	import sys
+--- main/tail ---
+   900	                for face in faces:
+   901	                    row = {
+   902	                        "board": board,
+   903	                        "field": field,
+   904	                        "face": face,
+   905	                        "value": key,
+   906	                        "majority_value": (
+   907	                            [k for k, v in tally.items() if v is majority_faces][0]
+   908	                            if majority_faces is not None
+   909	                            else None
+   910	                        ),
+   911	                        "majority_faces": sorted(majority_faces) if majority_faces is not None else [],
+   912	                    }
+   913	                    bucket = declared if _is_declared(face, field, producing[face], ctx) else undeclared
+   914	                    bucket.append(row)
+   915	    return undeclared, declared
+   916	
+   917	
+   918	# ─────────────────────────────────── 主流程 ───────────────────────────────────
+   919	
+   920	
+   921	#: 判据码前缀 —— 只有本契约的分歧行会产出这串。
+   922	#: ⛔ 负控的文本锚必须绑在**这个码**上而不是人话字段名（Codex r4 MEDIUM-7）:
+   923	#: 被测模块的诊断输出经 stderr / 断言消息回流后也会带上 `E ` 前缀与 `snoozed`
+   924	#: 这类字样, 拿人话当锚就分不清「门抓到了」和「日志里恰好有这个词」。
+   925	DIFF_CODE_PREFIX = "G68DIFF"
+   926	
+   927	
+   928	def diff_code(row: dict) -> str:
+   929	    """一条分歧的机器可读身份: `G68DIFF|face=…|field=…`。"""
+   930	    return f"{DIFF_CODE_PREFIX}|face={row['face']}|field={row['field']}"
+   931	
+   932	
+   933	def _parse_now(raw: str) -> datetime:
+   934	    try:
+   935	        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+   936	    except ValueError as e:
+   937	        raise ContractError(f"--now 不是合法 ISO-8601 时刻: {raw!r}") from e
+   938	    if dt.tzinfo is None:
+   939	        raise ContractError(f"--now 必须带时区偏移（裸时刻在跨时区读写下指的是不同的绝对时间）: {raw!r}")
+   940	    return dt
+   941	
+   942	
+   943	def run(now_raw: str, tz_name: str, out_json: Path | None, keep: bool) -> int:
+   944	    now = _parse_now(now_raw)
+   945	
+   946	    # ⛔ 三个作用域变量必须在 import 被测模块**之前**就位:
+   947	    #    · CANVAS_TZ —— picker 的 `_DISPLAY_TZ` 是**模块级常量**, import 那一刻固化;
+   948	    #    · VAULTS_ROOT —— review_overview 的 `_collect()` 从 settings 取;
+   949	    #    · runner.BACKUPS —— state 文件默认落在**仓库树的 backups/**, 必须改道 tmp。
+   950	    os.environ["CANVAS_TZ"] = tz_name
+   951	
+   952	    tmp_root = Path(tempfile.mkdtemp(prefix="g68-five-view-"))
+   953	
+   954	    # ⛔ 被测模块在 import / 运行期往 **stdout** 打带时刻的日志（`RAGService: …` 带
+   955	    #    秒级时间戳、picker 的 `[pick] fsrs_due 非规范格式…`）。它们混进报告会让
+   956	    #    「同输入二跑逐字节相等」永远不成立 —— 那条确定性判据是本脚本能当回归门的
+   957	    #    前提。所以计算期把 stdout 换成缓冲区, 只有报告本身写回真 stdout;
+   958	    #    出异常时把缓冲内容倒到 stderr, 不吞排障信息。
+   959	    _real_stdout = sys.stdout
+   960	    noise = io.StringIO()
+   961	    sys.stdout = noise
+   962	    try:
+   963	        vaults_root = tmp_root / "vaults"
+   964	        vaults_root.mkdir()
+   965	        backups = tmp_root / "backups"
+   966	        backups.mkdir()
+   967	
+   968	        sys.path.insert(0, str(WT / "scripts"))
+   969	        import local_tz  # noqa: PLC0415
+   970	        import daily_review_pick as picker  # noqa: PLC0415
+   971	        import daily_review_run as runner  # noqa: PLC0415
+   972	
+   973	        display_tz = local_tz.display_tz()
+   974	        runner.BACKUPS = backups  # 与 tests 同款隔离点（runner 注释 :42-44 点名）
+   975	

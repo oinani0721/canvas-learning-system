@@ -1,0 +1,276 @@
+# P5-B facts-6 (call sites + test helpers) (20260919T233501)
+
+===== g68: call site of assert_review_app_has_no_due_algorithm =====
+461:def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
+467:    tree = ast.parse(app_path.read_text(encoding="utf-8"))
+1059:        app_static = assert_review_app_has_no_due_algorithm(
+
+===== g68: 1020-1080 (run() ① block) =====
+  1020	        board_done = {"板-学习中": today_key}
+  1021	        state_file = runner.state_path(vault)
+  1022	        state_file.parent.mkdir(parents=True, exist_ok=True)
+  1023	        state_file.write_text(
+  1024	            json.dumps({"board_done": board_done, "snoozed": snoozed}, ensure_ascii=False),
+  1025	            encoding="utf-8",
+  1026	        )
+  1027	
+  1028	        # ── ③ picker（只读）+ ⑤ 推送 payload ─────────────────────────────
+  1029	        payload, picker_conclusions, ranked_boards = face_picker(picker, vault, now, board_done, snoozed)
+  1030	        (vault / "outputs" / "今日复习.json").write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+  1031	        noti_day, noti_title = face_notification(payload)
+  1032	
+  1033	        # ── ① review_overview ───────────────────────────────────────────
+  1034	        os.environ["VAULTS_ROOT"] = str(vaults_root)
+  1035	        os.environ["ACTIVE_VAULT"] = vault_id
+  1036	        # ⛔ 以 `python scripts/g68_...py` 启动时 sys.path[0] 是 `backend/scripts`,
+  1037	        #    `app` 包不在其上 —— 显式把 `backend/` 加进来（与 pytest 的 rootdir
+  1038	        #    行为对齐, 让脚本跑法与门跑法看到同一个 `app`）。
+  1039	        if str(WT / "backend") not in sys.path:
+  1040	            sys.path.insert(0, str(WT / "backend"))
+  1041	        from app.config import reload_settings  # noqa: PLC0415
+  1042	
+  1043	        reload_settings(overrides={"VAULTS_ROOT": str(vaults_root), "ACTIVE_VAULT": vault_id})
+  1044	        from app.api.v1.endpoints import review_overview as ro  # noqa: PLC0415
+  1045	
+  1046	        # 时钟注入: `_collect()` 内部读 `_display_now()`。⛔ 这是**注入时钟**,
+  1047	        # 不是给被测行为打桩 —— 没有它就没有「同一 state 输入」这回事。
+  1048	        # ⛔ 无条件还原: 本函数可能被同一进程里的测试直接调用, 留着补丁会让
+  1049	        #    后续用例拿到一个钉死的时钟（而它们自己并不知道）。
+  1050	        pinned_local = now.astimezone(display_tz)
+  1051	        _orig_display_now = ro._display_now
+  1052	        ro._display_now = lambda: pinned_local
+  1053	        try:
+  1054	            overview_conclusions, tonight_available = face_review_overview(ro, vaults_root, vault_id)
+  1055	        finally:
+  1056	            ro._display_now = _orig_display_now
+  1057	
+  1058	        # ── ② review_app（静态断言）─────────────────────────────────────
+  1059	        app_static = assert_review_app_has_no_due_algorithm(
+  1060	            WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+  1061	        )
+  1062	
+  1063	        # ── ④ 两个 skill 脚本 ───────────────────────────────────────────
+  1064	        inbox_day = face_skill_inbox(now_raw, tmp_root)
+  1065	        recap_note = face_skill_recap()
+  1066	
+  1067	        # ── 组装矩阵 ────────────────────────────────────────────────────
+  1068	        # ⛔ 行索引 = fixture 自报的板清单 ∪ 各面实际报出来的板。前半让「所有面同时
+  1069	        #    丢掉一块板」判红, 后半让「某面多报一块不存在的板」判红。
+  1070	        boards = sorted(FIXTURE_BOARDS | set(picker_conclusions) | set(overview_conclusions))
+  1071	        per_face: dict[str, dict] = {
+  1072	            "picker": picker_conclusions,
+  1073	            "review_overview": overview_conclusions,
+  1074	            # 纯消费方: 四个字段一律不产出（它的契约是上面的静态断言）
+  1075	            "review_app": {},
+  1076	            # 无可比结论（理由见 face_skill_recap）
+  1077	            "skill_recap": {},
+  1078	            # 只产出日期结论, 且基准是刻意固定的 +08:00
+  1079	            "skill_inbox": {b: {"display_day": inbox_day} for b in boards},
+  1080	            # 推送只说「今天做哪块」: 它的 id 里那个日期既是它自己的「今天」,
+
+===== test_g68: 360-460 =====
+   360	def test_review_app_gate_catches_dict_key_due_reads(tmp_path, injected):
+   361	    """字段名写成**字符串常量**的读法同样算自造算法。
+   362	
+   363	    ⛔ Codex r1 HIGH-3: `node["fsrs_due"]` / `node.get("fsrs_due")` 里字段名既不是
+   364	    `ast.Name` 也不是 `ast.Attribute`, 原先的 AST 门整条走过去; 当轮的负控之所以
+   365	    能红, 只是因为它恰好把局部变量也命名成了 `fsrs_due`。
+   366	    """
+   367	    src = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py").read_text(encoding="utf-8")
+   368	    tainted = tmp_path / "review_app_dictread.py"
+   369	    tainted.write_text(src + "\n\n" + injected, encoding="utf-8")
+   370	    with pytest.raises(contract.ContractError, match="独立 due 算法"):
+   371	        contract.assert_review_app_has_no_due_algorithm(tainted)
+   372	
+   373	
+   374	def test_template_due_callsites_are_frozen_by_identity(tmp_path):
+   375	    """页面模板里碰 due 字段的调用点按**身份冻结**；多一处必须红。
+   376	
+   377	    ⛔ Codex r4 HIGH-2 的处置, 连同它的**覆盖面上限**一并钉住: 这道检查
+   378	    **不声称**模板里的 JS 是纯消费方 —— 同一个标识符既能用于把到期时刻渲染成人话,
+   379	    也能用于自造到期判定, 区分靠语义, 而 JS 的语义在 Python AST 门的射程之外。
+   380	    它声称的是「这些调用点没有变过」。
+   381	    """
+   382	    app = WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+   383	    result = contract.assert_review_app_has_no_due_algorithm(app)
+   384	    assert set(result["template_due_callsites"]) == set(contract._TEMPLATE_DUE_CALLSITES)
+   385	    # 现状就是两处「渲染成人话」的调用, 写死在这里让它可见
+   386	    assert result["template_due_callsites"] == [
+   387	        "const due = humanizeDue(n.fsrs_due, nowMs);",
+   388	        "const due = humanizeDue(r.fsrs_due, nowMs);",
+   389	    ]
+   390	
+   391	    tainted = tmp_path / "review_app_js_due.py"
+   392	    tainted.write_text(
+   393	        app.read_text(encoding="utf-8").replace(
+   394	            "const due = humanizeDue(n.fsrs_due, nowMs);",
+   395	            "const due = humanizeDue(n.fsrs_due, nowMs);\n"
+   396	            "const negctlDue = rows.filter(r => Date.parse(r.fsrs_due) <= nowMs);",
+   397	            1,
+   398	        ),
+   399	        encoding="utf-8",
+   400	    )
+   401	    with pytest.raises(contract.ContractError, match="碰 due 字段的调用点变了"):
+   402	        contract.assert_review_app_has_no_due_algorithm(tainted)
+   403	
+   404	
+   405	def test_function_docstring_mentioning_due_is_not_an_offender(tmp_path):
+   406	    """普通函数的**说明文字**里提到 due 字段不算违约（它在描述不做什么）。
+   407	
+   408	    ⛔ Codex r4 LOW-9: 原先只豁免模块 docstring, 于是一个诚实的函数注释会被误红。
+   409	    """
+   410	    app = WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+   411	    ok = tmp_path / "review_app_doc.py"
+   412	    ok.write_text(
+   413	        app.read_text(encoding="utf-8")
+   414	        + '\n\ndef _negctl_doc():\n    """显示投影里的 fsrs_due 字段, 不计算到期。"""\n    return None\n',
+   415	        encoding="utf-8",
+   416	    )
+   417	    contract.assert_review_app_has_no_due_algorithm(ok)  # 不抛
+   418	
+   419	
+   420	def test_shared_order_placeholder_is_not_an_offender():
+   421	    """`__BUCKET_ORDER_JSON__` 这个注入占位符**不算**违约。
+   422	
+   423	    ⛔ 它恰恰是「共享不复制」的体现（review_app 把 import 来的桶序注进页面模板）。
+   424	    判据用**词边界**而不是裸包含, 就是为了放过它 —— 这条是词边界那一改的验伪锚:
+   425	    改回裸包含, 生产文件当场误报。
+   426	    """
+   427	    result = contract.assert_review_app_has_no_due_algorithm(
+   428	        WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+   429	    )
+   430	    assert result["offenders"] == []
+   431	    # 豁免面摊开可见（按身份, 不按长度）
+   432	    assert [n for n, _ in result["exempted_strings"]] == ["_PAGE_TEMPLATE"]
+   433	    assert result["docstring_len"] > 0
+   434	
+   435	
+   436	def test_review_app_static_gate_catches_losing_the_shared_import(tmp_path):
+   437	    """验伪锚之二: 断掉「共享不复制」的 import, 静态断言必须说话。"""
+   438	    src = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py").read_text(encoding="utf-8")
+   439	    tainted = tmp_path / "review_app_noimport.py"
+   440	    tainted.write_text(src.replace("    _BUCKET_ORDER,\n", "", 1), encoding="utf-8")
+   441	    with pytest.raises(contract.ContractError, match="共享桶序常量"):
+   442	        contract.assert_review_app_has_no_due_algorithm(tainted)
+   443	
+   444	
+   445	# ──────────── (f) snooze / done / tonight_available 五面一致 ────────────
+   446	
+   447	
+   448	def test_snoozed_and_done_agree_across_faces(tmp_path):
+   449	    """推迟 / 完成两列在产出它们的面之间逐板相等。"""
+   450	    _, report, _, _ = _run(tmp_path)
+   451	    for board in report["boards"]:
+   452	        for field in ("snoozed", "done"):
+   453	            cells = report["matrix"][board][field]
+   454	            values = {
+   455	                json.dumps(v, ensure_ascii=False, sort_keys=True) for v in cells.values() if v != contract.NOT_PRODUCED
+   456	            }
+   457	            assert len(values) <= 1, f"板 {board} 的 {field} 跨面不一致: {cells}"
+   458	    # 验伪: fixture 必须真的造出「一块板被推迟」「一块板今天完成」两态,
+   459	    # 否则上面的循环比的全是 False == False。
+   460	    snoozed_boards = [b for b in report["boards"] if report["matrix"][b]["snoozed"].get("picker") is True]
+
+===== test_g68: tail =====
+     584 backend/tests/regression/test_g68_five_view_contract.py
+   460	    snoozed_boards = [b for b in report["boards"] if report["matrix"][b]["snoozed"].get("picker") is True]
+   461	    done_boards = [b for b in report["boards"] if report["matrix"][b]["done"].get("picker") is True]
+   462	    assert snoozed_boards, "fixture 没有造出任何被推迟的板 —— snoozed 这一列是恒 False 的假绿"
+   463	    assert done_boards, "fixture 没有造出任何今天完成的板 —— done 这一列是恒 False 的假绿"
+   464	
+   465	
+   466	def test_ranked_yield_partition_is_observed_not_recomputed():
+   467	    """snooze/done 的**消费后果**（让位分区）被观察到, 而不是只从输入重算一遍。
+   468	
+   469	    ⛔ Codex r1 MEDIUM-6: 契约原先丢弃 `ranked`, 于是「让已完成板排回榜首」这种
+   470	    消费失效完全看不见。
+   471	    ⚠ 覆盖面如实声明: 本条只证「让位板整体靠后」, **不证**已完成与已推迟两者之间
+   472	    的先后（U6-C 登记、D-37 按现状不改的那条顺序）。
+   473	    """
+   474	    good = [{"board": "A"}, {"board": "B"}, {"board": "让位1"}, {"board": "让位2"}]
+   475	    contract.check_ranked_yield_partition(good, {"让位1", "让位2"})  # 不抛
+   476	
+   477	    broken = [{"board": "让位1"}, {"board": "A"}, {"board": "B"}]
+   478	    with pytest.raises(contract.ContractError, match="让位分区被破坏"):
+   479	        contract.check_ranked_yield_partition(broken, {"让位1"})
+   480	
+   481	    # 退化情形如实声明: 全部让位 / 无让位 时分区恒等, 本条不构成判据
+   482	    contract.check_ranked_yield_partition([{"board": "x"}], set())
+   483	    contract.check_ranked_yield_partition([{"board": "x"}], {"x"})
+   484	
+   485	
+   486	@pytest.mark.parametrize(
+   487	    ("now", "expect_tonight"),
+   488	    [(NOW_EARLY, True), (NOW_LATE, False)],
+   489	)
+   490	def test_tonight_available_tracks_now_hour_lt_20(tmp_path, now, expect_tonight):
+   491	    """`tonight_available` 恒等于「显示时区本地时 now.hour < 20」。
+   492	
+   493	    两档都跑: 只测一档的话, 把判定写成恒 True / 恒 False 都能过。
+   494	    """
+   495	    _, report, _, _ = _run(tmp_path, now=now, name=f"t{expect_tonight}")
+   496	    t = report["tonight_available"]
+   497	    assert t["expected_now_hour_lt_20"] is expect_tonight, f"fixture 没落在预期档: 当地 hour={t['now_local_hour']}"
+   498	    assert t["from_overview"] is expect_tonight
+   499	    assert t["ok"] is True
+   500	
+   501	
+   502	# ─────────────────── 分歧归属：平局时不得任意指认 ───────────────────
+   503	
+   504	
+   505	def _blank(except_field: str, cells: dict) -> dict:
+   506	    """造一块板的四字段格子: 只有 `except_field` 有值, 其余结构性缺席。"""
+   507	    out = {f: {face: contract.NOT_PRODUCED for face in contract.FACES} for f in contract.FIELDS}
+   508	    out[except_field] = cells
+   509	    return out
+   510	
+   511	
+   512	def test_tie_reports_every_producer_not_an_arbitrary_one():
+   513	    """两个面各执一词（1:1 平局）时, **两个都**要报, 不许挑一个当「多数派」。
+   514	
+   515	    ⛔ 这条是负控 `RO_BUCKET_SWAP` 逼出来的: `bucket` 只有 review_overview 与
+   516	    picker 两个面产出, 早期版本用 `max(分组, key=len)` 取「第一个最大组」, 于是
+   517	    归属完全由 `FACES` 的书写顺序决定 —— 改的是 review_overview, 报出来的却是
+   518	    picker。只看「红没红」的判据会放过这种错误归属。
+   519	    """
+   520	    matrix = {
+   521	        "板X": _blank(
+   522	            "bucket",
+   523	            {
+   524	                "review_overview": (("n", "new"),),
+   525	                "picker": (("n", "due_now"),),
+   526	                "review_app": contract.NOT_PRODUCED,
+   527	                "skill_recap": contract.NOT_PRODUCED,
+   528	                "skill_inbox": contract.NOT_PRODUCED,
+   529	                "notification": contract.NOT_PRODUCED,
+   530	            },
+   531	        )
+   532	    }
+   533	    undeclared, declared = contract.diff_matrix(matrix)
+   534	    assert declared == []
+   535	    assert {r["face"] for r in undeclared} == {"review_overview", "picker"}, (
+   536	        "平局下只报了一个面 —— 归属是按书写顺序任意指认的"
+   537	    )
+   538	    assert all(r["majority_faces"] == [] for r in undeclared), "平局下不该宣称存在多数派"
+   539	
+   540	
+   541	def test_strict_majority_still_names_only_the_outlier():
+   542	    """三比一时仍然只报那个少数派（否则每条分歧都会变成四条噪音）。
+   543	
+   544	    这里同时走通已登记分歧的**谓词**通道: `now` 在 +08:00 下是 09-12, 与 inbox 的
+   545	    取值一致 ⇒ 落进已登记; 换成别的日期就会落进未登记（上面那条测试证）。
+   546	    """
+   547	    now = datetime(2026, 9, 12, 3, 0, tzinfo=timezone.utc)  # LA 侧是 09-11, +08:00 侧是 09-12
+   548	    matrix = {
+   549	        "板Y": _blank(
+   550	            "display_day",
+   551	            {
+   552	                "review_overview": "2026-09-11",
+   553	                "picker": "2026-09-11",
+   554	                "notification": "2026-09-11",
+   555	                "skill_inbox": "2026-09-12",
+   556	                "review_app": contract.NOT_PRODUCED,
+   557	                "skill_recap": contract.NOT_PRODUCED,
+   558	            },
+   559	        )
+   560	    }

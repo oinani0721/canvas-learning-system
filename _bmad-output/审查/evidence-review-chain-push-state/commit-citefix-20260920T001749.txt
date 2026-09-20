@@ -1,0 +1,14 @@
+✔️ spec-reference (0.04 seconds)
+╭───────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: post-commit │
+╰───────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+[card/p5-review 626d5416] docs(p5-b): 自引行号更正 :1176→:1181、:60-66→:60-67 [BATCH-2026-09-18-第十五批 / CARD-REVIEW-CHAIN-PUSH-STATE]
+ 3 files changed, 3 insertions(+), 3 deletions(-)

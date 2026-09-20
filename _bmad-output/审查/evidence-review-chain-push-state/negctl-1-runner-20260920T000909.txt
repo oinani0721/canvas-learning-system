@@ -1,0 +1,15 @@
+# negctl-1 (20260920T000909): 删 runner 新写入两行 (else + tuple) → runner 门必红在 last_result
+== 跑前 shasum ==
+64e0d75441b7c7dab0569617ffe5ee61b28e3d428c47fe9e91ecc220ee344d8c  scripts/daily_review_run.py
+mutated: removed lines 754 (else) + 755 (tuple write)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_daily_review_run.py::test_skip_nokey_overwrites_stale_pushed_state
+================ 1 failed, 74 deselected, 10 warnings in 0.82s =================
+rc=1
+== 跑后 shasum (应逐字同) ==
+64e0d75441b7c7dab0569617ffe5ee61b28e3d428c47fe9e91ecc220ee344d8c  scripts/daily_review_run.py
+== git status (应空) ==
+?? "_bmad-output/\345\256\241\346\237\245/evidence-review-chain-push-state/"

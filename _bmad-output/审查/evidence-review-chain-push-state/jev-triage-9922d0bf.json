@@ -1,0 +1,113 @@
+{
+  "commit": "fix(p5-b): 推送三态修复 + 模板冻结绑最终模板 + 交互壳降级徽标 [BATCH-2026-09-18-第十五批 / CARD-REVIEW-CHAIN-PUSH-STATE]",
+  "ref": "9922d0bf",
+  "sha": "9922d0bfeffc072c87f105fab4a3c7559798c8db",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T00:13:21-0700",
+  "code_files": [
+    "backend/app/api/v1/endpoints/review_app.py",
+    "backend/app/api/v1/endpoints/review_overview.py",
+    "backend/scripts/g68_five_view_contract.py",
+    "backend/tests/regression/test_daily_review_run.py",
+    "backend/tests/regression/test_g68_five_view_contract.py",
+    "backend/tests/regression/test_g6_9_boundary_matrix.py",
+    "backend/tests/unit/test_review_app.py",
+    "backend/tests/unit/test_review_overview.py",
+    "scripts/daily_review_run.py"
+  ],
+  "files": [
+    {
+      "file": "backend/scripts/g68_five_view_contract.py",
+      "added": 60,
+      "removed": 12,
+      "runtime": 0.9,
+      "risk": "error_handling",
+      "risk_conf": 0.44,
+      "urgency": 3.09,
+      "urgency_conf": 0.89,
+      "review": 0.85,
+      "test": 0.67,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/app/api/v1/endpoints/review_overview.py",
+      "added": 20,
+      "removed": 6,
+      "runtime": 0.98,
+      "risk": "logic",
+      "risk_conf": 0.74,
+      "urgency": 2.38,
+      "urgency_conf": 0.55,
+      "review": 0.66,
+      "test": 0.57,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/regression/test_g68_five_view_contract.py",
+      "added": 39,
+      "removed": 0,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 2.18,
+      "urgency_conf": 0.31,
+      "review": 0.61,
+      "test": 0.92,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/regression/test_daily_review_run.py",
+      "added": 44,
+      "removed": 0,
+      "runtime": 0.05,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.4,
+      "urgency_conf": 0.25,
+      "review": 0.56,
+      "test": 0.91,
+      "truncated": false,
+      "flag": false
+    },
+    {
+      "file": "backend/tests/unit/test_review_overview.py",
+      "added": 63,
+      "removed": 0,
+      "runtime": 0.06,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.39,
+      "urgency_conf": 0.33,
+      "review": 0.55,
+      "test": 0.93,
+      "truncated": false,
+      "flag": false
+    },
+    {
+      "file": "backend/tests/unit/test_review_app.py",
+      "added": 17,
+      "removed": 0,
+      "runtime": 0.07,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.23,
+      "urgency_conf": 0.48,
+      "review": 0.45,
+      "test": 0.92,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 12144,
+    "output_tokens": 947
+  },
+  "latency_ms": {
+    "min": 256,
+    "median": 299,
+    "max": 317
+  }
+}

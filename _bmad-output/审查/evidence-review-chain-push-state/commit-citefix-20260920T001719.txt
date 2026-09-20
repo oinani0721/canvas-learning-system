@@ -1,0 +1,12 @@
+ⓘ   Get help: https://github.com/conventional-changelog/commitlint/#what-is-commitlint
+
+
+exit status 1┃  spec-reference ❯ 
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.44 seconds)       
+✔️ spec-reference (0.04 seconds)
+🥊 commitlint (0.39 seconds)

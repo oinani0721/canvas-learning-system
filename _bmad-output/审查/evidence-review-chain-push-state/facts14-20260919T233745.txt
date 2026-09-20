@@ -1,0 +1,112 @@
+== test_daily_review_run: 935-1010 ==
+   935	    assert "generate:new" in out3 and "push:skip-done" in out3
+   936	
+   937	    # 又冒出新到期卡 (第二次 rest→due 形态) — 反转门当日只放行一次
+   938	    (vault / "节点" / "新卡.md").write_text(_node(board="B板"), encoding="utf-8")
+   939	    _pin_pool_older_than_payload(vault, BASE)
+   940	    _set_mtime(vault / "节点" / "新卡.md", BASE + 200)
+   941	    _set_mtime(vault / "节点", BASE + 200)
+   942	    out4 = _run_main(monkeypatch, capsys, vault, "2026-07-30T16:05:00+08:00")
+   943	    assert "generate:new" in out4 and "push:skip-done" in out4
+   944	    assert len(calls) == 2, "振荡日 accepted 上界 = 2 (rest + due 各一次)"
+   945	
+   946	
+   947	def test_structurally_corrupt_state_quarantined_not_crash(tmp_path, monkeypatch, capsys):
+   948	    """Codex-D2b M1: 合法 JSON 但结构错型的 state (顶层 [] / 账本 []) 必须
+   949	    与语法损坏同等对待 — 隔离重建不炸, 当轮照常生成+推送。已知代价 (如实
+   950	    入档): 重建即丢当日推送账, 与既有语法损坏路径同级。"""
+   951	    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+   952	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+   953	    state = runner.state_path()
+   954	    state.parent.mkdir(parents=True, exist_ok=True)
+   955	
+   956	    state.write_text("[]", encoding="utf-8")  # 顶层非 dict
+   957	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   958	    assert "generate:new" in out1 and "push:accepted" in out1
+   959	    assert runner.load_state()["last_push_kind"] == "due"
+   960	    # Codex-D2b-r2 L2: 错型件必须隔离留档 (防「删 quarantine 直接吞档」回归)
+   961	    assert list(state.parent.glob(state.name + ".corrupt-*")), "错型 state 必须隔离留档"
+   962	
+   963	    # 账本错型 (board_last_recommended 非 dict) 同样隔离重建
+   964	    state.write_text(json.dumps({"schema_version": 1, "board_last_recommended": []}), encoding="utf-8")
+   965	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")
+   966	    assert "generate:new" in out2 and "push:accepted" in out2
+   967	    assert len(calls) == 2
+   968	
+   969	
+   970	def test_legacy_cached_payload_without_top_boards_records_due(tmp_path, monkeypatch, capsys):
+   971	    """Codex-D2b M2: 迁移前 legacy 缓存 payload 无 top_boards 键 — 语义未知,
+   972	    accepted 落账必须保守记 due (关闭反转门), 不得记 rest 造成 due→due 二推。"""
+   973	    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+   974	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+   975	    now_arg = "2026-07-30T10:00:00+08:00"
+   976	    today = datetime.fromisoformat(now_arg).astimezone(ZoneInfo(_FIXED_TZ_NAME)).date().isoformat()
+   977	
+   978	    legacy = {
+   979	        "schema_version": 3,
+   980	        "date": today,
+   981	        "notification": {
+   982	            "title": "📚 今日复习 · A板",
+   983	            "body": "b",
+   984	            "group": "canvas复习",
+   985	            "id": f"canvas-review-{today}",
+   986	        },
+   987	    }
+   988	    raw = json.dumps(legacy, ensure_ascii=False, indent=2) + "\n"
+   989	    out_dir = vault / "outputs"
+   990	    out_dir.mkdir(parents=True)
+   991	    (out_dir / "今日复习.json").write_text(raw, encoding="utf-8")
+   992	    st = runner.load_state()
+   993	    st["last_generate_date"] = today
+   994	    st["payload_sha256"] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+   995	    runner.save_state(st)
+   996	    _pin_pool_older_than_payload(vault, BASE)
+   997	
+   998	    out = _run_main(monkeypatch, capsys, vault, now_arg)
+   999	    assert "generate:cached" in out and "push:accepted" in out
+  1000	    assert len(calls) == 1
+  1001	    assert runner.load_state()["last_push_kind"] == "due", (
+  1002	        "legacy payload 语义未知必须保守记 due — 记 rest 会让当日 due 重扫误开反转门"
+  1003	    )
+  1004	
+  1005	
+  1006	# ── CARD-G6-7 (BATCH-2026-09-05-第十二批): state 加性扩展 board_done ──
+  1007	
+  1008	
+  1009	def test_g67_legacy_state_reads_board_done_as_empty_and_bumps_schema(tmp_path, monkeypatch):
+  1010	    """(b) 旧文件兼容读: 缺 board_done → 视同 {}; 既有键的值一个都不许动。
+
+== monkeypatch of review_app internals? ==
+backend/tests/unit/test_review_app.py:167:    from app.api.v1.endpoints.review_app import review_app_router
+
+== _DUE_ALGO_MARKERS full ==
+#: 「自造 due 算法」的词法特征 —— 出现在 review_app 自己定义的函数体里即违约。
+_DUE_ALGO_MARKERS = (
+    "_BUCKET_ORDER",  # 只许 import, 不许在本文件里重新赋值
+    "fsrs_due",
+    "due_reason",
+    "fsrs_state",
+)
+
+
+
+== boundary 665-690 ==
+   665	    # 正面佐证：端点自己写明了"不碰 state 文件"。它与上面的零命中互相独立——
+   666	    # 一个是"扫不到消费代码"，一个是"作者明确声明过不消费"。
+   667	    overview = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_overview.py").read_text(encoding="utf-8")
+   668	    assert "backups/daily-review.*.state.json" in overview, (
+   669	        "端点里那句「不碰（不写）state 文件」的声明不见了 —— 唯一消费点必须仍是只读投影"
+   670	    )
+
+== _js_json def ==
+review_app_router = APIRouter()
+
+
+def _js_json(value) -> str:
+    """常量 → 可安全内嵌 <script> 的 JSON 字面量。
+
+    值全部来自服务端自有常量与 url_for 路径 (无用户输入), `<` 转义只是
+    防御深度: 万一未来有人把含 "</script>" 的字面量塞进 _STATUS_META,
+    页面不会在此处被截断。
+    """
+    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")

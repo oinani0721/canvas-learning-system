@@ -1,0 +1,185 @@
+# P5-B facts-10 (20260919T233606)
+
+===== test_review_overview: 4751-4940 =====
+  4751	def test_overview_push_degraded_false_when_pushed(board_done_env):
+  4752	    """(b)① 推成功 → `push_degraded is False` 且 `last_error == ""`。
+  4753	
+  4754	    `False` 不是 `None`: 「推过而且成功」与「根本没推过」是两件事, 用同一个
+  4755	    值表示就把后者伪装成了前者 —— 那正是本卡要消灭的"看起来一切正常"。
+  4756	    只读请求不许动 state 文件 (与 _read_board_done 同一条只读纪律)。
+  4757	    """
+  4758	    root, client, runner, _mod = board_done_env
+  4759	    gen = _now_local().isoformat(timespec="seconds")
+  4760	    vault = _mk_vault(root, "vault-push-ok", _two_board_projection("vault-push-ok", gen))
+  4761	    state_file = _push_state(runner, vault, {"schema_version": 1, "last_result": "pushed", "last_error": ""})
+  4762	    before = hashlib.sha256(state_file.read_bytes()).hexdigest()
+  4763	
+  4764	    entry = _overview_entry(client, "vault-push-ok")
+  4765	    assert entry["push_degraded"] is False, "推成功必须是 False —— 不是 None, 也不是缺键"
+  4766	    assert entry["last_error"] == ""
+  4767	    assert hashlib.sha256(state_file.read_bytes()).hexdigest() == before, "只读请求不许动 state 文件"
+  4768	
+  4769	    # Codex r1 MEDIUM-1: "pushed" 带着一条陈旧的 last_error 时不许误判成降级。
+  4770	    # runner 在 :739 把两个字段**一并**写成 ("pushed", ""), 所以这形状不是它写的;
+  4771	    # 但只要读到了 "pushed", 成功就是成功 —— 拿 last_error 非空去翻案, 等于给一个
+  4772	    # 好好的库挂假警报, 徽标天天喊狼来了就没人看了。
+  4773	    stale = _mk_vault(root, "vault-push-stale", _two_board_projection("vault-push-stale", gen))
+  4774	    _push_state(runner, stale, {"schema_version": 1, "last_result": "pushed", "last_error": "陈旧原因"})
+  4775	    e_stale = _overview_entry(client, "vault-push-stale")
+  4776	    assert e_stale["push_degraded"] is False, "读到 pushed 就是成功, 不许被非空 last_error 翻成降级"
+  4777	    assert e_stale["last_error"] == "陈旧原因"
+  4778	
+  4779	
+  4780	def test_overview_push_degraded_true_when_push_failed(board_done_env):
+  4781	    """(b)② 推失败 → `push_degraded is True` 且 `last_error` 带上原因。
+  4782	
+  4783	    两个 vault 一起看:
+  4784	      甲 常规失败态 (runner 写 last_result="generated_push_failed" +
+  4785	        last_error="bark-send", daily_review_run.py:745/:746) → True / "bark-send";
+  4786	      乙 last_error 是**孤立 surrogate** (JSON `\\ud800` 解出来的) —— 它
+  4787	        `isinstance(str)` 为真, 却在响应做 UTF-8 序列化时才抛 UnicodeEncodeError,
+  4788	        那一刻已出了 `_collect` 的单库兜底, **整个**总览会变 500。与
+  4789	        `_read_snoozed` 逐条同纪律: 编不出的文本丢弃成 None, 但 `True` 这个
+  4790	        降级信号本身必须留住 —— 读不出原因不等于没出事。
+  4791	    """
+  4792	    root, client, runner, _mod = board_done_env
+  4793	    gen = _now_local().isoformat(timespec="seconds")
+  4794	    bad = _mk_vault(root, "vault-push-bad", _two_board_projection("vault-push-bad", gen))
+  4795	    _push_state(runner, bad, {"schema_version": 1, "last_result": "generated_push_failed", "last_error": "bark-send"})
+  4796	
+  4797	    entry = _overview_entry(client, "vault-push-bad")
+  4798	    assert entry["push_degraded"] is True, "推失败必须是 True"
+  4799	    assert entry["last_error"] == "bark-send"
+  4800	
+  4801	    # 乙: 不可编码的 last_error 不许把整个总览打成 500
+  4802	    sur = _mk_vault(root, "vault-push-sur", _two_board_projection("vault-push-sur", gen))
+  4803	    sur_state = runner.state_path(sur)
+  4804	    sur_state.parent.mkdir(parents=True, exist_ok=True)
+  4805	    sur_state.write_text(
+  4806	        '{"schema_version": 1, "last_result": "generated_push_failed", "last_error": "bark\\ud800send"}\n',
+  4807	        encoding="utf-8",
+  4808	    )
+  4809	    raw = json.loads(sur_state.read_text(encoding="utf-8"))
+  4810	    assert not _utf8_encodable(raw["last_error"]), "夹具前提: last_error 必须真的编不出 UTF-8, 否则本门是空的"
+  4811	
+  4812	    resp = client.get("/api/v1/review/overview")
+  4813	    assert resp.status_code == 200, f"一个坏 last_error 不许把整个总览打成 500: {resp.text[:200]}"
+  4814	    entries = {v["vault_id"]: v for v in resp.json()["vaults"]}
+  4815	    assert entries["vault-push-sur"]["push_degraded"] is True, "读不出原因 ≠ 没出事, 降级信号必须留住"
+  4816	    assert entries["vault-push-sur"]["last_error"] is None, "编不出 UTF-8 的原因文本丢弃成 None"
+  4817	    assert entries["vault-push-bad"]["push_degraded"] is True, "别的库必须照常出现且不受影响"
+  4818	    assert client.get(_PAGE_URL).status_code == 200, "页面路径同样不许 500"
+  4819	
+  4820	    # 丙 (Codex r2 MEDIUM-1 的同族分支): last_error 连类型都不对。三态只由
+  4821	    # last_result 的枚举决定 —— 失败仍是失败, 读不出的原因文本归 None。
+  4822	    # ⛔ 反过来也一样: 这种垃圾值**不许**参与"是不是失败"的判定 (见门③ 戊)。
+  4823	    junk = _mk_vault(root, "vault-push-junk", _two_board_projection("vault-push-junk", gen))
+  4824	    _push_state(runner, junk, {"schema_version": 1, "last_result": "generated_push_failed", "last_error": 123})
+  4825	    e_junk = _overview_entry(client, "vault-push-junk")
+  4826	    assert e_junk["push_degraded"] is True, "已知失败枚举不因 last_error 类型不对而失效"
+  4827	    assert e_junk["last_error"] is None, "非字符串的原因读不出, 归 None"
+  4828	
+  4829	
+  4830	def test_overview_push_status_null_when_no_state(board_done_env):
+  4831	    """(b)③ 没有 state 文件 / state 里没有 `last_result` 键 → 两字段皆 `None`。
+  4832	
+  4833	    ⛔ 缺失态**不得用 `False` 冒充** —— `False` 的语义是「推过, 好着呢」。
+  4834	    「读得出但从来没推过」与「连文件都没有」在用户那里是同一件事: 今天这库
+  4835	    的推送根本没跑过, 所以两者同等对待。
+  4836	    """
+  4837	    root, client, runner, _mod = board_done_env
+  4838	    gen = _now_local().isoformat(timespec="seconds")
+  4839	
+  4840	    # 甲: 根本没有 state 文件
+  4841	    none_vault = _mk_vault(root, "vault-push-none", _two_board_projection("vault-push-none", gen))
+  4842	    assert not runner.state_path(none_vault).exists(), "本例前提 = state 文件不存在"
+  4843	    e1 = _overview_entry(client, "vault-push-none")
+  4844	    assert e1["push_degraded"] is None, "无 state 必须是 None —— 不许用 False 冒充"
+  4845	    assert e1["last_error"] is None
+  4846	    assert not runner.state_path(none_vault).exists(), "只读请求不许把 state 文件建出来"
+  4847	
+  4848	    # 乙: 旧 state 读得出, 但从没推过 (无 last_result 键)
+  4849	    legacy_vault = _mk_vault(root, "vault-push-legacy", _two_board_projection("vault-push-legacy", gen))
+  4850	    legacy_state = _push_state(runner, legacy_vault, {"schema_version": 1, "board_done": {}})
+  4851	    before = hashlib.sha256(legacy_state.read_bytes()).hexdigest()
+  4852	    e2 = _overview_entry(client, "vault-push-legacy")
+  4853	    assert e2["push_degraded"] is None, "无 last_result 键 = 没推过, 与无文件同等对待"
+  4854	    assert e2["last_error"] is None
+  4855	    assert hashlib.sha256(legacy_state.read_bytes()).hexdigest() == before, "只读旧文件不许被顺手升级"
+  4856	
+  4857	    # 丙 / 丁 (Codex r1 MEDIUM-1): 键在、值却**不是**那两个已知枚举 —— null 与
+  4858	    # 未来可能新增的值。⛔ 一律 None, 绝不报 False。只有 "pushed" 这一个枚举有
+  4859	    # 资格说"推过, 好着呢"; 拿「它不是失败」推出「它是成功」, 就是换了个输入面的
+  4860	    # 同一种伪装。⚠ 丁那条同时锁住：无错误记录的未知值不得靠 `or bool(err)` 之类
+  4861	    # 的真值判断滑进 False。
+  4862	    null_vault = _mk_vault(root, "vault-push-null", _two_board_projection("vault-push-null", gen))
+  4863	    _push_state(runner, null_vault, {"schema_version": 1, "last_result": None, "last_error": ""})
+  4864	    e3 = _overview_entry(client, "vault-push-null")
+  4865	    assert e3["push_degraded"] is None, "last_result 为 null 时没有确认过成功, 不许报 False"
+  4866	    assert e3["last_error"] is None
+  4867	
+  4868	    unknown_vault = _mk_vault(root, "vault-push-unknown", _two_board_projection("vault-push-unknown", gen))
+  4869	    _push_state(runner, unknown_vault, {"schema_version": 1, "last_result": "generated_push_deferred"})
+  4870	    e4 = _overview_entry(client, "vault-push-unknown")
+  4871	    assert e4["push_degraded"] is None, "未知 last_result 值不是成功依据"
+  4872	    assert e4["last_error"] is None
+  4873	
+  4874	    # 戊 (Codex r2 MEDIUM-1): 未知结果 + 非空 / 类型不对的 last_error。
+  4875	    # ⛔ 也不许被判成失败 —— last_error 一律不参与三态判定, 它只是原因文本。
+  4876	    # `123` 这一例专钉「`bool(err)` 跑在 isinstance 门之前」那条路: 连类型都不对
+  4877	    # 的垃圾值把徽标点亮, 是假警报; 徽标天天喊狼来了就没人看了。
+  4878	    for name, payload in (
+  4879	        ("vault-push-noisy", {"schema_version": 1, "last_result": None, "last_error": "陈旧原因"}),
+  4880	        ("vault-push-junktype", {"schema_version": 1, "last_result": None, "last_error": 123}),
+  4881	    ):
+  4882	        noisy_vault = _mk_vault(root, name, _two_board_projection(name, gen))
+  4883	        _push_state(runner, noisy_vault, payload)
+  4884	        e = _overview_entry(client, name)
+  4885	        assert e["push_degraded"] is None, f"{name}: 未知结果不许被 last_error 翻成失败"
+  4886	        assert e["last_error"] is None, f"{name}: 结果都读不出, 不该顺带报告原因"
+  4887	
+  4888	    # 己 / 庚: state 读得出但**根本不是 dict**, 以及 JSON 本身就是坏的。
+  4889	    # 两者都走 _read_push_status 最外层的两道出口, 一律 (None, None) 且不许 500。
+  4890	    not_dict = _mk_vault(root, "vault-push-notdict", _two_board_projection("vault-push-notdict", gen))
+  4891	    nd_state = runner.state_path(not_dict)
+  4892	    nd_state.parent.mkdir(parents=True, exist_ok=True)
+  4893	    nd_state.write_text('["不是 dict"]\n', encoding="utf-8")
+  4894	    e5 = _overview_entry(client, "vault-push-notdict")
+  4895	    assert e5["push_degraded"] is None and e5["last_error"] is None, "state 不是 dict = 读不出, 两字段皆 None"
+  4896	
+  4897	    broken = _mk_vault(root, "vault-push-broken", _two_board_projection("vault-push-broken", gen))
+  4898	    br_state = runner.state_path(broken)
+  4899	    br_state.parent.mkdir(parents=True, exist_ok=True)
+  4900	    br_state.write_text("{这不是 JSON", encoding="utf-8")
+  4901	    br_sha = hashlib.sha256(br_state.read_bytes()).hexdigest()
+  4902	    e6 = _overview_entry(client, "vault-push-broken")
+  4903	    assert e6["push_degraded"] is None and e6["last_error"] is None, "坏 JSON = 读不出, 两字段皆 None"
+  4904	    assert hashlib.sha256(br_state.read_bytes()).hexdigest() == br_sha, "只读请求不许隔离/重建坏 state"
+  4905	
+  4906	
+  4907	def test_overview_page_degrade_badge_only_when_failed(board_done_env):
+  4908	    """(b)④ 总览页的降级徽标 —— **只**长在失败态那张卡片上。
+  4909	
+  4910	    验伪锚与被测形态在同一页里: 成功态与缺失态两张卡片必须**不含**该标签。
+  4911	    只断言「失败态页面里有徽标」的话, 一个无条件渲染的实现照样能绿, 而那样
+  4912	    的徽标零信息量 —— 每张卡都在喊降级等于没喊。
+  4913	    """
+  4914	    root, client, runner, _mod = board_done_env
+  4915	    gen = _now_local().isoformat(timespec="seconds")
+  4916	    ok = _mk_vault(root, "vault-pa-ok", _two_board_projection("vault-pa-ok", gen))
+  4917	    bad = _mk_vault(root, "vault-pb-bad", _two_board_projection("vault-pb-bad", gen))
+  4918	    none_vault = _mk_vault(root, "vault-pc-none", _two_board_projection("vault-pc-none", gen))
+  4919	    _push_state(runner, ok, {"schema_version": 1, "last_result": "pushed", "last_error": ""})
+  4920	    _push_state(runner, bad, {"schema_version": 1, "last_result": "generated_push_failed", "last_error": "bark-send"})
+  4921	    assert not runner.state_path(none_vault).exists(), "缺失态前提 = 该库没有 state 文件"
+  4922	
+  4923	    resp = client.get(_PAGE_URL)
+  4924	    assert resp.status_code == 200
+  4925	    page = resp.text
+  4926	    cards = _cards_by_vault(page, ["vault-pa-ok", "vault-pb-bad", "vault-pc-none"])
+  4927	
+  4928	    assert _PUSH_DEGRADED_LABEL in cards["vault-pb-bad"], "失败态那张卡必须亮出降级徽标"
+  4929	    assert _PUSH_DEGRADED_LABEL not in cards["vault-pa-ok"], "成功态卡片不许出徽标 (验伪锚)"
+  4930	    assert _PUSH_DEGRADED_LABEL not in cards["vault-pc-none"], "缺失态卡片不许出徽标 (验伪锚)"
+  4931	    assert page.count(_PUSH_DEGRADED_LABEL) == 1, "整页只该有一枚降级徽标"
+  4932	    assert "bark-send" in cards["vault-pb-bad"], "徽标须把 last_error 带到用户眼前"

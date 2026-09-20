@@ -751,6 +751,8 @@ def main() -> int:
             if rc != 2:
                 st["last_result"] = "generated_push_failed"
                 st["last_error"] = "bark-send"
+            else:
+                st["last_result"], st["last_error"] = "generated_push_skipped_nokey", "bark-nokey"
             # 本地兜底每日一次 (Code-Review L1 去重门); 无 key 也提醒一条
             # (Code-Review H1: key 配好前不能一切静默)
             if st.get("last_local_notify_date") != today:

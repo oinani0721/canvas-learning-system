@@ -1,0 +1,170 @@
+# P5-B facts-3 (zero-JS badge + g68) (20260919T233426)
+
+===== review_overview zero-JS badge 1643-1665 =====
+  1643	        f'padding:2px 10px;font-size:12px;white-space:nowrap">{label}</span>'
+  1644	    )
+  1645	    # CARD-G6-9b: 推送降级徽标。⛔ 条件是 `is True` 而不是真值判断 —— False
+  1646	    # (推成功) 与 None (没推过/读不出) 都**不出**徽标。一枚无条件渲染的徽标
+  1647	    # 零信息量: 每张卡都在喊降级等于没喊, 而那正是 test_overview_page_degrade_
+  1648	    # badge_only_when_failed 的验伪锚要排除的形态。
+  1649	    push_badge = ""
+  1650	    if entry.get("push_degraded") is True:
+  1651	        why = entry.get("last_error")
+  1652	        # title 里带上原因: 徽标只有四个字, 到底是 Bark 没配 key 还是网断了,
+  1653	        # 得能一眼问出来。html.escape 默认 quote=True —— 这串要进 title="…" 属性。
+  1654	        tip = f"最近一次推送失败：{why}" if isinstance(why, str) and why else "最近一次推送失败"
+  1655	        push_badge = (
+  1656	            f'<span title="{html.escape(tip)}" style="background:#dc2626;color:#fff;'
+  1657	            f"border-radius:999px;padding:2px 10px;font-size:12px;white-space:nowrap;"
+  1658	            f'cursor:help">{_PUSH_DEGRADED_LABEL}</span>'
+  1659	        )
+  1660	    # 降级时两枚徽标归进一个 flex 容器: 外层是 space-between, 直接并排会把状态
+  1661	    # 徽标甩到卡片正中间。不降级时**一个字节都不变** —— 既有页面门不受影响。
+  1662	    badges = (
+  1663	        status_badge
+  1664	        if not push_badge
+  1665	        else f'<span style="display:flex;gap:6px;align-items:center">{status_badge}{push_badge}</span>'
+
+===== g68: locators =====
+121:class ContractError(RuntimeError):
+190:            raise ContractError(
+254:                raise ContractError(f"桶 {bucket!r} 的行缺 board/node: {row!r}")
+279:        raise ContractError("picker 的 ranked 为空 —— 没有队列就谈不上让位分区, 这一条不能当绿灯")
+288:        raise ContractError(f"picker 的 ranked 出现重复板: {_dup} —— 集合相等看不出重复, 但队列本该每板恰好一次")
+290:        raise ContractError(
+301:        raise ContractError(
+350:            raise ContractError(
+355:            raise ContractError(
+381:        raise ContractError(f"_collect() 未给出 vault {vault_id!r} 的唯一条目（实得 {len(entries)} 条）")
+384:        raise ContractError(f"_collect() 把 fixture 投影判成 {entry['status']}: {entry.get('error')!r}")
+388:        raise ContractError(
+401:        raise ContractError(f"_collect() 的 generated_at 不是可取日期的字符串: {generated_at!r}")
+421:_APP_SHARED_IMPORTS = ("_BUCKET_CN", "_BUCKET_ORDER", "_DONE_NOTE", "_SNOOZE_NOTE", "_STATUS_META")
+427:_EXEMPT_STRING_NAMES = ("_PAGE_TEMPLATE",)
+445:_TEMPLATE_DUE_CALLSITES = frozenset(
+461:def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
+473:    missing = [n for n in _APP_SHARED_IMPORTS if n not in imported]
+475:        raise ContractError(
+504:    #   `_EXEMPT_STRING_NAMES` 里那些名字的字符串常量, 其余一律在射程内。
+529:            if any(isinstance(t, ast.Name) and t.id in _EXEMPT_STRING_NAMES for t in node.targets):
+533:        for n in _EXEMPT_STRING_NAMES
+542:        raise ContractError(f"页面模板常量 {missing_exempt} 不在 review_app 里了 —— AST 门的豁免边界变了, 需重判")
+550:        if isinstance(t, ast.Name) and (n := t.id) in _EXEMPT_STRING_NAMES
+580:        raise ContractError(
+605:    if template_sites != _TEMPLATE_DUE_CALLSITES:
+606:        raise ContractError(
+608:            f"新增 {sorted(template_sites - _TEMPLATE_DUE_CALLSITES)}; "
+609:            f"消失 {sorted(_TEMPLATE_DUE_CALLSITES - template_sites)} —— 需人判新的那一处是否仍是纯消费"
+613:        "imported_shared": sorted(imported & set(_APP_SHARED_IMPORTS)),
+690:        raise ContractError(f"无法为 {path} 建立 import spec")
+703:        raise ContractError("recap_exam_build.py 没有可调用的 main() —— 入口已变, 本面的登记理由需重判")
+730:        raise ContractError(f"notification.id 非生产器形态: {noti_id!r}")
+775:            raise ContractError(
+789:        raise ContractError(f"FIELD_PRODUCERS 的键与 FIELDS 不一致: {sorted(FIELD_PRODUCERS)} vs {sorted(FIELDS)}")
+795:            raise ContractError(f"字段 {field} 只剩 {len(producers)} 个声明产出方 —— 跨面契约不成立")
+812:                raise ContractError(
+817:                raise ContractError(
+821:                raise ContractError(
+937:        raise ContractError(f"--now 不是合法 ISO-8601 时刻: {raw!r}") from e
+
+===== g68: 420-455 =====
+   420	#: review_app 允许从 review_overview 引进来的共享名（:60-66 的 import 清单）。
+   421	_APP_SHARED_IMPORTS = ("_BUCKET_CN", "_BUCKET_ORDER", "_DONE_NOTE", "_SNOOZE_NOTE", "_STATUS_META")
+   422	
+   423	#: AST 门里**按身份**豁免的字符串常量（模块级赋值名）。⛔ 不是按长度豁免:
+   424	#: 长度不是语义边界（Codex r3）。`_PAGE_TEMPLATE` 是 review_app 的页面模板
+   425	#: （HTML + 那段纯消费 /overview JSON 的 JS）, 它不在「Python 侧是否自造 due 算法」
+   426	#: 的射程内。名单里的名字若不在了, 门会当场抛 —— 豁免边界变了必须有人重判。
+   427	_EXEMPT_STRING_NAMES = ("_PAGE_TEMPLATE",)
+   428	
+   429	#: review_app 里**允许**含 due 标识符的字符串常量, 按身份逐条列出。
+   430	#: ⛔ 不用「词边界」之类的启发式（Codex r4 HIGH-1）: `r"\bfsrs_due\b: …"` 这种正则源码
+   431	#: 里字段名紧邻字母 `b`, 任何边界规则都失效。改成**白名单**: 只有这几个确切的串
+   432	#: 允许含标识符, 其余含 due 标识符的字符串一律违约。新增一个就得在这里写一行 ——
+   433	#: 那是一个看得见的动作。
+   434	_ALLOWED_MARKER_STRINGS = ("__BUCKET_ORDER_JSON__",)
+   435	
+   436	#: 页面模板里**碰 due 字段的那几行**, 按身份冻结。
+   437	#:
+   438	#: ⛔ 这道门**不声称**「模板里的 JS 是纯消费方」（Codex r4 HIGH-2）: 同一个标识符
+   439	#: 既出现在合法消费（把到期时刻渲染成人话）也能出现在自造到期判定里, 区分它们靠的是
+   440	#: **语义**, 而 JS 的语义在 Python AST 门的射程之外。四轮下来每补一个语法特例就来一种
+   441	#: 新写法 —— 那是「开放式判据」, 不会收敛。
+   442	#:
+   443	#: 门改为声称一件**可判定**的事: 模板里碰 due 字段的调用点集合**没有变过**。
+   444	#: 变了就红, 由人判新的那一处还算不算纯消费。覆盖面上限如实写在验收单。
+   445	_TEMPLATE_DUE_CALLSITES = frozenset(
+   446	    {
+   447	        "const due = humanizeDue(n.fsrs_due, nowMs);",
+   448	        "const due = humanizeDue(r.fsrs_due, nowMs);",
+   449	    }
+   450	)
+   451	
+   452	#: 「自造 due 算法」的词法特征 —— 出现在 review_app 自己定义的函数体里即违约。
+   453	_DUE_ALGO_MARKERS = (
+   454	    "_BUCKET_ORDER",  # 只许 import, 不许在本文件里重新赋值
+   455	    "fsrs_due",
+
+===== g68: assert_review_app_has_no_due_algorithm 全函数 =====
+def at 461
+   461	def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
+   462	    """② review_app 的契约: **不自造 due 算法**, 桶位/归日只从 import 来。
+   463	
+   464	    用 AST 而不是 grep: 注释与字符串里出现 `fsrs_due` 不算违约（本文件的职责
+   465	    注释就提到它）, 只有**可执行代码**里出现才算。
+   466	    """
+   467	    tree = ast.parse(app_path.read_text(encoding="utf-8"))
+   468	
+   469	    imported: set[str] = set()
+   470	    for node in ast.walk(tree):
+   471	        if isinstance(node, ast.ImportFrom) and node.module == "app.api.v1.endpoints.review_overview":
+   472	            imported |= {a.name for a in node.names}
+   473	    missing = [n for n in _APP_SHARED_IMPORTS if n not in imported]
+   474	    if missing:
+   475	        raise ContractError(
+   476	            f"review_app 不再从 review_overview 引入共享桶序常量（缺 {missing}）—— "
+   477	            "「共享不复制」这条纪律已破, 静态断言的前提不成立"
+   478	        )
+   479	
+   480	    # 本文件自己**赋值**出来的名字（模块级常量 / 函数内变量 / 函数与类定义）。
+   481	    assigned: set[str] = set()
+   482	    for node in ast.walk(tree):
+   483	        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+   484	            assigned.add(node.name)
+   485	        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+   486	            assigned.add(node.id)
+   487	    offenders = sorted(m for m in _DUE_ALGO_MARKERS if m in assigned)
+   488	
+   489	    # 可执行代码里对 due 字段的读取。
+   490	    #
+   491	    # ⛔ **不再按语法形态逐个枚举**（Codex r1 HIGH-3 → r2 HIGH-3 的教训）: 前两轮
+   492	    #    先补了「属性 / 裸名」, 再补了「下标 / `.get()` 首参」, 对方立刻拿
+   493	    #    `def f(n, key="fsrs_due"): return n.get(key)` / `getattr(n, "fsrs_due")` /
+   494	    #    模块常量键 / `match` 解构走过去。**只要判据还在枚举写法, 它就永远收敛不了**
+   495	    #    —— 这是「开放式判据」的典型形状。
+   496	    #
+   497	    #    改判据的**形状**: 在 review_app 的 Python 代码里, due 字段名**作为字符串
+   498	    #    常量出现在任何位置**即违约（默认参数、模块常量、`getattr` 实参、`match`
+   499	    #    模式……一网打尽）, 外加属性/裸名两种非字符串形态。
+   500	    #
+   501	    # ⚠ 页面模板是一个巨大的字符串常量, review_app 是 /overview JSON 的纯消费方,
+   502	    #   那段 HTML/JS 不在本断言射程内。⛔ 豁免**按身份**, 不按长度（Codex r3 指出
+   503	    #   「长度不是有效语义边界」）: 只放过**模块 docstring** 与赋给
+   504	    #   `_EXEMPT_STRING_NAMES` 里那些名字的字符串常量, 其余一律在射程内。
+   505	    #
+   506	    # ⛔ 字符串判据是**包含**不是相等（Codex r3 HIGH-1）: `re.search(r"^fsrs_due: …")`
+   507	    #   这种读法里字段名只是子串, 相等判据整条走过去。
+   508	    #
+   509	    # ⛔ 还要认两处**不是 ast.Constant** 的字段名（同上）:
+   510	    #     · `match n: case SimpleNamespace(fsrs_due=v)` —— 名字在 `MatchClass.kwd_attrs`,
+   511	    #       那是一串**裸 str**, `ast.walk` 走不到;
+   512	    #     · `f(fsrs_due=…)` —— 名字在 `ast.keyword.arg`, 同样是裸 str。
+   513	    #
+   514	    # ⚠ **原理上限, 如实声明**: 运行期拼出来的字段名（`"fsrs_" + "due"`）任何静态
+   515	    #   判据都拦不住。本门拦的是「照常写出来」的读法, 不是刻意的混淆。
+   516	    exempt_nodes: set[int] = set()
+   517	    docstring = ast.get_docstring(tree, clean=False)
+   518	    # ⛔ **所有** docstring 都豁免, 不只是模块级（Codex r4 LOW-9）: 一个普通函数的
+   519	    #    说明文字里写「显示投影里的 fsrs_due 字段, 不计算到期」会被误红 ——
+   520	    #    那是在描述它**不做**什么, 不是在做。
+   521	    for holder in ast.walk(tree):

@@ -1,0 +1,8 @@
+
+[Spec Ref] OK.
+
+                                      
+  ────────────────────────────────────
+summary: (done in 0.39 seconds)       
+✔️ spec-reference (0.02 seconds)
+🥊 commitlint (0.37 seconds)

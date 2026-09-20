@@ -1,0 +1,190 @@
+# P5-B 精确行号实测 vs 卡文 (measured at HEAD=6d8ca202) (20260919T233321)
+
+===== runner: 735-775 (nl) =====
+   735	        push = "skip-window"  # RunAtLoad 早触发 / 21:00 后唤醒: 只落盘
+   736	    else:
+   737	        # vault_id 取 payload 顶层 (C1a 加性字段); 当日缓存若是迁移前生成的
+   738	        # 旧 payload (无该字段), 回退当前 vault 目录名 — 两者必然同库
+   739	        rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
+   740	        if rc == 0:
+   741	            st["last_push_accepted_date"] = today
+   742	            # CARD-D2b: 语义账只在 accepted 时落 — 失败保持原 kind, 反转门
+   743	            # 敞开, 次小时 launchd 触发自然幂等重试。缺 top_boards 键的
+   744	            # legacy 缓存 payload 语义未知 → 保守记 due (关反转门, Codex M2)
+   745	            st["last_push_kind"] = "due" if payload.get("top_boards", True) else "rest"
+   746	            st["last_result"], st["last_error"] = "pushed", ""
+   747	            save_state(st)
+   748	            push = "accepted"
+   749	        else:
+   750	            push = "skip-nokey" if rc == 2 else "failed"
+   751	            if rc != 2:
+   752	                st["last_result"] = "generated_push_failed"
+   753	                st["last_error"] = "bark-send"
+   754	            # 本地兜底每日一次 (Code-Review L1 去重门); 无 key 也提醒一条
+   755	            # (Code-Review H1: key 配好前不能一切静默)
+   756	            if st.get("last_local_notify_date") != today:
+   757	                local_noti = (
+   758	                    noti
+   759	                    if rc != 2
+   760	                    else {
+   761	                        "title": "📚 今日复习已生成",
+   762	                        "body": noti["body"] + "（Bark 未配置，仅本地提醒）",
+   763	                    }
+   764	                )
+   765	                fallback = "ok" if osascript_fallback(local_noti) else "fail"
+   766	                if fallback == "ok":
+   767	                    st["last_local_notify_date"] = today
+   768	            save_state(st)
+   769	
+   770	    log_line(f"generate:{gen} push:{push} fallback:{fallback}")
+   771	    print(f"[runner] generate:{gen} push:{push} fallback:{fallback}")
+   772	    return 0
+   773	
+   774	
+   775	if __name__ == "__main__":
+
+===== review_overview: locate functions =====
+802:_PUSH_DEGRADED_LABEL = "推送降级"
+1087:        entry["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+1100:        entry["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+1131:            detail={"error": "vaults_root_invalid", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+1176:                    "error": f"{type(e).__name__}: {str(e)[:200]}",
+1649:    push_badge = ""
+1650:    if entry.get("push_degraded") is True:
+1655:        push_badge = (
+1658:            f'cursor:help">{_PUSH_DEGRADED_LABEL}</span>'
+2047:            detail={"error": "path_resolve_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+2098:            "error": f"{type(e).__name__}: {str(e)[:200]}",
+2190:                detail={"error": "pick_spawn_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+2301:            detail={"error": "path_resolve_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+2319:                detail={"error": "path_resolve_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+2351:            detail={"error": "vaults_root_scan_failed", "message": f"{type(e).__name__}: {str(e)[:200]}"},
+2548:def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
+2616:def _push_status(vault_dir: Path, vaults_root: Path) -> tuple[bool | None, str | None]:
+2773:                "message": f"完成账落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+2870:                "message": f"撤销落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+2912:                "message": f"推迟落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+2947:                "message": f"取消推迟落盘被拒绝 ({type(e).__name__}: {str(e)[:200]}) —— 未写出任何内容",
+
+===== review_overview: 1015-1065 (schema region) =====
+  1022	    """
+  1023	    return sorted(
+  1024	        (
+  1025	            {
+  1026	                "node": node,
+  1027	                "due_reason": meta["reason"],
+  1028	                "fsrs_due": meta["fsrs_due"],
+  1029	                "bucket": meta["bucket"],
+  1030	                "why_due": meta["why_due"],
+  1031	            }
+  1032	            for node, meta in rows.items()
+  1033	
+  1034	    CARD-G6-7 加性 board_done: 今天被标「做完了」的板名列表。它**不进
+  1035	    projection** —— 投影是 A2 唯一裁判的产物, 完成状态是本机用户偏好,
+  1036	    混进去会让"投影字段"这个词失去意义。四态一律带该键 (空列表 = 没有
+  1037	    完成记录), 消费方不做存在性分支。
+  1038	
+  1039	    CARD-G6-6 加性 snoozed: {board: until_iso}, 与 board_done 同一条纪律
+  1040	    (不进 projection、四态一律带该键)。**只投影仍在生效的**那些 —— 到期的
+  1041	    条目虽然还留在 state 里, 但它对页面和榜单都已经不存在了。
+  1042	
+  1043	    CARD-G6-9b 加性 push_degraded / last_error: 最近一次推送的结果 (源 =
+
+===== review_overview: _read_push_status 全函数 =====
+def at line 2548
+  2548	def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
+  2549	    """state 的推送结果只读投影 —— **不隔离、不重建、不写盘** (CARD-G6-9b)。
+  2550	
+  2551	    与 _read_board_done / _read_snoozed 逐条同纪律 (见那里)。本函数的全部意义
+  2552	    在于**三态可区分**:
+  2553	      True  = 最近一次跑推失败了 (runner 写 last_result="generated_push_failed"
+  2554	              + last_error="bark-send", scripts/daily_review_run.py:745/:746);
+  2555	      False = 最近一次推成功了 (同文件 :739 写 "pushed") —— **只认这一个枚举**;
+  2556	      None  = 没有 state 文件 / 读不出 / 形状不对 / 从来没推过 (无 last_result 键)
+  2557	              / last_result 是个既非成功也非已知失败的值 (未知不等于成功)。
+  2558	
+  2559	    ⛔ None 不得用 False 冒充 —— False 说的是"推过, 好着呢"。把"今天根本没跑过"
+  2560	    显示成那样, 正是本卡要消灭的那种「看起来一切正常」: 用户手机上什么都没收到,
+  2561	    页面上却一片绿。
+  2562	
+  2563	    ⚠ last_error 是从外部文件读出的 str, 会原样进响应 JSON 与页面 —— JSON 的
+  2564	    `\\ud800` 转义解出的**孤立 surrogate** 是合格的 str, 过得了 isinstance 的门,
+  2565	    却在响应做 UTF-8 序列化时才抛 UnicodeEncodeError; 那一刻已经出了 _collect 的
+  2566	    单库兜底, 于是**整个**总览变 500 (与 _read_snoozed 同款陷阱)。故编不出 UTF-8
+  2567	    的原因文本丢弃成 None —— 但 degraded 这个信号本身留住: **读不出原因不等于
+  2568	    没出事**。
+  2569	    """
+  2570	    try:
+  2571	        st = json.loads(state_file.read_text(encoding="utf-8"))
+  2572	    except (OSError, ValueError):
+  2573	        return (None, None)
+  2574	    if not isinstance(st, dict) or "last_result" not in st:
+  2575	        # 键不在 = 这个库从来没跑过推送 (旧 state / 刚建的库), 与"没有文件"
+  2576	        # 同等对待 —— 两者在用户那里是同一件事: 今天的推送根本没发生。
+  2577	        return (None, None)
+  2578	    err = st.get("last_error")
+  2579	    # 三态**只**由 last_result 的两个明确枚举决定, last_error 一律不参与判定
+  2580	    # —— 它只是给用户看的原因文本 (Codex r1 MEDIUM-1 / r2 MEDIUM-1 两轮同一处):
+  2581	    #   · 拿「它不是失败」反推「它是成功」⇒ `{"last_result": null}` 被报成推成功,
+  2582	    #     可我们一次都没确认过它推过 —— 与开头那条「None 不得用 False 冒充」
+  2583	    #     是同一个缺陷换了个输入面;
+  2584	    #   · 拿「last_error 非空」反推「它失败了」⇒ `{"pushed", "陈旧原因"}` 给好好的
+  2585	    #     库挂假警报; 而且 `bool(err)` 跑在下面的 isinstance 门**之前**, 连
+  2586	    #     `{"last_result": null, "last_error": 123}` 这种连类型都不对的垃圾值
+  2587	    #     都能把徽标点亮。徽标天天喊狼来了就没人看了。
+  2588	    # 曾经这里留过一条「未知值但记了错误 ⇒ True」的余量, 想给将来 runner 新增
+  2589	    # 失败枚举打提前量。撤掉了: 当前 runner 只写那两个值 (daily_review_run.py
+  2590	    # :739/:745), 那条分支在今天的生产数据上永远走不到 = 一条没有门守着的
+  2591	    # 防御代码, 而未测的防御代码比没有更坏。真新增枚举时在这里加一行即可。
+  2592	    last_result = st.get("last_result")
+  2593	    if last_result == "pushed":
+  2594	        degraded = False
+  2595	    elif last_result == "generated_push_failed":
+  2596	        degraded = True
+  2597	    else:
+  2598	        # 未知 / null / 其它值: 说不准。一律 None, 绝不报成功也绝不报失败。
+  2599	        # 连带 last_error 也归 None —— 既然结果读不出, 就没资格顺带断言
+  2600	        # "而且没有错误"(`""` 正是这个断言)。与「无 last_result 键」那条出口
+  2601	        # 同一个形状: 说不准就什么都不说。
+  2602	        return (None, None)
+  2603	    if not isinstance(err, str):
+  2604	        return (degraded, None)
+  2605	    try:
+  2606	        err.encode("utf-8")
+  2607	    except UnicodeEncodeError:
+  2608	        # 与本模块其余读路径同纪律: 读不出的部分丢弃, 不把只读请求打成 500。
+  2609	        # ⚠ 不把那个坏串塞进日志 —— 它正是编不出 UTF-8 的那个东西, structlog
+  2610	        # 的序列化会在同一处再炸一次 (_read_snoozed 同款处置)。
+  2611	        logger.warning("review_overview 推送原因含不可编码字符, 已丢弃该文本", state_file=state_file.name)
+  2612	        return (degraded, None)
+  2613	    return (degraded, err)
+  2614	
+  2615	
+  2616	def _push_status(vault_dir: Path, vaults_root: Path) -> tuple[bool | None, str | None]:
+  2617	    """该库最近一次推送的结果 (读路径, 任何不可用 → (None, None))。
+  2618	
+  2619	    取 runner 与派生 state 路径的形态照抄 _board_done_today —— 推送账与完成账
+  2620	    读的是**同一个 state 文件**, 两处各写一套取法早晚会漂移出"页面说推挂了、
+  2621	    完成区却好好的"这种自相矛盾。
+  2622	    """
+  2623	    runner = _runner_or_none(vaults_root)
+  2624	    if runner is None:
+  2625	        return (None, None)
+  2626	    try:
+  2627	        state_file = runner.state_path(vault_dir)
+  2628	    except Exception:  # noqa: BLE001 — 派生失败按"没有推送记录", 不拖垮总览
+  2629	        logger.warning("review_overview 无法派生 state 路径 (推送状态)", vault=vault_dir.name)
+  2630	        return (None, None)
+  2631	    return _read_push_status(state_file)
+  2632	
+  2633	
+  2634	#: 「今晚」这一档的小时阈值 (显示时区本地时)。⚠ CARD-G6-6: 这是**任务书默认
+  2635	#: 值**, 未经用户显式裁定 —— 改产品语义只动这一个常量, 但那是用户的决定。
+  2636	_SNOOZE_TONIGHT_HOUR = 20
+  2637	
+  2638	#: 推迟的两档 (D-8 甲: 板级 + 两档)。⛔ 只有这两档 —— 自定义天数 / 自由时间
+  2639	#: 一律 422, 页面上也没有输入框。收窄的理由: 一个"推迟多久"的输入框会让
+  2640	#: snooze 变成第二套排期系统, 而排期归 FSRS。
+  2641	_SNOOZE_CHOICES = ("tonight", "tomorrow")
+  2642	
+  2643	

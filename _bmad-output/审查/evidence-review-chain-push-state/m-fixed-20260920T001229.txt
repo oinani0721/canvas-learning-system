@@ -1,0 +1,21 @@
+# (m) 修正口径实测 (20260920T001229)
+
+== A. 本卡新增行里 fsrs_bridge/decay_beta 命中 (期望 0) ==
+0
+
+== B. 逐文件 base(=PREV) vs head(=HEAD) 命中数 (期望逐行相同) ==
+scripts/daily_review_run.py base=0 head=0 OK
+backend/app/api/v1/endpoints/review_overview.py base=8 head=8 OK
+backend/app/api/v1/endpoints/review_app.py base=0 head=0 OK
+backend/scripts/g68_five_view_contract.py base=1 head=1 OK
+backend/tests/regression/test_daily_review_run.py base=2 head=2 OK
+backend/tests/regression/test_g68_five_view_contract.py base=0 head=0 OK
+backend/tests/regression/test_g6_9_boundary_matrix.py base=1 head=1 OK
+backend/tests/unit/test_review_overview.py base=14 head=14 OK
+backend/tests/unit/test_review_app.py base=0 head=0 OK
+
+== C. 本卡新增行里 7691/7687 命中 (期望 0) ==
+0
+
+== D. 现有 7691 命中定位 (如实登记) ==
+24:起 lifespan 会连 7691 (第七批 F-3)。

@@ -61,6 +61,7 @@ from app.api.v1.endpoints.review_overview import (
     _BUCKET_CN,
     _BUCKET_ORDER,
     _DONE_NOTE,
+    _PUSH_DEGRADED_LABEL,  # CARD-REVIEW-CHAIN-PUSH-STATE: 降级徽标文案同纪律 (共享不复制)
     _SNOOZE_NOTE,  # CARD-G6-6: 与 _DONE_NOTE 同纪律 (共享不复制)
     _STATUS_META,
 )
@@ -189,6 +190,8 @@ const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
 const DONE_NOTE = __DONE_NOTE_JSON__;
 // CARD-G6-6: 同上 —— 推迟那句话也只有一处出处 (review_overview._SNOOZE_NOTE)
 const SNOOZE_NOTE = __SNOOZE_NOTE_JSON__;
+// CARD-REVIEW-CHAIN-PUSH-STATE: 推送降级徽标文案同纪律 (review_overview._PUSH_DEGRADED_LABEL)
+const PUSH_DEGRADED_LABEL = __PUSH_DEGRADED_LABEL_JSON__;
 const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)
 const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
 const RETRY_DELAY_MS = 10000;  // unavailable 态的固定重试间隔 (在 clamp 区间内)
@@ -535,10 +538,17 @@ function renderVaultCard(entry, nowMs, noteHtml, isInflight, doneBusy, tonightAv
   } else {
     body = '<div class="corrupt-err">投影文件无法解析<br><code>' + esc(String(entry.error || "")) + "</code></div>";
   }
+  // CARD-REVIEW-CHAIN-PUSH-STATE: 推送降级徽标 —— 与零 JS 页同款: 严格 === true,
+  // False (推成功) 与 None (没推过/读不出) 都不出; title 带原因 (同零 JS 页文案)
+  const pushWhy = String(entry.last_error || "");
+  const pushBadge = entry.push_degraded === true
+    ? '<span class="badge" style="background:#dc2626" title="' +
+      esc(pushWhy ? "最近一次推送失败：" + pushWhy : "最近一次推送失败") + '">' + esc(PUSH_DEGRADED_LABEL) + "</span>"
+    : "";
   // noteHtml 是 renderRefreshResult 的成品 HTML (内部已 esc), 由调用方从
   // 持久状态传入 — 重绘后反馈得以恢复 (Codex round-1 HIGH-1)
   return '<div class="card"><div class="card-head"><b>' + esc(vid) + "</b>" +
-    '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span></div>" + body +
+    '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span>" + pushBadge + "</div>" + body +
     '<div class="actions"><button class="btn"' + (isInflight ? " disabled" : "") +
     ' data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
     '<span class="rnote" data-note-for="' + esc(vid) + '">' + (noteHtml || "") + "</span></div></div>";
@@ -1029,5 +1039,6 @@ async def review_overview_app(request: Request) -> HTMLResponse:
         .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
         .replace("__DONE_NOTE_JSON__", _js_json(_DONE_NOTE))
         .replace("__SNOOZE_NOTE_JSON__", _js_json(_SNOOZE_NOTE))
+        .replace("__PUSH_DEGRADED_LABEL_JSON__", _js_json(_PUSH_DEGRADED_LABEL))
     )
     return HTMLResponse(content=page)

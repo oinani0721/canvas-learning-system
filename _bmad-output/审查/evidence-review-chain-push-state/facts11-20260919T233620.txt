@@ -1,0 +1,219 @@
+# P5-B facts-11 (test_review_app) (20260919T233620)
+
+===== test_review_app: 280-330 =====
+   280	def test_no_second_due_pipeline_in_python_module():
+   281	    """字符串黑名单快门 (便宜的一层) + AST 结构门 (下一道, 不可被措辞绕过)。"""
+   282	    src = (_ENDPOINTS_DIR / "review_app.py").read_text(encoding="utf-8")
+   283	    for banned in ("subprocess", "read_text(", "_collect(", "_summarize("):
+   284	        assert banned not in src, f"review_app.py 出现了它不该有的 {banned!r}"
+   285	
+   286	
+   287	#: ── AST 结构门的白名单 (round-1 HIGH-4 / round-2 HIGH-4 / round-4 HIGH-4b) ──
+   288	#: 三张白名单是**正向合约**: 任何新调用形态都必须先有意识地改这里, 代码评审
+   289	#: 必然看见。CARD-G6-2b 把它们从测试函数体提到模块级 —— 检查器要被探针矩阵
+   290	#: (test_ast_gate_rejects_shadowing_forms) 复用, 白名单值逐字不变、不放宽。
+   291	_ALLOWED_IMPORTS = {
+   292	    "__future__.annotations",
+   293	    "json",
+   294	    "fastapi.APIRouter",
+   295	    "fastapi.Request",
+   296	    "fastapi.responses.HTMLResponse",
+   297	    "app.api.v1.endpoints.review_overview._BUCKET_CN",
+   298	    "app.api.v1.endpoints.review_overview._BUCKET_ORDER",
+   299	    "app.api.v1.endpoints.review_overview._STATUS_META",
+   300	    # CARD-G6-7: 「不影响 FSRS」文案与徽标文案同纪律 —— 共享不复制
+   301	    "app.api.v1.endpoints.review_overview._DONE_NOTE",
+   302	    # CARD-G6-6: 推迟那句诚实说明同上 (登记一项 = 正向合约, 不是放宽)
+   303	    "app.api.v1.endpoints.review_overview._SNOOZE_NOTE",
+   304	}
+   305	_ALLOWED_CALL_NAMES = {"APIRouter", "list", "_js_json", "HTMLResponse"}
+   306	_ALLOWED_CALL_ATTRS = {"get", "replace", "url_for", "dumps", "items"}
+   307	#: Attribute 调用允许的接收者 (unparse 基名) — 只查尾部方法名不够,
+   308	#: 任意对象都能挂同名方法 (round-3 HIGH-4b 实证绕过面)
+   309	_ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
+   310	#: 任何形态的重绑定/遮蔽都禁的名字 = 调用名 ∪ 接收者 ∪ 模块级单例
+   311	#: (round-4 HIGH-4b: 接收者名可被 `json = evil` 重绑定, 白名单就失效了)
+   312	_BANNED_REBINDS = (
+   313	    _ALLOWED_CALL_NAMES
+   314	    | _ALLOWED_RECEIVERS
+   315	    | {
+   316	        "_BUCKET_CN",
+   317	        "_BUCKET_ORDER",
+   318	        "_DONE_NOTE",  # CARD-G6-7: 重绑它 = 页面上那句 FSRS 声明可以被换掉
+   319	        "_SNOOZE_NOTE",  # CARD-G6-6: 同上 —— 推迟那句「不影响 FSRS」也不许被换掉
+   320	        "review_overview_router",
+   321	        # `Request` 本身不是调用名也不是接收者, 却是 request 形参豁免**所依赖的**名字:
+   322	        # 豁免判据只比对注解的拼写, 所以 `Request = str` 之后 `def f(request: Request)`
+   323	        # 照样豁免, 而 FastAPI 会把它当成普通查询参数 —— 拿到字符串, `.url_for` 不存在
+   324	        # (Codex round-1 HIGH-4, 已实测复现)。名字拼写不等于类型身份; 把这个名字锁死,
+   325	        # 拼写才重新代表得了那个类。
+   326	        "Request",
+   327	    }
+   328	)
+   329	#: 本模块**自有**的模块级定义名 —— 它们占着受保护名, 但那是这些名字的
+   330	#: **定义点**而不是遮蔽。反过来说: 受保护名里**只有这三个**允许在模块级被
+
+===== test_review_app: 860-960 =====
+   860	  );
+   861	  return {api, els, handlers, timers, calls, document: documentStub};
+   862	}
+   863	"""
+   864	
+   865	
+   866	def _group(pattern: str, text: str, flags: int = 0) -> str:
+   867	    """re.search().group(1) 的非 None 断言版 — pyright 严格模式友好。"""
+   868	    m = re.search(pattern, text, flags)
+   869	    assert m is not None, f"模式未命中: {pattern!r}"
+   870	    return m.group(1)
+   871	
+   872	
+   873	def _extract_script(html: str) -> str:
+   874	    """从实际响应体取出**整个** <script> 原文 — 且必须与浏览器 tokenizer 同源。
+   875	
+   876	    HTML 解析对 script 结束符**大小写不敏感**、正文里出现注释开合也会改变
+   877	    解析状态 (round-2 HIGH-3 实证: `// </SCRIPT>` 后的"好代码"能骗过大小写
+   878	    敏感的正则, 但浏览器根本不会执行它)。所以除定位外, 还要拒绝一切会让
+   879	    「正则提取的字节」与「浏览器执行的字节」分叉的序列。
+   880	    """
+   881	    # 开标签: 大小写不敏感地只允许一个, 且必须恰是字面 <script> (无属性)
+   882	    openings = re.findall(r"<script\b[^>]*>", html, flags=re.I)
+   883	    assert openings == ["<script>"], f"script 开标签形态变了: {openings!r}"
+   884	    _prefix, sep, rest = html.partition("<script>")
+   885	    assert sep, "script 开标签未命中"
+   886	    # 结束符**总数**恰为 1 (大小写不敏感) — 正文任何位置多出结束符 (哪怕在
+   887	    # JS 注释里), 浏览器都会在那里提前终止脚本; maxsplit 截断式提取会把它
+   888	    # 当切割点吞掉, 那道门就是死的 (round-3 自查), 数段数才漏不掉。
+   889	    # round-3 HIGH-3: 浏览器结束标签语言还接受 solidus 分隔 (`</script/`) 与
+   890	    # 携带属性 (`</script x=y>`) — `</script\s*>` 数不到这些形态。
+   891	    # round-4 HIGH-3 补口: 前缀后紧跟 ASCII 字母 (`</scriptx`) 不是结束标签,
+   892	    # 浏览器不在此闭合 — 计数与切割都带 lookahead 对齐 tokenizer, 否则合法
+   893	    # 页面会被假截断, 截断后的字节与浏览器执行的字节分叉
+   894	    hits = re.findall(r"</script(?=[\t\n\f\r />])", rest, flags=re.I)
+   895	    assert len(hits) == 1, f"script 结束标签出现 {len(hits)} 次 (应恰 1) — 浏览器会在正文处提前终止"
+   896	    src = re.split(r"</script(?=[\t\n\f\r />])", rest, maxsplit=1, flags=re.I)[0]
+   897	    # 正文分叉面: HTML 注释开合改变 tokenizer 状态 (script data escaped)
+   898	    assert "<!--" not in src and "-->" not in src, "script 正文含 HTML 注释开合 — tokenizer 状态分叉面"
+   899	    assert "__URLS_JSON__" not in src, "占位符没被替换 — 页面发出去的是模板本身"
+   900	    return src
+   901	
+   902	
+   903	@pytest.fixture
+   904	def node_harness(tmp_path, page_html):
+   905	    """真实脚本 + 沙箱 boot 器写入 tmp; node 不可用时 fail-closed (不 skip)。"""
+   906	    if not _NODE:
+   907	        pytest.fail(
+   908	            "node 不可用 — 本文件 10+ 道 JS 门禁止静默 skip 假绿 (Codex round-1 "
+   909	            "HIGH-2 fail-closed); 本环境必须装 node, 或实现卡文默认裁决④的 "
+   910	            "Python 解析 fallback 后再改本门"
+   911	        )
+   912	    (tmp_path / "page-script.js").write_text(_extract_script(page_html), encoding="utf-8")
+   913	    (tmp_path / "boot.mjs").write_text(_BOOT_MJS, encoding="utf-8")
+   914	    return tmp_path
+   915	
+   916	
+   917	def _run_node(tmp_path: Path, test_src: str) -> subprocess.CompletedProcess:
+   918	    (tmp_path / "case.test.mjs").write_text(test_src, encoding="utf-8")
+   919	    return subprocess.run(
+   920	        [_NODE, "--test", "case.test.mjs"],
+   921	        cwd=tmp_path,
+   922	        capture_output=True,
+   923	        text=True,
+   924	        timeout=120,
+   925	    )
+   926	
+   927	
+   928	def _assert_node_green(proc: subprocess.CompletedProcess):
+   929	    assert proc.returncode == 0, f"node --test 失败:\n{proc.stdout}\n{proc.stderr}"
+   930	    # skipped 必须为 0 — 门不许被 conditional skip 悄悄掏空 (HIGH-2 配套);
+   931	    # 零计数 (`# skipped 0` / `skipped 0`) 放行, 非零即红
+   932	    assert not re.search(r"\bskipped?\s*[:=]?\s*[1-9]", proc.stdout), f"出现非零 skip:\n{proc.stdout}"
+   933	    # 计数必须对上 (CARD-CX-G6-2b-R1, Codex round-1 MEDIUM-3): 退出码 0 + 无 skip
+   934	    # **不足以**证明门跑过了 —— 一个 test 都没收集到时 `node --test` 同样 rc=0、
+   935	    # 同样零 skip, 于是「JS 门全绿」可以由一个空跑平凡满足。本卡实测撞到过:
+   936	    # case 文件里一处括号写错 → 模块根本没加载 → tests 1 / fail 1, 若只看 rc 与 skip
+   937	    # 会读成"环境有问题"而不是"门没跑"。
+   938	    # 不写死具体条数 (各门用例数不同), 只锁住三条通用不变量。
+   939	    counts = {
+   940	        k: int(m.group(1))
+   941	        for k in ("tests", "pass", "fail")
+   942	        if (m := re.search(rf"^[ℹ#]\s*{k}\s+(\d+)\s*$", proc.stdout, flags=re.M))
+   943	    }
+   944	    assert len(counts) == 3, f"取不到 node --test 的计数摘要 (tests/pass/fail):\n{proc.stdout}"
+   945	    assert counts["tests"] > 0, f"零条 test 被收集 — 门是空跑, 不是绿:\n{proc.stdout}"
+   946	    assert counts["fail"] == 0, f"fail 非零:\n{proc.stdout}"
+   947	    assert counts["pass"] == counts["tests"], (
+   948	        f"pass({counts['pass']}) != tests({counts['tests']}) — 有用例既没过也没记failed:\n{proc.stdout}"
+   949	    )
+   950	
+   951	
+   952	#: 测试公共 fixture JSON: 覆盖四态 + 休息日 + W6 三字段 (固定时钟, 不读真实时间)
+   953	_FIX_JS = r"""
+   954	const NOW = 1788000000000;
+   955	const OK_VAULT = {
+   956	  vault_id: "cs_61b", status: "ok", error: null,
+   957	  projection: {
+   958	    due_count: 3, due_new_count: 1, placeholder_backlog: 2,
+   959	    generated_at: "2026-08-29T09:05:00+08:00",
+   960	    bucket_counts: {new: 1, learning_queue: 1, due_now: 1, due_today: 0, future: 4},
+
+===== test_review_app: locators =====
+23:真实 HTTP 响应 + 真 node 进程, 无 mock。TestClient 一律裸构造 (不带 with):
+35:from fastapi.testclient import TestClient
+65:    """裸 TestClient — 不带 with, 不起 lifespan。
+73:    c = TestClient(app, base_url="http://127.0.0.1:8011")
+92:def test_app_page_returns_html_200(page_html):
+97:def test_zero_external_urls(page_html):
+102:def test_no_external_resource_tags(page_html):
+124:def test_only_obsidian_scheme_and_relative_paths(page_html):
+130:def test_api_paths_injected_from_url_for_not_hardcoded(client, page_html):
+158:def test_api_paths_follow_mount_prefix_not_hardcoded():
+173:    c = TestClient(alt, base_url="http://127.0.0.1:8011")
+190:def test_js_fetches_only_the_two_same_origin_endpoints(page_html):
+209:def test_auto_poll_never_posts_only_manual_button_does(page_html):
+251:def test_readonly_page_still_works_both_coexist(client):
+259:def test_zero_js_page_source_untouched():
+268:def test_status_meta_and_buckets_shared_not_copied(page_html):
+280:def test_no_second_due_pipeline_in_python_module():
+291:_ALLOWED_IMPORTS = {
+309:_ALLOWED_RECEIVERS = {"json", "request", "review_app_router", "_STATUS_META", "_PAGE_TEMPLATE"}
+312:_BANNED_REBINDS = (
+314:    | _ALLOWED_RECEIVERS
+393:    banned = collected - _ALLOWED_IMPORTS
+397:        if name in _BANNED_REBINDS:
+430:                if root in _BANNED_REBINDS:
+454:            if isinstance(node.value, ast.Name) and node.value.id in _BANNED_REBINDS:
+529:                    assert dec_recv in _ALLOWED_RECEIVERS, (
+583:                    # _BANNED_REBINDS, 见那里的注释。
+597:                assert recv_base in _ALLOWED_RECEIVERS or isinstance(f.value, ast.Call), (
+614:def test_review_app_module_imports_are_closed():
+698:    # `.url_for` 不存在)。把这个名字锁进 _BANNED_REBINDS, 拼写才重新代表得了那个类。
+744:def test_ast_gate_rejects_shadowing_forms(label):
+755:def test_ast_gate_does_not_reject_legitimate_shapes(label):
+763:def test_ast_gate_probe_harness_is_not_vacuous():
+899:    assert "__URLS_JSON__" not in src, "占位符没被替换 — 页面发出去的是模板本身"
+997:def test_js_renders_four_states_and_unknown_state_defense(node_harness):
+1038:def test_js_rest_day_empty_state_matches_pick_copy(node_harness):
+1070:def test_js_unavailable_banner_never_blank_screen(node_harness):
+1116:def test_js_w6_additive_fields_present_and_absent(node_harness):
+1161:def test_js_poll_interval_clamped_and_visibility_pauses(node_harness):
+1230:def test_js_new_due_card_appears_after_next_due_passes(node_harness):
+1278:def test_js_refresh_result_visible_and_never_fakes_success(node_harness):
+1339:def test_js_refresh_wiring_note_survives_rerender_and_inflight_guard(node_harness):
+1442:def test_js_shows_authoritative_due_count_never_recomputes(node_harness):
+1479:def test_js_escapes_hostile_names_and_encodes_deep_links(node_harness):
+1514:def test_js_humanize_due_matches_server_side_wording(node_harness):
+1565:def test_script_extraction_rejects_case_insensitive_terminator():
+1572:    base = _PAGE_TEMPLATE.replace("__URLS_JSON__", "{}").replace("__STATUS_META_JSON__", "{}")
+1573:    base = base.replace("__BUCKET_CN_JSON__", "{}").replace("__BUCKET_ORDER_JSON__", "[]")
+1587:def test_real_page_extracted_script_is_well_formed(page_html):
+1597:def test_js_poll_out_of_order_discards_stale_response(node_harness):
+1633:def test_js_rebuilt_sync_flow_never_claims_prematurely(node_harness):
+1727:def test_js_post_repaint_frame_keeps_lost_sync_note(node_harness):
+1804:def test_js_malformed_200_keeps_last_data(node_harness):
+1838:def test_js_proto_vault_id_and_inflight_disabled_render(node_harness):
+1880:def test_js_restday_next_due_uses_display_tz_date(node_harness):
+1925:def test_js_settle_binds_to_rendered_vault_evidence(node_harness):
+1992:def test_js_stale_get_cannot_settle_rebuild(node_harness):
+2051:def test_js_causal_anchor_survives_same_millisecond(node_harness):
+2107:def test_js_hidden_rebuilt_defers_get_and_own_key_status_meta(node_harness):
+2172:def test_js_poll_contract_wiring_g63(node_harness):

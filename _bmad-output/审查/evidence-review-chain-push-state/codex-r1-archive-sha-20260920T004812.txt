@@ -1,0 +1,20 @@
+# codex r1 存档哈希自证 (20260920T004812)
+pre-header sha256 = 5ec8da7362146e82b7ac00fb421b9698a434bc6425b9036e45bf6115fd8e3a85
+含首部全文 sha256 = 45d620b86a7337725bf47eba21e0b9fbd449faca12a57d8fb4e2790aad326cfd
+首部 blockquote sha256 = 9108692806aa6a9c8953fef9c611e69ddb11e102f79af7be584aed10a7341ec5
+
+== prompt sha256 ==
+def048900b242aa33e9037620a143d00a820aef604e9fd723291bd6d083d7938  _bmad-output/审查/prompts/codex-prompt-CARD-REVIEW-CHAIN-PUSH-STATE-r1.md
+
+== 自检汇总行 ==
+96:BLOCKER=0 HIGH=0 MEDIUM=2 LOW=4
+
+== first 8 lines ==
+> 批次: BATCH-2026-09-18-第十五批 · 车道 P5 · 卡 CARD-REVIEW-CHAIN-PUSH-STATE round-1
+> 模型: `glm-5.3` · reasoning_effort: `max` · codex: `codex-cli 0.153.3`
+> 命令: `codex exec --profile zai --sandbox read-only -m glm-5.3 -c model_reasoning_effort="max" "$(cat _bmad-ou
+> 审查绑定: `626d5416`（送审时 HEAD=`626d5416`；代码面自 626d5416 后零改动，判据见 evidence-review-chain-push-state/ 绑定存档）
+> 会话头自证（抄 .stderr 含 codex 版本行 + `model:` 行 + `reasoning effort` 行三行，括注行号；stderr 本身不入库）:
+> `L2: OpenAI Codex v0.153.3` / `L5: model: glm-5.3` / `L9: reasoning effort: max`
+---
+

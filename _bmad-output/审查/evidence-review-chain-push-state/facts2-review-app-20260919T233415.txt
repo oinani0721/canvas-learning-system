@@ -1,0 +1,141 @@
+# P5-B facts-2 (review_app/g68/boundary) at HEAD=6d8ca202 (20260919T233415)
+
+===== review_app: grep key symbols =====
+24:- 四态徽标字面从 review_overview._STATUS_META **import 后注入** JS (共享
+53:from __future__ import annotations
+55:import json
+57:from fastapi import APIRouter, Request
+58:from fastapi.responses import HTMLResponse
+60:from app.api.v1.endpoints.review_overview import (
+65:    _STATUS_META,
+75:    防御深度: 万一未来有人把含 "</script>" 的字面量塞进 _STATUS_META,
+78:    return json.dumps(value, ensure_ascii=False).replace("<", "\\u003c")
+82:# 占位符 __URLS_JSON__ / __STATUS_META_JSON__ / __BUCKET_CN_JSON__ /
+83:# __BUCKET_ORDER_JSON__ 由端点函数按请求注入。
+84:_PAGE_TEMPLATE = r"""<!DOCTYPE html>
+183:const URLS = __URLS_JSON__;
+184:const STATUS_META = __STATUS_META_JSON__;
+185:const BUCKET_CN = __BUCKET_CN_JSON__;
+186:const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
+189:const DONE_NOTE = __DONE_NOTE_JSON__;
+191:const SNOOZE_NOTE = __SNOOZE_NOTE_JSON__;
+200:  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+251:  const esc = s => String(s).replace(/%/g, "%25").replace(/\|/g, "%7C").replace(/\u0000/g, "%00");
+1026:        _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))
+1027:        .replace("__STATUS_META_JSON__", _js_json({k: list(v) for k, v in _STATUS_META.items()}))
+1028:        .replace("__BUCKET_CN_JSON__", _js_json(_BUCKET_CN))
+1029:        .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
+1030:        .replace("__DONE_NOTE_JSON__", _js_json(_DONE_NOTE))
+1031:        .replace("__SNOOZE_NOTE_JSON__", _js_json(_SNOOZE_NOTE))
+
+===== review_app: 55-70 (imports) =====
+    55	import json
+    56	
+    57	from fastapi import APIRouter, Request
+    58	from fastapi.responses import HTMLResponse
+    59	
+    60	from app.api.v1.endpoints.review_overview import (
+    61	    _BUCKET_CN,
+    62	    _BUCKET_ORDER,
+    63	    _DONE_NOTE,
+    64	    _SNOOZE_NOTE,  # CARD-G6-6: 与 _DONE_NOTE 同纪律 (共享不复制)
+    65	    _STATUS_META,
+    66	)
+    67	
+    68	review_app_router = APIRouter()
+    69	
+    70	
+
+===== review_app: 80-90 + 178-195 =====
+    80	
+    81	# ── 页面模板 (r-string: JS 正则的反斜杠原样保留) ─────────────────────
+    82	# 占位符 __URLS_JSON__ / __STATUS_META_JSON__ / __BUCKET_CN_JSON__ /
+    83	# __BUCKET_ORDER_JSON__ 由端点函数按请求注入。
+    84	_PAGE_TEMPLATE = r"""<!DOCTYPE html>
+    85	<html lang="zh-CN">
+    86	<head>
+    87	<meta charset="utf-8">
+    88	<meta name="viewport" content="width=device-width, initial-scale=1">
+    89	<title>跨库复习总览 · 交互版</title>
+    90	<style>
+   178	<div class="footer">⚠ obsidian:// 跳转需在 Obsidian 打开过该库（未注册的库点击无响应）；
+   179	存在同名库时可能跳到先注册的那个，以 Obsidian 侧库列表为准</div>
+   180	<script>
+   181	"use strict";
+   182	// 服务端注入 (url_for 路径 + review_overview 共享字面 — 单一来源, 不复制)
+   183	const URLS = __URLS_JSON__;
+   184	const STATUS_META = __STATUS_META_JSON__;
+   185	const BUCKET_CN = __BUCKET_CN_JSON__;
+   186	const BUCKET_ORDER = __BUCKET_ORDER_JSON__;
+   187	// CARD-G6-7: 「不影响 FSRS」这句话由 review_overview._DONE_NOTE 注入 ——
+   188	// 两页说的是同一个动作, 措辞只能有一处 (抄一份就会有一天只改了一边)
+   189	const DONE_NOTE = __DONE_NOTE_JSON__;
+   190	// CARD-G6-6: 同上 —— 推迟那句话也只有一处出处 (review_overview._SNOOZE_NOTE)
+   191	const SNOOZE_NOTE = __SNOOZE_NOTE_JSON__;
+   192	const POLL_MIN_MS = 5000;   // 轮询下限 (默认裁决②: clamp 5s)
+   193	const POLL_MAX_MS = 60000;  // 轮询上限 (默认裁决②: clamp 60s)
+   194	const RETRY_DELAY_MS = 10000;  // unavailable 态的固定重试间隔 (在 clamp 区间内)
+   195	const NOTE_TTL_MS = 15000;  // 刷新反馈的可见窗: 足够活过 rebuilt 触发的立即重拉, 不永久占卡片
+
+===== review_app: 528-560 (badge) =====
+   528	    body += '<div class="gen">生成于 ' + esc(String(proj.generated_at)) + "</div>" +
+   529	      '<a href="obsidian://open?vault=' + esc(encodeURIComponent(vid)) + '">在 Obsidian 中打开 ↗</a>';
+   530	    // W6 加性顶层 rank_manifest: 在场才出现, 不解析内部形状
+   531	    if (proj.rank_manifest != null) body += '<div class="manifest">📋 本次板序含排序依据（rank_manifest）</div>';
+   532	  } else if (entry.status === "no_projection") {
+   533	    body = '<div class="degraded">该库尚无今日复习投影 — 推送管道尚未为它跑过<br>' +
+   534	      "深链已降级：需在 Obsidian 打开过该库后才提供跳转</div>";
+   535	  } else {
+   536	    body = '<div class="corrupt-err">投影文件无法解析<br><code>' + esc(String(entry.error || "")) + "</code></div>";
+   537	  }
+   538	  // noteHtml 是 renderRefreshResult 的成品 HTML (内部已 esc), 由调用方从
+   539	  // 持久状态传入 — 重绘后反馈得以恢复 (Codex round-1 HIGH-1)
+   540	  return '<div class="card"><div class="card-head"><b>' + esc(vid) + "</b>" +
+   541	    '<span class="badge" style="background:' + meta[1] + '">' + esc(meta[0]) + "</span></div>" + body +
+   542	    '<div class="actions"><button class="btn"' + (isInflight ? " disabled" : "") +
+   543	    ' data-refresh-vault="' + esc(vid) + '">🔄 刷新投影</button>' +
+   544	    '<span class="rnote" data-note-for="' + esc(vid) + '">' + (noteHtml || "") + "</span></div></div>";
+   545	}
+   546	function renderPage(data, nowMs, notes, inflight, doneBusy) {
+   547	  const vaults = data && Array.isArray(data.vaults) ? data.vaults : [];
+   548	  if (!vaults.length) return '<div class="empty">VAULTS_ROOT 下未发现任何 vault (需含 .obsidian/ 目录)</div>';
+   549	  // CARD-G6-6: 「今晚」还给不给点 —— 直接用**这一份 data** 里服务端下发的结论。
+   550	  // 字段缺席时保守按 true (与旧后端并存也不炸: 真过了 20:00 端点会 422 兜底)。
+   551	  const tonightAvailable = !(data && data.tonight_available === false);
+   552	  return vaults.map(e => renderVaultCard(e, nowMs, (notes && notes[e.vault_id]) || "",
+   553	    !!(inflight && inflight[e.vault_id]), doneBusy, tonightAvailable)).join("");
+   554	}
+   555	function renderUnavailableBanner(detail, lastOkText) {
+   556	  const keep = lastOkText ? "页面保留 " + esc(lastOkText) + " 的最后一次成功数据。" : "尚未成功获取过数据。";
+   557	  return "<b>⚠ 后端离线/不可用</b> — " + esc(detail) + "。" + keep + "自动重试中…";
+   558	}
+   559	function renderRefreshResult(status, payload) {
+   560	  // POST /overview/refresh 响应可见化 — rebuilt/debounced/in_progress/失败
+
+===== review_app: 1008-1040 (replace chain) =====
+  1008	    response_class=HTMLResponse,
+  1009	    summary="跨 vault 复习总览 · 交互版 (CARD-G6-2; 单文件内联 HTML, 零外部 URL)",
+  1010	)
+  1011	async def review_overview_app(request: Request) -> HTMLResponse:
+  1012	    """交互复习壳: 自动轮询 GET /overview, 手动按钮 POST /overview/refresh。
+  1013	
+  1014	    与零 JS 只读页 (/overview/page) 共存。API 路径按本次请求的路由表注入
+  1015	    (url_for), 不硬编码。
+  1016	    """
+  1017	    urls = {
+  1018	        "overview": request.url_for("review_overview").path,
+  1019	        "refresh": request.url_for("review_overview_refresh").path,
+  1020	        "boardDone": request.url_for("review_overview_board_done").path,
+  1021	        "boardUndone": request.url_for("review_overview_board_undone").path,
+  1022	        "boardSnooze": request.url_for("review_overview_board_snooze").path,
+  1023	        "boardUnsnooze": request.url_for("review_overview_board_unsnooze").path,
+  1024	    }
+  1025	    page = (
+  1026	        _PAGE_TEMPLATE.replace("__URLS_JSON__", _js_json(urls))
+  1027	        .replace("__STATUS_META_JSON__", _js_json({k: list(v) for k, v in _STATUS_META.items()}))
+  1028	        .replace("__BUCKET_CN_JSON__", _js_json(_BUCKET_CN))
+  1029	        .replace("__BUCKET_ORDER_JSON__", _js_json(list(_BUCKET_ORDER)))
+  1030	        .replace("__DONE_NOTE_JSON__", _js_json(_DONE_NOTE))
+  1031	        .replace("__SNOOZE_NOTE_JSON__", _js_json(_SNOOZE_NOTE))
+  1032	    )
+  1033	    return HTMLResponse(content=page)

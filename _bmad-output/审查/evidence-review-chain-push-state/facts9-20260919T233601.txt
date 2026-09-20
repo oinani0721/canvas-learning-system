@@ -1,0 +1,157 @@
+# P5-B facts-9 (20260919T233601)
+
+===== test_daily_review_run: 135-165 (_pin_pool...) =====
+   135	def _pin_pool_older_than_payload(vault: Path, payload_ts: float):
+   136	    """把 节点/ 目录与现有节点文件全部钉到 payload 之前 (无变动基线)。"""
+   137	    for p in (vault / "节点").glob("*.md"):
+   138	        _set_mtime(p, payload_ts - 100)
+   139	    _set_mtime(vault / "节点", payload_ts - 100)
+   140	    _set_mtime(vault / "outputs" / "今日复习.json", payload_ts)
+   141	
+   142	
+   143	# ── 场景 1: 节点变动 → 同日缓存失效, 重扫结果含该节点 ──
+   144	
+   145	
+   146	def test_node_change_invalidates_same_day_cache(tmp_path, monkeypatch):
+   147	    vault = _vault(tmp_path, {"甲": _node()})
+   148	    _patch_runner(monkeypatch, vault, tmp_path)
+   149	    st = runner.load_state()
+   150	    payload1, gen1 = runner.ensure_payload(st, NOW, TODAY)
+   151	    assert gen1 == "new"
+   152	    assert {d["node"] for d in payload1["due_nodes"]} == {"甲"}
+   153	
+   154	    # 写侧模拟: 当天考完甲后新增重学卡乙 (新卡无 fsrs_due = 即刻到期)
+   155	    (vault / "节点" / "乙.md").write_text(_node(), encoding="utf-8")
+   156	    _pin_pool_older_than_payload(vault, BASE)
+   157	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+   158	    _set_mtime(vault / "节点", BASE + 200)
+   159	
+   160	    payload2, gen2 = runner.ensure_payload(st, NOW, TODAY)
+   161	    assert gen2 == "new", "节点池比 payload 新时必须重扫, 不得整日复用早晨快照"
+   162	    assert "乙" in {d["node"] for d in payload2["due_nodes"]}
+   163	    assert payload2["schema_version"] == 3  # 只消费 A2 的 v3, 不改 schema
+   164	
+   165	
+   166	# ── 场景 2: 无变动 → 仍走缓存 (每小时触发不得变成每小时全量重扫) ──
+   167	
+   168	
+   169	def test_unchanged_pool_still_cached(tmp_path, monkeypatch):
+   170	    vault = _vault(tmp_path, {"甲": _node()})
+   171	    _patch_runner(monkeypatch, vault, tmp_path)
+   172	    st = runner.load_state()
+
+===== test_review_overview: push helpers locators =====
+4659:def _utf8_encodable(s: str) -> bool:
+4716:_PUSH_DEGRADED_LABEL = "推送降级"
+4719:def _push_state(runner, vault: Path, payload: dict) -> Path:
+4751:def test_overview_push_degraded_false_when_pushed(board_done_env):
+4780:def test_overview_push_degraded_true_when_push_failed(board_done_env):
+4830:def test_overview_push_status_null_when_no_state(board_done_env):
+4907:def test_overview_page_degrade_badge_only_when_failed(board_done_env):
+4928:    assert _PUSH_DEGRADED_LABEL in cards["vault-pb-bad"], "失败态那张卡必须亮出降级徽标"
+4929:    assert _PUSH_DEGRADED_LABEL not in cards["vault-pa-ok"], "成功态卡片不许出徽标 (验伪锚)"
+4930:    assert _PUSH_DEGRADED_LABEL not in cards["vault-pc-none"], "缺失态卡片不许出徽标 (验伪锚)"
+4931:    assert page.count(_PUSH_DEGRADED_LABEL) == 1, "整页只该有一枚降级徽标"
+
+===== test_review_overview: 4640-4740 =====
+  4640	        '"snoozed": {"\\ud800": "2099-09-09T20:00:00+08:00", "CS 61B": "2099-09-09T20:00:00+08:00"}}',
+  4641	        encoding="utf-8",
+  4642	    )
+  4643	    # 夹具前提: 那个键真的是解得出、却编不出 UTF-8 的孤立 surrogate
+  4644	    raw = json.loads(state_file.read_text(encoding="utf-8"))
+  4645	    assert any(isinstance(k, str) and not _utf8_encodable(k) for k in raw["snoozed"]), (
+  4646	        "夹具前提: state 里必须真的有一个编不出 UTF-8 的键, 否则本门是空的"
+  4647	    )
+  4648	
+  4649	    resp = client.get("/api/v1/review/overview")
+  4650	    assert resp.status_code == 200, f"一个坏板名不许把整个总览打成 500: {resp.text[:200]}"
+  4651	    vaults = {v["vault_id"]: v for v in resp.json()["vaults"]}
+  4652	    assert "vault-ok" in vaults, "别的库必须照常出现"
+  4653	    assert set(vaults["vault-sur"]["snoozed"]) == {"CS 61B"}, "坏条目丢弃、好条目留下"
+  4654	
+  4655	    # 页面路径同样不许 500
+  4656	    assert client.get(_PAGE_URL).status_code == 200
+  4657	
+  4658	
+  4659	def _utf8_encodable(s: str) -> bool:
+  4660	    try:
+  4661	        s.encode("utf-8")
+  4662	    except UnicodeEncodeError:
+  4663	        return False
+  4664	    return True
+  4665	
+  4666	
+  4667	def test_g66_encodable_filter_does_not_harm_cjk_or_emoji_board_names(board_done_env, monkeypatch):
+  4668	    """(Codex round-1 MEDIUM-2 的配套) 那道编码过滤**不许误伤合法的非 ASCII 板名**。
+  4669	
+  4670	    ⛔ 这条是修复本身的负控。本项目的板名主流就是中文（「图论基础」「数学」），
+  4671	    修 surrogate 时顺手把非 ASCII 一起挡掉，会是一个**本卡引入的功能性缺陷**，
+  4672	    而且只在真实数据上才看得见 —— 上面那条门用的是 "CS 61B"（纯 ASCII），
+  4673	    它绿着证明不了这件事。
+  4674	
+  4675	    三类各一条: 中文 / emoji / 带重音符的拉丁字母。
+  4676	    """
+  4677	    root, client, runner, mod = board_done_env
+  4678	    vault = _mk_node_vault(root, "vault-cjk", {"甲": _node_md()})
+  4679	    _pin_now(monkeypatch, mod, "2026-09-09T10:00:00")
+  4680	
+  4681	    names = ["图论基础", "数学 📐", "Café 复习"]
+  4682	    until = "2099-09-09T20:00:00+08:00"
+  4683	    state_file = runner.state_path(vault)
+  4684	    state_file.parent.mkdir(parents=True, exist_ok=True)
+  4685	    state_file.write_text(
+  4686	        json.dumps(
+  4687	            {
+  4688	                "schema_version": runner.STATE_SCHEMA_VERSION,
+  4689	                "board_last_recommended": {},
+  4690	                "board_done": {},
+  4691	                "snoozed": {n: until for n in names},
+  4692	            },
+  4693	            ensure_ascii=False,
+  4694	        ),
+  4695	        encoding="utf-8",
+  4696	    )
+  4697	
+  4698	    assert set(mod._read_snoozed(state_file)) == set(names), "编码过滤误伤了合法的非 ASCII 板名"
+  4699	    entry = next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == "vault-cjk")
+  4700	    assert set(entry["snoozed"]) == set(names), "三类非 ASCII 板名都必须原样投影出来"
+  4701	    # 页面不在本门的作用面内: 「已推迟」区只渲染**投影 boards 里存在**的板, 而本夹具的
+  4702	    # 投影里没有这三块 —— 那时不渲染是正确行为, 与编码过滤无关。页面侧的板名渲染由
+  4703	    # test_g66_page_folds_snoozed_board_without_dropping_it 覆盖。
+  4704	    assert client.get(_PAGE_URL).status_code == 200, "非 ASCII 板名不许把页面打成 500"
+  4705	
+  4706	
+  4707	# ══ CARD-G6-9b: 推送降级在 /overview JSON 与总览页的可见性 ══════════════════
+  4708	#
+  4709	# 此前 Bark 推送失败在这两个面上**零可见**(开工实测 `grep -cF degraded
+  4710	# review_overview.py` = 0): 榜单照常生成、页面照常好看, 用户以为一切正常,
+  4711	# 实际手机上什么都没收到。本组四门锁死三态映射与徽标的**渲染条件**。
+  4712	#
+  4713	# 徽标文案在测试侧独立写一份字面量, **不从生产模块 import** —— 与本文件
+  4714	# `_pin_display_tz` 同一条纪律: 期望值与被测量同源时, 缺陷会让两边一起
+  4715	# 退化, 门就永远不会红。
+  4716	_PUSH_DEGRADED_LABEL = "推送降级"
+  4717	
+  4718	
+  4719	def _push_state(runner, vault: Path, payload: dict) -> Path:
+  4720	    """把一份 runner state 预置到 tmp BACKUPS 下 (board_done_env 已改指 tmp)。"""
+  4721	    state_file = runner.state_path(vault)
+  4722	    state_file.parent.mkdir(parents=True, exist_ok=True)
+  4723	    state_file.write_text(json.dumps(payload, ensure_ascii=False) + "\n", encoding="utf-8")
+  4724	    return state_file
+  4725	
+  4726	
+  4727	def _overview_entry(client, vault_id: str) -> dict:
+  4728	    """取 /overview 里该 vault 的条目 (取不到就地 StopIteration —— 前提不成立)。"""
+  4729	    return next(v for v in client.get("/api/v1/review/overview").json()["vaults"] if v["vault_id"] == vault_id)
+  4730	
+  4731	
+  4732	def _cards_by_vault(page_text: str, vault_ids: list[str]) -> dict[str, str]:
+  4733	    """按卡片头部的 vault 名锚点把整页切成「每库一段」。
+  4734	
+  4735	    ⛔ 切片而不是整页 `in` —— 整页判定分不清「徽标长在失败态那张卡上」与
+  4736	    「徽标长在别的卡上」, 而后者正是验伪锚要排除的形态。锚点取 header 里那个
+  4737	    `<b>` 标签: 徽标渲染在它之后的同一个 header 内, 必落进本段。
+  4738	    """
+  4739	    marks: dict[str, int] = {}
+  4740	    for vid in vault_ids:

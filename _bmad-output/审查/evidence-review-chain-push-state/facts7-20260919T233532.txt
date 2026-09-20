@@ -1,0 +1,162 @@
+# P5-B facts-7 (test helpers) (20260919T233532)
+
+===== test_daily_review_run: _push_harness region =====
+135:def _pin_pool_older_than_payload(vault: Path, payload_ts: float):
+776:def _push_harness(monkeypatch, tmp_path, vault, rcs):
+793:def _run_main(monkeypatch, capsys, vault, now_arg) -> str:
+803:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+829:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+849:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+872:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 1, 1, 0])
+919:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+952:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+974:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+1052:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+1106:    _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+1130:    _push_harness(monkeypatch, tmp_path, v1, rcs=[0, 0])
+1322:    _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+2093:    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+2116:    _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+2186:    _push_harness(monkeypatch, tmp_path, v1, rcs=[0, 0])
+
+   746	    new.write_text('{"半截', encoding="utf-8")
+   747	    rc3 = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   748	    assert rc3 == 1
+   749	    assert "重迁" in capsys.readouterr().err
+   750	
+   751	
+   752	def test_migrate_preplanted_symlink_target_not_overwritten(tmp_path, monkeypatch):
+   753	    """Codex-C1a F4/N1: 目标位置被预置成悬空 symlink (指向尚不存在的路径)
+   754	    时, mkstemp+rename 发布只替换链接名本身 — 内容绝不被引到 symlink 指向
+   755	    的位置落盘, 终点成为常规文件。"""
+   756	    backups = _old_state_fixture(tmp_path)
+   757	    hijack_target = tmp_path / "劫持目标.json"  # 不存在 → 悬空 symlink 过得了 exists 预检
+   758	    new = backups / "daily-review.canvas-vault.state.json"
+   759	    new.symlink_to(hijack_target)
+   760	    rc = _run_migrate(monkeypatch, ["--vault", "canvas-vault", "--backups", str(backups)])
+   761	    assert rc == 0
+   762	    assert not hijack_target.exists(), "悬空 symlink 不得被跟随, 在其目标处落文件"
+   763	    assert not new.is_symlink() and new.is_file(), "rename 应替换链接名为常规文件"
+   764	    assert json.loads(new.read_text(encoding="utf-8"))["last_generate_date"] == "2026-07-29"
+   765	    assert (backups / "daily-review.state.json.bak").exists()
+   766	
+   767	
+   768	# ── CARD-D2b (BATCH-2026-08-27-Anki化与诚实收尾): 休息日反转推送 (方案甲) ──
+   769	# 实测缺陷链: 09:06 休息推送 accepted → 14:06 due_crossed 重扫, payload/总览
+   770	# 页已更新, 但 last_push_accepted_date==today 门拦推送 (skip-done) → 手机
+   771	# 整天停留「今日无到期」。方案甲: 仅放行 rest→due 语义反转一次 (同 id 服务
+   772	# 端覆盖 = A4 既有契约, 通知中心不堆叠); state 持久化成立时每天推送上界
+   773	# = 2 (rest + due; accepted 后崩溃窗/损坏重建残余 = A4/A7 既有语义, 入档)。
+   774	
+   775	
+   776	def _push_harness(monkeypatch, tmp_path, vault, rcs):
+   777	    """main() 端到端打桩: 窗口门放行 (机器时区无关), send 按 rcs 队列返回并
+   778	    截获 (id, title) — 多余的 send 调用会越界报错 (兼当哨兵), osascript
+   779	    兜底打桩防真弹通知。"""
+   780	    _patch_runner(monkeypatch, vault, tmp_path)
+   781	    monkeypatch.setattr(runner, "PUSH_WINDOW", (dtime(0, 0), dtime(23, 59, 59)))
+   782	    calls = []
+   783	
+   784	    def _send(noti, vault_id=None):
+   785	        calls.append((noti["id"], noti["title"]))
+   786	        return rcs[len(calls) - 1]
+   787	
+   788	    monkeypatch.setattr(runner.send_bark, "send", _send)
+   789	    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: True)
+   790	    return calls
+   791	
+   792	
+   793	def _run_main(monkeypatch, capsys, vault, now_arg) -> str:
+   794	    monkeypatch.setattr(sys, "argv", ["daily_review_run.py", "--now", now_arg, "--vault", str(vault)])
+   795	    assert runner.main() == 0
+   796	    return capsys.readouterr().out
+   797	
+   798	
+   799	def test_rest_to_due_reversal_pushes_second_time(tmp_path, monkeypatch, capsys):
+   800	    """rest→due 放行一次: 早晨休息推送后, 盘中转出到期 → 第二推放行且与
+   801	    首推同 id (服务端覆盖, 手机原地刷新); due 之后恒 skip-done (上界 2)。"""
+   802	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+   803	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+   804	
+   805	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")  # 02:00Z
+   806	    assert "generate:new" in out1 and "push:accepted" in out1
+   807	    assert runner.load_state()["last_push_kind"] == "rest"
+   808	    assert calls[0][1] == "📚 今日无到期节点"
+   809	
+   810	    _pin_pool_older_than_payload(vault, BASE)
+   811	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")  # 06:05Z 跨到期
+   812	    assert "generate:new" in out2 and "push:accepted" in out2, (
+   813	        "rest→due 语义反转必须放行第二推, 不得让手机整天停留「今日无到期」"
+   814	    )
+   815	    assert runner.load_state()["last_push_kind"] == "due"
+   816	    assert len(calls) == 2 and calls[1][1] == "📚 今日复习 · A板"
+   817	    assert calls[1][0] == calls[0][0], "两推必须同 id — 服务端覆盖而非堆叠"
+   818	
+   819	    _pin_pool_older_than_payload(vault, BASE)
+   820	    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+   821	    assert "push:skip-done" in out3
+   822	    assert len(calls) == 2, "due 之后不得再推 — 每天推送上界 = 2"
+   823	
+   824	
+   825	def test_due_to_due_rescan_stays_skip_done(tmp_path, monkeypatch, capsys):
+   826	    """due→due 不放行: 早晨到期推送后, 盘中重扫榜更新也 skip-done (与场景 3
+   827	    互补 — 那条锁旧 state 无 last_push_kind 的保守回退, 本条锁写入后语义)。"""
+   828	    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+   829	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+   830	
+   831	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   832	    assert "push:accepted" in out1
+   833	    assert runner.load_state()["last_push_kind"] == "due"
+   834	
+   835	    (vault / "节点" / "乙.md").write_text(_node(board="B板"), encoding="utf-8")
+   836	    _pin_pool_older_than_payload(vault, BASE)
+   837	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+   838	    _set_mtime(vault / "节点", BASE + 200)
+   839	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+   840	    assert "generate:new" in out2 and "push:skip-done" in out2
+   841	    assert len(calls) == 1
+   842	    assert runner.load_state()["last_push_kind"] == "due"
+   843	
+   844	
+   845	def test_rest_to_rest_rescan_stays_skip_done(tmp_path, monkeypatch, capsys):
+   846	    """rest→rest 不放行: 休息推送后重扫仍是休息日 (榜仍空) → skip-done,
+   847	    反转门只认「转出到期」这一种语义变化。"""
+   848	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T12:00:00Z\n")})
+   849	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0])
+   850	
+   851	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")  # 02:00Z
+   852	    assert "push:accepted" in out1
+   853	    assert runner.load_state()["last_push_kind"] == "rest"
+   854	
+   855	    (vault / "节点" / "乙.md").write_text(
+   856	        _node(board="B板", extra="fsrs_due: 2026-07-30T13:00:00Z\n"), encoding="utf-8"
+   857	    )
+   858	    _pin_pool_older_than_payload(vault, BASE)
+   859	    _set_mtime(vault / "节点" / "乙.md", BASE + 200)
+   860	    _set_mtime(vault / "节点", BASE + 200)
+   861	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T11:05:00+08:00")  # 03:05Z 仍未到期
+   862	    assert "generate:new" in out2 and "push:skip-done" in out2
+   863	    assert len(calls) == 1
+   864	    assert runner.load_state()["last_push_kind"] == "rest"
+   865	
+   866	
+   867	def test_second_push_failure_retries_next_hour(tmp_path, monkeypatch, capsys):
+   868	    """二推失败幂等重试: 反转门只在 accepted 时关闭 (last_push_kind 翻 due),
+   869	    失败保持 rest → 次小时 launchd 触发自然重试; 连续失败本地兜底只弹一次
+   870	    (Codex-D2b L2); 成功后清错收口。"""
+   871	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+   872	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 1, 1, 0])
+   873	    fallbacks = []
+   874	    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: fallbacks.append(noti["title"]) or True)
+   875	    today = datetime.fromisoformat("2026-07-30T10:00:00+08:00").astimezone(ZoneInfo(_FIXED_TZ_NAME)).date().isoformat()
+   876	
+   877	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   878	    assert "push:accepted" in out1
+   879	
+   880	    _pin_pool_older_than_payload(vault, BASE)
+   881	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+   882	    assert "push:failed" in out2 and "fallback:ok" in out2
+   883	    st2 = runner.load_state()
+   884	    assert st2["last_push_kind"] == "rest", "失败不得翻 due — 否则重试门被永久关闭"
+   885	    assert st2["last_result"] == "generated_push_failed"
+   886	    assert st2["last_error"] == "bark-send"

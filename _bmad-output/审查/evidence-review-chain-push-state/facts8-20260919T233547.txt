@@ -1,0 +1,188 @@
+# P5-B facts-8 (20260919T233547)
+
+===== runner main() 693-740 =====
+   693	def main() -> int:
+   694	    global VAULT
+   695	    # allow_abbrev=False: push.sh 锁解析只认全称 --vault, argparse 缩写
+   696	    # (--v) 会让锁与 runner 指向不同 vault (Codex-C1a F1) — 两侧必须同源
+   697	    ap = argparse.ArgumentParser(description="每日复习推送编排", allow_abbrev=False)
+   698	    ap.add_argument("--now", help="ISO 时间覆盖 (12 场景验收矩阵用)")
+   699	    ap.add_argument("--vault", help="活 vault 路径 (wrapper 从 .env ACTIVE_VAULT 解析传入; 缺省回退 canvas-vault)")
+   700	    args = ap.parse_args()
+   701	
+   702	    if args.vault:
+   703	        VAULT = Path(args.vault)
+   704	
+   705	    now = _now(args.now)
+   706	    # CARD-G6-9c / D-18: 归日走单一来源。只要机器本地时 astimezone(机器本地
+   707	    # tzinfo) ≡ astimezone(), 行为逐字节不变; 但本卡引入的 CANVAS_TZ 覆盖若
+   708	    # 不在这里读, 它自己就成了第三套时钟 (显示侧/pick 读它而 runner 不读)。
+   709	    local = now.astimezone(local_tz.display_tz())
+   710	    today = local.date().isoformat()
+   711	    st = load_state()
+   712	
+   713	    try:
+   714	        payload, gen = ensure_payload(st, now, today)
+   715	    except Exception as e:  # 生成失败 = 无保底, 唯一的非 0 退出
+   716	        log_line(f"generate:FAILED err={type(e).__name__}:{str(e)[:120]}")
+   717	        print(f"[runner] 生成失败: {e}", file=sys.stderr)
+   718	        return 1
+   719	
+   720	    noti = (payload or {}).get("notification")
+   721	    push, fallback = "-", "-"
+   722	    if not noti:
+   723	        push = "skip-empty"  # 无板可推 (全占位/空 vault): md 已如实落盘
+   724	    elif st.get("last_push_accepted_date") == today and not (
+   725	        st.get("last_push_kind") == "rest" and payload.get("top_boards")
+   726	    ):
+   727	        # CARD-D2b 方案甲: 当日已推但语义从 rest 反转为 due (休息推送后盘中
+   728	        # 转出到期) 时放行一次二推 — 同 id 服务端覆盖 (A4 契约, 通知中心
+   729	        # 不堆叠), due 落账后恒 skip-done → state 持久化成立时每日至多
+   730	        # 2 次 accepted (accepted 后崩溃窗/损坏重建的 at-least-once 残余
+   731	        # 与 A4/A7 既有语义同级, Codex-D2b H1/H2 如实入档)。旧 state 缺
+   732	        # last_push_kind → 条件恒真 → 保守一日一推 (向后兼容)
+   733	        push = "skip-done"
+   734	    elif not (PUSH_WINDOW[0] <= local.time() < PUSH_WINDOW[1]):
+   735	        push = "skip-window"  # RunAtLoad 早触发 / 21:00 后唤醒: 只落盘
+   736	    else:
+   737	        # vault_id 取 payload 顶层 (C1a 加性字段); 当日缓存若是迁移前生成的
+   738	        # 旧 payload (无该字段), 回退当前 vault 目录名 — 两者必然同库
+   739	        rc = send_bark.send(noti, payload.get("vault_id") or VAULT.resolve().name)
+   740	        if rc == 0:
+
+===== test_daily_review_run: helpers top =====
+     1	"""daily_review_run 当天重学卡刷新 (CARD-A3, BATCH-2026-08-24-复习闭环)。
+     2	
+     3	ensure_payload 缓存失效三场景锁定: 当天已生成后, 节点池比 payload 新
+     4	(quiz 写侧刚更新 fsrs_due / 新增节点) 必须重扫; 无变动仍复用; 重扫后
+     5	同日推送去重 (skip-done) 与 tie-break 语义 (board_last_recommended
+     6	每天只在第一个非空榜首落账一次, CARD-D2a) 不被破坏。
+     7	
+     8	只 assert dict / 状态 / runner 状态行, 不 assert 今日复习.md 渲染文本
+     9	(与 A2 渲染层解耦)。mtime 全部 os.utime 显式钉死, 不依赖墙钟顺序。
+    10	"""
+    11	
+    12	import errno
+    13	import fcntl
+    14	import hashlib
+    15	import builtins
+    16	import json
+    17	import os
+    18	import plistlib
+    19	import re
+    20	import shutil
+    21	import subprocess
+    22	import sys
+    23	import time
+    24	from datetime import datetime, time as dtime, timedelta, timezone
+    25	from pathlib import Path
+    26	from zoneinfo import ZoneInfo
+    27	
+    28	import pytest
+    29	
+    30	WT = Path(__file__).resolve().parents[3]
+    31	sys.path.insert(0, str(WT / "scripts"))
+    32	
+    33	import daily_review_pick as picker  # noqa: E402  # pyright: ignore[reportMissingImports]
+    34	import daily_review_run as runner  # noqa: E402  # pyright: ignore[reportMissingImports]
+    35	
+    36	#: 本文件全部 --now 与期望值都按 +08:00 写死 (窗口判定、通知 id、落账日期),
+    37	#: 故把两侧时钟都钉在同一个字面量上 —— 见 _pin_display_tz。
+    38	_FIXED_TZ_NAME = "Asia/Shanghai"
+    39	
+    40	
+    41	@pytest.fixture(autouse=True)
+    42	def _pin_display_tz(monkeypatch):
+    43	    """把 runner 与 picker 两侧的时钟都钉在 Asia/Shanghai (CARD-G6-9c)。
+    44	
+    45	    本文件的 `--now` 一律写成 `2026-07-30T10:00:00+08:00` 这类 +08:00 字面量,
+    46	    而期望值 (PUSH_WINDOW 09:05-21:00 的窗口判定、通知 id `canvas-review-<date>`、
+    47	    state 的 last_generate_date) 全按上海日算。宿主时区一变, 同一个 `--now`
+    48	    在本地就是别的钟点 —— 洛杉矶下它是前一天 19:00, 直接落到窗口外。
+    49	
+    50	    ⚠️ **这不是本卡引入的**: da690bf8 上 runner 用裸 `now.astimezone()`(机器本地),
+    51	    在 LA 态下同样红这 4 条 (基线对照见 evidence-g69c/la-red-attribution-full.txt)。
+    52	    本卡把两侧收敛到同一来源后, 一个夹具就能同时钉住 —— **期望值一字未动**。
+    53	
+    54	    两侧形态不同, 钉法也不同:
+    55	      · runner 每次现调 `local_tz.display_tz()` ⇒ setenv CANVAS_TZ 即可;
+    56	      · picker 的时区走 `_display_tz()`(CARD-G6-9c-R3 起每次现取) ⇒ 仍用 setattr
+    57	        钉住那个函数, 这样夹具与「同进程改 TZ」两条路都可控。
+    58	    """
+    59	    monkeypatch.setenv("CANVAS_TZ", _FIXED_TZ_NAME)
+    60	    monkeypatch.setattr(picker, "_display_tz", lambda _tz=ZoneInfo(_FIXED_TZ_NAME): _tz)
+    61	
+    62	
+    63	NOW = datetime(2026, 7, 30, 2, 0, tzinfo=timezone.utc)
+    64	TODAY = "2026-07-30"
+    65	BASE = 1_700_000_000  # 人工 mtime 基准: 只比大小, 绝对值无意义
+    66	
+    67	
+    68	def _node(board="普通板", extra=""):
+    69	    return f'---\ntype: concept\nsource_board: "[[原白板/{board}]]"\n{extra}---\n真实内容。\n'
+    70	
+    71	
+    72	def _vault(tmp_path, nodes: dict, name: str = "vault") -> Path:
+    73	    vault = tmp_path / name
+    74	    scripts = vault / ".claude" / "scripts"
+    75	    scripts.mkdir(parents=True)
+    76	    (vault / "节点").mkdir()
+    77	    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+    78	    for fname, content in nodes.items():
+    79	        (vault / "节点" / f"{fname}.md").write_text(content, encoding="utf-8")
+    80	    return vault
+    81	
+    82	
+    83	@pytest.fixture(autouse=True)
+    84	def _forbid_live_backups_writes(tmp_path):
+    85	    """⛔ 常驻护栏: 本文件任何用例结束时, **真实仓库**的 backups/ 不许多出文件。
+    86	
+    87	    本卡实测踩到过一次: 一条门用了 monkeypatch.undo() —— 它撤销的是整个
+    88	    fixture 的补丁, 包括 _patch_runner 设的 BACKUPS, 于是之后那句 save_state
+    89	    落到了真实仓库的 backups/ 里 (daily-review.vault.state.json 与同名 .lock,
+    90	    内容正是那条门的测试数据)。生产 key 是 canvas-vault, 功能上没被影响,
+    91	    但「禁写 live backups/」是硬边界, 靠"记得打补丁"守不住, 得有门。
+    92	
+    93	    判据是 (文件名, 大小, mtime) 三元组的差集, 不只是文件名集合。
+    94	    ⛔ 只比文件名的初版**没有牙**: 上一次污染留下的那两个文件已经在 before 里,
+    95	    于是把缺陷改回去、让它再写一次同名文件, 门照样绿 (本卡实测)。
+    96	    生产 launchd 每小时真的会动下面这几个, 它们走白名单 —— 与测试无关, 比它们
+    97	    会假红。白名单之外的任何新增或改动一律红。
+    98	    """
+    99	    live = Path(os.environ.get("CANVAS_REPO", "/Users/Heishing/Desktop/canvas/canvas-learning-system")) / "backups"
+   100	    churn = {"daily-review.log", "memory-health.log", "daily-review.canvas-vault.state.json", "neo4j"}
+   101	
+   102	    def _snap():
+   103	        if not live.is_dir():
+   104	            return {}
+   105	        out = {}
+   106	        for entry in live.iterdir():
+   107	            if entry.name in churn:
+   108	                continue
+   109	            try:
+   110	                st = entry.stat()
+   111	            except OSError:
+   112	                continue
+   113	            out[entry.name] = (st.st_size, st.st_mtime_ns)
+   114	        return out
+   115	
+   116	    before = _snap()
+   117	    yield
+   118	    after = _snap()
+   119	    changed = {k for k in set(before) | set(after) if before.get(k) != after.get(k)}
+   120	    assert not changed, f"用例动了真实仓库的 backups/: {sorted(changed)}"
+   121	
+   122	
+   123	def _patch_runner(monkeypatch, vault, tmp_path):
+   124	    """CARD-C1a: STATE/LOG 常量已函数化为 BACKUPS 派生 (state_path/log_line),
+   125	    fixture 只注入 BACKUPS 一处 — 所有 state/log 写入随之进 tmp, 防写真实
+   126	    backups/。逐用例检查: 本文件所有落盘路径均经 VAULT (tmp) 或 BACKUPS (tmp)。"""
+   127	    monkeypatch.setattr(runner, "VAULT", vault)
+   128	    monkeypatch.setattr(runner, "BACKUPS", tmp_path / "backups")
+   129	
+   130	
+   131	def _set_mtime(path: Path, ts: float):
+   132	    os.utime(path, (ts, ts))
+   133	
+   134	
+   135	def _pin_pool_older_than_payload(vault: Path, payload_ts: float):

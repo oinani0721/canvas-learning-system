@@ -1,0 +1,161 @@
+# P5-B facts-12 (20260919T233641)
+
+===== test_review_app: 40-100 =====
+    40	    _BUCKET_ORDER,
+    41	    _STATUS_META,
+    42	    _humanize_due,
+    43	)
+    44	
+    45	APP_PATH = "/api/v1/review/overview/app"
+    46	PAGE_PATH = "/api/v1/review/overview/page"
+    47	OVERVIEW_PATH = "/api/v1/review/overview"
+    48	REFRESH_PATH = "/api/v1/review/overview/refresh"
+    49	BOARD_DONE_PATH = "/api/v1/review/overview/board-done"  # CARD-G6-7
+    50	BOARD_UNDONE_PATH = "/api/v1/review/overview/board-undone"  # CARD-G6-7-R
+    51	BOARD_SNOOZE_PATH = "/api/v1/review/overview/board-snooze"  # CARD-G6-6
+    52	BOARD_UNSNOOZE_PATH = "/api/v1/review/overview/board-unsnooze"  # CARD-G6-6
+    53	
+    54	_ENDPOINTS_DIR = Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "endpoints"
+    55	#: 开工基线 (2026-09-01 主干 9af18b27 实测): review_overview.py 的 `<script`
+    56	#: 计数为 1, 唯一命中是 :1286 docstring 里的「python <script> --vault」——
+    57	#: 与 JS 无关。零 JS 页未被本卡改动的判据。
+    58	_ZERO_JS_BASELINE = 1
+    59	
+    60	_NODE = shutil.which("node") or ""  # 空串 = 不可用 (node_harness 里 fail-closed)
+    61	
+    62	
+    63	@pytest.fixture
+    64	def client():
+    65	    """裸 TestClient — 不带 with, 不起 lifespan。
+    66	
+    67	    本端点是纯静态 HTML 渲染 (不读文件系统、不查 settings 的 vault 面),
+    68	    所以不需要 VAULTS_ROOT fixture; base_url 用回环地址与
+    69	    test_review_overview.py 保持同款 (refresh 端点有 Host 白名单)。
+    70	    """
+    71	    from app.main import app
+    72	
+    73	    c = TestClient(app, base_url="http://127.0.0.1:8011")
+    74	    try:
+    75	        yield c
+    76	    finally:
+    77	        c.close()
+    78	
+    79	
+    80	@pytest.fixture
+    81	def page_html(client):
+    82	    resp = client.get(APP_PATH)
+    83	    assert resp.status_code == 200, resp.text
+    84	    return resp.text
+    85	
+    86	
+    87	# ════════════════════════════════════════════════════════════════════
+    88	# A. 单文件自足 (完成条件 a)
+    89	# ════════════════════════════════════════════════════════════════════
+    90	
+    91	
+    92	def test_app_page_returns_html_200(page_html):
+    93	    assert page_html.startswith("<!DOCTYPE html>")
+    94	    assert "<title>跨库复习总览 · 交互版</title>" in page_html
+    95	
+    96	
+    97	def test_zero_external_urls(page_html):
+    98	    """核心裁判 1: 页面正文里不得出现任何 http(s) URL。"""
+    99	    assert re.findall(r'https?://[^\s"\']+', page_html) == []
+   100	
+
+===== test_review_app: 245-280 =====
+   245	
+   246	# ════════════════════════════════════════════════════════════════════
+   247	# B. 与零 JS 只读页共存 (完成条件 a / 核心裁判 3)
+   248	# ════════════════════════════════════════════════════════════════════
+   249	
+   250	
+   251	def test_readonly_page_still_works_both_coexist(client):
+   252	    """两页共存: 交互版 200, 零 JS 只读页同样 200 (未被替代)。"""
+   253	    assert client.get(APP_PATH).status_code == 200
+   254	    resp = client.get(PAGE_PATH)
+   255	    assert resp.status_code == 200
+   256	    assert "<script" not in resp.text  # 只读页仍然零 JS
+   257	
+   258	
+   259	def test_zero_js_page_source_untouched():
+   260	    """核心裁判 3: review_overview.py 的 `<script` 计数与开工基线相等。"""
+   261	    src = (_ENDPOINTS_DIR / "review_overview.py").read_text(encoding="utf-8")
+   262	    hits = [ln for ln in src.splitlines() if "<script" in ln]
+   263	    assert len(hits) == _ZERO_JS_BASELINE, f"零 JS 页被改动了: {hits}"
+   264	    # 唯一命中必须仍是那条与 JS 无关的 docstring
+   265	    assert all("python <script>" in ln for ln in hits)
+   266	
+   267	
+   268	def test_status_meta_and_buckets_shared_not_copied(page_html):
+   269	    """四态文案/桶位标签是 import 来的同一份 —— 不新造第二套词汇。"""
+   270	    injected_meta = json.loads(_group(r"const STATUS_META = (\{.*?\});", page_html))
+   271	    assert injected_meta == {k: list(v) for k, v in _STATUS_META.items()}
+   272	    assert json.loads(_group(r"const BUCKET_CN = (\{.*?\});", page_html)) == _BUCKET_CN
+   273	    assert json.loads(_group(r"const BUCKET_ORDER = (\[.*?\]);", page_html)) == list(_BUCKET_ORDER)
+   274	    # 篡改门: 上面三条只证明"注入值正确", 挡不住"JS 里另抄一份字面量"。
+   275	    # 模板本体不许出现任何徽标文案 —— 抄一份 = 本门立刻红。
+   276	    for label, _color in _STATUS_META.values():
+   277	        assert label not in _PAGE_TEMPLATE, f"徽标文案 {label!r} 被硬编码进模板 (应只从注入常量取)"
+   278	
+   279	
+   280	def test_no_second_due_pipeline_in_python_module():
+
+===== test_review_overview: fixture locators =====
+54:def _now_local() -> datetime:
+160:def _mk_vault(root, name: str, projection: dict | None = None, raw: str | None = None):
+1321:def _node_md(board: str = "CS 61B", *, fsrs_due: str | None = None, extra: str = "") -> str:
+2785:_PAGE_URL = "/api/v1/review/overview/page"
+2879:def board_done_env(refresh_env, monkeypatch):
+3070:def _two_board_projection(vault_id: str, gen_iso: str) -> dict:
+4036:def _pin_now(monkeypatch, mod, when: str, tz_name: str = "Asia/Shanghai"):
+
+===== test_review_overview: page url + board_done_env region =====
+2785:_PAGE_URL = "/api/v1/review/overview/page"
+board_done_env at 2879
+  2879	def board_done_env(refresh_env, monkeypatch):
+  2880	    """refresh_env + runner 模块的 BACKUPS 改指 tmp。
+  2881	
+  2882	    ⛔ 必须当场断言补丁真的生效: runner.BACKUPS 的缺省值是**真实仓库**的
+  2883	    backups/ (CANVAS_REPO 缺省), 一个忘了打补丁的用例会直接往现网 state
+  2884	    上写。「预置到底有没有产生我以为的那个形态」要断言, 不能靠相信。
+  2885	    """
+  2886	    import app.api.v1.endpoints.review_overview as mod
+  2887	
+  2888	    root, client = refresh_env
+  2889	    script = mod._runner_script(Path(root))
+  2890	    assert script is not None, f"找不到 {mod._RUNNER_BASENAME} — 本 fixture 的前提不成立"
+  2891	    runner = mod._load_runner(script)
+  2892	    monkeypatch.setattr(runner, "BACKUPS", Path(root) / "backups")
+  2893	    probe = runner.state_path(Path(root) / "vault-probe")
+  2894	    assert probe.is_relative_to(Path(root)), f"BACKUPS 补丁没生效 ({probe}) — 用例会写真实仓库"
+  2895	    return root, client, runner, mod
+  2896	
+  2897	
+  2898	def _state_of(runner, root: Path, vault_name: str) -> dict:
+  2899	    return json.loads(runner.state_path(root / vault_name).read_text(encoding="utf-8"))
+  2900	
+  2901	
+  2902	def test_g67_board_done_writes_only_state_and_never_touches_fsrs(board_done_env, monkeypatch):
+  2903	    """完成条件 (d): 完成动作前后 fsrs_* 与 learning_events 逐字节相同。
+  2904	
+  2905	    红/绿证据 (evidence-g67/): 置 G67_FSRS_CONTAMINATE=1 时本用例自己装上
+  2906	    「顺手写 fsrs_due」的对照写点 → 门必须红在 _FSRS_GATE_MSG 上; 不置则绿。
+  2907	    两跑之外还有常驻负控 test_g67_fsrs_gate_reddens_under_contaminating_write_point,
+  2908	    保证这条性质留在 CI 里而不是只活在一次性证据里。
+  2909	
+  2910	    写面同时锁死: 全树指纹的差集必须恰是 backups 目录 + 那一个 state 文件。
+  2911	    """
+  2912	    root, client, runner, mod = board_done_env
+  2913	    vault = _mk_node_vault(
+  2914	        root,
+  2915	        "vault-fsrs",
+  2916	        {
+  2917	            "定义甲": _node_md(fsrs_due='"2099-01-01T00:00:00Z"'),
+  2918	            "定义乙": _node_md(board="数学", fsrs_due='"2030-06-01T00:00:00Z"'),
+  2919	        },
+  2920	    )
+  2921	    (vault / "learning_events.jsonl").write_text(
+  2922	        '{"event":"quiz","node":"定义甲","at":"2026-09-01T00:00:00Z"}\n', encoding="utf-8"
+  2923	    )
+  2924	    if os.environ.get("G67_FSRS_CONTAMINATE") == "1":

@@ -1,0 +1,7 @@
+# AST 冻结面对照 改后 (20260920T000436)
+
+== 主文件 ==
+stores= [85] sites==frozen: True n= 2
+
+== 验伪锚: tmp 副本追加 r5 再绑定行 ==
+stores(anchor) = 2 [85, 1047]

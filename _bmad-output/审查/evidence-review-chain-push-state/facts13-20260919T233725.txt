@@ -1,0 +1,98 @@
+== regression-open progress ==
+-rw-r--r--@ 1 Heishing  staff  2696 Sep 19 23:37 _bmad-output/审查/evidence-review-chain-push-state/regression-open-20260919T233406.txt
+tests/regression/test_g3_2_review_ledger.py ............................ [ 22%]
+..........................................................
+== test_review_overview len + tail ==
+    4932 backend/tests/unit/test_review_overview.py
+     1	    assert e6["push_degraded"] is None and e6["last_error"] is None, "坏 JSON = 读不出, 两字段皆 None"
+     2	    assert hashlib.sha256(br_state.read_bytes()).hexdigest() == br_sha, "只读请求不许隔离/重建坏 state"
+     3	
+     4	
+     5	def test_overview_page_degrade_badge_only_when_failed(board_done_env):
+     6	    """(b)④ 总览页的降级徽标 —— **只**长在失败态那张卡片上。
+     7	
+     8	    验伪锚与被测形态在同一页里: 成功态与缺失态两张卡片必须**不含**该标签。
+     9	    只断言「失败态页面里有徽标」的话, 一个无条件渲染的实现照样能绿, 而那样
+    10	    的徽标零信息量 —— 每张卡都在喊降级等于没喊。
+    11	    """
+    12	    root, client, runner, _mod = board_done_env
+    13	    gen = _now_local().isoformat(timespec="seconds")
+    14	    ok = _mk_vault(root, "vault-pa-ok", _two_board_projection("vault-pa-ok", gen))
+    15	    bad = _mk_vault(root, "vault-pb-bad", _two_board_projection("vault-pb-bad", gen))
+    16	    none_vault = _mk_vault(root, "vault-pc-none", _two_board_projection("vault-pc-none", gen))
+    17	    _push_state(runner, ok, {"schema_version": 1, "last_result": "pushed", "last_error": ""})
+    18	    _push_state(runner, bad, {"schema_version": 1, "last_result": "generated_push_failed", "last_error": "bark-send"})
+    19	    assert not runner.state_path(none_vault).exists(), "缺失态前提 = 该库没有 state 文件"
+    20	
+    21	    resp = client.get(_PAGE_URL)
+    22	    assert resp.status_code == 200
+    23	    page = resp.text
+    24	    cards = _cards_by_vault(page, ["vault-pa-ok", "vault-pb-bad", "vault-pc-none"])
+    25	
+    26	    assert _PUSH_DEGRADED_LABEL in cards["vault-pb-bad"], "失败态那张卡必须亮出降级徽标"
+    27	    assert _PUSH_DEGRADED_LABEL not in cards["vault-pa-ok"], "成功态卡片不许出徽标 (验伪锚)"
+    28	    assert _PUSH_DEGRADED_LABEL not in cards["vault-pc-none"], "缺失态卡片不许出徽标 (验伪锚)"
+    29	    assert page.count(_PUSH_DEGRADED_LABEL) == 1, "整页只该有一枚降级徽标"
+    30	    assert "bark-send" in cards["vault-pb-bad"], "徽标须把 last_error 带到用户眼前"
+
+== test_daily_review_run 880-935 ==
+   886	    assert st2["last_error"] == "bark-send"
+   887	    assert st2["last_local_notify_date"] == today
+   888	    assert fallbacks == ["📚 今日复习 · A板"]
+   889	
+   890	    _pin_pool_older_than_payload(vault, BASE)
+   891	    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+   892	    assert "push:failed" in out3 and "fallback:-" in out3, "同日本地兜底只弹一次"
+   893	    assert len(fallbacks) == 1
+   894	
+   895	    _pin_pool_older_than_payload(vault, BASE)
+   896	    out4 = _run_main(monkeypatch, capsys, vault, "2026-07-30T16:05:00+08:00")
+   897	    assert "push:accepted" in out4, "次小时必须幂等重试成功"
+   898	    st4 = runner.load_state()
+   899	    assert st4["last_push_kind"] == "due"
+   900	    assert st4["last_result"] == "pushed" and st4["last_error"] == "", "成功后必须清错"
+   901	    assert [t for _, t in calls] == [
+   902	        "📚 今日无到期节点",
+   903	        "📚 今日复习 · A板",
+   904	        "📚 今日复习 · A板",
+   905	        "📚 今日复习 · A板",
+   906	    ]
+   907	
+   908	    _pin_pool_older_than_payload(vault, BASE)
+   909	    out5 = _run_main(monkeypatch, capsys, vault, "2026-07-30T17:05:00+08:00")
+   910	    assert "push:skip-done" in out5
+   911	    assert len(calls) == 4
+   912	
+   913	
+   914	def test_rest_due_rest_due_oscillation_capped_at_two(tmp_path, monkeypatch, capsys):
+   915	    """Codex-D2b M3: 全天 rest→due→rest→due 振荡 — 第二次 accepted (due) 后
+   916	    无论语义再怎么翻转, 当日不得出现第三次发送 (rcs 越界哨兵扛门)。防
+   917	    「任意已知语义变化均放行」类回归 mutant。"""
+   918	    vault = _vault(tmp_path, {"重学卡": _node(board="A板", extra="fsrs_due: 2026-07-30T06:00:00Z\n")})
+   919	    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 0])
+   920	
+   921	    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+   922	    assert "push:accepted" in out1  # rest
+   923	    _pin_pool_older_than_payload(vault, BASE)
+   924	    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-30T14:05:00+08:00")
+   925	    assert "push:accepted" in out2  # due (反转放行一次)
+   926	
+   927	    # 盘中考完: 卡推到明天 → 榜回空 (due→rest), 不得再推
+   928	    (vault / "节点" / "重学卡.md").write_text(
+   929	        _node(board="A板", extra="fsrs_due: 2026-07-31T06:00:00Z\n"), encoding="utf-8"
+   930	    )
+   931	    _pin_pool_older_than_payload(vault, BASE)
+   932	    _set_mtime(vault / "节点" / "重学卡.md", BASE + 200)
+   933	    _set_mtime(vault / "节点", BASE + 200)
+   934	    out3 = _run_main(monkeypatch, capsys, vault, "2026-07-30T15:05:00+08:00")
+   935	    assert "generate:new" in out3 and "push:skip-done" in out3
+
+== review_app template closing quote ==
+1:"""交互复习壳 (CARD-G6-2, BATCH-2026-09-01-第八批)。
+51:"""
+72:    """常量 → 可安全内嵌 <script> 的 JSON 字面量。
+77:    """
+84:_PAGE_TEMPLATE = r"""<!DOCTYPE html>
+1003:"""
+1012:    """交互复习壳: 自动轮询 GET /overview, 手动按钮 POST /overview/refresh。
+1016:    """

@@ -801,6 +801,11 @@ _STATUS_META = {
 #: 时, 改错了两边一起变, 门就永远不会红)。
 _PUSH_DEGRADED_LABEL = "推送降级"
 
+#: CARD-REVIEW-CHAIN-PUSH-STATE: last_error 进响应/页面前的长度上限 —— 与
+#: `_collect` 兜底条目 (:1181) 的 `[:200]` 同口径; 截断点在可编码门**之后**,
+#: 不在编不出 UTF-8 的坏串上做切片。
+_LAST_ERROR_MAX_LEN = 200
+
 
 def _list_vault_dirs(vaults_root: Path) -> list[Path]:
     """与 GET /vault/list 同一条候选规则: 非隐藏目录且含 .obsidian/。"""
@@ -2551,8 +2556,10 @@ def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
     与 _read_board_done / _read_snoozed 逐条同纪律 (见那里)。本函数的全部意义
     在于**三态可区分**:
       True  = 最近一次跑推失败了 (runner 写 last_result="generated_push_failed"
-              + last_error="bark-send", scripts/daily_review_run.py:745/:746);
-      False = 最近一次推成功了 (同文件 :739 写 "pushed") —— **只认这一个枚举**;
+              + last_error="bark-send", scripts/daily_review_run.py:752/:753;
+              CARD-REVIEW-CHAIN-PUSH-STATE 起 Bark 未配 key 也算"今天没推出去":
+              "generated_push_skipped_nokey" + "bark-nokey", 同文件 :755);
+      False = 最近一次推成功了 (同文件 :746 写 "pushed") —— **只认这一个枚举**;
       None  = 没有 state 文件 / 读不出 / 形状不对 / 从来没推过 (无 last_result 键)
               / last_result 是个既非成功也非已知失败的值 (未知不等于成功)。
 
@@ -2586,13 +2593,20 @@ def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
     #     `{"last_result": null, "last_error": 123}` 这种连类型都不对的垃圾值
     #     都能把徽标点亮。徽标天天喊狼来了就没人看了。
     # 曾经这里留过一条「未知值但记了错误 ⇒ True」的余量, 想给将来 runner 新增
-    # 失败枚举打提前量。撤掉了: 当前 runner 只写那两个值 (daily_review_run.py
-    # :739/:745), 那条分支在今天的生产数据上永远走不到 = 一条没有门守着的
-    # 防御代码, 而未测的防御代码比没有更坏。真新增枚举时在这里加一行即可。
+    # 失败枚举打提前量。撤掉了: 当时 runner 只写那两个值, 那条分支在生产数据上
+    # 永远走不到 = 一条没有门守着的防御代码, 而未测的防御代码比没有更坏。
+    # CARD-REVIEW-CHAIN-PUSH-STATE: runner 真新增了第三个枚举 (daily_review_run.py
+    # :755 的 generated_push_skipped_nokey), 按此前的承诺在这里加了**精确匹配**的
+    # 一行 —— 不是真值余量: 未知值仍一律 (None, None)。
     last_result = st.get("last_result")
     if last_result == "pushed":
         degraded = False
     elif last_result == "generated_push_failed":
+        degraded = True
+    elif last_result == "generated_push_skipped_nokey":
+        # CARD-REVIEW-CHAIN-PUSH-STATE 默认口径: Bark key 未配置 = 今天没推出去 =
+        # 降级 (徽标 title 带 bark-nokey)。用户若裁「未配置不算降级」, 把本支归
+        # (None, None) 即可 —— 台账待裁, 不预设。
         degraded = True
     else:
         # 未知 / null / 其它值: 说不准。一律 None, 绝不报成功也绝不报失败。
@@ -2610,7 +2624,7 @@ def _read_push_status(state_file: Path) -> tuple[bool | None, str | None]:
         # 的序列化会在同一处再炸一次 (_read_snoozed 同款处置)。
         logger.warning("review_overview 推送原因含不可编码字符, 已丢弃该文本", state_file=state_file.name)
         return (degraded, None)
-    return (degraded, err)
+    return (degraded, err[:_LAST_ERROR_MAX_LEN])
 
 
 def _push_status(vault_dir: Path, vaults_root: Path) -> tuple[bool | None, str | None]:

@@ -1003,6 +1003,50 @@ def test_legacy_cached_payload_without_top_boards_records_due(tmp_path, monkeypa
     )
 
 
+def test_skip_nokey_overwrites_stale_pushed_state(tmp_path, monkeypatch, capsys):
+    """CARD-REVIEW-CHAIN-PUSH-STATE: rc==2 (Bark key 未配置) 必须落账 —— 不许把
+    昨日的 "pushed" 留在 state 里继续冒充「已推送」。
+
+    改前实测: rc==2 走 :749-753 的 `else` 但什么都不写, `last_result` 保持首日的
+    "pushed" ⇒ 两张总览页照样说「已推送」, 而用户手机上什么都没收到。
+    本门是修复的先红门: 改前红在 `last_result` 断言 (实得 "pushed")。
+
+    rc==2 的语义 = send 明确报告「本次不会推出去」, 落账必须诚实:
+      · 新枚举 generated_push_skipped_nokey + 固定原因 "bark-nokey" (与 "bark-send" 同型);
+      · `last_push_kind` 不被改写 (反转门语义照旧);
+      · `last_push_accepted_date` 仍是首日 (今天确实没推出去);
+      · 本地兜底当日恰一次 (无 key 也不能全静默 —— 这是既有的 Code-Review H1 面)。
+    """
+    vault = _vault(tmp_path, {"甲": _node(board="A板")})
+    calls = _push_harness(monkeypatch, tmp_path, vault, rcs=[0, 2])
+    fallbacks = []
+    monkeypatch.setattr(runner, "osascript_fallback", lambda noti: fallbacks.append(noti["title"]) or True)
+
+    out1 = _run_main(monkeypatch, capsys, vault, "2026-07-30T10:00:00+08:00")
+    assert "push:accepted" in out1
+    st1 = runner.load_state()
+    assert st1["last_result"] == "pushed" and st1["last_error"] == ""
+    assert st1["last_push_accepted_date"] == "2026-07-30"
+    kind1 = st1["last_push_kind"]
+    assert fallbacks == [], "推成功了不该走本地兜底"
+
+    # 次日: Bark key 未配置 (rc=2) —— 今天没有推送发生, state 不许继续撒谎
+    _pin_pool_older_than_payload(vault, BASE)
+    out2 = _run_main(monkeypatch, capsys, vault, "2026-07-31T10:00:00+08:00")
+    assert "push:skip-nokey" in out2, "rc==2 的日志口径仍是 skip-nokey (push 日志字面不动)"
+    assert len(calls) == 2
+
+    st2 = runner.load_state()
+    assert st2["last_result"] == "generated_push_skipped_nokey", (
+        "rc==2 必须覆盖昨日的 pushed —— 否则总览页拿昨天的『已推送』糊弄用户"
+    )
+    assert st2["last_error"] == "bark-nokey"
+    assert st2["last_push_kind"] == kind1, "skip-nokey 不得改写语义账 (反转门语义照旧)"
+    assert st2["last_push_accepted_date"] == "2026-07-30", "今天确实没推出去, accepted 日期不许刷新"
+    assert fallbacks == ["📚 今日复习已生成"], "无 key 必须本地兜底一条 (当日恰一次)"
+    assert st2["last_local_notify_date"] == "2026-07-31"
+
+
 # ── CARD-G6-7 (BATCH-2026-09-05-第十二批): state 加性扩展 board_done ──
 
 

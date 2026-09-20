@@ -1,0 +1,16 @@
+files=9 (含 P5-A 面, 属正常)
+  backend/app/api/v1/endpoints/review_app.py
+  backend/app/api/v1/endpoints/review_overview.py
+  backend/scripts/g68_five_view_contract.py
+  backend/tests/regression/test_daily_review_run.py
+  backend/tests/regression/test_g68_five_view_contract.py
+  backend/tests/regression/test_g6_9_boundary_matrix.py
+  backend/tests/unit/test_review_app.py
+  backend/tests/unit/test_review_overview.py
+  scripts/daily_review_run.py
+All checks passed!
+ruff rc=0
+Would reformat: backend/scripts/g68_five_view_contract.py
+Would reformat: backend/tests/unit/test_review_overview.py
+2 files would be reformatted, 7 files already formatted
+fmt rc=1

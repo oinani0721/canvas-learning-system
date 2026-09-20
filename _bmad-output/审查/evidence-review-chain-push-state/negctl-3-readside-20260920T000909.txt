@@ -1,0 +1,15 @@
+# negctl-3 (20260920T000909): 删读侧新 elif (5 行) → overview skipped_nokey 门必红在 push_degraded
+== 跑前 shasum ==
+1a30c259aa1300d058d81a28c4d613262ac119ef2fa8a86a624c4dbcb32b6441  backend/app/api/v1/endpoints/review_overview.py
+mutated: removed elif block lines 2605..2609
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_review_overview.py::test_overview_push_degraded_true_when_skipped_nokey
+================ 1 failed, 118 deselected, 10 warnings in 1.66s ================
+rc=1
+== 跑后 shasum (应逐字同) ==
+1a30c259aa1300d058d81a28c4d613262ac119ef2fa8a86a624c4dbcb32b6441  backend/app/api/v1/endpoints/review_overview.py
+== git status (应空) ==
+?? "_bmad-output/\345\256\241\346\237\245/evidence-review-chain-push-state/"

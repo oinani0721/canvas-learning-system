@@ -1,0 +1,176 @@
+# P5-B facts-5 (g68 imports + boundary + test helpers) (20260919T233442)
+
+===== g68: WT / review_overview / sys.path =====
+8:      ① review_overview   /overview 聚合 (_collect → _summarize → _gate_buckets)
+46:WT = Path(__file__).resolve().parents[2]
+71:    "bucket": ("review_overview", "picker"),
+72:    "display_day": ("review_overview", "picker", "skill_inbox", "notification"),
+73:    "projection_day": ("review_overview", "picker", "notification"),
+74:    "snoozed": ("review_overview", "picker"),
+75:    "done": ("review_overview", "picker"),
+79:    "review_overview",
+229:    #    规则, review_overview :799-807）—— 缺它整个 vault 不会被 _collect() 列出来,
+230:    #    review_overview 这一面会静默给不出任何结论。
+232:    shutil.copy(WT / "canvas-vault" / ".claude" / "scripts" / "decay_beta.py", scripts)
+245:    「身份被整体替换但每板数量不变」的投影蒙混过关（review_overview
+373:# ────────────────────────── 面：review_overview ───────────────────────────
+376:def face_review_overview(ro, vaults_root: Path, vault_id: str) -> tuple[dict, bool]:
+389:            "投影摘要缺 bucket_rows —— review_overview 这一面没有可比结论, "
+420:#: review_app 允许从 review_overview 引进来的共享名（:60-66 的 import 清单）。
+471:        if isinstance(node, ast.ImportFrom) and node.module == "app.api.v1.endpoints.review_overview":
+476:            f"review_app 不再从 review_overview 引入共享桶序常量（缺 {missing}）—— "
+642:    scripts_dir = WT / "canvas-vault" / ".claude" / "skills" / "clear-inbox" / "scripts"
+643:    if str(scripts_dir) not in sys.path:
+644:        sys.path.insert(0, str(scripts_dir))
+687:    path = WT / "canvas-vault" / ".claude" / "skills" / "board-recap" / "scripts" / "recap_exam_build.py"
+892:            #    抓到过这一点: 改的是 review_overview, 报出来的却是 picker ——
+948:    #    · VAULTS_ROOT —— review_overview 的 `_collect()` 从 settings 取;
+968:        sys.path.insert(0, str(WT / "scripts"))
+1033:        # ── ① review_overview ───────────────────────────────────────────
+1036:        # ⛔ 以 `python scripts/g68_...py` 启动时 sys.path[0] 是 `backend/scripts`,
+1039:        if str(WT / "backend") not in sys.path:
+1040:            sys.path.insert(0, str(WT / "backend"))
+1044:        from app.api.v1.endpoints import review_overview as ro  # noqa: PLC0415
+
+===== boundary: 600-668 =====
+   600	    assert "last_push_accepted_date" not in st or st["last_push_accepted_date"] != "2026-07-30", (
+   601	        "推送失败却落了 accepted 日期 —— 次档的幂等重试会被误判成已推"
+   602	    )
+   603	
+   604	
+   605	def test_push_failure_visibility_in_backend_app_is_exactly_review_overview():
+   606	    """登记项已转正（第十四批 T3-C CARD-G6-9b，squash 4293abb1）：runner 的四个推送落账专属键在
+   607	    `backend/app` 里的消费点**恰好一个** —— `review_overview.py::_read_push_status` 只读投影
+   608	    `last_result == "generated_push_failed"`（/overview 的 push_degraded + last_error 徽标）。
+   609	
+   610	    历史：本门原名 test_push_failure_is_invisible_to_backend_app，断言「四键零引用」，并在
+   611	    docstring 里预告「哪天有人把这些键接进 backend/app，它会翻红提醒把登记项转正」。第十四批
+   612	    集成期它如约翻红（候选树 65b2ed65，主 session 定性为 T3-C 引入、设计内），本条即转正：
+   613	    锁住「唯一消费点 + 只消费这一个键」，其余三键仍须零引用 —— 再多一处消费者或多消费一个键
+   614	    都得回来改这里，而不是静默扩面。
+   615	
+   616	    上一条证明了推送失败会落进 runner 的 state 文件。本条扫描 `backend/app`，
+   617	    确认没有任何 Python 文件提到那四个键。
+   618	
+   619	    ⚠️ **结论边界（round-1 Codex MEDIUM-5 收窄）**：本门证明的是
+   620	    「**这四个字面量**在 `backend/app/**/*.py` 中零引用」。它**不能**替代行为证据
+   621	    证明"UI / 响应体完全不可见"——通用的 state 透传、字段别名、或扫描面之外
+   622	    （前端、模板、其它服务）的消费都不受本门约束。
+   623	    "用户在页面上看不出今天这条提醒没发出去"是由此**推断**的，不是端到端验证的。
+   624	
+   625	    徽标已由 CARD-G6-9b 交付；本门现在守的是消费面**不再静默扩大**。
+   626	    """
+   627	    # ⛔ 判据的匹配面不能比消费面宽：初版把裸 `last_error` 也算进来，结果命中了
+   628	    #    provider_factory / gemini_client / lancedb_index_service 里三个**同名局部
+   629	    #    变量**（LLM 重试循环的 `last_error: Optional[Exception]`），与 runner 的
+   630	    #    state 毫无关系。这里只认 **runner 专属**的标识：这些串在本仓只可能来自
+   631	    #    daily_review_run 的落账契约。
+   632	    RUNNER_ONLY_KEYS = (
+   633	        "generated_push_failed",  # runner:258 的 last_result 取值
+   634	        "last_push_accepted_date",  # runner:246 的推送去重键
+   635	        "last_push_kind",  # runner:250 的语义账
+   636	        "last_local_notify_date",  # runner:273 的本地兜底去重
+   637	        # ⚠️ 刻意**不**把 state 文件名 "daily-review." 放进来：它在
+   638	        #    review_overview.py:1458 有一处命中，而那是一句说"**不碰**
+   639	        #    backups/daily-review.*.state.json"的注释——一句否定陈述里当然含有
+   640	        #    被否定的那个串。把它当命中就是第二次把匹配面写得比消费面宽
+   641	        #    （第一次是裸 last_error 命中了三个同名局部变量）。
+   642	        #    这条改由下面的正面佐证断言承担。
+   643	    )
+   644	    app_dir = WT / "backend" / "app"
+   645	    hits = []
+   646	    for path in app_dir.rglob("*.py"):
+   647	        text = path.read_text(encoding="utf-8", errors="replace")
+   648	        for key in RUNNER_ONLY_KEYS:
+   649	            if key in text:
+   650	                hits.append(f"{path.relative_to(WT)}:{key}")
+   651	    EXPECTED_HITS = [
+   652	        "backend/app/api/v1/endpoints/review_overview.py:generated_push_failed",
+   653	    ]
+   654	    assert sorted(hits) == EXPECTED_HITS, (
+   655	        f"runner 推送落账键在 backend/app 的消费面变了：{sorted(hits)} ≠ {EXPECTED_HITS} —— "
+   656	        "多出的消费点 / 多消费的键必须在这里显式登记（G6-9b 只放行 review_overview 读 last_result）"
+   657	    )
+   658	
+   659	    # 验伪锚：同样的扫描方式在 **runner 自己** 身上必须命中，否则"零命中"
+   660	    # 分不清是"确实没人消费"还是"我扫错了地方 / 关键词已过期"。
+   661	    runner_src = (WT / "scripts" / "daily_review_run.py").read_text(encoding="utf-8")
+   662	    missing = [k for k in RUNNER_ONLY_KEYS if k not in runner_src]
+   663	    assert missing == [], f"这些关键词在 runner 里都找不到，说明它们已过期：{missing}"
+   664	
+   665	    # 正面佐证：端点自己写明了"不碰 state 文件"。它与上面的零命中互相独立——
+   666	    # 一个是"扫不到消费代码"，一个是"作者明确声明过不消费"。
+   667	    overview = (WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_overview.py").read_text(encoding="utf-8")
+   668	    assert "backups/daily-review.*.state.json" in overview, (
+
+===== test_g68: 1-70 =====
+     1	"""CARD-G6-8 — 五面复习视图一致性契约门（BATCH-2026-09-11-第十四批）。
+     2	
+     3	锁定的性质: 同一份 state 输入下, 复习视图的五个面对每块板给出的
+     4	桶位 / 显示日 / 推迟 / 完成结论逐字段相等; 任一面的口径被改动, 本门必红。
+     5	
+     6	⛔ 本门跑**子进程**而不是在进程内调 `contract.run()`: 契约脚本要在 import
+     7	被测模块**之前**设置 `CANVAS_TZ` / `VAULTS_ROOT`（picker 的 `_DISPLAY_TZ` 是
+     8	模块级常量, import 那一刻就固化）。同一个 pytest 进程里换时区再 import 拿到的
+     9	是第一次的值 —— 那会让「换时区跑」这一半用例静默失效（假绿）。子进程每次从
+    10	干净解释器起, 是唯一能真跑到「换了时区」的形态。
+    11	"""
+    12	
+    13	import json
+    14	import os
+    15	import subprocess
+    16	import sys
+    17	from datetime import datetime, timedelta, timezone
+    18	from pathlib import Path
+    19	
+    20	import pytest
+    21	
+    22	WT = Path(__file__).resolve().parents[3]
+    23	SCRIPT = WT / "backend" / "scripts" / "g68_five_view_contract.py"
+    24	PY = sys.executable
+    25	
+    26	sys.path.insert(0, str(WT / "backend" / "scripts"))
+    27	import g68_five_view_contract as contract  # noqa: E402  # pyright: ignore[reportMissingImports]
+    28	
+    29	#: 契约跑的基准时刻 —— 带偏移, 且当地时刻 < 20:00（tonight_available 为真的那一档）。
+    30	NOW_EARLY = "2026-09-12T03:00:00+00:00"  # Asia/Shanghai 当地 11:00
+    31	#: 当地时刻 ≥ 20:00 的那一档（同日, 上海 21:00）。
+    32	NOW_LATE = "2026-09-12T13:00:00+00:00"
+    33	
+    34	TZ_SH = "Asia/Shanghai"
+    35	TZ_LA = "America/Los_Angeles"
+    36	
+    37	
+    38	def _run(tmp_path: Path, now: str = NOW_EARLY, tz: str = TZ_SH, name: str = "r") -> tuple[int, dict, str, str]:
+    39	    """跑一次契约脚本, 返回 (rc, 报告 JSON, stdout, stderr)。
+    40	
+    41	    ⛔ stderr 也要带出来（Codex r3 LOW-8）: 契约判红时把计算期被测模块的 stdout
+    42	    回放到 stderr, 丢掉它等于「直接跑 CLI 看得到诊断、经本门跑就看不到」。
+    43	    """
+    44	    out = tmp_path / f"{name}.json"
+    45	    proc = subprocess.run(
+    46	        [PY, str(SCRIPT), "--now", now, "--tz", tz, "--json", str(out)],
+    47	        capture_output=True,
+    48	        text=True,
+    49	        cwd=str(WT / "backend"),
+    50	        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    51	    )
+    52	    assert out.is_file(), f"契约脚本没有产出报告\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    53	    return proc.returncode, json.loads(out.read_text(encoding="utf-8")), proc.stdout, proc.stderr
+    54	
+    55	
+    56	# ───────────────────────────── (d)① 主断言 ─────────────────────────────
+    57	
+    58	
+    59	def test_five_view_matrix_is_field_wise_consistent(tmp_path):
+    60	    """五面矩阵逐板逐字段全等（已登记分歧除外）。"""
+    61	    rc, report, _, err = _run(tmp_path)
+    62	    assert report["undeclared_divergences"] == [], (
+    63	        "五面出现未登记的口径分歧:\n"
+    64	        # ⛔ 每行带**结构化判据码**（Codex r4 MEDIUM-7）: 负控的文本锚绑在这个码上,
+    65	        #    而不是「面=picker」这类人话 —— 被测模块的诊断输出经 stderr / 断言消息
+    66	        #    回流后也会带 `E ` 前缀与字段名字样, 拿人话当锚就分不清「门抓到了」和
+    67	        #    「日志里恰好有这个词」。这串码只有本判据会产出。
+    68	        + "\n".join(
+    69	            f"  {contract.diff_code(r)} 板={r['board']} 字段={r['field']} 面={r['face']} "
+    70	            f"值={r['value']} ≠ 多数派{r['majority_faces']}={r['majority_value']}"

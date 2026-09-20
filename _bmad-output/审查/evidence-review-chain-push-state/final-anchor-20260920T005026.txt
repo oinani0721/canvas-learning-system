@@ -1,0 +1,27 @@
+# 收工补跑 (20260920T005026) HEAD=94f9f52a
+
+== (l) 地盘验伪锚 [official, evidence 已入库] ==
+67
+
+== (l) 反证: 带 exclude 的重跑（应仍恰九文件）==
+ backend/tests/unit/test_review_overview.py         | 63 ++++++++++++++++++
+ scripts/daily_review_run.py                        |  2 +
+ 9 files changed, 267 insertions(+), 24 deletions(-)
+
+== (j) HEAD 提交面 openapi 检查 ==
+0
+
+== 终态绑定 626d5416..HEAD exclude _bmad-output (应空) ==
+rc=0
+
+== 三 commit 清单 ==
+94f9f52a docs(p5-b): 落档全套证据（含 Codex r1 D-15）+ 验收单 [BATCH-2026-09-18-第十五批 / CARD-REVIEW-CHAIN-PUSH-STATE]
+626d5416 docs(p5-b): 自引行号更正 :1176→:1181、:60-66→:60-67 [BATCH-2026-09-18-第十五批 / CARD-REVIEW-CHAIN-PUSH-STATE]
+9922d0bf fix(p5-b): 推送三态修复 + 模板冻结绑最终模板 + 交互壳降级徽标 [BATCH-2026-09-18-第十五批 / CARD-REVIEW-CHAIN-PUSH-STATE]
+
+== status ==
+?? "_bmad-output/\345\256\241\346\237\245/evidence-review-chain-push-state/commit-docs-20260920T004959.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-review-chain-push-state/commit-docs-20260920T005015.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-review-chain-push-state/final-anchor-20260920T005026.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-review-chain-push-state/regression-close.nodeids"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-review-chain-push-state/regression-open.nodeids"

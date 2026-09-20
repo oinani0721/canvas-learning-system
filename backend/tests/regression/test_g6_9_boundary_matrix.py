@@ -603,21 +603,23 @@ def test_bark_failure_lands_state_and_projection_written_before_push(tmp_path, m
 
 
 def test_push_failure_visibility_in_backend_app_is_exactly_review_overview():
-    """登记项已转正（第十四批 T3-C CARD-G6-9b，squash 4293abb1）：runner 的四个推送落账专属键在
+    """登记项已转正（第十四批 T3-C CARD-G6-9b，squash 4293abb1；CARD-REVIEW-CHAIN-PUSH-STATE
+    起键集扩到五个 —— 新增 `generated_push_skipped_nokey`）：runner 的推送落账专属键在
     `backend/app` 里的消费点**恰好一个** —— `review_overview.py::_read_push_status` 只读投影
-    `last_result == "generated_push_failed"`（/overview 的 push_degraded + last_error 徽标）。
+    `last_result` 的两个失败枚举（`generated_push_failed` / `generated_push_skipped_nokey`；
+    /overview 的 push_degraded + last_error 徽标）。
 
     历史：本门原名 test_push_failure_is_invisible_to_backend_app，断言「四键零引用」，并在
     docstring 里预告「哪天有人把这些键接进 backend/app，它会翻红提醒把登记项转正」。第十四批
     集成期它如约翻红（候选树 65b2ed65，主 session 定性为 T3-C 引入、设计内），本条即转正：
-    锁住「唯一消费点 + 只消费这一个键」，其余三键仍须零引用 —— 再多一处消费者或多消费一个键
+    锁住「唯一消费点 + 只消费这两个键」，其余两键仍须零引用 —— 再多一处消费者或多消费一个键
     都得回来改这里，而不是静默扩面。
 
     上一条证明了推送失败会落进 runner 的 state 文件。本条扫描 `backend/app`，
     确认没有任何 Python 文件提到那四个键。
 
     ⚠️ **结论边界（round-1 Codex MEDIUM-5 收窄）**：本门证明的是
-    「**这四个字面量**在 `backend/app/**/*.py` 中零引用」。它**不能**替代行为证据
+    「**这些 runner 专属字面量**在 `backend/app/**/*.py` 中的引用面 == 已登记集合」。它**不能**替代行为证据
     证明"UI / 响应体完全不可见"——通用的 state 透传、字段别名、或扫描面之外
     （前端、模板、其它服务）的消费都不受本门约束。
     "用户在页面上看不出今天这条提醒没发出去"是由此**推断**的，不是端到端验证的。
@@ -631,6 +633,7 @@ def test_push_failure_visibility_in_backend_app_is_exactly_review_overview():
     #    daily_review_run 的落账契约。
     RUNNER_ONLY_KEYS = (
         "generated_push_failed",  # runner:258 的 last_result 取值
+        "generated_push_skipped_nokey",  # CARD-REVIEW-CHAIN-PUSH-STATE: runner :755 的 skip-nokey 落账
         "last_push_accepted_date",  # runner:246 的推送去重键
         "last_push_kind",  # runner:250 的语义账
         "last_local_notify_date",  # runner:273 的本地兜底去重
@@ -650,6 +653,8 @@ def test_push_failure_visibility_in_backend_app_is_exactly_review_overview():
                 hits.append(f"{path.relative_to(WT)}:{key}")
     EXPECTED_HITS = [
         "backend/app/api/v1/endpoints/review_overview.py:generated_push_failed",
+        # CARD-REVIEW-CHAIN-PUSH-STATE: 新枚举落账 = 多消费一个键, 必须显式登记 (改前 1 行 → 改后 2 行)
+        "backend/app/api/v1/endpoints/review_overview.py:generated_push_skipped_nokey",
     ]
     assert sorted(hits) == EXPECTED_HITS, (
         f"runner 推送落账键在 backend/app 的消费面变了：{sorted(hits)} ≠ {EXPECTED_HITS} —— "

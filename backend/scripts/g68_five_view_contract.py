@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import importlib
 import io
 import json
 import os
@@ -417,8 +418,15 @@ def face_review_overview(ro, vaults_root: Path, vault_id: str) -> tuple[dict, bo
 
 # ─────────────────────────── 面：review_app（静态）───────────────────────────
 
-#: review_app 允许从 review_overview 引进来的共享名（:60-66 的 import 清单）。
-_APP_SHARED_IMPORTS = ("_BUCKET_CN", "_BUCKET_ORDER", "_DONE_NOTE", "_SNOOZE_NOTE", "_STATUS_META")
+#: review_app 允许从 review_overview 引进来的共享名（:60-67 的 import 清单）。
+_APP_SHARED_IMPORTS = (
+    "_BUCKET_CN",
+    "_BUCKET_ORDER",
+    "_DONE_NOTE",
+    "_PUSH_DEGRADED_LABEL",
+    "_SNOOZE_NOTE",
+    "_STATUS_META",
+)
 
 #: AST 门里**按身份**豁免的字符串常量（模块级赋值名）。⛔ 不是按长度豁免:
 #: 长度不是语义边界（Codex r3）。`_PAGE_TEMPLATE` 是 review_app 的页面模板
@@ -476,6 +484,42 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
             f"review_app 不再从 review_overview 引入共享桶序常量（缺 {missing}）—— "
             "「共享不复制」这条纪律已破, 静态断言的前提不成立"
         )
+
+    # ── 判据① 单一绑定（CARD-REVIEW-CHAIN-PUSH-STATE; 关闭 Codex r5 HIGH-1）────
+    # ⛔ 原先提取模板用 `next()` 取**顶层第一处**常量赋值 —— 其后任何一次再绑定
+    #    都会让冻结集锁在旧值上（r5 实测: 模板后追加
+    #    `_PAGE_TEMPLATE = _PAGE_TEMPLATE.replace(...)` 时本门仍 PASS）。
+    #    Name-Store 计数覆盖 Assign/AugAssign/AnnAssign/NamedExpr/For/With 各形态;
+    #    import-as 与 `global` 不是 Name 节点, 另查 alias / Global 两处。
+    #    放在最前: 模板一旦不是「单一最终常量」, 后续按身份豁免/冻结的判据都失去前提
+    #    （join 形态会把模板从豁免面挤出去, 先炸在 due 算法门上 —— 那是误导性的红）。
+    stores = [
+        n.lineno
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Name) and n.id == "_PAGE_TEMPLATE" and isinstance(n.ctx, ast.Store)
+    ]
+    alias_stores = [
+        a.asname
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.Import, ast.ImportFrom))
+        for a in n.names
+        if a.asname == "_PAGE_TEMPLATE"
+    ]
+    global_stores = [n.lineno for n in ast.walk(tree) if isinstance(n, ast.Global) and "_PAGE_TEMPLATE" in n.names]
+    top_assigns = [
+        n
+        for n in tree.body
+        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "_PAGE_TEMPLATE" for t in n.targets)
+    ]
+    top_constant = [n for n in top_assigns if isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)]
+    if len(stores) != 1 or alias_stores or global_stores or len(top_assigns) != 1 or not top_constant:
+        raise ContractError(
+            "页面模板 _PAGE_TEMPLATE 被再绑定 / 遮蔽, 或不再是模块级字符串常量赋值 "
+            f"(Store={stores!r}, alias={alias_stores!r}, global={global_stores!r}, "
+            f"顶层赋值={len(top_assigns)}, 顶层字符串常量={len(top_constant)}) —— 模板冻结不绑最终模板: "
+            "冻结的必须是**最终**绑定的那个常量, 否则门锁的是旧值、运行期用的是新值"
+        )
+    template = top_constant[0].value.value
 
     # 本文件自己**赋值**出来的名字（模块级常量 / 函数内变量 / 函数与类定义）。
     assigned: set[str] = set()
@@ -588,17 +632,6 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
     #    （`rows[b].filter(r => Date.parse(r.fsrs_due) <= nowMs)`）, 区分靠语义, 而
     #    JS 的语义在 Python AST 门的射程之外。它声称的是一件**可判定**的事:
     #    这些调用点**没有变过**。变了就红, 由人判新的那一处还算不算纯消费。
-    template = next(
-        (
-            n.value.value
-            for n in tree.body
-            if isinstance(n, ast.Assign)
-            and isinstance(n.value, ast.Constant)
-            and isinstance(n.value.value, str)
-            and any(isinstance(t, ast.Name) and t.id == "_PAGE_TEMPLATE" for t in n.targets)
-        ),
-        "",
-    )
     template_sites = {
         ln.strip() for ln in template.splitlines() if any(m in ln for m in ("fsrs_due", "due_reason", "fsrs_state"))
     }
@@ -609,9 +642,24 @@ def assert_review_app_has_no_due_algorithm(app_path: Path) -> dict:
             f"消失 {sorted(_TEMPLATE_DUE_CALLSITES - template_sites)} —— 需人判新的那一处是否仍是纯消费"
         )
 
+    # ── 判据② 运行期锚（fail-closed）─────────────────────────────────────────
+    # AST 冻结面对得上、运行期却拿到别的值（动态改写等计数外形态）时这里必红;
+    # import 失败同样红 —— 不 skip、不降级成"跳过"。
+    try:
+        runtime_module = importlib.import_module("app.api.v1.endpoints.review_app")
+        runtime_template = getattr(runtime_module, "_PAGE_TEMPLATE")
+    except Exception as e:  # noqa: BLE001 —— 取不到运行期值 = 锚失效, 必须红
+        raise ContractError(
+            f"运行期锚失效: 无法 import review_app 读取 _PAGE_TEMPLATE ({type(e).__name__}: {e})"
+        ) from e
+    if not isinstance(runtime_template, str) or runtime_template != template:
+        raise ContractError("运行期 _PAGE_TEMPLATE 与 AST 常量不逐字节相同 —— 模板冻结不绑最终模板")
+
     return {
         "imported_shared": sorted(imported & set(_APP_SHARED_IMPORTS)),
         "offenders": [],
+        # r5 HIGH-1 的关闭判据也摊开: Store 计数 + 运行期锚逐字节相同。
+        "template_binding": {"stores": len(stores), "runtime_equal": True},
         # 模板里被冻结的 due 调用点 —— 摊开可见, 免得这条豁免变成暗门。
         "template_due_callsites": sorted(template_sites),
         # 被豁免的那几个字符串常量（名字 + 长度）—— 摊开写出来, 免得豁免变成暗门。

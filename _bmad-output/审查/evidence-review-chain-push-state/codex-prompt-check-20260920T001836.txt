@@ -1,0 +1,16 @@
+# codex r1 prompt 自检 (20260920T001836)
+== 四个禁用措辞扫描 ==
+命中 rc=1 (1=无命中=通过)
+
+== 旧模型名扫描 (gpt-6-astra / gpt-5.6 / ultra) ==
+rc=1
+
+== prompt sha256 ==
+def048900b242aa33e9037620a143d00a820aef604e9fd723291bd6d083d7938  _bmad-output/审查/prompts/codex-prompt-CARD-REVIEW-CHAIN-PUSH-STATE-r1.md
+
+== 存档名撞名检查 ==
+rc=1 (1=无撞名)
+rc=1
+
+== 送审前绑定 (626d5416..HEAD exclude _bmad-output 期望空) ==
+rc=0

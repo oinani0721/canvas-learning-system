@@ -402,6 +402,45 @@ def test_template_due_callsites_are_frozen_by_identity(tmp_path):
         contract.assert_review_app_has_no_due_algorithm(tainted)
 
 
+def test_template_freeze_binds_final_template(tmp_path):
+    """CARD-REVIEW-CHAIN-PUSH-STATE (关闭 Codex r5 HIGH-1): 模板冻结必须绑**最终**模板。
+
+    r5 实测: 在模板后追加 `_PAGE_TEMPLATE = _PAGE_TEMPLATE.replace(...)` 时原门仍 PASS
+    —— 它对模板的提取是 `next()` 取**顶层第一处**常量赋值, 冻结的是旧值, 运行期用的
+    是新值。本门两道判据: ① `_PAGE_TEMPLATE` 的 Name-Store 计数恰 1 (外加 import-as /
+    global 两个非 Name 遮蔽面) 且仍是模块级字符串常量; ② 运行期锚 —— import 真模块,
+    运行期 `_PAGE_TEMPLATE` 与 AST 常量逐字节相同 (fail-closed, 不 skip)。
+    """
+    app = WT / "backend" / "app" / "api" / "v1" / "endpoints" / "review_app.py"
+    result = contract.assert_review_app_has_no_due_algorithm(app)  # 正例 HEAD: 不抛
+    assert result.get("template_binding") == {"stores": 1, "runtime_equal": True}, (
+        "返回 dict 必须摊开模板绑定判据 (stores=1 / runtime_equal=True)"
+    )
+
+    # 负控①: r5 的再绑定形态 —— 必须红在「再绑定」(改前门不覆盖, 先红点)
+    src = app.read_text(encoding="utf-8")
+    rebind = tmp_path / "review_app_rebind.py"
+    rebind.write_text(
+        src + '\n\n_PAGE_TEMPLATE = _PAGE_TEMPLATE.replace("const due = humanizeDue(", "const due = Number(")\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(contract.ContractError, match="再绑定"):
+        contract.assert_review_app_has_no_due_algorithm(rebind)
+
+    # 负控②: 单一 Store 但值不再是字符串常量 (包成 "".join([...])) —— 同样必红
+    marker = '_PAGE_TEMPLATE = r"""'
+    assert src.count(marker) == 1, "前提: 页面模板赋值形态与预期不符"
+    i = src.index(marker)
+    j = src.index('"""', i + len(marker))  # 模板字面量收尾 (模板体内无三引号)
+    join_form = tmp_path / "review_app_join.py"
+    join_form.write_text(
+        src[:i] + '_PAGE_TEMPLATE = "".join([r"""' + src[i + len(marker) : j] + '"""])' + src[j + 3 :],
+        encoding="utf-8",
+    )
+    with pytest.raises(contract.ContractError, match="模块级字符串常量"):
+        contract.assert_review_app_has_no_due_algorithm(join_form)
+
+
 def test_function_docstring_mentioning_due_is_not_an_offender(tmp_path):
     """普通函数的**说明文字**里提到 due 字段不算违约（它在描述不做什么）。
 
