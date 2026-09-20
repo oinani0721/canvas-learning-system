@@ -1,0 +1,12 @@
+# CARD-G1-3 先红成对判据 —— 改前侧 @ 9c4e7e82 2026-09-18T16:52:26+08:00
+b2 README capability-ledger = 0   [期望 0]
+b3 协议(本树) ledger        = 0   [期望 0]
+b3b 协议(feature树) ledger  = 0   [期望 0]
+b4 evidence-g13 存档目录    = 1   [期望 0(建目录前) —— 见下方注]
+验伪锚1 README G1-3         = 1   [期望 1 = grep 能命中已知正例]
+验伪锚2 evidence-pyright-gate = 1   [期望 1]
+注: EV 目录已于本命令首行 mkdir，b4 的 0 值以 git 口径复核：
+b4-git HEAD 树内 evidence-g13 = 0   [期望 0]
+b4-git 验伪锚 pyright-gate    = 14   [期望 >=1]
+b5 check-ignore 可入库核:
+  check-ignore rc=1   [期望 1 = 不被忽略]

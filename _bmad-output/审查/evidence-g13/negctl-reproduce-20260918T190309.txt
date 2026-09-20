@@ -1,0 +1,35 @@
+# CARD-G1-3 负控可复现性复算 @ 2026-09-18T19:03:09+08:00  绑 85c1284b
+# Codex r6 LOW-4：负控汇总只记了判定结果、没留下被判定的输入，段 4 的构造与段 12 的路径数无从复核。
+# 本段用 negctl_inputs_gen.py 重新生成全部输入再跑一遍正式 main()，与汇总逐条对照。
+# 生成器: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/_bmad-output/审查/evidence-g13/negctl_inputs_gen.py（输入写 scratch，不进仓）
+
+输入                 rc     红在                     期望
+--------------------------------------------------------------------------------
+mut1.md            1      L4                     rc=1 红在 L4 ✓
+mut2.md            1      L3                     rc=1 红在 L3 ✓
+mut3.md            1      L3                     rc=1 红在 L3 ✓
+mut4.md            1      L1                     rc=1 红在 L1 ✓
+mut5.md            1      L11                    rc=1 红在 L11 ✓
+mut6.md            1      L12                    rc=1 红在 L12 ✓
+mut8.md            1      L9                     rc=1 红在 L9 ✓
+mut9.md            1      L3                     rc=1 红在 L3 ✓
+mut10.md           1      L4                     rc=1 红在 L4 ✓
+mut12a.md          1      L3                     rc=1 红在 L3 ✓
+mut12b.md          1      L3                     rc=1 红在 L3 ✓
+f1.md              1      L14+L15                rc=1 红在 L14+L15 ✓
+f2.md              1      L15                    rc=1 红在 L15 ✓
+f3.md              1      L15                    rc=1 红在 L15 ✓
+f4.md              1      L15                    rc=1 红在 L15 ✓
+f5.md              1      L15                    rc=1 红在 L15 ✓
+f6.md              1      L13+L15                rc=1 红在 L13+L15 ✓
+h1-fakedecl.md     1      L15                    rc=1 红在 L15 ✓
+h2-dupdecl.md      1      L15                    rc=1 红在 L15 ✓
+h3-decimal.md      1      L15                    rc=1 红在 L15 ✓
+g1.md              0      -                      rc=0 红在 - ✓
+g2.md              0      -                      rc=0 红在 - ✓
+g3.md              0      -                      rc=0 红在 - ✓
+g4.md              0      -                      rc=0 红在 - ✓
+h4-escpipe.md      0      -                      rc=0 红在 - ✓
+
+# 对照结论：上表每一行的 rc 与红在的判据，都与 negctl-all / negctl-13 存档所记一致。
+# 段 4 的构造已在存档中写明「截 14 行**且自述同步改 14**」；段 12 是 12a/12b 两份输入，不是一份。

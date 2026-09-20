@@ -1,0 +1,55 @@
+# CARD-G1-3 evidence-g13 存档清单 —— 机器生成于 2026-09-18T18:46:19+08:00
+# 验收单引用本清单，不手写时间戳（Codex r4 M-5：手写的 14 个文件名整改后全部过期）。
+
+文件                                                     字节  首行
+ARCHIVE-INDEX-20260918T184617.txt                     280  # CARD-G1-3 evidence-g13 存档清单 —— 机器生成于 2026-09-18T18:4
+base.nodeids                                         3599  FAILED tests/unit/test_agent_memory_injection.py::Test
+close.nodeids                                        3503  FAILED tests/unit/test_agent_memory_injection.py::Test
+entry-lineno-crosscheck-20260918T170856.txt          5436  # CARD-G1-3 入口 file:line 逐条反查 @ 9c4e7e82 2026-09-18T17
+l12-known-weakness-probe-20260918T173253.txt         1385  # CARD-G1-3 —— L12 已知弱点的实证（验收单 §4.8 那条声称的自证）
+l3_semantics_control.py                              5151  #!/usr/bin/env python3
+l3-semantics-control-20260918T174658.txt             1695  # L3 语义对照：旧实现（存在判据）vs 新实现（全称判据）
+ledger_lint.py                                      31341  #!/usr/bin/env python3
+ledger-lint-close-20260918T184617.txt               16905  # trunk: HEAD = 9764fdecf19ad567e41cd0c3a9fa17caafbe5d
+ledger-sha-at-commit-20260918T181053.txt              952  # CARD-G1-3 —— 定稿字节绑定（Codex r3 LOW：原件 sha 存档既不能证明全过程未触
+na-judges-pyright-openapi-ruff-20260918T171621.txt     1797  # CARD-G1-3 —— (h) pyright / (j) openapi / §二.7 ruff 三
+negctl-14-decl-width-20260918T184406.txt             1741  # CARD-G1-3 负控段14 — L15 自述定位 与 两侧切分口径（Codex r5 的 M-1 /
+negctl-all-20260918T184540.txt                       1706  # CARD-G1-3 负控全量 @ 2026-09-18T18:45:40+08:00  绑 9764fd
+open.nodeids                                         3503  FAILED tests/unit/test_agent_memory_injection.py::Test
+patch-applied-verify-20260918T170306.txt             1154  # CARD-G1-3 patch 实套核（dry-run rc=0 只证「能套」，此段证「套完内容对」）
+patch-dryrun-20260918T170248.txt                      939  # CARD-G1-3 patch dry-run —— 两个目标各一次（本树 96 行 / feature
+prered-ledger-expected-red-20260918T165226.txt         79  ls: docs/release-evidence/capability-ledger.md: No suc
+prered-structural-20260918T165226.txt                 697  # CARD-G1-3 先红成对判据 —— 改前侧 @ 9c4e7e82 2026-09-18T16:52:
+protocol-ledger-row.patch                            2318  # CARD-G1-3 [BATCH-2026-09-18-第十五批] —— 协议 §5 新增「每卡收官须更
+revd-all-close-20260918T170725.txt                    118  ✅ PASS docs/release-evidence/example-backfill-d5/journ
+revd-all-open-20260918T165237.txt                     123  ✅ PASS docs/release-evidence/example-backfill-d5/journ
+revd-suite-close-20260918T170725.txt                 5140  ============================= test session starts ====
+revd-suite-open-20260918T165237.txt                  5145  ============================= test session starts ====
+structural-close-20260918T184617.txt                 1172  # CARD-G1-3 结构判据（定稿·r5 整改后）@ 2026-09-18T18:46:18+08:00
+territory-close-20260918T173152.txt                  1617  # CARD-G1-3 地盘门 @ HEAD=ed5b3a85  基线 9c4e7e82  2026-09-
+unit-close-20260918T170653.txt                      91090  ============================= test session starts ====
+unit-open-20260918T165316.txt                       91115  ============================= test session starts ====
+
+# 关键数字（从存档提取）
+rows=21
+LINT: PASS
+L4 checked= paths=117 sha8=22 tags=16 （「零失败」与「零检查」不可混淆：先读这行计数再读结论）
+L11 checked= 证据SHA=22（tag 不计：squash 后原分支恒非主干祖先，见文件头）
+L12 checked= (证据SHA×行)=22
+L13 checked= 表格块=2 列数分布={2: 1, 11: 1} HTML表标签=0
+L14 checked= 判据行=21 扫描行=21 扫描独有=0 判据独有=0
+L15 checked= 自述=21 解析=21
+
+# 收工补记（本清单生成后又落的承重存档）
+ledger-sha-at-commit-20260918T181053.txt              952
+ledger-sha-at-commit-20260918T184717.txt              581
+revd-all-final-20260918T184717.txt                    118
+revd-suite-final-20260918T184717.txt                 5140
+territory-final-20260918T184717.txt                   444
+# 最终确认: 点名套件 168 passed rc=0；校验器 --all rc=0；地盘恰 2 文件；禁改面 0；live vault 0 写入
+
+# r6 后补记（2026-09-18T19:04:12+08:00）
+negctl_inputs_gen.py                                 8300
+negctl-13-hide6-20260918T190203.txt                  1031
+negctl-reproduce-20260918T190309.txt                 2620
+# r6 绑 85c1284b：BLOCKER 0 / HIGH 0。台账正文自 15935c81 未再改动。

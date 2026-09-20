@@ -1,0 +1,45 @@
+# CARD-G1-3 入口 file:line 逐条反查 @ 9c4e7e82 2026-09-18T17:08:56+08:00
+# 动机: lint L4 只核「路径存在」，不核「行号指向的是不是我声称的那个东西」。
+#       这一层是 Codex 抽 5 行反查的面，作者先自查一遍并落档。
+# 结果: 首轮 21 条入口中 2 条行号不实（已修，见末尾），其余成立。
+
+## 逐条: <声称的 file:line>  →  <该行实际内容>
+scripts/deploy-vault.sh:5                                              # ═══ 六步 ═══
+backend/tests/unit/test_deploy_vault_sh.py:59                          #: 本文件**每一处** subprocess.run 的墙钟兜底（CARD-DEPLOY-TIMEOUT，集成期裁定 R-15）。
+backend/lib/agentic_rag/clients/lancedb_client.py:1325                 def drop_vault_tables(self, vault_id: str) -> int:
+backend/app/api/v1/endpoints/index.py:90                               @index_router.delete("/{vault_id}")
+backend/app/services/review_service.py:129                             # ── CARD-G3-7: frontmatter 真相源只读入口 ──────────────────────────────────
+backend/app/services/review_service.py:109                             # 调度状态的唯一真相源是该节点 .md 的 frontmatter (fsrs_due 等), 写侧为 vault
+backend/app/services/review_service.py:123                             # (``frontmatter_signals._node_md_path``), 该缺口本卡只登记不修。
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:76                    3. **两阶段提交**：先 `status: scored_pending_node_update`（分数落盘），节点写入成功后才 `st
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:74                    1. **不碰后端熟练度链**：allowed-tools **无** `mcp__canvas-learning-mcp__update_
+scripts/local_tz.py:1                                                  """单一时区来源 — launchd / CLI 侧副本 (CARD-G6-9c · 用户裁定 D-18, 2026 年 9 月 7 日)
+backend/app/api/v1/endpoints/review_overview.py:1185                   @review_overview_router.get(
+scripts/daily_review_pick.py:459                                       def scan_nodes(vault: Path, now: datetime, decay):
+backend/app/services/fallback_sync_service.py:599                      async def _replay_scoring_entry_to_neo4j(self, entry: Dict[str, Any]) 
+backend/app/core/failure_counters.py:74                                OVERFLOW_SUFFIX = ".overflow."
+backend/app/core/failure_counters.py:107                               def overflow_siblings(path: Path) -> List[Path]:
+backend/app/core/failed_writes_constants.py:104                        （= 谎称已回灌），30 天后删除。它既没进 overflow 也没走 retention，
+backend/app/core/failed_writes_constants.py:221                        2. 「每个 ``.overflow.*`` 都 ≤ max_lines」**不成立**：活动文件在进入本函数
+canvas-vault/.claude/skills/clear-inbox/scripts/inbox_preview.py:2099  def build_preview(
+backend/tests/skills/skill_portability_lint.py:86                      TMP_NAMESPACE = "/tmp/cls-exam/"
+backend/app/security.py:74                                             async def require_internal_api_key(
+backend/app/security.py:59                                             # (含 /system/* 16 处)在 securitySchemes 里无定义 = 悬空, 第三方工具读不懂鉴权契约。
+backend/app/security.py:194                                            async def verify_websocket_internal_key(websocket) -> bool:
+backend/app/api/v1/endpoints/edges.py:254                              async def _write_lancedb(
+backend/app/api/v1/endpoints/edges.py:309                              await asyncio.to_thread(
+backend/lib/agentic_rag/clients/lancedb_client.py:4344                 async def add_documents(self, table_name: str, documents: List[Dict[st
+backend/app/mcp/server.py:353                                          QUARANTINED_MCP_TOOLS = [
+backend/scripts/validate_release_manifest.py:63                        SCHEMA_SHA256 = "4456e1ad629108d618284d6bd5b717f484a712aa8685615e31f94
+backend/scripts/check_readme_claims.py:83                              EXPECTED_SCAN_PATHS = ("README.md",)
+backend/tests/support/live_port_guard.py:1072                          def canonical_target_ports(uri: str) -> tuple[tuple[int, ...] | None, 
+backend/tests/support/live_port_guard.py:80                            :func:`_final_accounting` 的退出判据还有第二个分支 —— ``blocked > 0`` 且原本的
+backend/scripts/g32b_mutation_gates.py:101                             MUTATIONS = [
+backend/scripts/g32b_mutation_gates.py:545                             _target.write_text(src.replace(_new, _old, 1), encoding="utf-8")
+backend/scripts/g32b_mutation_gates.py:2108                            "M75-w-fallback-restored": "⑥ 该门实际打红的那条断言, 其消息首行的字面片段在门文件里不唯一(出现 >1 次)
+backend/app/core/vault_scope.py:388                                    def require_read_group(group_id: Optional[str] = None, *, context: str
+docs/release-evidence/README.md:158                                    
+
+## 首轮抓到并已修的 2 条（不实 → 实）
+  backend/app/mcp/server.py:355 → :353   （:355 是列表内的 "update_fsrs"，定义行是 :353）
+  backend/app/api/v1/endpoints/edges.py:308 → :309   （:308 是 if hasattr(...)，to_thread 调用在 :309）

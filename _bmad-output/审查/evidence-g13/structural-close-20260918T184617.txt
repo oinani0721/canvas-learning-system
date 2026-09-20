@@ -1,0 +1,21 @@
+# CARD-G1-3 结构判据（定稿·r5 整改后）@ 2026-09-18T18:46:18+08:00
+f2 README capability-ledger   = 2   [改前 0 → 2]
+f3 协议(本树/feature树) ledger = 0 / 0   [恒 0 0]
+f4 ledger 表行数              = 21   [>=15]
+f5 E3/E4/E5 行数              = 0   [期望 0]
+   验伪锚 E2=5 E1=16 README-G1-3=2
+f6 current=20 / implemented-unverified=1
+f7 限制列写「无」的行数       = 0   [0]
+f12 判据范围三方一致: ledger=L0–L15 lint=L0–L15 实际=L0 L1 L2 L3 L4 L5 L6 L7 L8 L9 L10 L11 L12 L13 L14 L15 
+f14 台账引用的验收单存在       = YES
+f16 自述条目数 vs 解析         = **本版条目数**: 21 / 解析 21
+f10 §12.7 禁夸大声明命中:
+    production-ready         ledger=0 README=0
+    一键可用                     ledger=0 README=0
+    完整 multi-vault safe      ledger=0 README=0
+    开箱即用                     ledger=0 README=0
+    完全一致                     ledger=0 README=0
+    无损双向                     ledger=0 README=0
+    移动端可用                    ledger=0 README=0
+    14 个 Agent               ledger=0 README=0
+f11 变异标记: LEFTHOOK_EXCLUDE=0 no-verify=0   [0 0]

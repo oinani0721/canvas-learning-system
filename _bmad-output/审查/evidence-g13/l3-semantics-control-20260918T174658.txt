@@ -1,0 +1,17 @@
+# L3 语义对照：旧实现（存在判据）vs 新实现（全称判据）
+# 临时素材目录: /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/tmptmla3yg1（用完即弃；真树上没有合格的 live manifest 可用）
+
+输入                                             旧门       新门       说明
+--------------------------------------------------------------------------------------------------------------
+对照输入 A：只有一份合格的 live manifest                   PASS     PASS     合格 1/1
+负控输入 B：一份合格 + 一份 reconstructed（合格的排在前）         PASS     FAIL     合格 1/2; 不合格: docs/release-evidence/rc-fixture/journeys/J02/manifest.json mode='reconstructed' dirty=True
+负控输入 C：同 B，但顺序颠倒                               PASS     FAIL     合格 1/2; 不合格: docs/release-evidence/rc-fixture/journeys/J02/manifest.json mode='reconstructed' dirty=True
+对照输入 D：只有一份 reconstructed                      FAIL     FAIL     合格 0/1; 不合格: docs/release-evidence/rc-fixture/journeys/J02/manifest.json mode='reconstructed' dirty=True
+
+「旧门放行、新门拦下」的输入数 = 2 / 负控输入数 2
+结论: 新实现确实拦下了旧实现放行的路径 = True
+（A / D 两例在新旧实现下判定一致 —— 说明改动没有翻转这两个输入的结论。）
+⚠️ 本实验直接喂预先给定的 hits 列表，**没有调用正式 L3**：它证明的只是
+   「存在判据 → 全称判据」这一处语义改动，不替 L3 的路径发现、schema 校验
+   或其它输入背书（Codex r2 LOW-10 指出原措辞超出了输出能证明的范围）。
+rc=0

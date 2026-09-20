@@ -1,0 +1,37 @@
+# CARD-G1-3 地盘门 @ HEAD=ed5b3a85  基线 9c4e7e82  2026-09-18T17:31:52+08:00
+# ⚠️ 本门必须 commit 后跑：git diff 不显示未跟踪文件，commit 前台账看不见 ⇒ 门恒空洞。
+# 本次绑最终 HEAD（两个 commit 之后）。
+
+## (l) 代码树改动面（排除 _bmad-output）—— 期望恰 2 行
+docs/release-evidence/README.md
+docs/release-evidence/capability-ledger.md
+  行数 = 2  [期望 2]
+
+## 别车道 / 禁改面 —— 期望空
+  行数 = 0  [期望 0]
+
+## README diff 内容行数 —— 期望 3
+3
+
+## 验伪锚：quotepath 对中文路径的影响（证明锚非恒空）
+  带 -c core.quotepath=false : 29  [>=1]
+  不带                        : 0  [0 ⇒ 证明该选项必需]
+
+## (m) 现网只读
+  改动文件名含 fsrs_bridge/decay_beta = 0  [0]
+  live vault 自本卡最早存档以来被写文件数 = 0  [0]
+
+## commit 面自检（两个 commit 合计）
+  .stderr = 0  [0]
+  openapi.json = 0  [0]
+  .claude/ = 0  [0]
+  .log 后缀 = 0  [0]
+  commit 数 = 2
+(eval):35: command not found: tac
+  （上一行 tac 在 macOS 不存在，改 tail -r 重跑该段）
+    35b919fe  header 91 字符(wc -m)  含卡号=1  docs(p10-docs): 能力证据台账首版 21 行 + README 反链 + L0-L11 承重门 [BA
+    ed5b3a85  header 80 字符(wc -m)  含卡号=1  fix(p10-docs): 承重门补 L12 + L3 改全称判据，负控增至 6 段 [BATCH-2026-09
+  body 超 100 字符(字符口径)的行数:
+    35b919fe  0
+    ed5b3a85  0
+  ⚠️ 用 awk length() 量会按字节，中文 3 字节/字符 ⇒ 同一条消息会被判超长约 3 倍（本卡实测 0 vs 17）。

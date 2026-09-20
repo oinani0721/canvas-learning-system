@@ -1,0 +1,15 @@
+# CARD-G1-3 —— 定稿字节绑定（Codex r3 LOW：原件 sha 存档既不能证明全过程未触碰，也未绑定稿）
+# 本文件解决后半条：把台账的字节绑到具体 commit 上。前半条无解——两点比较本来就
+#   不能排除中间修改后恢复，措辞已在 negctl-origin-sha-*.txt 与验收单 §4.13 收窄。
+
+commit: 9198c9380639225272388719c438958b45e315ae
+该 commit 内 capability-ledger.md 的 blob sha256:
+70235e1379703960d3417c3ea4503617ff28f6dd235f9cb6a87fc1839a2aa7a3  (git blob)
+当前工作树同文件 sha256:
+70235e1379703960d3417c3ea4503617ff28f6dd235f9cb6a87fc1839a2aa7a3  docs/release-evidence/capability-ledger.md
+
+判定: 工作树 == 该 commit 的入库字节
+
+同 commit 内承重门与对照脚本的 blob sha256:
+  e49f6c1b7607efd1830c70a3dd91bc6e447169b3176fab14611e82c7515941f7  ledger_lint.py
+  ba797f56419aefb76a17235ac5ec5a9415190718cb8326d466c0fd91021b0ede  l3_semantics_control.py

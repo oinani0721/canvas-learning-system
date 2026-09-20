@@ -1,0 +1,24 @@
+# CARD-G1-3 —— L12 已知弱点的实证（验收单 §4.8 那条声称的自证）
+#
+# 声称: L12 取「证据 SHA 改动过的文件」与「本行入口路径」的交集，所以它挡住了
+#       「毫无关系」的 commit，但挡不住「只是顺带碰过该文件」的 commit。
+# 本段把那个输入真的喂进去，看门放不放行——声称的缺陷也要有据，不能只写在纸上。
+
+## 探针输入: CAP-DEPLOY-01 的证据 SHA 换成 58164977
+   58164977 = chore(t2-deploy): 卡级 squash CARD-HOSTS-OPENCODE [BATCH-2026-09-11-第十四批 /
+   它改动 128 个文件，其中含 scripts/deploy-vault.sh = 1
+   但它是**另一张卡**（HOSTS-OPENCODE）的 squash，不是部署能力 G2-8 的来源。
+   对照输入 8eeaa899（原值）= chore(t2-deploy): 卡级 squash CARD-G2-7b-TAIL [BATCH-2026-09
+
+## 门的判定:
+L4 PASS CAP-DEPLOY-01 入口/证据 token 全部真核通过
+L11 PASS CAP-DEPLOY-01 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L12 PASS CAP-DEPLOY-01 1 个证据 SHA 各自都改动过本行入口文件
+rows=21
+LINT: PASS
+rc=0
+
+## 结论
+  门**放行**了这个输入 ⇒ 验收单 §4.8 声称的弱点**属实**，不是过度自责。
+  L12 判的是「碰过没碰过」，不是「是不是这条能力的来源」。后者需要语义判断，
+  本卡不做（做了就成了另一种猜），只如实登记。

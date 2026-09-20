@@ -1,0 +1,19 @@
+# CARD-G1-3 [BATCH-2026-09-18-第十五批] —— 协议 §5 新增「每卡收官须更新 ledger 行」条款
+#
+# 由主 session 在集成期套用到 feature 树协议 .claude/rules/card-batch-protocol.md；
+# 落点 = §5 排批（主 session）末行「每张卡的完成条件含「本卡未证明什么」必填…」之后，
+# 与「台账是全部卡的共同写入面 → 只有主 session 改」同口径：车道只在验收单写待登记行，
+# 主 session 合入时落表。
+# ⚠️ 与 P8 CARD-G1-1 的 §5 patch 同段：建议先 G1-1、后本 patch。
+#    **顺序套用是否冲突未核实**——G1-1 的 patch 不在本树，本卡没有执行过两者串联套用；
+#    请主 session 集成期实测后再定顺序，不要采信「各自 +1 行所以不冲突」这种推断。
+# 本 patch 由车道 card/p10-docs 在 scratch 副本上生成，未在任何工作树直改协议；
+# 生成基准 = 主干 9c4e7e82 的协议（96 行）；feature 树那份为 97 行（多 §2.3/§3 两处条款），
+# 上下文行在两份中逐字相同，套 feature 树时以 offset 1 命中（两侧 dry-run 均已实测）。
+--- a/.claude/rules/card-batch-protocol.md
++++ b/.claude/rules/card-batch-protocol.md
+@@ -94,3 +94,4 @@
+ - 台账是全部卡的共同写入面 → **只有主 session 改**；卡在验收单写「台账待登记条目」。
+ - **tests/unit 既有红基线**：主 session 每批开跑前落一份 nodeid 口径的基线（`_bmad-output/审查/evidence-b<N>/unit-red-baseline-<主干SHA>.txt`），车道开工/收工各跑一次目录级并 `diff`，差集才算本卡引入或修复；「298/289」这类含日志噪音的行数不得作分母。
+ - 每张卡的完成条件含「本卡未证明什么」必填；数字与命令输出一致（`wc -m` 计字符非字节）。
++- **每卡收官须更新 ledger 行（CARD-G1-3，自第十六批起）**：改了能力面（入口 / 依赖 / schema / UI）的卡在验收单写「ledger 待登记行」（id / E 级 / 证据 / 限制 / 降级触发面），与「台账待登记条目」同口径由**主 session 合入时**落 `docs/release-evidence/capability-ledger.md`；车道不得直改 ledger（多车道并行 = 合并冲突）；E 级不得高于证据（§12.5，E3+ 须指 live manifest，本版恒 0）。

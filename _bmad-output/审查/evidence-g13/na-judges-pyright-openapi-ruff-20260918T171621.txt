@@ -1,0 +1,33 @@
+# CARD-G1-3 —— (h) pyright / (j) openapi / §二.7 ruff 三条判据的如实落档
+# 结论：三条在本卡**均不适用**（零 .py / 零 backend/app / 零端点进代码树）。
+#       按「判据作废也要落档」如实记，不静默跳过。
+
+## 本卡代码树改动面（排除 _bmad-output）:
+docs/release-evidence/README.md
+
+## (h) pyright —— 不适用
+pyright 自证: 在位 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright
+本卡改动的 backend/app 文件数 = 0  [0 ⇒ 条款不触发]
+声明: 本卡**未跑**全量 pyright；主干既有 0-error 状态由 T8-F / T8-G 维持，本卡既不新增也不清理。
+
+## (j) openapi —— 不适用
+本卡改动的 backend/app/api 文件数 = 0  [0]
+改动面是否含 backend/openapi.json = 0  [须 0]
+（lefthook spec-sync-root 会把 openapi.json 塞进任何 backend/app 的 commit；本卡不碰 backend/app，不触发。）
+
+## §二.7 ruff —— 判据作废（零 .py 进代码树）
+代码树 .py 改动集合大小 files=0  [0 ⇒ 判据作废]
+（ledger_lint.py 住在 _bmad-output/审查/evidence-g13/，刻意不进代码树 ⇒ 不触发 lefthook python-lint / python-typecheck，
+  也不把零代码卡变成多轮卡。语法正确性以 ast.parse 自证。）
+ledger_lint.py ast.parse = OK
+
+## 验伪锚：证明这套 ruff 判据对真 .py 确实会红
+ruff.toml select = select = ["E9", "F63", "F7", "F82"]   ← 不含 F401，故锚用 F821
+探针（放 scratch，不进仓内，故无需删除）: $SCR/g13_probe.py = 'print(undefined_name_g13)'
+1 | print(undefined_name_g13)
+  |       ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe ruff rc=1  [须 1 = 该套判据能对真 .py 报红]
+工作树 _g13_probe 残留数 = 0  [须 0]

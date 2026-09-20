@@ -5,12 +5,13 @@
 > **schema**: [`manifest.schema.json`](manifest.schema.json)（v1.0.0，JSON Schema draft 2020-12）
 > **校验器**: `backend/scripts/validate_release_manifest.py`
 > **裁判**: `backend/tests/unit/test_validate_release_manifest.py`（168 测试；对校验器 77 条规则做过逐条变异测试，删任一条都会让套件变红）
+> **能力证据台账（A04）**: [`capability-ledger.md`](capability-ledger.md)（CARD-G1-3；每项能力的入口 / E0–E5 / 证据 / 限制；E 级真伪登记面，校验器不裁决）
 
 ## 这是什么
 
 J01–J10 十条真实用户旅程（计划书 §12.6）跑完之后，证据不能只是聊天记录里的一句"跑过了"。本目录规定：每条旅程的每次证据留存长什么样、放哪儿、以及**机器怎么判断它有没有自相矛盾**。
 
-一句话边界：**校验器只裁决 manifest 自身的机械自洽**——字段齐不齐、格式对不对、跨字段矛不矛盾、（可选）artifact checksum 和磁盘对不对得上。它**不裁决旅程真的跑过、断言真的成立**。E 级真伪由 G1-3 能力证据台账与 G1-6 逐声明审计链负责；本器唯一能挡的，是"manifest 自己就说不圆"的那类失实（带着 skip 声明标 E3、断言 fail 了整体还写 pass、回滚失败却宣称通过、E5 没跑够 dogfood）。
+一句话边界：**校验器只裁决 manifest 自身的机械自洽**——字段齐不齐、格式对不对、跨字段矛不矛盾、（可选）artifact checksum 和磁盘对不对得上。它**不裁决旅程真的跑过、断言真的成立**。E 级真伪由 [G1-3 能力证据台账](capability-ledger.md)与 G1-6 逐声明审计链负责；本器唯一能挡的，是"manifest 自己就说不圆"的那类失实（带着 skip 声明标 E3、断言 fail 了整体还写 pass、回滚失败却宣称通过、E5 没跑够 dogfood）。
 
 **schema 与校验器是一个整体**：只读 schema 会高估宽松度——大量约束（等级联动、SLO 达标、provenance 与等级的关系、dogfood 窗口自洽、路径越界）在语义层 S1–S17 与产物层 A0–A3 实施。
 

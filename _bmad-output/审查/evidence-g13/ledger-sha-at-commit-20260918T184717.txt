@@ -1,0 +1,11 @@
+# CARD-G1-3 —— 定稿字节绑定（Codex r5 LOW-1：上一份存档绑的是 9198c938，已过期）
+commit: 15935c811928601de802bd2c8b9696553465096e
+
+该 commit 内 capability-ledger.md blob sha256:
+87f6419e64a966d009c37365435cb162747519c15cef6c2c52a1439bfe0442a7  -
+工作树同文件 sha256:
+87f6419e64a966d009c37365435cb162747519c15cef6c2c52a1439bfe0442a7  docs/release-evidence/capability-ledger.md
+判定: 工作树 == 该 commit 的入库字节
+
+同 commit 内承重门与对照脚本:
+  147c752987850f4f9df2d19f15eeec401d7165021ade4defceb5646334f137c5  ledger_lint.py

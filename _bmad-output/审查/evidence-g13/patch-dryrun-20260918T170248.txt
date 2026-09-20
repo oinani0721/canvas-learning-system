@@ -1,0 +1,18 @@
+# CARD-G1-3 patch dry-run —— 两个目标各一次（本树 96 行 / feature 树 97 行）
+# patch: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs/_bmad-output/审查/evidence-g13/protocol-ledger-row.patch  (    2113 B)
+## 目标 A：主干 9c4e7e82 协议（96 行，本树）
+patching file '.claude/rules/card-batch-protocol.md'
+rcA=0
+## 目标 B：feature 主干树协议（97 行，主 session 真实套用对象）
+patching file '.claude/rules/card-batch-protocol.md'
+rcB=0
+## 形态
+hunks=1
+新增内容行=1
+删除内容行=0
+## 未直改任何工作树协议（本树 git diff 对 .claude 应为空）
+(上方空=未直改)
+本树协议 sha: 69c48aa69d1ff445229f92b06038bcf4e7aa00ec8b7a6a61d163c975e52efe9e
+feature 协议 sha: accbe747c0a963823cb28b3ce7578fb232be396201e4f15115b765b77c22baf1
+本树协议 grep -c ledger = 0  [期望恒 0]
+feature 协议 grep -c ledger = 0  [期望恒 0]

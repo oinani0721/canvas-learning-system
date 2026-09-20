@@ -1,0 +1,12 @@
+# CARD-G1-3 地盘门（最终）@ HEAD=15935c81  基线 9c4e7e82
+代码树改动面（排除 _bmad-output）:
+  docs/release-evidence/README.md
+  docs/release-evidence/capability-ledger.md
+  行数 = 2  [期望 2]
+禁改面 = 0  [0]
+README diff 内容行 = 3  [3]
+验伪锚 quotepath: 带=37 不带=0
+fsrs_bridge/decay_beta 改动 = 0  [0]
+live vault 被写文件数 = 0  [0]
+.stderr / openapi.json / .claude 入库数 = 0  [0]
+commit 数 = 6

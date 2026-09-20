@@ -1,0 +1,3 @@
+✅ PASS docs/release-evidence/example-backfill-d5/journeys/J08/manifest.json
+
+合计 1 份 manifest, 失败 0 份。

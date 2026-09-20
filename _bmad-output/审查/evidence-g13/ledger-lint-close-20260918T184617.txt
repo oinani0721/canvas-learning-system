@@ -1,0 +1,206 @@
+# trunk: HEAD = 9764fdecf19ad567e41cd0c3a9fa17caafbe5dad
+L0 PASS - 表头符合契约（11 列）
+L1 PASS - 表行数 21 （下限 15）
+L7 PASS - id 唯一性：21 个 id，重复 无
+L2 PASS CAP-DEPLOY-01 E 级='E2'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-DEPLOY-01 限制列 非空（156 字符）
+L6 PASS CAP-DEPLOY-01 入口列 82 字符
+L8 PASS CAP-DEPLOY-01 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-DEPLOY-01 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-DEPLOY-01 uat=yes(_bmad-output/验收单/UAT-CARD-G2-8-2026-09-14.md) → exists=True
+L2 PASS CAP-DEPLOY-TMO-02 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-DEPLOY-TMO-02 限制列 非空（344 字符）
+L6 PASS CAP-DEPLOY-TMO-02 入口列 120 字符
+L8 PASS CAP-DEPLOY-TMO-02 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-DEPLOY-TMO-02 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-DEPLOY-TMO-02 uat=yes(_bmad-output/验收单/UAT-CARD-DEPLOY-TIMEOUT-2026-09-14.md) → exists=True
+L2 PASS CAP-LANCE-ISO-03 E 级='E2'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-LANCE-ISO-03 限制列 非空（100 字符）
+L6 PASS CAP-LANCE-ISO-03 入口列 150 字符
+L8 PASS CAP-LANCE-ISO-03 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-LANCE-ISO-03 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-LANCE-ISO-03 uat=yes(_bmad-output/验收单/UAT-CARD-G2-9-F2-2026-09-14.md) → exists=True
+L2 PASS CAP-INDEX-DEL-04 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-INDEX-DEL-04 限制列 非空（118 字符）
+L6 PASS CAP-INDEX-DEL-04 入口列 136 字符
+L8 PASS CAP-INDEX-DEL-04 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-INDEX-DEL-04 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-INDEX-DEL-04 uat=no
+L2 PASS CAP-FSRS-SOT-05 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-FSRS-SOT-05 限制列 非空（143 字符）
+L6 PASS CAP-FSRS-SOT-05 入口列 178 字符
+L8 PASS CAP-FSRS-SOT-05 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-FSRS-SOT-05 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-FSRS-SOT-05 uat=yes(_bmad-output/验收单/UAT-CARD-G3-7-R2-2026-09-08.md) → exists=True
+L2 PASS CAP-QUIZ-CAS-06 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-QUIZ-CAS-06 限制列 非空（193 字符）
+L6 PASS CAP-QUIZ-CAS-06 入口列 151 字符
+L8 PASS CAP-QUIZ-CAS-06 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-QUIZ-CAS-06 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-QUIZ-CAS-06 uat=yes(_bmad-output/验收单/UAT-CARD-G3-3-R2-writer-boundary-2026-09-08.md) → exists=True
+L2 PASS CAP-TZ-SRC-07 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-TZ-SRC-07 限制列 非空（587 字符）
+L6 PASS CAP-TZ-SRC-07 入口列 138 字符
+L8 PASS CAP-TZ-SRC-07 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-TZ-SRC-07 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-TZ-SRC-07 uat=yes(_bmad-output/验收单/UAT-CARD-G6-9c-2026-09-08.md) → exists=True
+L2 PASS CAP-REVIEW-OV-08 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-REVIEW-OV-08 限制列 非空（266 字符）
+L6 PASS CAP-REVIEW-OV-08 入口列 137 字符
+L8 PASS CAP-REVIEW-OV-08 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-REVIEW-OV-08 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-REVIEW-OV-08 uat=yes(_bmad-output/验收单/UAT-CARD-G6-8-2026-09-17.md) → exists=True
+L2 PASS CAP-DAILY-PICK-09 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-DAILY-PICK-09 限制列 非空（409 字符）
+L6 PASS CAP-DAILY-PICK-09 入口列 158 字符
+L8 PASS CAP-DAILY-PICK-09 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-DAILY-PICK-09 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-DAILY-PICK-09 uat=yes(_bmad-output/验收单/UAT-CARD-G6-7-R-2026-09-09.md) → exists=True
+L2 PASS CAP-NEO4J-REPLAY-10 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-NEO4J-REPLAY-10 限制列 非空（388 字符）
+L6 PASS CAP-NEO4J-REPLAY-10 入口列 140 字符
+L8 PASS CAP-NEO4J-REPLAY-10 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-NEO4J-REPLAY-10 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-NEO4J-REPLAY-10 uat=yes(_bmad-output/验收单/UAT-CARD-NEO4J-REPLAY-WIRE-2026-09-14.md) → exists=True
+L2 PASS CAP-DEADLETTER-11 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-DEADLETTER-11 限制列 非空（384 字符）
+L6 PASS CAP-DEADLETTER-11 入口列 128 字符
+L8 PASS CAP-DEADLETTER-11 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-DEADLETTER-11 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-DEADLETTER-11 uat=yes(_bmad-output/验收单/UAT-CARD-NEO4J-REPLAY-BOUND-2026-09-15.md) → exists=True
+L2 PASS CAP-INBOX-PREV-12 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-INBOX-PREV-12 限制列 非空（281 字符）
+L6 PASS CAP-INBOX-PREV-12 入口列 140 字符
+L8 PASS CAP-INBOX-PREV-12 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-INBOX-PREV-12 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-INBOX-PREV-12 uat=yes(_bmad-output/验收单/UAT-CARD-G5-6-clear-inbox只读盘点提名preview-2026-08-31.md) → exists=True
+L2 PASS CAP-SKILL-PORT-13 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-SKILL-PORT-13 限制列 非空（486 字符）
+L6 PASS CAP-SKILL-PORT-13 入口列 127 字符
+L8 PASS CAP-SKILL-PORT-13 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-SKILL-PORT-13 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-SKILL-PORT-13 uat=yes(_bmad-output/验收单/UAT-CARD-SKILL-PORT-LINT-PARSER-20260916.md) → exists=True
+L2 PASS CAP-SYS-AUTH-14 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-SYS-AUTH-14 限制列 非空（145 字符）
+L6 PASS CAP-SYS-AUTH-14 入口列 78 字符
+L8 PASS CAP-SYS-AUTH-14 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-SYS-AUTH-14 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-SYS-AUTH-14 uat=yes(_bmad-output/验收单/UAT-CARD-SEC-DANGLING-2026-09-16.md) → exists=True
+L2 PASS CAP-EDGE-RAT-15 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-EDGE-RAT-15 限制列 非空（354 字符）
+L6 PASS CAP-EDGE-RAT-15 入口列 137 字符
+L8 PASS CAP-EDGE-RAT-15 状态='implemented-unverified'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-EDGE-RAT-15 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-EDGE-RAT-15 uat=yes(_bmad-output/验收单/UAT-CARD-T-EDGES-2026-09-14.md) → exists=True
+L2 PASS CAP-MCP-QUAR-16 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-MCP-QUAR-16 限制列 非空（201 字符）
+L6 PASS CAP-MCP-QUAR-16 入口列 61 字符
+L8 PASS CAP-MCP-QUAR-16 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-MCP-QUAR-16 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-MCP-QUAR-16 uat=yes(_bmad-output/验收单/UAT-CARD-T-SWITCHVAULT-2026-09-16.md) → exists=True
+L2 PASS CAP-REL-MANIFEST-17 E 级='E2'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-REL-MANIFEST-17 限制列 非空（252 字符）
+L6 PASS CAP-REL-MANIFEST-17 入口列 143 字符
+L8 PASS CAP-REL-MANIFEST-17 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-REL-MANIFEST-17 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-REL-MANIFEST-17 uat=yes(_bmad-output/验收单/UAT-CARD-R-EVD-Release证据manifest规范-2026-08-28.md) → exists=True
+L2 PASS CAP-README-LINT-18 E 级='E2'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-README-LINT-18 限制列 非空（128 字符）
+L6 PASS CAP-README-LINT-18 入口列 141 字符
+L8 PASS CAP-README-LINT-18 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-README-LINT-18 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-README-LINT-18 uat=yes(_bmad-output/验收单/UAT-CARD-G1-5-README禁夸大机械lint-2026-08-27.md) → exists=True
+L2 PASS CAP-W4-GUARD-19 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-W4-GUARD-19 限制列 非空（188 字符）
+L6 PASS CAP-W4-GUARD-19 入口列 115 字符
+L8 PASS CAP-W4-GUARD-19 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-W4-GUARD-19 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-W4-GUARD-19 uat=yes(_bmad-output/验收单/UAT-CARD-W4-FINAL-ACCOUNTING-2026-09-14.md) → exists=True
+L2 PASS CAP-MUT-GATES-20 E 级='E2'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-MUT-GATES-20 限制列 非空（142 字符）
+L6 PASS CAP-MUT-GATES-20 入口列 87 字符
+L8 PASS CAP-MUT-GATES-20 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-MUT-GATES-20 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-MUT-GATES-20 uat=yes(_bmad-output/验收单/UAT-CARD-G3-2c-D-2026-09-05.md) → exists=True
+L2 PASS CAP-VAULT-SCOPE-21 E 级='E1'（须 ∈ ('E0', 'E1', 'E2', 'E3', 'E4', 'E5')）
+L5 PASS CAP-VAULT-SCOPE-21 限制列 非空（206 字符）
+L6 PASS CAP-VAULT-SCOPE-21 入口列 111 字符
+L8 PASS CAP-VAULT-SCOPE-21 状态='current'（须 ∈ ('current', 'implemented-unverified')）
+L9 PASS CAP-VAULT-SCOPE-21 核验 SHA='9c4e7e82' → 对象类型='commit'; 是 --trunk(HEAD=9764fdec) 的祖先=True
+L10 PASS CAP-VAULT-SCOPE-21 uat=no
+L3 PASS - (0 rows) 本版无 E3+ 行 —— 判据空转，未对任何行生效
+L4 PASS CAP-DEPLOY-01 本行证据对象 路径2/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-DEPLOY-TMO-02 本行证据对象 路径1/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-LANCE-ISO-03 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-INDEX-DEL-04 本行证据对象 路径3/SHA1/tag0，入口+证据 token 全部真核通过
+L4 PASS CAP-FSRS-SOT-05 本行证据对象 路径2/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-QUIZ-CAS-06 本行证据对象 路径1/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-TZ-SRC-07 本行证据对象 路径2/SHA1/tag0，入口+证据 token 全部真核通过
+L4 PASS CAP-REVIEW-OV-08 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-DAILY-PICK-09 本行证据对象 路径4/SHA1/tag0，入口+证据 token 全部真核通过
+L4 PASS CAP-NEO4J-REPLAY-10 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-DEADLETTER-11 本行证据对象 路径2/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-INBOX-PREV-12 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-SKILL-PORT-13 本行证据对象 路径2/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-SYS-AUTH-14 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-EDGE-RAT-15 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-MCP-QUAR-16 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-REL-MANIFEST-17 本行证据对象 路径3/SHA1/tag0，入口+证据 token 全部真核通过
+L4 PASS CAP-README-LINT-18 本行证据对象 路径2/SHA1/tag0，入口+证据 token 全部真核通过
+L4 PASS CAP-W4-GUARD-19 本行证据对象 路径2/SHA1/tag2，入口+证据 token 全部真核通过
+L4 PASS CAP-MUT-GATES-20 本行证据对象 路径3/SHA1/tag1，入口+证据 token 全部真核通过
+L4 PASS CAP-VAULT-SCOPE-21 本行证据对象 路径4/SHA2/tag0，入口+证据 token 全部真核通过
+L4 checked= paths=117 sha8=22 tags=16 （「零失败」与「零检查」不可混淆：先读这行计数再读结论）
+L11 PASS CAP-DEPLOY-01 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-DEPLOY-TMO-02 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-LANCE-ISO-03 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-INDEX-DEL-04 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-FSRS-SOT-05 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-QUIZ-CAS-06 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-TZ-SRC-07 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-REVIEW-OV-08 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-DAILY-PICK-09 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-NEO4J-REPLAY-10 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-DEADLETTER-11 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-INBOX-PREV-12 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-SKILL-PORT-13 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-SYS-AUTH-14 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-EDGE-RAT-15 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-MCP-QUAR-16 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-REL-MANIFEST-17 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-README-LINT-18 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-W4-GUARD-19 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-MUT-GATES-20 1 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 PASS CAP-VAULT-SCOPE-21 2 个证据 SHA 全部是 9c4e7e82 的祖先
+L11 checked= 证据SHA=22（tag 不计：squash 后原分支恒非主干祖先，见文件头）
+L12 PASS CAP-DEPLOY-01 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-DEPLOY-TMO-02 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-LANCE-ISO-03 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-INDEX-DEL-04 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-FSRS-SOT-05 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-QUIZ-CAS-06 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-TZ-SRC-07 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-REVIEW-OV-08 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-DAILY-PICK-09 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-NEO4J-REPLAY-10 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-DEADLETTER-11 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-INBOX-PREV-12 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-SKILL-PORT-13 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-SYS-AUTH-14 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-EDGE-RAT-15 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-MCP-QUAR-16 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-REL-MANIFEST-17 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-README-LINT-18 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-W4-GUARD-19 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-MUT-GATES-20 1 个证据 SHA 各自都改动过本行入口文件
+L12 PASS CAP-VAULT-SCOPE-21 2 个证据 SHA 各自都改动过本行入口文件
+L12 checked= (证据SHA×行)=22
+L13 PASS - 全文表格结构符合契约：{2: 1, 11: 1}（fenced 代码块内的示例表不计）
+L13 checked= 表格块=2 列数分布={2: 1, 11: 1} HTML表标签=0
+L14 PASS - 判据解析器与全文扫描看到同一批 21 行能力行，且每行都切出 11 格
+L14 checked= 判据行=21 扫描行=21 扫描独有=0 判据独有=0
+L15 PASS - 自述条目数=21，解析到=21
+L15 checked= 自述=21 解析=21
+rows=21
+LINT: PASS
+rc=0
