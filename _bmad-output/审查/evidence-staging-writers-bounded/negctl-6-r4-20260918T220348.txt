@@ -1,0 +1,8 @@
+before=63f0fe13f1f3ed0f640e9b575e2e19e9bae85d05e3b77d142b12989626e99d22  backend/app/services/memory_service.py
+mutated=1 一条坏就整批丢
+ 1 file changed, 2 insertions(+)
+collected 16 items / 13 deselected / 3 selected
+E   AssertionError: 好条目跟着坏条目一起被丢了: set()
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_keeps_good_entries_when_one_is_unserializable
+=========== 1 failed, 2 passed, 13 deselected, 10 warnings in 1.75s ============
+restored=63f0fe13f1f3ed0f640e9b575e2e19e9bae85d05e3b77d142b12989626e99d22  backend/app/services/memory_service.py

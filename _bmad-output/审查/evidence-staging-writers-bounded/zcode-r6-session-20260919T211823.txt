@@ -1,0 +1,13 @@
+# zcode r6 session self-proof — 20260919T211823
+cmd: zcode --prompt "$(cat _bmad-output/审查/prompts/zcode-review-prompt-CARD-STAGING-WRITERS-BOUNDED-r6.md)" --cwd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md 2> _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.stderr
+rc=0（start 2026-09-19 21:04:46 / end 2026-09-19 21:17:46）
+json_parse=OK
+sessionId=sess_494e656e-ca27-4ead-b1ff-26e3409d5b77
+traceId=3d199322-770a-4bf5-8b4f-3e1326a68a91
+turnId=turn_4cefa4b2-2eb9-4b0e-8fdb-de2f1d421fcb
+usage: modelRequestCount=5 inputTokens=493401 outputTokens=46039 totalTokens=539440 cacheReadTokens=369280
+eventCount=45358
+md_bytes_pre_header=9622
+md_sha_pre_header=ec37097134c186130afb1cae43413b8ed9fc261f3c5c2fc0e37a61cb104d9492
+stderr_lines=13
+stderr_error_hits=0

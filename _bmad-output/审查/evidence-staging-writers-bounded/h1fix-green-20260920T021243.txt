@@ -1,0 +1,293 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 29 items
+
+tests/unit/test_staging_writers_bounded.py ............................. [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+==================================== PASSES ====================================
+__________________ test_agent_service_third_writer_is_bounded __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c0", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.426991Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c1", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.427685Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c2", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.428230Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c3", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.428747Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c4", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.429251Z"}
+{"event": "[T6-C] \u5199\u4fa7\u4e0a\u9650\u89e6\u53d1, \u8f6e\u8f6c failed_writes.jsonl \u2192 failed_writes.overflow.2026-09-20-091254429903-00.jsonl", "logger": "app.core.failure_counters", "level": "info", "timestamp": "2026-09-20T09:12:54.430086Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c5", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.430332Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c6", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.430979Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c7", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.431707Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c0', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.426991Z'}
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c1', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.427685Z'}
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c2', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.428230Z'}
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c3', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.428747Z'}
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c4', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.429251Z'}
+INFO     app.core.failure_counters:failure_counters.py:260 [T6-C] 写侧上限触发, 轮转 failed_writes.jsonl → failed_writes.overflow.2026-09-20-091254429903-00.jsonl
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c5', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.430332Z'}
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c6', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.430979Z'}
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c7', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.431707Z'}
+__________ test_third_writer_does_not_concatenate_onto_dangling_tail ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u6d3b\u52a8\u6587\u4ef6\u4ee5\u534a\u884c\u7ed3\u5c3e\uff08\u4e0a\u6b21\u8ffd\u52a0\u4e2d\u9014\u5931\u8d25\uff09, \u5df2\u8865\u6362\u884c: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_third_writer_does_not_con0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.433809Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: after-dangling", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.433919Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:352 [P2-B] 活动文件以半行结尾（上次追加中途失败）, 已补换行: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_third_writer_does_not_con0/failed_writes.jsonl
+WARNING  app.services.agent_service:agent_service.py:149 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: after-dangling', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.433919Z'}
+_________________ test_replay_guard_times_out_when_lock_stuck __________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.435563Z"}
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.436125Z"}
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.436611Z"}
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.437090Z"}
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.437575Z"}
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.438235Z"}
+{"event": "[T6-C] \u5199\u4fa7\u4e0a\u9650\u89e6\u53d1, \u8f6e\u8f6c failed_writes.jsonl \u2192 failed_writes.overflow.2026-09-20-091254438313-00.jsonl", "logger": "app.core.failure_counters", "level": "info", "timestamp": "2026-09-20T09:12:54.438435Z"}
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.439063Z"}
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.439571Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+INFO     app.core.failure_counters:failure_counters.py:260 [T6-C] 写侧上限触发, 轮转 failed_writes.jsonl → failed_writes.overflow.2026-09-20-091254438313-00.jsonl
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+___________________ test_replay_guard_respects_fresh_window ____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.441534Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.442064Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.442508Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.442965Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.443519Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.444068Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.444542Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.445008Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_respects_fre0/failed_writes.jsonl
+___________ test_replay_guard_treats_direct_lock_holder_as_in_flight ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.447748Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.448578Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.449265Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.449883Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.450388Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.450846Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.451279Z"}
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.451724Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_guard_treats_direc0/failed_writes.jsonl
+_______________ test_no_glue_when_probe_fails_on_a_dangling_tail _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u63a2\u6d4b\u534a\u884c\u5c3e\u5df4\u5931\u8d25, \u672c\u6b21\u52a0\u5206\u9694\u7b26\u540e\u7167\u5e38\u8ffd\u52a0 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_no_glue_when_probe_fails_0/failed_writes.jsonl: EACCES", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.507060Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_no_glue_when_probe_fails_0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.507289Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:343 [P2-B] 探测半行尾巴失败, 本次加分隔符后照常追加 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_no_glue_when_probe_fails_0/failed_writes.jsonl: EACCES
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_no_glue_when_probe_fails_0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.507289Z'}
+__________________ test_sep_is_dropped_after_a_real_rotation ___________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u8865\u6362\u884c\u5931\u8d25, \u672c\u6b21\u7167\u5e38\u8ffd\u52a0 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_sep_is_dropped_after_a_re0/failed_writes.jsonl: EIO", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.509034Z"}
+{"event": "[T6-C] \u5199\u4fa7\u4e0a\u9650\u89e6\u53d1, \u8f6e\u8f6c failed_writes.jsonl \u2192 failed_writes.overflow.2026-09-20-091254509113-00.jsonl", "logger": "app.core.failure_counters", "level": "info", "timestamp": "2026-09-20T09:12:54.509225Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_sep_is_dropped_after_a_re0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.509372Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:350 [P2-B] 补换行失败, 本次照常追加 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_sep_is_dropped_after_a_re0/failed_writes.jsonl: EIO
+INFO     app.core.failure_counters:failure_counters.py:260 [T6-C] 写侧上限触发, 轮转 failed_writes.jsonl → failed_writes.overflow.2026-09-20-091254509113-00.jsonl
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_sep_is_dropped_after_a_re0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.509372Z'}
+________ test_replay_window_open_keeps_whole_multiline_batch_unrotated _________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[T6-C] \u56de\u704c\u7a97\u53e3\u5f00\u7740, \u672c\u6b21\u8ffd\u52a0\u8df3\u8fc7\u8f6e\u8f6c\uff08\u9632 finalize \u8bef\u5224\u65b0\u6761\u76ee\uff09: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_window_open_keeps_0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.513781Z"}
+{"event": "[Story 30.24] Flushed 8 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_window_open_keeps_0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.514043Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:431 [T6-C] 回灌窗口开着, 本次追加跳过轮转（防 finalize 误判新条目）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_window_open_keeps_0/failed_writes.jsonl
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 8 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_replay_window_open_keeps_0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.514043Z'}
+______________ test_replay_guard_logs_error_when_window_times_out ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[C2-01] \u56de\u704c\u7a97\u53e3\u5df2\u6301\u9501 65 s \u8d85\u8fc7\u4e0a\u9650 60 s, \u89c6\u4f5c\u6302\u4f4f, \u6062\u590d\u5199\u4fa7\u4e0a\u9650", "logger": "app.core.failed_writes_constants", "level": "error", "timestamp": "2026-09-20T09:12:54.516839Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.core.failed_writes_constants:failed_writes_constants.py:185 [C2-01] 回灌窗口已持锁 65 s 超过上限 60 s, 视作挂住, 恢复写侧上限
+_______________ test_batch_failed_writes_hit_disk_before_cleanup _______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-20T09:12:54.518839Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-20T09:12:54.518933Z"}
+{"event": "Batch Neo4j write: 1 errors (non-blocking)", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.519486Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_batch_failed_writes_hit_d0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.520110Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-20T09:12:54.518839Z'}
+INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-20T09:12:54.518933Z'}
+WARNING  app.services.memory_service:memory_service.py:1417 {'event': 'Batch Neo4j write: 1 errors (non-blocking)', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.519486Z'}
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_batch_failed_writes_hit_d0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.520110Z'}
+________________ test_flush_keeps_pending_when_disk_write_fails ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 30.24] Failed to flush pending writes, kept for retry: [Errno 17] File exists: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_keeps_pending_when_0/blocker'", "logger": "app.services.memory_service", "level": "error", "timestamp": "2026-09-20T09:12:54.522835Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.services.memory_service:memory_service.py:2951 {'event': "[Story 30.24] Failed to flush pending writes, kept for retry: [Errno 17] File exists: '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_keeps_pending_when_0/blocker'", 'logger': 'app.services.memory_service', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.522835Z'}
+________________ test_flush_drops_unserializable_pending_writes ________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 30.24] Dropping one unserializable pending write: Object of type object is not JSON serializable", "logger": "app.services.memory_service", "level": "error", "timestamp": "2026-09-20T09:12:54.524020Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.services.memory_service:memory_service.py:2920 {'event': '[Story 30.24] Dropping one unserializable pending write: Object of type object is not JSON serializable', 'logger': 'app.services.memory_service', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.524020Z'}
+________________ test_flush_repairs_dangling_tail_before_retry _________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u6d3b\u52a8\u6587\u4ef6\u4ee5\u534a\u884c\u7ed3\u5c3e\uff08\u4e0a\u6b21\u8ffd\u52a0\u4e2d\u9014\u5931\u8d25\uff09, \u5df2\u8865\u6362\u884c: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_repairs_dangling_ta0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.525590Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_repairs_dangling_ta0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.525706Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:352 [P2-B] 活动文件以半行结尾（上次追加中途失败）, 已补换行: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_repairs_dangling_ta0/failed_writes.jsonl
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_repairs_dangling_ta0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.525706Z'}
+___________ test_flush_keeps_good_entries_when_one_is_unserializable ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 30.24] Dropping one unserializable pending write: Object of type object is not JSON serializable", "logger": "app.services.memory_service", "level": "error", "timestamp": "2026-09-20T09:12:54.527338Z"}
+{"event": "[Story 30.24] Flushed 2 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_keeps_good_entries_0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.527908Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.services.memory_service:memory_service.py:2920 {'event': '[Story 30.24] Dropping one unserializable pending write: Object of type object is not JSON serializable', 'logger': 'app.services.memory_service', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.527338Z'}
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 2 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_keeps_good_entries_0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.527908Z'}
+_____________ test_flush_does_not_glue_when_boundary_repair_fails ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u8865\u6362\u884c\u5931\u8d25, \u672c\u6b21\u7167\u5e38\u8ffd\u52a0 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_does_not_glue_when_0/failed_writes.jsonl: EIO", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.601564Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_does_not_glue_when_0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.601787Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:350 [P2-B] 补换行失败, 本次照常追加 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_does_not_glue_when_0/failed_writes.jsonl: EIO
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_does_not_glue_when_0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.601787Z'}
+__________ test_flush_still_writes_when_boundary_probe_is_unreadable ___________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u63a2\u6d4b\u534a\u884c\u5c3e\u5df4\u5931\u8d25, \u672c\u6b21\u52a0\u5206\u9694\u7b26\u540e\u7167\u5e38\u8ffd\u52a0 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_still_writes_when_b0/failed_writes.jsonl: EACCES", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.603584Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_still_writes_when_b0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.603690Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:343 [P2-B] 探测半行尾巴失败, 本次加分隔符后照常追加 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_still_writes_when_b0/failed_writes.jsonl: EACCES
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_still_writes_when_b0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.603690Z'}
+______________ test_flush_drops_unencodable_entry_without_raising ______________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[Story 30.24] Dropping one unserializable pending write: 'utf-8' codec can't encode character '\\ud800' in position 39: surrogates not allowed", "logger": "app.services.memory_service", "level": "error", "timestamp": "2026-09-20T09:12:54.604923Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_drops_unencodable_e0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-20T09:12:54.605538Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.services.memory_service:memory_service.py:2920 {'event': "[Story 30.24] Dropping one unserializable pending write: 'utf-8' codec can't encode character '\\ud800' in position 39: surrogates not allowed", 'logger': 'app.services.memory_service', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.604923Z'}
+WARNING  app.services.memory_service:memory_service.py:2939 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_flush_drops_unencodable_e0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-20T09:12:54.605538Z'}
+_____________________ test_dead_letter_episodes_is_bounded _____________________
+----------------------------- Captured stdout call -----------------------------
+{"event": "Dead-lettered episode: name=batch_learning:concept-0, retries=0/3, error_type=RuntimeError, sha256=ed52755beefa2d98", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.606671Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-1, retries=0/3, error_type=RuntimeError, sha256=a3ae18ab1451663f", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.606900Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-2, retries=0/3, error_type=RuntimeError, sha256=f5d424ccc868e564", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.607029Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-3, retries=0/3, error_type=RuntimeError, sha256=512f3c21bc7b4273", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.607157Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-4, retries=0/3, error_type=RuntimeError, sha256=2ff1af2f4cdf7118", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.607282Z"}
+{"event": "[T6-C] \u5199\u4fa7\u4e0a\u9650\u89e6\u53d1, \u8f6e\u8f6c dead_letter_episodes.jsonl \u2192 dead_letter_episodes.overflow.2026-09-20-091254607344-00.jsonl", "logger": "app.core.failure_counters", "level": "info", "timestamp": "2026-09-20T09:12:54.607492Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-5, retries=0/3, error_type=RuntimeError, sha256=890e808472b30ca0", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.607647Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-6, retries=0/3, error_type=RuntimeError, sha256=88c129c83131c5b1", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.607764Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-7, retries=0/3, error_type=RuntimeError, sha256=6ec4f0722ff5f4f8", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.607870Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-0, retries=0/3, error_type=RuntimeError, sha256=ed52755beefa2d98', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.606671Z'}
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-1, retries=0/3, error_type=RuntimeError, sha256=a3ae18ab1451663f', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.606900Z'}
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-2, retries=0/3, error_type=RuntimeError, sha256=f5d424ccc868e564', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.607029Z'}
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-3, retries=0/3, error_type=RuntimeError, sha256=512f3c21bc7b4273', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.607157Z'}
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-4, retries=0/3, error_type=RuntimeError, sha256=2ff1af2f4cdf7118', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.607282Z'}
+INFO     app.core.failure_counters:failure_counters.py:260 [T6-C] 写侧上限触发, 轮转 dead_letter_episodes.jsonl → dead_letter_episodes.overflow.2026-09-20-091254607344-00.jsonl
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-5, retries=0/3, error_type=RuntimeError, sha256=890e808472b30ca0', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.607647Z'}
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-6, retries=0/3, error_type=RuntimeError, sha256=88c129c83131c5b1', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.607764Z'}
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-7, retries=0/3, error_type=RuntimeError, sha256=6ec4f0722ff5f4f8', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.607870Z'}
+________ test_dead_letter_store_does_not_concatenate_onto_dangling_tail ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u6d3b\u52a8\u6587\u4ef6\u4ee5\u534a\u884c\u7ed3\u5c3e\uff08\u4e0a\u6b21\u8ffd\u52a0\u4e2d\u9014\u5931\u8d25\uff09, \u5df2\u8865\u6362\u884c: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_dead_letter_store_does_no0/dead_letter_episodes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.609179Z"}
+{"event": "Dead-lettered episode: name=batch_learning:concept-0, retries=0/3, error_type=RuntimeError, sha256=ed52755beefa2d98", "logger": "app.services.episode_worker", "level": "error", "timestamp": "2026-09-20T09:12:54.609404Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:352 [P2-B] 活动文件以半行结尾（上次追加中途失败）, 已补换行: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_dead_letter_store_does_no0/dead_letter_episodes.jsonl
+ERROR    app.services.episode_worker:episode_worker.py:291 {'event': 'Dead-lettered episode: name=batch_learning:concept-0, retries=0/3, error_type=RuntimeError, sha256=ed52755beefa2d98', 'logger': 'app.services.episode_worker', 'level': 'error', 'timestamp': '2026-09-20T09:12:54.609404Z'}
+________ test_write_dead_letter_does_not_concatenate_onto_dangling_tail ________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u6d3b\u52a8\u6587\u4ef6\u4ee5\u534a\u884c\u7ed3\u5c3e\uff08\u4e0a\u6b21\u8ffd\u52a0\u4e2d\u9014\u5931\u8d25\uff09, \u5df2\u8865\u6362\u884c: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_write_dead_letter_does_no0/edge_dead_letters.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.610998Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:352 [P2-B] 活动文件以半行结尾（上次追加中途失败）, 已补换行: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_write_dead_letter_does_no0/edge_dead_letters.jsonl
+____________ test_failed_writes_chain_repairs_dangling_tail_control ____________
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u6d3b\u52a8\u6587\u4ef6\u4ee5\u534a\u884c\u7ed3\u5c3e\uff08\u4e0a\u6b21\u8ffd\u52a0\u4e2d\u9014\u5931\u8d25\uff09, \u5df2\u8865\u6362\u884c: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_failed_writes_chain_repai0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-20T09:12:54.612361Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:352 [P2-B] 活动文件以半行结尾（上次追加中途失败）, 已补换行: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-2585/test_failed_writes_chain_repai0/failed_writes.jsonl
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+PASSED tests/unit/test_staging_writers_bounded.py::test_agent_service_third_writer_is_bounded
+PASSED tests/unit/test_staging_writers_bounded.py::test_third_writer_does_not_concatenate_onto_dangling_tail
+PASSED tests/unit/test_staging_writers_bounded.py::test_replay_guard_times_out_when_lock_stuck
+PASSED tests/unit/test_staging_writers_bounded.py::test_replay_guard_respects_fresh_window
+PASSED tests/unit/test_staging_writers_bounded.py::test_replay_guard_treats_direct_lock_holder_as_in_flight
+PASSED tests/unit/test_staging_writers_bounded.py::test_sync_all_fallbacks_stamps_and_clears_started_at
+PASSED tests/unit/test_staging_writers_bounded.py::test_started_at_is_not_stamped_while_waiting_for_the_lock
+PASSED tests/unit/test_staging_writers_bounded.py::test_no_glue_when_probe_fails_on_a_dangling_tail
+PASSED tests/unit/test_staging_writers_bounded.py::test_sep_is_dropped_after_a_real_rotation
+PASSED tests/unit/test_staging_writers_bounded.py::test_replay_window_open_keeps_whole_multiline_batch_unrotated
+PASSED tests/unit/test_staging_writers_bounded.py::test_unobservable_replay_state_is_false_even_while_locked
+PASSED tests/unit/test_staging_writers_bounded.py::test_replay_guard_logs_error_when_window_times_out
+PASSED tests/unit/test_staging_writers_bounded.py::test_batch_failed_writes_hit_disk_before_cleanup
+PASSED tests/unit/test_staging_writers_bounded.py::test_flush_keeps_pending_when_disk_write_fails
+PASSED tests/unit/test_staging_writers_bounded.py::test_flush_drops_unserializable_pending_writes
+PASSED tests/unit/test_staging_writers_bounded.py::test_flush_repairs_dangling_tail_before_retry
+PASSED tests/unit/test_staging_writers_bounded.py::test_flush_keeps_good_entries_when_one_is_unserializable
+PASSED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+PASSED tests/unit/test_staging_writers_bounded.py::test_flush_still_writes_when_boundary_probe_is_unreadable
+PASSED tests/unit/test_staging_writers_bounded.py::test_flush_drops_unencodable_entry_without_raising
+PASSED tests/unit/test_staging_writers_bounded.py::test_dead_letter_episodes_is_bounded
+PASSED tests/unit/test_staging_writers_bounded.py::test_dead_letter_store_does_not_concatenate_onto_dangling_tail
+PASSED tests/unit/test_staging_writers_bounded.py::test_write_dead_letter_does_not_concatenate_onto_dangling_tail
+PASSED tests/unit/test_staging_writers_bounded.py::test_failed_writes_chain_repairs_dangling_tail_control
+PASSED tests/unit/test_staging_writers_bounded.py::test_overflow_siblings_does_not_swallow_permission_error
+PASSED tests/unit/test_staging_writers_bounded.py::test_unique_overflow_target_does_not_swallow_stat_error
+PASSED tests/unit/test_staging_writers_bounded.py::test_dead_letter_store_count_does_not_swallow_permission_error
+PASSED tests/unit/test_staging_writers_bounded.py::test_every_staging_test_isolates_live_files
+PASSED tests/unit/test_staging_writers_bounded.py::test_isolation_scanner_can_actually_detect_an_offender
+======================= 29 passed, 10 warnings in 1.25s ========================
+rc=0

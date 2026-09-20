@@ -1,0 +1,25 @@
+before=381269366ba6a25742c8c31960deb55153e5a671a3e48afa8361afab9edd053b  backend/app/services/agent_service.py
+mutated=1 helper→裸open
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+collected 16 items / 12 deselected / 4 selected
+E   AssertionError: 没有 .overflow.* —— 从未发生轮转
+E    +  where [] = _overflow_siblings(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-684/test_agent_service_third_write0/failed_writes.jsonl'))
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c0", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.815743Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c1", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.816028Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c2", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.816169Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c3", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.816285Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c4", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.816393Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c5", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.816502Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c6", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.816608Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c7", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T14:05:51.816701Z"}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c0', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.815743Z'}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c1', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.816028Z'}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c2', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.816169Z'}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c3', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.816285Z'}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c4', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.816393Z'}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c5', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.816502Z'}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c6', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.816608Z'}
+WARNING  app.services.agent_service:agent_service.py:144 {'event': '[Story 38.6] Score write failed after retries, saved to fallback: c7', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T14:05:51.816701Z'}
+FAILED tests/unit/test_staging_writers_bounded.py::test_agent_service_third_writer_is_bounded
+=========== 1 failed, 3 passed, 12 deselected, 10 warnings in 1.71s ============
+restored=381269366ba6a25742c8c31960deb55153e5a671a3e48afa8361afab9edd053b  backend/app/services/agent_service.py

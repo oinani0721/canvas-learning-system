@@ -1,0 +1,8 @@
+backend/app/core/failed_writes_constants.py: 改动 148 / format 会改 3 / 交集=[]
+backend/app/core/failure_counters.py: 改动 24 / format 会改 6 / 交集=[]
+backend/app/services/agent_service.py: 改动 14 / format 会改 497 / 交集=[]
+backend/app/services/episode_worker.py: 改动 30 / format 会改 0 / 交集=[]
+backend/app/services/fallback_sync_service.py: 改动 27 / format 会改 0 / 交集=[]
+backend/app/services/memory_service.py: 改动 86 / format 会改 55 / 交集=[]
+backend/tests/unit/test_staging_writers_bounded.py: 改动 765 / format 会改 0 / 交集=[]
+结论: PASS（改动行零格式漂移）

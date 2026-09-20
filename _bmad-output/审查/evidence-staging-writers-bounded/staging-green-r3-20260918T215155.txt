@@ -1,0 +1,78 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 16 items
+
+tests/unit/test_staging_writers_bounded.py ........F.......              [100%]
+
+=================================== FAILURES ===================================
+________________ test_flush_repairs_dangling_tail_before_retry _________________
+tests/unit/test_staging_writers_bounded.py:405: in test_flush_repairs_dangling_tail_before_retry
+    recs = _records(path)
+           ^^^^^^^^^^^^^^
+tests/unit/test_staging_writers_bounded.py:77: in _records
+    out.append(json.loads(raw))
+               ^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/__init__.py:352: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py:345: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/json/decoder.py:361: in raw_decode
+    obj, end = self.scan_once(s, idx)
+               ^^^^^^^^^^^^^^^^^^^^^^
+E   json.decoder.JSONDecodeError: Unterminated string starting at: line 1 column 2 (char 1)
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-B] \u6d3b\u52a8\u6587\u4ef6\u4ee5\u534a\u884c\u7ed3\u5c3e\uff08\u4e0a\u6b21\u8ffd\u52a0\u4e2d\u9014\u5931\u8d25\uff09, \u5df2\u8865\u6362\u884c: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-636/test_flush_repairs_dangling_ta0/failed_writes.jsonl", "logger": "app.core.failed_writes_constants", "level": "warning", "timestamp": "2026-09-18T13:52:19.951710Z"}
+{"event": "[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-636/test_flush_repairs_dangling_ta0/failed_writes.jsonl", "logger": "app.services.memory_service", "level": "warning", "timestamp": "2026-09-18T13:52:19.951957Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.core.failed_writes_constants:failed_writes_constants.py:297 [P2-B] 活动文件以半行结尾（上次追加中途失败）, 已补换行: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-636/test_flush_repairs_dangling_ta0/failed_writes.jsonl
+WARNING  app.services.memory_service:memory_service.py:2888 {'event': '[Story 30.24] Flushed 1 pending failed writes to /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-636/test_flush_repairs_dangling_ta0/failed_writes.jsonl', 'logger': 'app.services.memory_service', 'level': 'warning', 'timestamp': '2026-09-18T13:52:19.951957Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_repairs_dangling_tail_before_retry
+================== 1 failed, 15 passed, 10 warnings in 1.47s ===================

@@ -1,0 +1,111 @@
+{
+  "commit": "fix(staging): 暂存 JSONL 剩余无界写者收口 [BATCH-2026-09-18-第十五批 / CARD-STAGING-WRITERS-BOUNDED]",
+  "ref": "d2ebf694",
+  "sha": "d2ebf69410cfeb2d708b29e91466ebba89c46b36",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:28:38-0700",
+  "code_files": [
+    "backend/app/core/failed_writes_constants.py",
+    "backend/app/core/failure_counters.py",
+    "backend/app/services/agent_service.py",
+    "backend/app/services/episode_worker.py",
+    "backend/app/services/fallback_sync_service.py",
+    "backend/app/services/memory_service.py",
+    "backend/tests/unit/test_staging_writers_bounded.py"
+  ],
+  "files": [
+    {
+      "file": "backend/app/core/failed_writes_constants.py",
+      "added": 216,
+      "removed": 27,
+      "runtime": 0.97,
+      "risk": "concurrency_state",
+      "risk_conf": 0.98,
+      "urgency": 3.47,
+      "urgency_conf": 0.6,
+      "review": 0.93,
+      "test": 0.75,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "backend/app/services/memory_service.py",
+      "added": 81,
+      "removed": 14,
+      "runtime": 0.98,
+      "risk": "error_handling",
+      "risk_conf": 0.67,
+      "urgency": 3.13,
+      "urgency_conf": 0.88,
+      "review": 0.88,
+      "test": 0.56,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/app/core/failure_counters.py",
+      "added": 24,
+      "removed": 4,
+      "runtime": 0.97,
+      "risk": "error_handling",
+      "risk_conf": 0.99,
+      "urgency": 2.98,
+      "urgency_conf": 0.92,
+      "review": 0.79,
+      "test": 0.59,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/app/services/episode_worker.py",
+      "added": 39,
+      "removed": 6,
+      "runtime": 0.98,
+      "risk": "concurrency_state",
+      "risk_conf": 0.95,
+      "urgency": 2.97,
+      "urgency_conf": 0.9,
+      "review": 0.84,
+      "test": 0.58,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/app/services/fallback_sync_service.py",
+      "added": 30,
+      "removed": 1,
+      "runtime": 0.97,
+      "risk": "concurrency_state",
+      "risk_conf": 1.0,
+      "urgency": 2.95,
+      "urgency_conf": 0.89,
+      "review": 0.78,
+      "test": 0.59,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/unit/test_staging_writers_bounded.py",
+      "added": 1072,
+      "removed": 0,
+      "runtime": 0.06,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 2.25,
+      "urgency_conf": 0.34,
+      "review": 0.84,
+      "test": 0.91,
+      "truncated": true,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 20116,
+    "output_tokens": 953
+  },
+  "latency_ms": {
+    "min": 236,
+    "median": 277,
+    "max": 394
+  }
+}

@@ -1,0 +1,33 @@
+# zcode r6 archive finalize — 2026-09-19 21:20:05
+sha_pre_header: ec37097134c186130afb1cae43413b8ed9fc261f3c5c2fc0e37a61cb104d9492（pre-header = 原始 --json，已由本终稿替换；pre 值来自 session 落档时实测）
+sha_post_header: c85822bd769b43f84a203992f6b14f9e8350c0f1a5e4a5fa53d65522bf001618  _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md
+blockquote_field_lines=7
+== head 9 ==
+> 批次: BATCH-2026-09-18-第十五批 · 车道 card-p2-outbox · 卡 CARD-STAGING-WRITERS-BOUNDED round-6（补审 · ZCode 通道 · 协议 §2.4.2）
+> 模型: `glm-5.3`（provider_config.defaultModelSelection）
+> 工具: zcode-app-cli 3.12.3-26 / runtime 0.16.5
+> 命令: `zcode --prompt "$(cat _bmad-output/审查/prompts/zcode-review-prompt-CARD-STAGING-WRITERS-BOUNDED-r6.md)" --cwd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md 2> _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.stderr`
+> 审查绑定: `d2ebf694`（= 本卡末次改动 commit = 送审时 HEAD；7 文件 `git --no-pager diff --stat --no-color d2ebf694 HEAD` = 空 ⇒ 绑定成立；判据原文见 evidence-staging-writers-bounded/zcode-r6-binding-*.txt；`.stderr` 本身不入库）
+> 自证: sessionId=`sess_494e656e-ca27-4ead-b1ff-26e3409d5b77` · traceId=`3d199322-770a-4bf5-8b4f-3e1326a68a91`（--json 原文抄录；JSON 解析通过 / sessionId 非空；另 turnId=turn_4cefa4b2-2eb9-4b0e-8fdb-de2f1d421fcb）
+> 结构说明: 下接第一段为本轮评审正文（从 --json 的 response 字段逐字提取，便于阅读）；文末为原始 --json 全文（未经删改，供自证与复算）。
+
+---
+== structure check ==
+7:> 结构说明: 下接第一段为本轮评审正文（从 --json 的 response 字段逐字提取，便于阅读）；文末为原始 --json 全文（未经删改，供自证与复算）。
+47:## 原始 --json 输出（未经删改）
+      76   19965 _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md
+== stderr ignore check ==
+.gitignore:264:_bmad-output/审查/**/*.stderr*	"_bmad-output/\345\256\241\346\237\245/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.stderr"
+== stderr kept out of repo ==
+0
+== git status (pre-commit) ==
+ M "_bmad-output/\351\252\214\346\224\266\345\215\225/UAT-CARD-STAGING-WRITERS-BOUNDED-2026-09-18.md"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-staging-writers-bounded/zcode-r6-archive-finalize-20260919T212005.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-staging-writers-bounded/zcode-r6-binding-20260919T210439.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-staging-writers-bounded/zcode-r6-findings-20260919T211823.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-staging-writers-bounded/zcode-r6-minute0-20260919T210329.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-staging-writers-bounded/zcode-r6-prompt-check-20260919T210429.txt"
+?? "_bmad-output/\345\256\241\346\237\245/evidence-staging-writers-bounded/zcode-r6-session-20260919T211823.txt"
+?? "_bmad-output/\345\256\241\346\237\245/prompts/zcode-review-prompt-CARD-STAGING-WRITERS-BOUNDED-r6.md"
+?? "_bmad-output/\345\256\241\346\237\245/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md"
+# evidence_files(写本文件前)=121 → 含本文件=122

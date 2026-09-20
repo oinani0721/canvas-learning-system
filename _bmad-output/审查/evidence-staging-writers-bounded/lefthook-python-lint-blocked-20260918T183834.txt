@@ -1,0 +1,69 @@
+╭──────────────────────────────────────╮
+│ 🥊 lefthook v2.1.6  hook: pre-commit │
+╰──────────────────────────────────────╯
+│  Skipping hook sync: core.hooksPath is set locally to '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'            
+│                                                                                                                                     
+│  hint: Unset it:                                                                                                                    
+│  hint:   git config --unset-all --local core.hooksPath                                                                              
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --reset-hooks-path' to automatically unset it.                                                         
+│  hint:                                                                                                                              
+│  hint: Run 'lefthook install --force' to install hooks anyway in '/Users/Heishing/Desktop/canvas/canvas-learning-system/.git/hooks'.
+│  cypher-vault-filter-lint (skip) no matching staged files
+┃  ghost-files ❯ 
+
+[Ghost Files] No untracked docs found.
+
+┃  mutant-residue-scan ❯ 
+
+[Mutant-Scan] OK (staged additions carry no mutation marker).
+
+┃  python-lint ❯ 
+
+[Python] Running ruff lint...
+All checks passed!
+[Python] Lint OK.
+[Python] Checking format...
+Would reformat: backend/app/core/failed_writes_constants.py
+Would reformat: backend/app/core/failure_counters.py
+Would reformat: backend/app/services/agent_service.py
+Would reformat: backend/app/services/event_bus.py
+Would reformat: backend/app/services/memory_service.py
+5 files would be reformatted, 3 files already formatted
+[Python] Format check FAILED! Fix: ruff format backend/app/core/failed_writes_constants.py backend/app/core/failure_counters.py backend/app/services/agent_service.py backend/app/services/episode_worker.py backend/app/services/event_bus.py backend/app/services/fallback_sync_service.py backend/app/services/memory_service.py backend/tests/unit/test_staging_writers_bounded.py
+
+exit status 1┃  python-typecheck ❯ 
+
+[Python] Running pyright type check (backend/.venv/bin/pyright)...
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:67:28 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:267:24 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:1856:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:1900:52 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:2509:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:2513:28 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:2790:49 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:3200:28 - warning: Unnecessary isinstance call; "AgentType" is always an instance of "AgentType" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:3222:57 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:3688:33 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:3691:55 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:3711:64 - warning: Unnecessary "# type: ignore" comment (reportUnnecessaryTypeIgnoreComment)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/agent_service.py:4606:32 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/episode_worker.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/episode_worker.py:193:12 - warning: Unnecessary isinstance call; "str" is always an instance of "str" (reportUnnecessaryIsInstance)
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/memory_service.py
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/memory_service.py:1748:34 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/memory_service.py:2069:35 - warning: Unnecessary isinstance call; "Dict[str, Any]" is always an instance of "dict[Unknown, Unknown]" (reportUnnecessaryIsInstance)
+0 errors, 16 warnings, 0 informations
+[Python] Typecheck done (exit: 0).
+
+│  readme-claims-lint (skip) no matching staged files
+│  spec-sync-flat (skip) no matching staged files
+│  spec-sync-root (skip) no matching staged files
+                                      
+  ────────────────────────────────────
+summary: (done in 2.60 seconds)       
+✔️ ghost-files (0.02 seconds)
+✔️ mutant-residue-scan (0.12 seconds)
+✔️ python-typecheck (2.43 seconds)
+🥊 python-lint (0.03 seconds)

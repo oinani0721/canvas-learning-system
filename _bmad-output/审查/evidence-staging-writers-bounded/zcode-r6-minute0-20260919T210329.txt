@@ -1,0 +1,11 @@
+# zcode r6 minute-0 checks + binding precheck — 2026-09-19 21:03:29
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox
+branch=card/p2-outbox
+HEAD=d2ebf69410cfeb2d708b29e91466ebba89c46b36
+anchor-d2ebf694=OK
+status_porcelain_lines=1
+zcode_version=zcode-app-cli 3.12.3-26 zcode-runtime 0.16.5 
+cfg=cfg-ok
+diff_7files_baseline:
+diff_7files_lines=0
+# 注：status_porcelain_lines=1 = 本文件自身（tee 先建文件、后跑 status）；本补审开工时（未创建任何新文件前）status 实测为空（0 行）。

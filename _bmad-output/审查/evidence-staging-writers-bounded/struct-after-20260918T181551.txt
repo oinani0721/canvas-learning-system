@@ -1,0 +1,21 @@
+### 1) append_failed_writes_bounded( agent_service / memory_service
+backend/app/services/memory_service.py:2
+backend/app/services/agent_service.py:1
+### 2) open(FAILED_WRITES_FILE, "a" agent_service
+0
+### 3) rotate_if_over_limit( episode_worker / event_bus
+backend/app/services/episode_worker.py:1
+backend/app/services/event_bus.py:1
+### 4) _sync_all_started_at fallback_sync / failed_writes_constants
+backend/app/core/failed_writes_constants.py:1
+backend/app/services/fallback_sync_service.py:4
+### 4b) REPLAY_WINDOW_MAX_SECONDS failed_writes_constants
+6
+### 5) _flush_pending_failed_writes() memory_service (行号)
+1437:                self._flush_pending_failed_writes()
+2855:            self._flush_pending_failed_writes()
+### 6) .exists() AST Call 行号
+backend/app/core/failure_counters.py 0 []
+backend/app/services/episode_worker.py 0 []
+backend/app/services/event_bus.py 1 [396]
+backend/app/services/fallback_sync_service.py 9 [301, 381, 456, 559, 853, 879, 910, 936, 954]

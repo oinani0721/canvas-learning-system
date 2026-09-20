@@ -116,12 +116,23 @@ def count_lines(path: Path) -> int:
 
 
 def overflow_siblings(path: Path) -> List[Path]:
-    """活动文件轮转出去的 ``<stem>.overflow.<ts>`` 兄弟，按名字（== 按时间）升序。"""
+    """活动文件轮转出去的 ``<stem>.overflow.<ts>`` 兄弟，按名字（== 按时间）升序。
+
+    ⚠️ 不用 ``parent.exists()``（CARD-STAGING-WRITERS-BOUNDED / P2-B，与
+    ``count_lines`` 同型）：Python 3.14 的 ``Path.exists()`` 走
+    ``os.path.exists`` → ``os.stat``，而 ``genericpath.exists`` 的
+    ``except OSError`` 把 ``PermissionError`` **吞成 False** ⇒ 「目录读不到」被压成
+    「没有兄弟」，``_prune_overflow`` 于是认为无档可删，retention 静默失效。
+    直接 ``iterdir()`` 显式分流：目录真的不在 ⇒ 空列表；其余 OSError 上抛，由
+    调用方 ``_prune_overflow``（已 ``except OSError``）接住并跳过清理。
+    """
     parent = path.parent
-    if not parent.exists():
+    try:
+        entries = list(parent.iterdir())
+    except FileNotFoundError:
         return []
     prefix = path.stem + OVERFLOW_SUFFIX
-    return sorted((p for p in parent.iterdir() if p.name.startswith(prefix)), key=lambda p: p.name)
+    return sorted((p for p in entries if p.name.startswith(prefix)), key=lambda p: p.name)
 
 
 def _unique_overflow_target(path: Path) -> Path:
@@ -150,8 +161,17 @@ def _unique_overflow_target(path: Path) -> Path:
     # 所有名字同形之后，同微秒内按 `-NN` 递增、跨微秒由时间戳主导，两级都对。
     for n in range(100):
         candidate = path.with_suffix(f"{OVERFLOW_SUFFIX}{stamp}-{n:02d}{tail}")
-        if not candidate.exists():
+        # ⚠️ 不用 candidate.exists()（CARD-STAGING-WRITERS-BOUNDED / P2-B，同上）：
+        # 探测被 PermissionError 拦下时 exists() 压成 False ⇒ 交出一个**可能已被
+        # 占用**的名字 ⇒ 上面 docstring 说的 rename 静默覆盖会丢整份 overflow。
+        # stat 显式分流：确认不在才用；探不出来就当作已占用、换下一个序号
+        # （宁可跳号，也不冒覆盖数据的风险）。
+        try:
+            candidate.stat()
+        except FileNotFoundError:
             return candidate
+        except OSError:
+            continue
     # 同一微秒连撞 100 次基本不可能；真发生了宁可牺牲族内有序也不覆盖数据。
     # ⚠️ 分隔符用 `~`(0x7E) 不用 `-`(0x2D)：`-` < `.`(0x2E) 会让 `-99-<uuid>.jsonl`
     # 排在 `-99.jsonl` **之前**，于是「删最老」会去删这个最新的兜底档
@@ -342,7 +362,15 @@ def write_dead_letter(
         # volume grows, consider asyncio.to_thread() or aiofiles.
         with _dead_letter_io_lock:
             rotate_if_over_limit(file_path, DEAD_LETTER_MAX_LINES, DEAD_LETTER_MAX_ROTATIONS)
+            # CARD-STAGING-WRITERS-BOUNDED H1 整改（zcode r6 HIGH 同型残留）：行边界
+            # 防护 —— 复用 failed_writes 链同一原语；**惰性 import** 避免与
+            # failed_writes_constants 的既有反向依赖成环（本模块被其顶层导入，
+            # 调用期该模块必已加载完整）。补得上就补换行；探测失败就把分隔符并进
+            # 本条第一行 —— 任何情况下都不粘连（本写者同样没有重试缓冲，不拒写）。
+            from app.core.failed_writes_constants import ensure_line_boundary
+
+            sep = "" if ensure_line_boundary(file_path) else "\n"
             with open(file_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+                f.write(sep + json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError as e:
         logger.error(f"Failed to write dead-letter entry to {file_path}: {e}")

@@ -1,0 +1,17 @@
+backend/app/core/failed_writes_constants.py
+  改动 84 行 / format 会改 3 行  交集=[]
+backend/app/core/failure_counters.py
+  改动 24 行 / format 会改 6 行  交集=[]
+backend/app/services/agent_service.py
+  改动 14 行 / format 会改 497 行  交集=[]
+backend/app/services/episode_worker.py
+  改动 30 行 / format 会改 0 行  交集=[]
+backend/app/services/fallback_sync_service.py
+  改动 27 行 / format 会改 0 行  交集=[]
+backend/app/services/memory_service.py
+  改动 51 行 / format 会改 58 行  交集=[2906]
+backend/tests/unit/test_staging_writers_bounded.py
+  改动 648 行 / format 会改 0 行  交集=[]
+
+结论: FAIL [('backend/app/services/memory_service.py', [2906])]
+验伪锚: 能抓到漂移 ✅

@@ -28,7 +28,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from cachetools import TTLCache
 
-from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+from app.core.failed_writes_constants import (
+    FAILED_WRITES_FILE,
+    append_failed_writes_bounded,
+    failed_writes_lock,
+)
 from app.middleware.prompt_injection_guard import (
     SAFETY_BLOCK_INPUT_MESSAGE,
     check_input,
@@ -127,8 +131,17 @@ def _record_failed_write(
         }
         FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
         with failed_writes_lock:
-            with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            # CARD-STAGING-WRITERS-BOUNDED: 第三写者切有界追加 —— 超
+            # FAILED_WRITES_MAX_LINES 先轮转成 .overflow.<ts>。helper 不自持锁
+            # （外层这把是非重入的），与 memory_service:515-518 逐字同形。
+            # ⚠️ 路径继续用本模块级的 FAILED_WRITES_FILE 绑定副本：既有测试打桩的
+            # 正是这一侧（实测 12 处，分布在 test_story_38_7_ac4_degraded_mode.py /
+            # test_story_38_7_qa_supplement.py / test_qa_38_6_scoring_reliability_extra.py /
+            # test_story_38_6_scoring_reliability.py 四个既有文件），改读
+            # failed_writes_constants 的全局会让那些测试静默写进现网数据文件且仍绿。
+            # 序列化留在调用方，json.dumps 的 TypeError/ValueError 仍由下面既有的
+            # except 元组接住，异常语义不变。
+            append_failed_writes_bounded(FAILED_WRITES_FILE, [json.dumps(entry, ensure_ascii=False)])
         logger.warning(
             f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}"
         )

@@ -1,0 +1,22 @@
+### 1) append_failed_writes_bounded( agent_service / memory_service
+backend/app/services/agent_service.py:1
+backend/app/services/memory_service.py:2
+### 2) open(FAILED_WRITES_FILE, "a" agent_service
+0
+### 3) rotate_if_over_limit( episode_worker / event_bus（e3 已退 ⇒ event_bus 0）
+backend/app/services/event_bus.py:0
+backend/app/services/episode_worker.py:1
+### 4) _sync_all_started_at / REPLAY_WINDOW_MAX_SECONDS
+backend/app/core/failed_writes_constants.py:1
+backend/app/services/fallback_sync_service.py:4
+6
+### 5) _flush_pending_failed_writes() 行号
+1437:                self._flush_pending_failed_writes()
+2855:            self._flush_pending_failed_writes()
+### 6) .exists() AST Call
+backend/app/core/failure_counters.py 0 []
+backend/app/services/episode_worker.py 0 []
+backend/app/services/event_bus.py 1 [376]
+backend/app/services/fallback_sync_service.py 9 [306, 386, 461, 564, 858, 884, 915, 941, 959]
+### 7) event_bus 是否逐字节同 PREV（e3 退回自证）
+event_bus 同 PREV ✅

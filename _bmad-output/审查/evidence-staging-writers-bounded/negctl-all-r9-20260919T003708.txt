@@ -1,0 +1,85 @@
+== 段 1  target=agent_service.py
+before=63089a34c1098526
+m1 helper→裸open
+collected 23 items / 18 deselected / 5 selected
+E   AssertionError: 活动文件超行数：8 > 5 —— 第三写者仍是裸追加，写侧上限对它无效
+FAILED tests/unit/test_staging_writers_bounded.py::test_agent_service_third_writer_is_bounded
+=========== 1 failed, 4 passed, 18 deselected, 10 warnings in 2.27s ============
+restored=63089a34c1098526
+== 段 2  target=failed_writes_constants.py
+before=5ed7b39c0d8fab6f
+m2 删超时分支
+collected 23 items / 19 deselected / 4 selected
+E   AssertionError: 锁挂住超过上限后仍未轮转 —— 守卫没有时间维度，写侧上限被无限期关闭
+FAILED tests/unit/test_staging_writers_bounded.py::test_replay_guard_times_out_when_lock_stuck
+FAILED tests/unit/test_staging_writers_bounded.py::test_replay_guard_logs_error_when_window_times_out
+=========== 2 failed, 2 passed, 19 deselected, 10 warnings in 2.23s ============
+restored=5ed7b39c0d8fab6f
+== 段 3  target=memory_service.py
+before=67e49cd8f7b8556c
+m3 删即时刷盘
+collected 23 items / 22 deselected / 1 selected
+E   AssertionError: 未调 cleanup() 前文件里找不到该 episode_id —— 批次失败只攒在内存，进程被 kill 就整批丢失
+FAILED tests/unit/test_staging_writers_bounded.py::test_batch_failed_writes_hit_disk_before_cleanup
+================ 1 failed, 22 deselected, 10 warnings in 1.94s =================
+restored=67e49cd8f7b8556c
+== 段 4  target=memory_service.py
+before=67e49cd8f7b8556c
+m4 OSError 改回无条件 clear
+collected 23 items / 21 deselected / 2 selected
+E   AssertionError: 磁盘写失败后 pending 被清空 —— 这批记录再也没有第二次机会落盘
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_keeps_pending_when_disk_write_fails
+=========== 1 failed, 1 passed, 21 deselected, 10 warnings in 3.10s ============
+restored=67e49cd8f7b8556c
+== 段 5  target=failed_writes_constants.py
+before=5ed7b39c0d8fab6f
+m5 删入口补边界（连探测一起去掉）
+collected 23 items / 21 deselected / 2 selected
+E   AssertionError: 残缺尾巴没有自成一行 —— 和第三写者的新记录粘在一起了: '{"episo{"timestamp": "2026-09-19T07:39:00.148014+00:00", "event_type": "score_recorded", "concept_id": "after-dangling", "canvas_name": "Math/test.canvas", "score": 1.0, "error_reason": "neo4j down", "concept": "", "user_understanding": null, "agent_feedback": null}'
+E   AssertionError: 记录没有成为一条可解析的行: b'{"episo'
+FAILED tests/unit/test_staging_writers_bounded.py::test_third_writer_does_not_concatenate_onto_dangling_tail
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+================ 2 failed, 21 deselected, 10 warnings in 1.59s =================
+restored=5ed7b39c0d8fab6f
+== 段 6  target=memory_service.py
+before=67e49cd8f7b8556c
+m6 一条坏就整批丢
+collected 23 items / 21 deselected / 2 selected
+E   AssertionError: 好条目跟着坏条目一起被丢了: set()
+E   AssertionError: 好条目没落盘: set()
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_keeps_good_entries_when_one_is_unserializable
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_drops_unencodable_entry_without_raising
+================ 2 failed, 21 deselected, 10 warnings in 2.49s =================
+restored=67e49cd8f7b8556c
+== 段 7b  target=memory_service.py
+before=67e49cd8f7b8556c
+m7b 恢复「边界保不住就拒写」
+collected 23 items / 21 deselected / 2 selected
+E   AssertionError: 记录没有成为一条可解析的行: b'{"episo'
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+=========== 1 failed, 1 passed, 21 deselected, 10 warnings in 1.13s ============
+restored=67e49cd8f7b8556c
+== 段 8  target=memory_service.py
+before=67e49cd8f7b8556c
+m8 删编码预验
+collected 23 items / 21 deselected / 2 selected
+E   AssertionError: 好条目没落盘: set()
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_drops_unencodable_entry_without_raising
+=========== 1 failed, 1 passed, 21 deselected, 10 warnings in 1.12s ============
+restored=67e49cd8f7b8556c
+== 段 9  target=failed_writes_constants.py
+before=5ed7b39c0d8fab6f
+m9 保留补边界但删 sep 前缀机制
+collected 23 items / 21 deselected / 2 selected
+E   AssertionError: 补换行失败后记录粘在了残缺尾巴上: '{"episo{"episode_id": "sep-A"}'
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+=========== 1 failed, 1 passed, 21 deselected, 10 warnings in 1.13s ============
+restored=5ed7b39c0d8fab6f
+== 段 10  target=failed_writes_constants.py
+before=5ed7b39c0d8fab6f
+m10 import 改回 from app.services import fallback_sync_service
+collected 23 items / 18 deselected / 5 selected
+E   AssertionError: 观测不到回灌状态却没判 False —— 生产侧的 import 形式可能已让既有拦截失效
+FAILED tests/unit/test_staging_writers_bounded.py::test_unobservable_replay_state_is_false_even_while_locked
+=========== 1 failed, 4 passed, 18 deselected, 10 warnings in 1.04s ============
+restored=5ed7b39c0d8fab6f

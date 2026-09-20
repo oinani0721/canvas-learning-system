@@ -1,0 +1,20 @@
+-- memory_service（须 ∈ [1423,1686] ∪ [2672,2900]）--
+@@ -1428,6 +1428,14 @@ class MemoryService:
+@@ -2857,6 +2865,23 @@ class MemoryService:
+@@ -2867,23 +2892,70 @@ class MemoryService:
+-- fallback_sync（旧侧 ≤111）--
+@@ -83,6 +83,24 @@ _PROGRESS_VERSION = "split-lf+contiguous+history"
+@@ -107,8 +125,16 @@ class FallbackSyncService:
+-- episode_worker（不覆盖 group_id :611）--
+@@ -30,6 +30,7 @@ from datetime import datetime, timezone
+@@ -260,8 +261,20 @@ class DeadLetterStore:
+@@ -273,10 +286,21 @@ class DeadLetterStore:
+-- 全量 --
+ backend/app/core/failed_writes_constants.py        | 164 ++++-
+ backend/app/core/failure_counters.py               |  28 +-
+ backend/app/services/agent_service.py              |  17 +-
+ backend/app/services/episode_worker.py             |  36 +-
+ backend/app/services/fallback_sync_service.py      |  28 +-
+ backend/app/services/memory_service.py             | 100 ++-
+ backend/tests/unit/test_staging_writers_bounded.py | 765 +++++++++++++++++++++
+ 7 files changed, 1094 insertions(+), 44 deletions(-)

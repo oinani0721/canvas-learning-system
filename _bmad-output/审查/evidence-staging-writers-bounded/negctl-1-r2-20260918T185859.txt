@@ -1,0 +1,18 @@
+before=381269366ba6a25742c8c31960deb55153e5a671a3e48afa8361afab9edd053b  backend/app/services/agent_service.py
+mutated=1 helper→裸open
+ backend/app/services/agent_service.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+collected 13 items / 9 deselected / 4 selected
+E   AssertionError: 活动文件超行数：8 > 5 —— 第三写者仍是裸追加，写侧上限对它无效
+E    +  where 8 = _nlines(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-351/test_agent_service_third_write0/failed_writes.jsonl'))
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c0", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652164Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c1", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652312Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c2", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652386Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c3", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652443Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c4", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652492Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c5", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652543Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c6", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652592Z"}
+{"event": "[Story 38.6] Score write failed after retries, saved to fallback: c7", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T10:59:10.652642Z"}
+FAILED tests/unit/test_staging_writers_bounded.py::test_agent_service_third_writer_is_bounded
+============ 1 failed, 3 passed, 9 deselected, 10 warnings in 0.99s ============
+restored=381269366ba6a25742c8c31960deb55153e5a671a3e48afa8361afab9edd053b  backend/app/services/agent_service.py

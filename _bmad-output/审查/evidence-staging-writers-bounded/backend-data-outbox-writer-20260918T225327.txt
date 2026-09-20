@@ -1,0 +1,2 @@
+tests/unit/test_event_bus.py: ⛔ 写脏 backend/data
+test_event_bus.py 写了 outbox/events.jsonl（既有，地盘外）

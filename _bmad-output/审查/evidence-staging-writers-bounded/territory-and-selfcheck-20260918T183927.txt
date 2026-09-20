@@ -1,0 +1,44 @@
+=== 9. 地盘门：diff --stat PREV..HEAD（排除 _bmad-output）===
+ backend/app/core/failed_writes_constants.py        |  81 ++-
+ backend/app/core/failure_counters.py               |  28 +-
+ backend/app/services/agent_service.py              |  17 +-
+ backend/app/services/episode_worker.py             |  36 +-
+ backend/app/services/event_bus.py                  |  24 +-
+ backend/app/services/fallback_sync_service.py      |  23 +-
+ backend/app/services/memory_service.py             |  14 +
+ backend/tests/unit/test_staging_writers_bounded.py | 620 +++++++++++++++++++++
+ 8 files changed, 818 insertions(+), 25 deletions(-)
+=== 验伪锚：去掉 exclude 应多出 _bmad-output/ 路径 ===
+19
+=== memory_service 逐 hunk（须 ∈ [1423,1686] ∪ [2672,2900]）===
+@@ -1428,6 +1428,14 @@ class MemoryService:
+@@ -2857,6 +2865,12 @@ class MemoryService:
+=== fallback_sync 逐 hunk（须 ≤ 111）===
+@@ -83,6 +83,19 @@ _PROGRESS_VERSION = "split-lf+contiguous+history"
+@@ -107,8 +120,16 @@ class FallbackSyncService:
+=== episode_worker 逐 hunk（须不覆盖 group_id 那行）===
+@@ -30,6 +30,7 @@ from datetime import datetime, timezone
+@@ -260,8 +261,20 @@ class DeadLetterStore:
+@@ -273,10 +286,21 @@ class DeadLetterStore:
+--- episode_worker group_id 行现址 ---
+59:    #: 确定性校验错误 — 重试必然同样失败 (如 group_id 含非法字符),
+80:    group_id: str
+110:            "group_id": self.group_id,
+329:        worker.enqueue(EpisodeTask(name=..., episode_body=..., group_id=...))
+611:        # P0-5 (2026-05-14): Canvas D16 group_id 用冒号分隔 (vault:cs_61b:subj),
+621:        from app.graphiti.group_id_compat import (
+622:            sanitize_group_id_for_graphiti,
+623:            semantic_group_id,
+629:            "group_id": semantic_group_id(sanitize_group_id_for_graphiti(task.group_id)),
+=== 10. 现网只读核 ===
+backend/app/services/memory_service.py:346:        2026-08-30 现网 7691 只读实测全库唯一 LEARNED 边就在 active vault 的
+backend/tests/unit/test_staging_writers_bounded.py:20:``backend/data/**``，不连 7691/7687（本文件零连库）。**被测写者本身不打桩**（DD-03）
+scan_done
+(eval):19: no matches found: backend/data/*.overflow.*
+       0
+       0
+=== 12. 提交自检 ===
+      87
+1
+0
+0

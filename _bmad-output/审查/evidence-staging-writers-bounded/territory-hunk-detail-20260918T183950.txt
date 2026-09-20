@@ -1,0 +1,31 @@
+=== fallback_sync hunk2 全文（核 :113 起是否只作上下文）===
+@@ -107,8 +120,16 @@ class FallbackSyncService:
+         Returns:
+             Dict with per-file stats or {"skipped": True, "reason": "..."}
+         """
++        # CARD-STAGING-WRITERS-BOUNDED: 打上开始时刻，写侧守卫据此判「挂住了没」。
++        # 必须在**取到锁之后**打、在 finally 里清 —— 排队等锁的那段不算窗口时长，
++        # 否则高并发下第二个等待者会把第一个的时间戳冲掉。
++        global _sync_all_started_at
+         async with _sync_all_lock:
+-            return await self._sync_all_fallbacks_locked()
++            _sync_all_started_at = time.monotonic()
++            try:
++                return await self._sync_all_fallbacks_locked()
++            finally:
++                _sync_all_started_at = None
+ 
+     async def _sync_all_fallbacks_locked(self) -> Dict[str, Any]:
+         """:meth:`sync_all_fallbacks` 的实际实现（调用方须已持有 :data:`_sync_all_lock`）."""
+
+=== 本卡是否改过 memory_service:346（7691 注释）===
+0
+=== 改动面里真正的连库串（去掉注释/docstring 后）===
+backend/app/core/failed_writes_constants.py: 代码面 0 命中
+backend/app/core/failure_counters.py: 代码面 0 命中
+backend/app/services/agent_service.py: 代码面 0 命中
+backend/app/services/episode_worker.py: 代码面 0 命中
+backend/app/services/event_bus.py: 代码面 0 命中
+backend/app/services/fallback_sync_service.py: 代码面 0 命中
+backend/app/services/memory_service.py: 代码面 0 命中
+backend/tests/unit/test_staging_writers_bounded.py: 代码面 0 命中

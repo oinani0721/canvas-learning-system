@@ -1,0 +1,12 @@
+@@ -1428,6 +1428,14 @@ class MemoryService:
+@@ -2857,6 +2865,23 @@ class MemoryService:
+@@ -2867,23 +2892,70 @@ class MemoryService:
+--
+ backend/app/core/failed_writes_constants.py        | 164 ++++-
+ backend/app/core/failure_counters.py               |  28 +-
+ backend/app/services/agent_service.py              |  17 +-
+ backend/app/services/episode_worker.py             |  36 +-
+ backend/app/services/fallback_sync_service.py      |  28 +-
+ backend/app/services/memory_service.py             | 100 ++-
+ backend/tests/unit/test_staging_writers_bounded.py | 806 +++++++++++++++++++++
+ 7 files changed, 1135 insertions(+), 44 deletions(-)

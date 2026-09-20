@@ -1428,6 +1428,14 @@ class MemoryService:
                         }
                     )
 
+                # CARD-STAGING-WRITERS-BOUNDED (P2-B): 批次失败**即时**落盘。
+                # 改前只有 cleanup() 会刷盘 —— 进程被 kill / 崩溃 = 从未调过
+                # cleanup = 整批失败记录消失（T6-A「链3 写者3」）。
+                # 同步方法、append 与 clear 之间没有 await，
+                # _flush_pending_failed_writes 自述的那条不变量仍成立。
+                # cleanup() 里的那次刷盘保留为第二道防线（正常路径下已是 no-op）。
+                self._flush_pending_failed_writes()
+
         # ── Phase 2: Enqueue batch events to GraphitiEpisodeWorker ──
         for record in valid_records:
             p = record["payload"]
@@ -2857,6 +2865,23 @@ class MemoryService:
         Story 30.24 AC-30.24.4: Persist pending batch write failures to
         data/failed_writes.jsonl so they survive shutdown.
 
+        CARD-STAGING-WRITERS-BOUNDED (P2-B): 调用时机从「仅 cleanup()」改成
+        「批次失败即时 + cleanup() 兜底」—— 进程被 kill 或崩溃时永远不会走到
+        cleanup()，只等它刷盘等于整批丢失。record_batch_learning_events 在写完
+        _pending_failed_writes 后立刻调本方法；cleanup() 那次保留为第二道防线
+        （正常路径下 _pending_failed_writes 已空，是 no-op）。
+
+        失败语义随之分流（Codex r1 HIGH-2）：**OSError 不清空** —— 磁盘故障可恢复，
+        留给下一批次或 cleanup() 重试（代价：部分写入后重试会产生重复条目，
+        死信文件里重复远比丢失轻）；**TypeError / ValueError 丢弃** —— 序列化失败是
+        确定性的，留着只会让 pending 无限增长。成功路径只删**本批**条目，
+        不再 clear() 整个列表。
+
+        ⚠️ 本方法的文件 IO 是**同步**的，而新调用点在 async 的
+        record_batch_learning_events 里：数行 / 轮转 / 追加期间事件循环不调度别的
+        协程（若另一线程持 failed_writes_lock，还会同步等锁）。cleanup() 路径原本
+        就是同一段同步 IO，本卡把它的发生时机提前到了请求期 —— 如实登记，未做异步化。
+
         Thread-safe via failed_writes_lock (shared with agent_service).
 
         Note: This is a synchronous method called from async cleanup().
@@ -2867,23 +2892,65 @@ class MemoryService:
         if not self._pending_failed_writes:
             return
 
+        batch = list(self._pending_failed_writes)
+
+        # 逐条序列化（Codex r2 MEDIUM）：原先是一句列表推导，任何**一条**坏条目都会
+        # 让整批走进 TypeError 分支被丢掉，好条目跟着陪葬。序列化失败是确定性的
+        # （同一条重试多少次都失败），所以只丢那一条、其余照常落盘。
+        lines: List[str] = []
+        for entry in batch:
+            try:
+                line = json.dumps(entry, ensure_ascii=False)
+                # Codex r3 MEDIUM: 提前验 UTF-8 可编码性。json.dumps(ensure_ascii=False)
+                # 对孤立代理（如 "\ud800"）会**成功**，真正炸的是写盘那一刻的
+                # UnicodeEncodeError —— 它是 ValueError 不是 OSError，会从本方法逃出去，
+                # 改变 record_batch_learning_events 的返回语义。在这里就把它归成坏条目。
+                line.encode("utf-8")
+                lines.append(line)
+            except (TypeError, ValueError) as e:
+                logger.error(f"[Story 30.24] Dropping one unserializable pending write: {e}")
+
+        if not lines:
+            del self._pending_failed_writes[: len(batch)]
+            return
+
         try:
             FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
             with failed_writes_lock:
-                # T6-C: 有界追加（同上）。序列化留在这里，json.dumps 的
-                # TypeError/ValueError 仍由下面既有的 except 元组接住。
-                append_failed_writes_bounded(
-                    FAILED_WRITES_FILE,
-                    [json.dumps(entry, ensure_ascii=False) for entry in self._pending_failed_writes],
-                )
-            logger.warning(
-                f"[Story 30.24] Flushed {len(self._pending_failed_writes)} "
-                f"pending failed writes to {FAILED_WRITES_FILE}"
-            )
-        except (OSError, TypeError, ValueError) as e:
-            logger.error(f"[Story 30.24] Failed to flush pending writes: {e}")
-        finally:
-            self._pending_failed_writes.clear()
+                # Codex r2 HIGH: 上一次可能写到**半行**就抛了 OSError，活动文件以残缺
+                # JSON 结尾。不先补换行的话，这次重试的记录会直接接在残缺尾巴后面粘成
+                # 一行 —— 重试记录被吞掉，而下面还会把它从 pending 里删掉，等于
+                # 「看起来重试成功了，实际丢了」。
+                # T6-C: 有界追加 —— 超 FAILED_WRITES_MAX_LINES 先轮转成 .overflow.<ts>。
+                # 半行尾巴由 append_failed_writes_bounded 入口的 ensure_line_boundary 处理：
+                # 补得上就补，补不上就把分隔符并进它写出的第一行。这里**不再**自己检查返回值
+                # 后拒写 —— 那个写法在「文件可写但不可读」时会让本方法永远刷不出去、
+                # pending 无界增长，比改动前更坏（车道自审 2026-09-19）。
+                append_failed_writes_bounded(FAILED_WRITES_FILE, lines)
+            logger.warning(f"[Story 30.24] Flushed {len(lines)} pending failed writes to {FAILED_WRITES_FILE}")
+        except OSError as e:
+            # CARD-STAGING-WRITERS-BOUNDED (P2-B, Codex r1 HIGH-2): **失败不清空**。
+            # 原先是 `finally: clear()` —— 无条件清。在「只有 cleanup() 会刷盘」的
+            # 年代那还只是进程退出时的最后一搏；本卡把刷盘提前到**每个失败批次**之后，
+            # 无条件清就变成「请求期间一次瞬时 IO 故障（盘满 / 权限 / EIO）= 这批记录
+            # 永久消失」，而且 cleanup() 那道兜底也再没有内容可写。
+            # 磁盘故障是可恢复的 ⇒ 留在 pending 里，下一批次或 cleanup() 重试。
+            # ⚠️ 若 append 已写进一部分**完整行**才失败，重试会产生**重复**条目 ——
+            # 死信文件里重复远比丢失轻，这个方向不可反转。写到**半行**的情况由
+            # ensure_line_boundary 在下次重试前补齐边界（Codex r2 HIGH）。
+            # ⚠️ 坏条目也一并留着，下次重试会再逐条丢弃一次；列表不会因此增长。
+            logger.error(f"[Story 30.24] Failed to flush pending writes, kept for retry: {e}")
+            return
+        except ValueError as e:
+            # Codex r3 MEDIUM: 编码类失败是**确定性**的（序列化阶段已预验，这里是纵深）。
+            # 不能让它逃出本方法 —— 那会把 record_batch_learning_events 的返回语义
+            # 从「返回 errors/failed/episode_ids」变成「整个请求抛异常」。丢弃本批并 error。
+            logger.error(f"[Story 30.24] Dropping {len(lines)} pending writes (encoding failure): {e}")
+
+        # 只清掉**本批**（含已丢弃的坏条目），而不是 clear() 整个列表：刷盘期间若有
+        # 新条目追加进来（本方法同步、中间无 await，单事件循环下不会发生；多线程调用方
+        # 则可能），不该被连坐清掉。
+        del self._pending_failed_writes[: len(batch)]
 
 
 # Singleton instance — the ONLY MemoryService singleton entry point for the entire project.

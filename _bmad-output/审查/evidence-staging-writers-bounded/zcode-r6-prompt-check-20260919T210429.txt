@@ -1,0 +1,28 @@
+# zcode r6 prompt pre-send checks — 2026-09-19 21:04:29
+== wc ==
+    1846  109596 _bmad-output/审查/prompts/zcode-review-prompt-CARD-STAGING-WRITERS-BOUNDED-r6.md
+== sections ==
+13:## ① 背景 + 最小读取面（写死）
+42:## ② 作者自述（请独立核对，勿直接采信）
+53:## ③ 按重要性排序的问题（逐项给结论）
+63:## ④ 输出格式
+70:## ⑤ 边界
+81:## 附录 A：变更集全文（git diff --no-pager --no-color ac0993b4 d2ebf694，7 文件）
+== sha256 ==
+40dedc496cddc46eed190da526af47799fedb51b7d4b4e95d38418acc5a0b126  _bmad-output/审查/prompts/zcode-review-prompt-CARD-STAGING-WRITERS-BOUNDED-r6.md
+== 禁用措辞扫描（撰写段 = 第 1-84 行，期望 0/0/0/0）==
+构造=0
+可复现片段=0
+打穿=0
+绕过=0
+== 禁用措辞扫描（全文；附录 diff 段允许为被引原文）==
+构造=1
+可复现片段=0
+打穿=0
+绕过=0
+== 旧模型名扫描（期望 0）==
+0
+== 附录起止 ==
+85:=== 附录A 开始 ===
+1846:=== 附录A 结束 ===
+# 构造=1 命中行号如上（∈ 附录 A diff 段 = 被引 git 原文，非请求性措辞）

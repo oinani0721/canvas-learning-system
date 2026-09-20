@@ -83,6 +83,27 @@ _PROGRESS_VERSION = "split-lf+contiguous+history"
 #: 单飞标志），已如实登记，不在本卡范围。
 _sync_all_lock = asyncio.Lock()
 
+#: CARD-STAGING-WRITERS-BOUNDED: 本轮回灌的开始时刻（``time.monotonic()``）。
+#:
+#: 写侧守卫 ``failed_writes_constants._replay_in_flight`` 原先只读
+#: ``_sync_all_lock.locked()`` —— **没有时间维度**。回灌协程被 cancel 不干净、
+#: 事件循环挂起、或某条 ``await`` 永不返回时，这把锁会**永远** locked，于是写侧
+#: 上限被**无限期**关闭（每次追加都走裸追加分支）。有了开始时刻，守卫至少能问出
+#: 「这把锁被占了多久」。
+#:
+#: ⚠️ 时间戳量的是**耗时**，不是存活性（Codex r1 MEDIUM）：一次又慢又健康的回灌
+#: 和一次挂死的回灌在这里长得一模一样。超时只是「久到该按挂住处理」的工程取舍，
+#: 不是「区分正在回灌与挂住」的判据 —— 它误判健康长回灌的后果见
+#: ``failed_writes_constants._replay_in_flight`` 的 docstring（已移交 P2-C）。
+#:
+#: ⚠️ ``None`` 本身**不**决定守卫的答案（车道自审 2026-09-19 更正初版这句失实）：
+#: 守卫先读 ``_sync_all_lock.locked()``，**没人持锁时直接返回 False（窗口关着）**，
+#: 根本读不到这个变量。只有在**已经确认锁被占着**之后，``None`` 才有含义 ——
+#: 它表示持锁者是**直接** ``async with _sync_all_lock:`` 的那种（测试替身、
+#: 或未经 :meth:`sync_all_fallbacks` 的新持锁点），没有时间戳可比，
+#: 于是保守地判「窗口开着」—— 宁可越限也不丢数据。
+_sync_all_started_at: Optional[float] = None
+
 
 class FallbackSyncService:
     """Syncs JSON fallback files back to Neo4j when it recovers."""
@@ -107,8 +128,16 @@ class FallbackSyncService:
         Returns:
             Dict with per-file stats or {"skipped": True, "reason": "..."}
         """
+        # CARD-STAGING-WRITERS-BOUNDED: 打上开始时刻，写侧守卫据此判「挂住了没」。
+        # 必须在**取到锁之后**打、在 finally 里清 —— 排队等锁的那段不算窗口时长，
+        # 否则高并发下第二个等待者会把第一个的时间戳冲掉。
+        global _sync_all_started_at
         async with _sync_all_lock:
-            return await self._sync_all_fallbacks_locked()
+            _sync_all_started_at = time.monotonic()
+            try:
+                return await self._sync_all_fallbacks_locked()
+            finally:
+                _sync_all_started_at = None
 
     async def _sync_all_fallbacks_locked(self) -> Dict[str, Any]:
         """:meth:`sync_all_fallbacks` 的实际实现（调用方须已持有 :data:`_sync_all_lock`）."""

@@ -1,0 +1,88 @@
+== 段 11  failed_writes_constants.py
+before=d9bfd257b1e4fdfb
+m11 探测失败改回 return True（= 按「没有半行」处理）
+E   AssertionError: 探测读不出来时把记录粘在了残缺尾巴上: '{"episo{"episode_id": "blind-glue-A"}'
+FAILED tests/unit/test_staging_writers_bounded.py::test_no_glue_when_probe_fails_on_a_dangling_tail
+=========== 1 failed, 1 passed, 24 deselected, 10 warnings in 1.10s ============
+restored=d9bfd257b1e4fdfb
+== 段 12  failed_writes_constants.py
+before=d9bfd257b1e4fdfb
+m12 删「轮转后清 sep」
+E   AssertionError: 轮转后的新文件多了一个空行 —— 首段 2 行 > 上限 1: b'\n{"episode_id": "after-rot-A"}\n'
+{"event": "[T6-C] \u5199\u4fa7\u4e0a\u9650\u89e6\u53d1, \u8f6e\u8f6c failed_writes.jsonl \u2192 failed_writes.overflow.2026-09-19-080530246984-00.jsonl", "logger": "app.core.failure_counters", "level": "info", "timestamp": "2026-09-19T08:05:30.247141Z"}
+FAILED tests/unit/test_staging_writers_bounded.py::test_sep_is_dropped_after_a_real_rotation
+=========== 1 failed, 1 passed, 24 deselected, 10 warnings in 1.15s ============
+restored=d9bfd257b1e4fdfb
+== 段 1  agent_service.py
+before=63089a34c1098526
+m1 helper→裸open
+E   AssertionError: 活动文件超行数：8 > 5 —— 第三写者仍是裸追加，写侧上限对它无效
+FAILED tests/unit/test_staging_writers_bounded.py::test_agent_service_third_writer_is_bounded
+================ 1 failed, 25 deselected, 10 warnings in 1.14s =================
+restored=63089a34c1098526
+== 段 2  failed_writes_constants.py
+before=d9bfd257b1e4fdfb
+m2 删超时分支
+E   AssertionError: 锁挂住超过上限后仍未轮转 —— 守卫没有时间维度，写侧上限被无限期关闭
+FAILED tests/unit/test_staging_writers_bounded.py::test_replay_guard_times_out_when_lock_stuck
+FAILED tests/unit/test_staging_writers_bounded.py::test_replay_guard_logs_error_when_window_times_out
+=========== 2 failed, 2 passed, 22 deselected, 10 warnings in 1.15s ============
+restored=d9bfd257b1e4fdfb
+== 段 3  memory_service.py
+before=67e49cd8f7b8556c
+m3 删即时刷盘
+E   AssertionError: 未调 cleanup() 前文件里找不到该 episode_id —— 批次失败只攒在内存，进程被 kill 就整批丢失
+FAILED tests/unit/test_staging_writers_bounded.py::test_batch_failed_writes_hit_disk_before_cleanup
+================ 1 failed, 25 deselected, 10 warnings in 0.96s =================
+restored=67e49cd8f7b8556c
+== 段 4  memory_service.py
+before=67e49cd8f7b8556c
+m4 OSError 改回无条件 clear
+E   AssertionError: 磁盘写失败后 pending 被清空 —— 这批记录再也没有第二次机会落盘
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_keeps_pending_when_disk_write_fails
+================ 1 failed, 25 deselected, 10 warnings in 0.99s =================
+restored=67e49cd8f7b8556c
+== 段 5  failed_writes_constants.py
+before=d9bfd257b1e4fdfb
+m5 删入口补边界（连探测一起去掉）
+E   AssertionError: 残缺尾巴没有自成一行 —— 和第三写者的新记录粘在一起了: '{"episo{"timestamp": "2026-09-19T08:06:36.676249+00:00", "event_type": "score_recorded", "concept_id": "after-dangling", "canvas_name": "Math/test.canvas", "score": 1.0, "error_reason": "neo4j down", "concept": "", "user_understanding": null, "agent_feedback": null}'
+FAILED tests/unit/test_staging_writers_bounded.py::test_third_writer_does_not_concatenate_onto_dangling_tail
+================ 1 failed, 25 deselected, 10 warnings in 0.89s =================
+restored=d9bfd257b1e4fdfb
+== 段 6  memory_service.py
+before=67e49cd8f7b8556c
+m6 一条坏就整批丢
+E   AssertionError: 好条目跟着坏条目一起被丢了: set()
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_keeps_good_entries_when_one_is_unserializable
+================ 1 failed, 25 deselected, 10 warnings in 0.90s =================
+restored=67e49cd8f7b8556c
+== 段 7b  memory_service.py
+before=67e49cd8f7b8556c
+m7b 恢复「边界保不住就拒写」
+E   AssertionError: 记录没有成为一条可解析的行: b'{"episo'
+E   AssertionError: 探测读不出来就拒写了 —— 这批记录永远刷不出去、pending 会无界增长: {None}
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_still_writes_when_boundary_probe_is_unreadable
+================ 2 failed, 24 deselected, 10 warnings in 0.92s =================
+restored=67e49cd8f7b8556c
+== 段 8  memory_service.py
+before=67e49cd8f7b8556c
+m8 删编码预验
+E   AssertionError: 好条目没落盘: set()
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_drops_unencodable_entry_without_raising
+================ 1 failed, 25 deselected, 10 warnings in 0.91s =================
+restored=67e49cd8f7b8556c
+== 段 9  failed_writes_constants.py
+before=d9bfd257b1e4fdfb
+m9 保留补边界但删 sep 前缀机制
+E   AssertionError: 补换行失败后记录粘在了残缺尾巴上: '{"episo{"episode_id": "sep-A"}'
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+================ 1 failed, 25 deselected, 10 warnings in 0.96s =================
+restored=d9bfd257b1e4fdfb
+== 段 10  failed_writes_constants.py
+before=d9bfd257b1e4fdfb
+m10 import 改回 from app.services import fallback_sync_service
+E   AssertionError: 观测不到回灌状态却没判 False —— 生产侧的 import 形式可能已让既有拦截失效
+FAILED tests/unit/test_staging_writers_bounded.py::test_unobservable_replay_state_is_false_even_while_locked
+================ 1 failed, 25 deselected, 10 warnings in 0.93s =================
+restored=d9bfd257b1e4fdfb

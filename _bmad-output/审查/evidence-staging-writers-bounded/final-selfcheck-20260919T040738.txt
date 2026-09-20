@@ -1,0 +1,43 @@
+=== 12. 提交自检 ===
+header wc -m =       87
+含卡号     = 1
+stderr 入库 = 0
+openapi    = 0
+body 逐行最大 wc -m =       78
+
+=== 9. 地盘门 ===
+ backend/app/core/failed_writes_constants.py        |  243 ++++-
+ backend/app/core/failure_counters.py               |   28 +-
+ backend/app/services/agent_service.py              |   19 +-
+ backend/app/services/episode_worker.py             |   45 +-
+ backend/app/services/fallback_sync_service.py      |   31 +-
+ backend/app/services/memory_service.py             |   95 +-
+ backend/tests/unit/test_staging_writers_bounded.py | 1072 ++++++++++++++++++++
+ 7 files changed, 1478 insertions(+), 55 deletions(-)
+-- 验伪锚：去掉 exclude 应多出 _bmad-output/ --
+125
+-- memory_service hunk（须 ∈ [1423,1686] ∪ [2672,2900]）--
+@@ -1428,6 +1428,14 @@ class MemoryService:
+@@ -2857,6 +2865,23 @@ class MemoryService:
+@@ -2867,23 +2892,65 @@ class MemoryService:
+-- fallback_sync hunk（旧侧 ≤111）--
+@@ -83,6 +83,27 @@ _PROGRESS_VERSION = "split-lf+contiguous+history"
+@@ -107,8 +128,16 @@ class FallbackSyncService:
+-- episode_worker hunk（不覆盖 group_id :611）--
+@@ -30,6 +30,7 @@ from datetime import datetime, timezone
+@@ -260,8 +261,20 @@ class DeadLetterStore:
+@@ -273,10 +286,30 @@ class DeadLetterStore:
+-- event_bus 是否零改动 --
+       0
+
+=== 10. 现网只读核（代码层，tokenize 去注释与字符串）===
+failed_writes_constants.py : 0 命中
+failure_counters.py : 0 命中
+agent_service.py : 0 命中
+episode_worker.py : 0 命中
+fallback_sync_service.py : 0 命中
+memory_service.py : 0 命中
+test_staging_writers_bounded.py : 0 命中
+scan_done
+(eval):38: no matches found: backend/data/*.overflow.*
+       0

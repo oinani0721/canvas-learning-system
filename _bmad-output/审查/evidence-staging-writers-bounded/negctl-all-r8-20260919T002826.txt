@@ -1,0 +1,26 @@
+== 段 7b  target=backend/app/services/memory_service.py
+before=67e49cd8f7b8556c
+m7b 恢复「边界保不住就拒写」分支
+collected 20 items / 17 deselected / 3 selected
+E   AssertionError: 记录没有成为一条可解析的行: b'{"episo'
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+=========== 1 failed, 2 passed, 17 deselected, 10 warnings in 3.76s ============
+restored=8b07df4c5bd3d287
+== 段 9  target=backend/app/core/failed_writes_constants.py
+before=b5da75f8a5f701cd
+m9 删 sep 前缀机制（补不上就直接粘）
+collected 20 items / 16 deselected / 4 selected
+E   AssertionError: 记录没有成为一条可解析的行: b'{"episo'
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+=========== 1 failed, 3 passed, 16 deselected, 10 warnings in 5.54s ============
+restored=5f2e2f823647bcab
+== 段 5  target=backend/app/core/failed_writes_constants.py
+before=5f2e2f823647bcab
+m5 删入口补边界
+collected 20 items / 17 deselected / 3 selected
+E   AssertionError: 残缺尾巴没有自成一行 —— 和第三写者的新记录粘在一起了: '{"episo{"timestamp": "2026-09-19T07:30:47.462166+00:00", "event_type": "score_recorded", "concept_id": "after-dangling", "canvas_name": "Math/test.canvas", "score": 1.0, "error_reason": "neo4j down", "concept": "", "user_understanding": null, "agent_feedback": null}'
+E   AssertionError: 记录没有成为一条可解析的行: b'{"episo'
+FAILED tests/unit/test_staging_writers_bounded.py::test_third_writer_does_not_concatenate_onto_dangling_tail
+FAILED tests/unit/test_staging_writers_bounded.py::test_flush_does_not_glue_when_boundary_repair_fails
+=========== 2 failed, 1 passed, 17 deselected, 10 warnings in 1.45s ============
+restored=5f2e2f823647bcab

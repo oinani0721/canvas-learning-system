@@ -1,0 +1,962 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 5839 items
+
+tests/unit/grouping/test_analyze_canvas.py ........                      [  0%]
+tests/unit/grouping/test_factory_and_constants.py .............          [  0%]
+tests/unit/grouping/test_helpers.py .............                        [  0%]
+tests/unit/grouping/test_perform_clustering.py ...........               [  0%]
+tests/unit/test_a7_honest_failure.py ........                            [  0%]
+tests/unit/test_acp_prompt_externalization.py ...........                [  1%]
+tests/unit/test_agent_context_injection.py .....                         [  1%]
+tests/unit/test_agent_memory_injection.py ......F....                    [  1%]
+tests/unit/test_agent_memory_trigger.py ................................ [  1%]
+..........                                                               [  2%]
+tests/unit/test_agent_routing_engine.py ................................ [  2%]
+..........................                                               [  3%]
+tests/unit/test_agent_service_comparison.py ...............              [  3%]
+tests/unit/test_agent_service_extraction.py ............................ [  3%]
+.ss..                                                                    [  3%]
+tests/unit/test_agent_service_neo4j_memory.py ..................F....    [  4%]
+tests/unit/test_agent_service_user_understanding.py ...........          [  4%]
+tests/unit/test_agent_templates_smoke.py ............................... [  5%]
+...................                                                      [  5%]
+tests/unit/test_agentic_rag_vault_scope.py .......................       [  5%]
+tests/unit/test_agents_multimodal.py ....................                [  6%]
+tests/unit/test_archive_legacy_lance_tables_g24.py ..................... [  6%]
+.                                                                        [  6%]
+tests/unit/test_audit_guardian.py ...........                            [  6%]
+tests/unit/test_background_task_manager.py .....                         [  6%]
+tests/unit/test_batch_orchestrator.py .................................  [  7%]
+tests/unit/test_belief_version_chain.py .........                        [  7%]
+tests/unit/test_board_manifest_unreach_t5e.py ...........                [  7%]
+tests/unit/test_bug_tracker.py ......................                    [  8%]
+tests/unit/test_cache_configuration.py ....xx...x.x.                     [  8%]
+tests/unit/test_calibration_tracker.py ................................  [  8%]
+tests/unit/test_candidate_callout.py ............                        [  8%]
+tests/unit/test_candidate_expiry_service.py ....................         [  9%]
+tests/unit/test_candidate_service.py ..............                      [  9%]
+tests/unit/test_candidate_state_machine.py ............................. [ 10%]
+............                                                             [ 10%]
+tests/unit/test_candidate_writer.py ................                     [ 10%]
+tests/unit/test_canvas_edge_bulk_sync.py .........                       [ 10%]
+tests/unit/test_canvas_edge_sync.py .........                            [ 10%]
+tests/unit/test_canvas_episode_v1.py ...................                 [ 11%]
+tests/unit/test_canvas_memory_trigger.py ...................             [ 11%]
+tests/unit/test_canvas_projection_sync.py .............                  [ 11%]
+tests/unit/test_canvas_service_concurrency.py ................           [ 12%]
+tests/unit/test_canvas_validation.py ................                    [ 12%]
+tests/unit/test_card_state_concurrent_write.py ...                       [ 12%]
+tests/unit/test_chat_context_assembler.py .............................. [ 12%]
+....................                                                     [ 13%]
+tests/unit/test_chat_endpoint.py ................                        [ 13%]
+tests/unit/test_check_readme_claims.py ................................. [ 14%]
+........................................................................ [ 15%]
+...............                                                          [ 15%]
+tests/unit/test_circuit_breaker.py ............                          [ 15%]
+tests/unit/test_config_drift.py .........                                [ 15%]
+tests/unit/test_config_neo4j.py .............                            [ 16%]
+tests/unit/test_context_cache_key.py ....                                [ 16%]
+tests/unit/test_context_enrichment_2hop.py .................             [ 16%]
+tests/unit/test_context_enrichment_get_node_content.py ................. [ 16%]
+...                                                                      [ 16%]
+tests/unit/test_cost_tracker.py .....                                    [ 16%]
+tests/unit/test_create_fsrs_manager.py ..........                        [ 17%]
+tests/unit/test_cross_canvas_failsoft.py ...                             [ 17%]
+tests/unit/test_cross_canvas_removal.py .......                          [ 17%]
+tests/unit/test_cross_subject_bridge_group_isolation.py ..........       [ 17%]
+tests/unit/test_cypher_helpers.py ....................                   [ 17%]
+tests/unit/test_dashboard_statistics.py ...................              [ 18%]
+tests/unit/test_dead_letter_bounded_t6c.py ............................. [ 18%]
+..........                                                               [ 18%]
+tests/unit/test_dead_letter_path_anchor.py .....                         [ 18%]
+tests/unit/test_deep_research_fallback.py ........................       [ 19%]
+tests/unit/test_degraded_flag_propagation.py .....                       [ 19%]
+tests/unit/test_deploy_vault_sh.py ..................................... [ 19%]
+..........sssss......................................................ss. [ 21%]
+...................ss..............FFFF....F............................ [ 22%]
+........................................................................ [ 23%]
+...............................................                          [ 24%]
+tests/unit/test_difficulty_adaptive.py ................................. [ 25%]
+.........................                                                [ 25%]
+tests/unit/test_difficulty_canvas_integration.py .F...............FF.... [ 25%]
+                                                                         [ 25%]
+tests/unit/test_difficulty_matcher.py ...................                [ 26%]
+tests/unit/test_docker_compose_config.py ............                    [ 26%]
+tests/unit/test_edge_rationale_fallback.py ............                  [ 26%]
+tests/unit/test_embedder_factory.py .......                              [ 26%]
+tests/unit/test_enrich_context_vault_isolation.py ..FFF.FF               [ 26%]
+tests/unit/test_epic30_memory_pipeline.py ..............F............... [ 27%]
+..........                                                               [ 27%]
+tests/unit/test_epic32_p0_fixes.py .............                         [ 27%]
+tests/unit/test_epic36_gap_coverage.py ....F............                 [ 28%]
+tests/unit/test_episode_worker_coverage_epw.py ......................... [ 28%]
+......................                                                   [ 28%]
+tests/unit/test_episode_worker_retry.py .....                            [ 28%]
+tests/unit/test_error_aggregator.py ..................                   [ 29%]
+tests/unit/test_error_classification_mapping.py ........................ [ 29%]
+                                                                         [ 29%]
+tests/unit/test_error_extractor.py ............                          [ 29%]
+tests/unit/test_error_rebuild_service.py .............                   [ 30%]
+tests/unit/test_error_writer.py .................                        [ 30%]
+tests/unit/test_event_bus.py ...............................             [ 30%]
+tests/unit/test_exam_models_rubric_required_u2a.py ........              [ 31%]
+tests/unit/test_exam_sync_node_group_isolation.py .....                  [ 31%]
+tests/unit/test_extraction_validator.py ............                     [ 31%]
+tests/unit/test_failure_observability.py ...............sss...........   [ 31%]
+tests/unit/test_faithfulness_check.py ..............                     [ 32%]
+tests/unit/test_faithfulness_check_boundary.py .........                 [ 32%]
+tests/unit/test_four_state_injection.py ................................ [ 32%]
+.........                                                                [ 32%]
+tests/unit/test_frontmatter_signals.py ......                            [ 33%]
+tests/unit/test_fsrs_manager.py .....................................    [ 33%]
+tests/unit/test_fsrs_state_query.py ................                     [ 33%]
+tests/unit/test_fusion_report.py .........                               [ 34%]
+tests/unit/test_fusion_strategy_override.py ........                     [ 34%]
+tests/unit/test_g24_lance_legacy_table_removal.py ..........             [ 34%]
+tests/unit/test_g25_journal_namespace.py ...........................     [ 34%]
+tests/unit/test_graphiti_client.py ......................                [ 35%]
+tests/unit/test_graphiti_client_mock_performance.py .....                [ 35%]
+tests/unit/test_graphiti_client_unification.py ....                      [ 35%]
+tests/unit/test_graphiti_json_dual_write.py .......                      [ 35%]
+tests/unit/test_graphiti_memory_reader.py ......                         [ 35%]
+tests/unit/test_graphiti_neo4j_calls.py ......                           [ 35%]
+tests/unit/test_graphiti_structured_writer.py ....................       [ 36%]
+tests/unit/test_group_id_compat.py ...........................           [ 36%]
+tests/unit/test_group_id_dynamic_binding.py .....................        [ 36%]
+tests/unit/test_group_id_migration.py ................                   [ 37%]
+tests/unit/test_health_detailed.py ......                                [ 37%]
+tests/unit/test_hybrid_search_activation.py .......................      [ 37%]
+tests/unit/test_identity_registry.py .......                             [ 37%]
+tests/unit/test_intelligent_parallel_endpoints.py .........F.F...F...... [ 38%]
+......                                                                   [ 38%]
+tests/unit/test_internal_api_key_p0_2_hardening.py .............         [ 38%]
+tests/unit/test_kg_health.py .....                                       [ 38%]
+tests/unit/test_kg_relevance_weighted.py ........................        [ 38%]
+tests/unit/test_l1_llm_router.py ...............                         [ 39%]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py ...................... [ 39%]
+.............                                                            [ 39%]
+tests/unit/test_lancedb_isolation_assertions.py .............            [ 40%]
+tests/unit/test_lancedb_vault_isolation.py ...............               [ 40%]
+tests/unit/test_langgraph_async_conditional_edge_smoke.py ..             [ 40%]
+tests/unit/test_live_port_guard_contract.py ............................ [ 40%]
+........................................................................ [ 42%]
+....................................................                     [ 42%]
+tests/unit/test_llm_call_logger.py ..............................        [ 43%]
+tests/unit/test_markdown_image_extractor.py ............................ [ 43%]
+....                                                                     [ 43%]
+tests/unit/test_mastery_api.py ...........................               [ 44%]
+tests/unit/test_mastery_engine_bkt.py .......................            [ 44%]
+tests/unit/test_mastery_engine_effective.py ............                 [ 45%]
+tests/unit/test_mastery_engine_fsrs.py ..................                [ 45%]
+tests/unit/test_mastery_engine_level.py ..................               [ 45%]
+tests/unit/test_mastery_engine_misc.py ...............................   [ 46%]
+tests/unit/test_mastery_fsrs_projection_boundary.py ......               [ 46%]
+tests/unit/test_mastery_fusion.py ..........................             [ 46%]
+tests/unit/test_mastery_injection_memory_contract.py ............        [ 46%]
+tests/unit/test_mastery_property.py .......                              [ 47%]
+tests/unit/test_mastery_state.py ..............................          [ 47%]
+tests/unit/test_mastery_store.py .................                       [ 47%]
+tests/unit/test_mcp_switch_vault_tool.py ..                              [ 47%]
+tests/unit/test_memory_read_scope_g41a.py ........                       [ 48%]
+tests/unit/test_memory_service_batch.py ......                           [ 48%]
+tests/unit/test_memory_service_contextvar_leak.py ........               [ 48%]
+tests/unit/test_memory_service_structured_routing.py .........           [ 48%]
+tests/unit/test_memory_service_write_retry.py ssssssssssssssssss         [ 48%]
+tests/unit/test_migrate_canvas_group_isolation.py ....................   [ 49%]
+tests/unit/test_migrate_neo4j_data.py ...............................    [ 49%]
+tests/unit/test_mock_degradation_transparency.py ....................... [ 50%]
+.......                                                                  [ 50%]
+tests/unit/test_multimodal_fixes.py ......................               [ 50%]
+tests/unit/test_multimodal_path_security.py ................             [ 50%]
+tests/unit/test_mutation_kill_identity_r3.py ........................... [ 51%]
+.........................................................                [ 52%]
+tests/unit/test_neo4j_client.py ........................................ [ 52%]
+....................                                                     [ 53%]
+tests/unit/test_neo4j_field_consistency.py .......                       [ 53%]
+tests/unit/test_neo4j_fulltext_index.py ...F...                          [ 53%]
+tests/unit/test_neo4j_health.py ..........                               [ 53%]
+tests/unit/test_nfr_cache_bounds.py ..............                       [ 53%]
+tests/unit/test_observer_token_fail_closed.py ............               [ 54%]
+tests/unit/test_post_turn_request_vault_id.py .......                    [ 54%]
+tests/unit/test_profile_source_ids.py ...............                    [ 54%]
+tests/unit/test_prompt_injection_context.py ......s                      [ 54%]
+tests/unit/test_prompt_injection_guard.py .............................. [ 55%]
+                                                                         [ 55%]
+tests/unit/test_prompt_registry.py .................................     [ 55%]
+tests/unit/test_pydantic_contracts.py ....................               [ 56%]
+tests/unit/test_qa_38_4_dual_write_extra.py ........x.                   [ 56%]
+tests/unit/test_qa_38_5_fallback_extra.py .......                        [ 56%]
+tests/unit/test_qa_38_6_scoring_reliability_extra.py ........F.ss..      [ 56%]
+tests/unit/test_question_generator_mastery_data.py ...............       [ 56%]
+tests/unit/test_question_registry.py ........                            [ 56%]
+tests/unit/test_rag_multimodal_integration.py .........................  [ 57%]
+tests/unit/test_rag_p0_doc_type_filter.py ..........F......              [ 57%]
+tests/unit/test_react_agent.py ...                                       [ 57%]
+tests/unit/test_read_scope_callers_g41a.py ...............               [ 57%]
+tests/unit/test_recommendation_group_filter.py ..........                [ 58%]
+tests/unit/test_record_learning_memory_docstring.py .....                [ 58%]
+tests/unit/test_remediation_strategy.py ......................           [ 58%]
+tests/unit/test_rerank_service.py ..................                     [ 58%]
+tests/unit/test_retrieval_regression_metric_guard.py ..........          [ 59%]
+tests/unit/test_review_app.py .......................................... [ 59%]
+.........................................................                [ 60%]
+tests/unit/test_review_difficulty_adaptation.py .................        [ 61%]
+tests/unit/test_review_enrichment_signal.py ....                         [ 61%]
+tests/unit/test_review_history_pagination.py .................           [ 61%]
+tests/unit/test_review_mode_support.py ...............                   [ 61%]
+tests/unit/test_review_overview.py ..................................... [ 62%]
+........................................................................ [ 63%]
+........                                                                 [ 63%]
+tests/unit/test_review_service_error_handling.py ..........              [ 63%]
+tests/unit/test_review_service_fsrs.py ................................. [ 64%]
+..................                                                       [ 64%]
+tests/unit/test_s02_entity_types.py ............................         [ 65%]
+tests/unit/test_s02_search_upgrade.py ....................               [ 65%]
+tests/unit/test_safety_meta_rule_in_prompt.py ....                       [ 65%]
+tests/unit/test_schema_gate.py ....                                      [ 65%]
+tests/unit/test_scoring_faithfulness_not_applicable.py ..........        [ 65%]
+tests/unit/test_scoring_scale_fix.py ..................................  [ 66%]
+tests/unit/test_security_p0_vulnerabilities.py ........                  [ 66%]
+tests/unit/test_service_status_contract.py ............................  [ 67%]
+tests/unit/test_session_manager.py ..................................... [ 67%]
+                                                                         [ 67%]
+tests/unit/test_session_progress.py ..........                           [ 67%]
+tests/unit/test_sharpness_report.py ......                               [ 67%]
+tests/unit/test_source_description_contract.py ................          [ 68%]
+tests/unit/test_staging_writers_bounded.py ..............                [ 68%]
+tests/unit/test_startup_health_check.py ................                 [ 68%]
+tests/unit/test_state_graph_l1_routing.py ........                       [ 68%]
+tests/unit/test_storage_health.py .......................                [ 69%]
+tests/unit/test_story_1_7_env_config.py .............                    [ 69%]
+tests/unit/test_story_2_3_error_reminders.py ..............F.FF.FF       [ 69%]
+tests/unit/test_story_30_10_idempotency.py ........sssssssss             [ 70%]
+tests/unit/test_story_30_11_batch_parallel.py ...........                [ 70%]
+tests/unit/test_story_30_12_agent_trigger.py .......                     [ 70%]
+tests/unit/test_story_30_13_batch_idempotency.py ...........             [ 70%]
+tests/unit/test_story_30_22_agent_trigger_deep.py ...................... [ 71%]
+...............................................                          [ 71%]
+tests/unit/test_story_30_24_boundary.py ...............................x [ 72%]
+xxxx                                                                     [ 72%]
+tests/unit/test_story_30_6_color_change.py ......                        [ 72%]
+tests/unit/test_story_30_7_plugin_init.py ........                       [ 72%]
+tests/unit/test_story_31a2_ac1_neo4j_priority.py .......                 [ 72%]
+tests/unit/test_story_31a2_ac2_client_method.py ..........               [ 73%]
+tests/unit/test_story_31a2_ac3_persistence.py ...                        [ 73%]
+tests/unit/test_story_31a2_ac4_pagination.py ................            [ 73%]
+tests/unit/test_story_31a2_ac5_api_injection.py .........                [ 73%]
+tests/unit/test_story_33_10_runtime_defects.py ..............            [ 73%]
+tests/unit/test_story_38_1_ac1_auto_trigger.py .........                 [ 73%]
+tests/unit/test_story_38_1_ac2_failure_handling.py ....                  [ 73%]
+tests/unit/test_story_38_1_ac3_startup_recovery.py ........              [ 74%]
+tests/unit/test_story_38_1_review_fixes.py ......                        [ 74%]
+tests/unit/test_story_38_2_episode_recovery.py ................          [ 74%]
+tests/unit/test_story_38_2_qa_supplement.py .................            [ 74%]
+tests/unit/test_story_38_3_edge_cases.py ...........                     [ 74%]
+tests/unit/test_story_38_3_fsrs_init_guarantee.py .....................  [ 75%]
+tests/unit/test_story_38_4_dual_write_default.py ..x.xx.                 [ 75%]
+tests/unit/test_story_38_5_canvas_crud_degradation.py .........          [ 75%]
+tests/unit/test_story_38_6_scoring_reliability.py .............F...      [ 75%]
+tests/unit/test_story_38_8_fallback_sync.py ............................ [ 76%]
+..                                                                       [ 76%]
+tests/unit/test_study_question_deep_mode.py ........                     [ 76%]
+tests/unit/test_subject_config_vault.py .....................            [ 76%]
+tests/unit/test_subject_isolation.py ..........................          [ 77%]
+tests/unit/test_subject_resolver.py .................................... [ 77%]
+...                                                                      [ 77%]
+tests/unit/test_subjects_group_isolation.py ........                     [ 78%]
+tests/unit/test_supplementary_reranker.py .............................. [ 78%]
+..........................                                               [ 79%]
+tests/unit/test_supplementary_search_service.py ........................ [ 79%]
+...............................                                          [ 80%]
+tests/unit/test_sync_batch_auth.py .......                               [ 80%]
+tests/unit/test_sync_exception_classification.py ......                  [ 80%]
+tests/unit/test_sync_group_isolation.py .............                    [ 80%]
+tests/unit/test_sync_payload_validation.py ...........                   [ 80%]
+tests/unit/test_sync_segment_commit.py ..................                [ 80%]
+tests/unit/test_system_endpoint_auth.py ............                     [ 81%]
+tests/unit/test_textbook_removal.py .............                        [ 81%]
+tests/unit/test_traces_backlog_t6c.py .................................. [ 81%]
+.                                                                        [ 82%]
+tests/unit/test_ttlcache_transparency.py ...........                     [ 82%]
+tests/unit/test_validate_release_manifest.py ........................... [ 82%]
+........................................................................ [ 83%]
+.....................................................................    [ 85%]
+tests/unit/test_vault_admission.py ..............                        [ 85%]
+tests/unit/test_vault_backfill.py ...........                            [ 85%]
+tests/unit/test_vault_doc_roles.py ........F............................ [ 86%]
+........................................................................ [ 87%]
+..........                                                               [ 87%]
+tests/unit/test_vault_identity_registry.py ........                      [ 87%]
+tests/unit/test_vault_init_service.py ........                           [ 87%]
+tests/unit/test_vault_install_manifest.py .............................. [ 88%]
+........................................................................ [ 89%]
+........................................................................ [ 90%]
+..                                                                       [ 90%]
+tests/unit/test_vault_lint.py .......................................... [ 91%]
+.................................................                        [ 92%]
+tests/unit/test_vault_notes_group_filter.py .FFF.F                       [ 92%]
+tests/unit/test_vault_scope_409.py ..................................... [ 93%]
+.                                                                        [ 93%]
+tests/unit/test_vault_scope_read_g41a.py ............................... [ 93%]
+......                                                                   [ 93%]
+tests/unit/test_vault_switch.py ..........................               [ 94%]
+tests/unit/test_vault_switch_coordinator.py .......                      [ 94%]
+tests/unit/test_vault_templates.py ...............                       [ 94%]
+tests/unit/test_verification_dedup.py FF.............                    [ 94%]
+tests/unit/test_verification_group_filter.py ..........                  [ 95%]
+tests/unit/test_verification_service_activation.py ...............       [ 95%]
+tests/unit/test_verification_service_injection.py .....                  [ 95%]
+tests/unit/test_w4_sentinel_rebind.py .................................. [ 95%]
+.................................                                        [ 96%]
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py ........... [ 96%]
+.........................                                                [ 97%]
+tests/unit/test_wave5_stageb_vault_id_injection.py ..................... [ 97%]
+.......                                                                  [ 97%]
+tests/unit/test_websocket_endpoints.py .............................F... [ 98%]
+....                                                                     [ 98%]
+tests/unit/test_wikilink_context_service.py ............................ [ 98%]
+................                                                         [ 98%]
+tests/unit/test_wikilink_graph_service.py .............................. [ 99%]
+.....                                                                    [ 99%]
+tests/unit/test_wikilink_parser.py ........................              [100%]
+
+=================================== FAILURES ===================================
+__________ TestMemoryInjection.test_graceful_degradation_on_exception __________
+tests/unit/test_agent_memory_injection.py:273: in test_graceful_degradation_on_exception
+    result = await service._get_learning_memories(
+app/services/agent_service.py:2097: in _get_learning_memories
+    memories = await asyncio.wait_for(
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+tests/unit/test_agent_memory_injection.py:63: in search_memories
+    raise Exception("Mock search failure")
+E   Exception: Mock search failure
+---------------------------- Captured stdout setup -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T12:10:57.407245Z"}
+{"event": "AgentService will use LearningMemoryClient for historical context", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-18T12:10:57.407294Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T12:10:57.407325Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-18T12:10:57.407348Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-18T12:10:57.407370Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.agent_service:agent_service.py:1411 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T12:10:57.407245Z'}
+INFO     app.services.agent_service:agent_service.py:1416 {'event': 'AgentService will use LearningMemoryClient for historical context', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-18T12:10:57.407294Z'}
+WARNING  app.services.agent_service:agent_service.py:1438 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T12:10:57.407325Z'}
+INFO     app.services.agent_service:agent_service.py:1455 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-18T12:10:57.407348Z'}
+INFO     app.services.agent_service:agent_service.py:1460 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-18T12:10:57.407370Z'}
+______________ TestEdgeCases.test_neo4j_query_error_returns_empty ______________
+tests/unit/test_agent_service_neo4j_memory.py:521: in test_neo4j_query_error_returns_empty
+    result = await agent_service_with_neo4j._get_learning_memories(
+app/services/agent_service.py:2085: in _get_learning_memories
+    result = await asyncio.wait_for(
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/tasks.py:488: in wait_for
+    return await fut
+           ^^^^^^^^^
+app/services/agent_service.py:2194: in _query_neo4j_memories
+    results = await self._neo4j_client.run_query(cypher_query, **params)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: in _execute_mock_call
+    raise effect
+E   Exception: Neo4j connection failed
+---------------------------- Captured stdout setup -----------------------------
+{"event": "AgentService initialized without configured AI client - API calls will fail", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T12:10:58.809608Z"}
+{"event": "AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T12:10:58.809684Z"}
+{"event": "AgentService will use Neo4jClient for learning memory queries", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-18T12:10:58.809771Z"}
+{"event": "AgentService initialized without CanvasService - nodes will not be written to Canvas", "logger": "app.services.agent_service", "level": "warning", "timestamp": "2026-09-18T12:10:58.809801Z"}
+{"event": "AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-18T12:10:58.809826Z"}
+{"event": "AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)", "logger": "app.services.agent_service", "level": "info", "timestamp": "2026-09-18T12:10:58.809848Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.agent_service:agent_service.py:1411 {'event': 'AgentService initialized without configured AI client - API calls will fail', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T12:10:58.809608Z'}
+WARNING  app.services.agent_service:agent_service.py:1420 {'event': 'AgentService initialized without LearningMemoryClient - historical context fallback unavailable when Neo4j is down', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T12:10:58.809684Z'}
+INFO     app.services.agent_service:agent_service.py:1427 {'event': 'AgentService will use Neo4jClient for learning memory queries', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-18T12:10:58.809771Z'}
+WARNING  app.services.agent_service:agent_service.py:1438 {'event': 'AgentService initialized without CanvasService - nodes will not be written to Canvas', 'logger': 'app.services.agent_service', 'level': 'warning', 'timestamp': '2026-09-18T12:10:58.809801Z'}
+INFO     app.services.agent_service:agent_service.py:1455 {'event': 'AgentService Phase 2: Tool calling disabled (ENABLE_TOOL_CALLING=false)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-18T12:10:58.809826Z'}
+INFO     app.services.agent_service:agent_service.py:1460 {'event': 'AgentService Phase 4: React Agent ENABLED (ENABLE_REACT_AGENT=true)', 'logger': 'app.services.agent_service', 'level': 'info', 'timestamp': '2026-09-18T12:10:58.809848Z'}
+_________________ test_preflight_npm_build_is_walltime_capped __________________
+tests/unit/test_deploy_vault_sh.py:2940: in test_preflight_npm_build_is_walltime_capped
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支，本条什么都没测: {r.stdout!r}"
+E   AssertionError: 假 npm 根本没被调到 ⇒ 没走到 build 分支，本条什么都没测: '📦 deploy-vault [apply] vault=npmcap port=8251 hosts=claude\n   harness=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_is_wa0/harness\n[1/6] preflight: FAIL npm run build 超时（墙钟上限 5s, 已杀 npm 所在进程组）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_is_wa0/harness/frontend/obsidian-plugin\n'
+E   assert False
+E    +  where False = _npm_was_invoked(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_is_wa0/npm-pids'))
+___________ test_preflight_npm_build_cap_does_not_kill_a_fast_build ____________
+tests/unit/test_deploy_vault_sh.py:2959: in test_preflight_npm_build_cap_does_not_kill_a_fast_build
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支: {r.stdout!r}"
+E   AssertionError: 假 npm 根本没被调到 ⇒ 没走到 build 分支: '📦 deploy-vault [apply] vault=npmcap port=8252 hosts=claude\n   harness=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_cap_d0/harness\n[1/6] preflight: FAIL npm run build 超时（墙钟上限 5s, 已杀 npm 所在进程组）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_cap_d0/harness/frontend/obsidian-plugin\n'
+E   assert False
+E    +  where False = _npm_was_invoked(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_cap_d0/npm-pids'))
+____ test_preflight_npm_build_failure_is_not_reported_as_timeout[fail-8253] ____
+tests/unit/test_deploy_vault_sh.py:2981: in test_preflight_npm_build_failure_is_not_reported_as_timeout
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支: {r.stdout!r}"
+E   AssertionError: 假 npm 根本没被调到 ⇒ 没走到 build 分支: '📦 deploy-vault [apply] vault=npmcap port=8253 hosts=claude\n   harness=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_failu0/harness\n[1/6] preflight: FAIL npm run build 超时（墙钟上限 5s, 已杀 npm 所在进程组）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_failu0/harness/frontend/obsidian-plugin\n'
+E   assert False
+E    +  where False = _npm_was_invoked(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_failu0/npm-pids'))
+___ test_preflight_npm_build_failure_is_not_reported_as_timeout[rc124-8254] ____
+tests/unit/test_deploy_vault_sh.py:2981: in test_preflight_npm_build_failure_is_not_reported_as_timeout
+    assert _npm_was_invoked(pids), f"假 npm 根本没被调到 ⇒ 没走到 build 分支: {r.stdout!r}"
+E   AssertionError: 假 npm 根本没被调到 ⇒ 没走到 build 分支: '📦 deploy-vault [apply] vault=npmcap port=8254 hosts=claude\n   harness=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_failu1/harness\n[1/6] preflight: FAIL npm run build 超时（墙钟上限 5s, 已杀 npm 所在进程组）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_failu1/harness/frontend/obsidian-plugin\n'
+E   assert False
+E    +  where False = _npm_was_invoked(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_npm_build_failu1/npm-pids'))
+___________________ test_preflight_accepts_leading_zero_cap ____________________
+tests/unit/test_deploy_vault_sh.py:3014: in test_preflight_accepts_leading_zero_cap
+    assert _npm_was_invoked(pids), f"005 被误拒，build 没跑: {r.stdout!r}"
+E   AssertionError: 005 被误拒，build 没跑: '📦 deploy-vault [apply] vault=npmcap port=8259 hosts=claude\n   harness=/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_accepts_leading0/harness\n[1/6] preflight: FAIL npm run build 超时（墙钟上限 5s, 已杀 npm 所在进程组）: /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_accepts_leading0/harness/frontend/obsidian-plugin\n'
+E   assert False
+E    +  where False = _npm_was_invoked(PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-483/test_preflight_accepts_leading0/npm-pids'))
+______ TestGetDifficultyData.test_memory_service_unavailable_returns_none ______
+tests/unit/test_difficulty_canvas_integration.py:156: in test_memory_service_unavailable_returns_none
+    result = await _get_difficulty_data(sample_nodes, "test_canvas")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/review.py:298: in _get_difficulty_data
+    memory_service = await get_memory_service()
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: in _execute_mock_call
+    raise effect
+E   Exception: MemoryService unavailable
+_____ TestAIQuestionDifficultyInjection.test_difficulty_context_in_prompt ______
+tests/unit/test_difficulty_canvas_integration.py:432: in test_difficulty_context_in_prompt
+    await review_mod._generate_ai_questions(sample_nodes, difficulty_map_mixed)
+app/api/v1/endpoints/review.py:467: in _generate_ai_questions
+    agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
+                             ^^^^^^^^^
+E   NameError: name 'AgentType' is not defined
+___ TestAIQuestionDifficultyInjection.test_no_difficulty_map_no_extra_fields ___
+tests/unit/test_difficulty_canvas_integration.py:476: in test_no_difficulty_map_no_extra_fields
+    await review_mod._generate_ai_questions(sample_nodes, None)
+app/api/v1/endpoints/review.py:467: in _generate_ai_questions
+    agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
+                             ^^^^^^^^^
+E   NameError: name 'AgentType' is not defined
+____________ test_vault_id_provided_triggers_context_var_injection _____________
+tests/unit/test_enrich_context_vault_isolation.py:113: in test_vault_id_provided_triggers_context_var_injection
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 4.67, "event": "request.completed", "request_id": "5550530896", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:35.107928Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 4.67, 'event': 'request.completed', 'request_id': '5550530896', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:35.107928Z'}
+________________ test_chinese_vault_id_not_collapsed_to_default ________________
+tests/unit/test_enrich_context_vault_isolation.py:142: in test_chinese_vault_id_not_collapsed_to_default
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 4.58, "event": "request.completed", "request_id": "5550536848", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:35.115945Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 4.58, 'event': 'request.completed', 'request_id': '5550536848', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:35.115945Z'}
+___________________ test_subject_id_optional_backward_compat ___________________
+tests/unit/test_enrich_context_vault_isolation.py:166: in test_subject_id_optional_backward_compat
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 4.63, "event": "request.completed", "request_id": "5549966352", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:35.123848Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 4.63, 'event': 'request.completed', 'request_id': '5549966352', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:35.123848Z'}
+__________________ test_vault_id_with_special_chars_sanitized __________________
+tests/unit/test_enrich_context_vault_isolation.py:233: in test_vault_id_with_special_chars_sanitized
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 4.8, "event": "request.completed", "request_id": "5549968656", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:35.144134Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 4.8, 'event': 'request.completed', 'request_id': '5549968656', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:35.144134Z'}
+_________________________ test_vault_id_emoji_stripped _________________________
+tests/unit/test_enrich_context_vault_isolation.py:255: in test_vault_id_emoji_stripped
+    assert resp.status_code == 200
+E   assert 409 == 200
+E    +  where 409 = <Response [409 Conflict]>.status_code
+----------------------------- Captured stdout call -----------------------------
+{"method": "POST", "path": "/api/v1/chat/enrich-context", "endpoint": "/api/v1/chat/enrich-context", "status": 409, "duration_ms": 4.73, "event": "request.completed", "request_id": "5549970192", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:35.152254Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/chat/enrich-context', 'endpoint': '/api/v1/chat/enrich-context', 'status': 409, 'duration_ms': 4.73, 'event': 'request.completed', 'request_id': '5549970192', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:35.152254Z'}
+_ TestRecordTemporalEventLifecycle.test_p0_neo4j_write_failure_degrades_silently _
+tests/unit/test_epic30_memory_pipeline.py:400: in test_p0_neo4j_write_failure_degrades_silently
+    event_id = await svc.record_temporal_event(
+app/services/memory_service.py:2635: in record_temporal_event
+    await self.neo4j.record_episode(
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: in _execute_mock_call
+    raise effect
+E   Exception: Connection refused
+----------------------------- Captured stdout call -----------------------------
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:23:35.191326Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:23:35.191380Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:35.191326Z'}
+INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:35.191380Z'}
+___ TestGetRelatedMemoriesReturnStructure.test_query_exception_returns_empty ___
+tests/unit/test_epic36_gap_coverage.py:150: in test_query_exception_returns_empty
+    results = await graphiti_client.get_related_memories(node_id="node-1")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/clients/neo4j_edge_client.py:436: in get_related_memories
+    results = await self._neo4j.run_query(cypher_query, **params)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:2333: in _execute_mock_call
+    raise effect
+E   Exception: Connection lost
+----------------------------- Captured stdout call -----------------------------
+{"event": "Neo4jEdgeClient initialized: neo4j_mode=BOLT", "logger": "app.clients.neo4j_learning_base", "level": "info", "timestamp": "2026-09-18T12:23:35.535642Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.clients.neo4j_learning_base:neo4j_learning_base.py:189 Neo4jEdgeClient initialized: neo4j_mode=BOLT
+____________ TestProgressEndpoint.test_progress_invalid_session_404 ____________
+tests/unit/test_intelligent_parallel_endpoints.py:437: in test_progress_invalid_session_404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:23:57.265782Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:23:57.265833Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:23:57.265782Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.265833Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5488311568", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:23:57.266489Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.46, "event": "request.completed", "request_id": "5488311568", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:57.266723Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:326 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5488311568', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.266489Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.46, 'event': 'request.completed', 'request_id': '5488311568', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.266723Z'}
+____________ TestCancelEndpoint.test_cancel_nonexistent_session_404 ____________
+tests/unit/test_intelligent_parallel_endpoints.py:492: in test_cancel_nonexistent_session_404
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:23:57.274231Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:23:57.274275Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:23:57.274231Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.274275Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "cancel_session called: session_id=nonexistent-session", "request_id": "5488308880", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:23:57.274908Z"}
+{"method": "POST", "path": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session", "status": 500, "duration_ms": 0.46, "event": "request.completed", "request_id": "5488308880", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:57.275160Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:480 {'event': 'cancel_session called: session_id=nonexistent-session', 'request_id': '5488308880', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.274908Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'POST', 'path': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session', 'status': 500, 'duration_ms': 0.46, 'event': 'request.completed', 'request_id': '5488308880', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.275160Z'}
+___________________ TestErrorResponses.test_404_error_format ___________________
+tests/unit/test_intelligent_parallel_endpoints.py:594: in test_404_error_format
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+E   assert 500 == 404
+E    +  where 500 = <Response [500 Internal Server Error]>.status_code
+E    +  and   404 = status.HTTP_404_NOT_FOUND
+---------------------------- Captured stdout setup -----------------------------
+{"event": "IntelligentParallelService: batch_orchestrator not injected \u2014 batch execution will fail", "logger": "app.services.intelligent_parallel_service", "level": "warning", "timestamp": "2026-09-18T12:23:57.287599Z"}
+{"event": "IntelligentParallelService initialized with real service dependencies", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:23:57.287659Z"}
+------------------------------ Captured log setup ------------------------------
+WARNING  app.services.intelligent_parallel_service:intelligent_parallel_service.py:106 {'event': 'IntelligentParallelService: batch_orchestrator not injected — batch execution will fail', 'logger': 'app.services.intelligent_parallel_service', 'level': 'warning', 'timestamp': '2026-09-18T12:23:57.287599Z'}
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:121 {'event': 'IntelligentParallelService initialized with real service dependencies', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.287659Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "get_session_status called: session_id=nonexistent-session", "request_id": "5488301776", "logger": "app.services.intelligent_parallel_service", "level": "info", "timestamp": "2026-09-18T12:23:57.288330Z"}
+{"method": "GET", "path": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "endpoint": "/api/v1/canvas/intelligent-parallel/nonexistent-session", "status": 500, "duration_ms": 0.44, "event": "request.completed", "request_id": "5488301776", "logger": "app.middleware.metrics", "level": "info", "timestamp": "2026-09-18T12:23:57.288538Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.intelligent_parallel_service:intelligent_parallel_service.py:326 {'event': 'get_session_status called: session_id=nonexistent-session', 'request_id': '5488301776', 'logger': 'app.services.intelligent_parallel_service', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.288330Z'}
+INFO     app.middleware.metrics:metrics.py:145 {'method': 'GET', 'path': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'endpoint': '/api/v1/canvas/intelligent-parallel/nonexistent-session', 'status': 500, 'duration_ms': 0.44, 'event': 'request.completed', 'request_id': '5488301776', 'logger': 'app.middleware.metrics', 'level': 'info', 'timestamp': '2026-09-18T12:23:57.288538Z'}
+________ TestEnsureFulltextIndex.test_ensure_fulltext_index_idempotent _________
+tests/unit/test_neo4j_fulltext_index.py:129: in test_ensure_fulltext_index_idempotent
+    assert create_count == 4, (
+E   AssertionError: Should execute CREATE FULLTEXT INDEX each time × 2 indexes (IF NOT EXISTS handles idempotency, Round-23 Patch 3 added node_search_unified)
+E   assert 2 == 4
+----------------------------- Captured stdout call -----------------------------
+{"event": "MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:24:05.483773Z"}
+{"event": "MemoryService initialized successfully", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:24:05.483836Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:24:05.483872Z"}
+{"event": "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:24:05.483902Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:431 {'event': 'MemoryService: recovered 0 episodes from Neo4j (0 returned, 0 deduped)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:24:05.483773Z'}
+INFO     app.services.memory_service:memory_service.py:287 {'event': 'MemoryService initialized successfully', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:24:05.483836Z'}
+INFO     app.services.memory_service:memory_service.py:316 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:24:05.483872Z'}
+INFO     app.services.memory_service:memory_service.py:316 {'event': "[Epic 4] Fulltext index 'episode_content' ensured on EpisodicNode.content", 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:24:05.483902Z'}
+__________ TestMergedViewEdgeCases.test_merged_view_sort_newest_first __________
+tests/unit/test_qa_38_6_scoring_reliability_extra.py:293: in test_merged_view_sort_newest_first
+    assert len(items) == 3
+E   AssertionError: assert 1 == 3
+E    +  where 1 = len([{'concept': 'concept_mid', 'node_id': 'node_mid', 'score': 50.0, 'timestamp': '2026-02-06T10:00:00'}])
+______________ test_strip_whiteboard_removes_admonition_callouts _______________
+tests/unit/test_rag_p0_doc_type_filter.py:169: in test_strip_whiteboard_removes_admonition_callouts
+    assert "原白板说明" not in out
+E   assert '原白板说明' not in '\n> [!info]...= 节点关系**\n\n'
+E     
+E     '原白板说明' is contained here:
+E       
+E       > [!info]+ 原白板说明（扁平架构 · round-11）
+E     ?            +++++
+E       > 这是学习主题"线性代数"的原白板。
+E       >...
+E     
+E     ...Full output truncated (15 lines hidden), use '-vv' to show
+______________ test_search_error_memories_sorts_by_timestamp_desc ______________
+tests/unit/test_story_2_3_error_reminders.py:345: in test_search_error_memories_sorts_by_timestamp_desc
+    assert descriptions == ["newest", "middle", "old"]
+E   AssertionError: assert ['old', 'newest', 'middle'] == ['newest', 'middle', 'old']
+E     
+E     At index 0 diff: 'old' != 'newest'
+E     Use -v to get more diff
+_________________ test_search_error_memories_normalizes_schema _________________
+tests/unit/test_story_2_3_error_reminders.py:403: in test_search_error_memories_normalizes_schema
+    assert err["corrected_at"] == "2026-04-16T09:00:00"  # metadata wins over timestamp
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: assert '2026-04-15T12:34:56' == '2026-04-16T09:00:00'
+E     
+E     - 2026-04-16T09:00:00
+E     + 2026-04-15T12:34:56
+_____ test_search_error_memories_passes_node_id_filter_to_search_memories ______
+tests/unit/test_story_2_3_error_reminders.py:417: in test_search_error_memories_passes_node_id_filter_to_search_memories
+    await svc.search_error_memories(
+app/services/memory_service.py:2565: in search_error_memories
+    result = await self.search_error_memories_with_status(
+app/services/memory_service.py:2518: in search_error_memories_with_status
+    hits = search_result.items
+           ^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'list' object has no attribute 'items'
+________________ test_search_memories_node_id_filter_post_merge ________________
+tests/unit/test_story_2_3_error_reminders.py:470: in test_search_memories_node_id_filter_post_merge
+    assert len(all_results) == 2
+E   AssertionError: assert 1 == 2
+E    +  where 1 = len([{'content': 'b', 'episode_id': 'ep-ee74', 'episode_type': 'error', 'group_id': 'vault:cs_61b', ...}])
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:24:17.501716Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2438 {'event': '[search_memories] Tier 1: 1 results, Tier 2: 1 results, Tier 3: 0 results (deduped 1, floor=0.05, returned 1)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:24:17.501716Z'}
+________________ test_search_memories_node_id_none_is_no_filter ________________
+tests/unit/test_story_2_3_error_reminders.py:498: in test_search_memories_node_id_none_is_no_filter
+    assert len(results) == 3
+E   assert 0 == 3
+E    +  where 0 = len([])
+----------------------------- Captured stdout call -----------------------------
+{"event": "[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)", "logger": "app.services.memory_service", "level": "info", "timestamp": "2026-09-18T12:24:17.506023Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.services.memory_service:memory_service.py:2438 {'event': '[search_memories] Tier 1: 3 results, Tier 2: 0 results, Tier 3: 0 results (deduped 3, floor=0.05, returned 0)', 'logger': 'app.services.memory_service', 'level': 'info', 'timestamp': '2026-09-18T12:24:17.506023Z'}
+_______ TestAC4MergedView.test_get_learning_history_merges_failed_scores _______
+tests/unit/test_story_38_6_scoring_reliability.py:465: in test_get_learning_history_merges_failed_scores
+    assert result["total"] == 2
+E   assert 1 == 2
+________________________ test_live_vault_enforce_clean _________________________
+tests/unit/test_vault_doc_roles.py:481: in test_live_vault_enforce_clean
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+E   AssertionError: [2m台账[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/scripts/vault_doc_roles.yaml
+E     [2mvault[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault  (176 目录 / 326 文件, 只读)
+E     [2m双准入面实测分歧[0m 1 条: chatgpt-adversarial-review-Q1Q2Q3-2026-05-12.md
+E     [2m  info  .quarantine/UAT-2.5.X-test.md 的准入两列取自 any_level 行 root-uat-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-quarantine 为准[0m
+E     [2m  info  raw/CS188/CLAUDE.md 的准入两列取自 any_level 行 root-claude-md(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准[0m
+E     [2m  info  raw/CS188/_misc/junk/未命名 1.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准[0m
+E     [2m  info  raw/CS188/_misc/junk/未命名.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准[0m
+E     [2m  info  raw/CS188/管道设计.md 的准入两列取自 any_level 行 root-pipeline-design(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准[0m
+E     [2m  info  勘测快照漂移 total_files: 台账 324 → 实测 326[0m
+E     [91mG1[0m  3 条 (阻断 3)
+E         - backups
+E           live 目录未被任何 vault_entries.dir_glob 命中
+E         - backups
+E           文件 backups/fsrs_bridge.py.pre-deploy-2026-09-05T1052.bak 所在目录未被登记
+E         - backups
+E           文件 backups/fsrs_bridge.py.pre-deploy-2026-09-07T0328.bak 所在目录未被登记
+E     [92m20:28:06 - LiteLLM:WARNING[0m: get_model_cost_map.py:271 - LiteLLM: Failed to fetch remote model cost map from https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json: _ssl.c:1063: The handshake operation timed out. Falling back to local backup.
+E     /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+E       from pydantic.v1.fields import FieldInfo as FieldInfoV1
+E     /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E       import pkg_resources
+E     Building prefix dict from the default dictionary ...
+E     Loading model from cache /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/jieba.cache
+E     Loading model cost 0.598 seconds.
+E     Prefix dict has been built successfully.
+E     2026-09-18 20:28:19 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/...uccessfully.\n2026-09-18 20:28:19 [info     ] RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True\n").returncode
+________________ test_group_id_physics_filters_to_physics_only _________________
+tests/unit/test_vault_notes_group_filter.py:97: in test_group_id_physics_filters_to_physics_only
+    assert len(out) == 1
+E   AssertionError: assert 2 == 1
+E    +  where 2 = len([{'id': 'r_phys', 'metadata': {'source': 'vault_note', 'subject_id': 'physics'}, 'score': 0.8}, {'id': 'r_math', 'metadata': {'source': 'vault_note', 'subject_id': 'math'}, 'score': 0.8}])
+________ test_group_id_with_no_explicit_match_returns_only_common_notes ________
+tests/unit/test_vault_notes_group_filter.py:124: in test_group_id_with_no_explicit_match_returns_only_common_notes
+    assert ids == {"r_common"}
+E   AssertionError: assert {'r1', 'r2', 'r_common'} == {'r_common'}
+E     
+E     Extra items in the left set:
+E     'r1'
+E     'r2'
+E     Use -v to get more diff
+___________ test_group_id_with_no_common_and_no_match_returns_empty ____________
+tests/unit/test_vault_notes_group_filter.py:139: in test_group_id_with_no_common_and_no_match_returns_empty
+    assert out == []
+E   AssertionError: assert [{'id': 'r1',...'score': 0.8}] == []
+E     
+E     Left contains 2 more items, first extra item: {'id': 'r1', 'metadata': {'source': 'vault_note', 'subject_id': 'physics'}, 'score': 0.8}
+E     Use -v to get more diff
+______________ test_group_id_honors_nested_metadata_json_subject _______________
+tests/unit/test_vault_notes_group_filter.py:185: in test_group_id_honors_nested_metadata_json_subject
+    assert len(out) == 1
+E   AssertionError: assert 2 == 1
+E    +  where 2 = len([{'id': 'r_nested', 'metadata': {'file_path': 'r_nested.md', 'heading': None, 'line_end': None, 'line_start': None, .....etadata': {'file_path': 'r_math_nested.md', 'heading': None, 'line_end': None, 'line_start': None, ...}, 'score': 0.8}])
+______ TestVerificationDedup.test_no_history_generates_standard_question _______
+tests/unit/test_verification_dedup.py:49: in test_no_history_generates_standard_question
+    mock_graphiti_client.search_verification_questions.assert_called_once()
+/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/unittest/mock.py:965: in assert_called_once
+    raise AssertionError(msg)
+E   AssertionError: Expected 'search_verification_questions' to have been called once. Called 0 times.
+---------------------------- Captured stdout setup -----------------------------
+{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-18T12:34:17.587408Z"}
+{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-18T12:34:17.587878Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.verification_service:verification_service.py:613 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-18T12:34:17.587408Z'}
+WARNING  app.services.verification_service:verification_service.py:624 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-18T12:34:17.587878Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-18T12:34:17.592233Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.verification_service:verification_service.py:2961 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-18T12:34:17.592233Z'}
+____ TestVerificationDedup.test_with_history_generates_alternative_question ____
+tests/unit/test_verification_dedup.py:82: in test_with_history_generates_alternative_question
+    assert mock_graphiti_client.search_verification_questions.called
+E   AssertionError: assert False
+E    +  where False = <AsyncMock name='mock.search_verification_questions' id='5551479776'>.called
+E    +    where <AsyncMock name='mock.search_verification_questions' id='5551479776'> = <MagicMock id='5551483136'>.search_verification_questions
+---------------------------- Captured stdout setup -----------------------------
+{"event": "VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)", "logger": "app.services.verification_service", "level": "info", "timestamp": "2026-09-18T12:34:17.638028Z"}
+{"event": "VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation \u2014 see Story 31.A.7.", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-18T12:34:17.638239Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.services.verification_service:verification_service.py:613 {'event': 'VerificationService initialized (RAG: False, Canvas: False, Agent: True, Graphiti: True, Memory: False, MockMode: False)', 'logger': 'app.services.verification_service', 'level': 'info', 'timestamp': '2026-09-18T12:34:17.638028Z'}
+WARNING  app.services.verification_service:verification_service.py:624 {'event': 'VerificationService using IN-MEMORY TTLCache for session storage (maxsize=500, ttl=3600s). Sessions will be LOST on service restart. This is a known limitation — see Story 31.A.7.', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-18T12:34:17.638239Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "No agent service available, using fallback question for \u9006\u5426\u547d\u9898", "logger": "app.services.verification_service", "level": "warning", "timestamp": "2026-09-18T12:34:17.640578Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.verification_service:verification_service.py:2961 {'event': 'No agent service available, using fallback question for 逆否命题', 'logger': 'app.services.verification_service', 'level': 'warning', 'timestamp': '2026-09-18T12:34:17.640578Z'}
+_____ TestWebSocketEndpoint.test_validate_session_handles_validator_error ______
+tests/unit/test_websocket_endpoints.py:538: in test_validate_session_handles_validator_error
+    result = await validate_session("any-session")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+app/api/v1/endpoints/websocket.py:80: in validate_session
+    return await _session_validator(session_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/unit/test_websocket_endpoints.py:533: in failing_validator
+    raise Exception("Validator error")
+E   Exception: Validator error
+----------------------------- Captured stdout call -----------------------------
+{"event": "Session validator set for WebSocket endpoint", "logger": "app.api.v1.endpoints.websocket", "level": "info", "timestamp": "2026-09-18T12:34:18.307590Z"}
+------------------------------ Captured log call -------------------------------
+INFO     app.api.v1.endpoints.websocket:websocket.py:59 Session validator set for WebSocket endpoint
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/unit/test_agentic_rag_vault_scope.py::TestDualVaultIsolationOnTmpLanceDB::test_shared_db_precondition_tables_coexist
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_agentic_rag_vault_scope.py:499: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    names = set(self.db.table_names())
+
+tests/unit/test_agentic_rag_vault_scope.py: 1 warning
+tests/unit/test_g24_lance_legacy_table_removal.py: 17 warnings
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py: 56 warnings
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_batch_orchestrator.py::TestProgressBroadcasting::test_broadcast_calls_sync_callback
+tests/unit/test_batch_orchestrator.py::TestProgressBroadcasting::test_broadcast_calls_async_callback
+tests/unit/test_batch_orchestrator.py::TestProgressBroadcasting::test_broadcast_handles_callback_error
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/batch_orchestrator.py:968: DeprecationWarning: 'asyncio.iscoroutinefunction' is deprecated and slated for removal in Python 3.16; use inspect.iscoroutinefunction() instead
+    if asyncio.iscoroutinefunction(self.progress_callback):
+
+tests/unit/test_canvas_memory_trigger.py: 2 warnings
+tests/unit/test_recommendation_group_filter.py: 11 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/main.py:250: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+
+tests/unit/test_canvas_projection_sync.py: 6 warnings
+tests/unit/test_frontmatter_signals.py: 6 warnings
+tests/unit/test_vault_backfill.py: 4 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_succeed_returns_200
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_ok_lancedb_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_ok_graphiti_fail_returns_207
+tests/unit/test_edge_rationale_fallback.py::test_both_writes_fail_returns_500
+tests/unit/test_edge_rationale_fallback.py::test_graphiti_exception_does_not_block_lancedb
+tests/unit/test_edge_rationale_fallback.py::test_lancedb_exception_does_not_block_graphiti
+tests/unit/test_edge_rationale_fallback.py::test_partial_failure_includes_error_details
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_accepted
+tests/unit/test_edge_rationale_fallback.py::test_strategy_fields_defaults
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/edges.py:411: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/unit/test_edge_rationale_fallback.py: 12 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_bare_table_really_holds_other_vault_rows
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_still_maps_to_bare_table
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+tests/unit/test_g24_lance_legacy_table_removal.py::test_search_raises_table_missing_and_never_opens_bare_table
+tests/unit/test_g24_lance_legacy_table_removal.py::test_table_missing_penetrates_enable_fallback_swallow_gate
+tests/unit/test_g24_lance_legacy_table_removal.py::test_search_supplementary_surfaces_unavailable
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_distinguishes_missing_from_unopenable
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_g24_lance_legacy_table_removal.py:69: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert set(db.table_names()) == {"vault_notes"}
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_g24_lance_legacy_table_removal.py:122: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "xvault_vault_notes" not in client._db.table_names()
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_prefixed_missing_no_longer_falls_back_to_bare
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_g24_lance_legacy_table_removal.py:123: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "vault_notes" in client._db.table_names()
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/lib/agentic_rag/clients/lancedb_client.py:4414: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if data and table_name in self._db.table_names():
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/lib/agentic_rag/clients/lancedb_client.py:4423: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name in self._db.table_names():
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_write_creates_prefixed_table_and_leaves_bare_byte_identical
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_g24_lance_legacy_table_removal.py:215: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "xvault_vault_notes" in db.table_names(), "新 vault 的数据必须落进自己的表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_default_vault_write_still_targets_bare_table
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_g24_lance_legacy_table_removal.py:246: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert db2.table_names() == ["vault_notes"], "default vault 不得凭空造 prefixed 表"
+
+tests/unit/test_g24_lance_legacy_table_removal.py::test_is_table_absent_sees_past_default_pagination
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_g24_lance_legacy_table_removal.py:285: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(list(db.table_names())) == 10, "lancedb 默认分页行为变了, 本锁需重新校准"
+
+tests/unit/test_intelligent_parallel_endpoints.py::TestAnalyzeEndpoint::test_analyze_invalid_color
+tests/unit/test_intelligent_parallel_endpoints.py::TestConfirmEndpoint::test_confirm_timeout_validation
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    self._context.run(self._callback, *self._args)
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py: 47 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:109: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    return set(db.table_names(limit=10_000))
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_scans_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:355: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert len(db.table_names()) == 10, (
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_cache_tables_scans_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:359: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert "a_t11" not in set(db.table_names()), "前提失效: a_t11 不在默认分页的盲区里"
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_prefix_overlap_premises_hold[page-inner-0-cache-a_b_canvas_nodes]
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:553: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    in_page = table in set(db.table_names())
+
+tests/unit/test_lancedb_cross_vault_drop_g29f1.py::test_fingerprint_baseline_readable_beyond_default_page
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_lancedb_cross_vault_drop_g29f1.py:1009: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    assert fp_name not in set(db.table_names()), (
+
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_queries_graphiti
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_queries_graphiti
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_weight_distribution
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_targeted_mode_weight_distribution
+tests/unit/test_review_mode_support.py::TestReviewModeSupport::test_custom_weights_applied
+tests/unit/test_review_mode_support.py::TestReviewModeFallback::test_targeted_mode_no_fallback_with_history
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/services/weight_calculator.py:181: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    days_since = (datetime.utcnow() - last_review).days
+
+tests/unit/test_sync_batch_auth.py: 2 warnings
+tests/unit/test_sync_exception_classification.py: 6 warnings
+tests/unit/test_sync_group_isolation.py: 1 warning
+tests/unit/test_vault_scope_409.py: 1 warning
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/sync.py:117: DeprecationWarning: deprecated
+    legacy_group_id=request.group_id,
+
+tests/unit/test_vault_scope_409.py::TestCodexRound1RectifiedEndpoints::test_inheritance_distill_mismatch_409
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/app/api/v1/endpoints/inheritance.py:83: DeprecationWarning: deprecated
+    request.vault_id, legacy_group_id=request.group_id
+
+tests/unit/test_wave5_stageb_continued_vault_id_injection.py::TestSyncBatchRequestVaultId::test_sync_batch_has_deprecated_group_id
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/tests/unit/test_wave5_stageb_continued_vault_id_injection.py:218: DeprecationWarning: deprecated
+    assert req.group_id == "cs188"
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_agent_memory_injection.py::TestMemoryInjection::test_graceful_degradation_on_exception
+FAILED tests/unit/test_agent_service_neo4j_memory.py::TestEdgeCases::test_neo4j_query_error_returns_empty
+FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_npm_build_is_walltime_capped
+FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_npm_build_cap_does_not_kill_a_fast_build
+FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_npm_build_failure_is_not_reported_as_timeout[fail-8253]
+FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_npm_build_failure_is_not_reported_as_timeout[rc124-8254]
+FAILED tests/unit/test_deploy_vault_sh.py::test_preflight_accepts_leading_zero_cap
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestGetDifficultyData::test_memory_service_unavailable_returns_none
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_difficulty_context_in_prompt
+FAILED tests/unit/test_difficulty_canvas_integration.py::TestAIQuestionDifficultyInjection::test_no_difficulty_map_no_extra_fields
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_provided_triggers_context_var_injection
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_chinese_vault_id_not_collapsed_to_default
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_subject_id_optional_backward_compat
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_with_special_chars_sanitized
+FAILED tests/unit/test_enrich_context_vault_isolation.py::test_vault_id_emoji_stripped
+FAILED tests/unit/test_epic30_memory_pipeline.py::TestRecordTemporalEventLifecycle::test_p0_neo4j_write_failure_degrades_silently
+FAILED tests/unit/test_epic36_gap_coverage.py::TestGetRelatedMemoriesReturnStructure::test_query_exception_returns_empty
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestProgressEndpoint::test_progress_invalid_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestCancelEndpoint::test_cancel_nonexistent_session_404
+FAILED tests/unit/test_intelligent_parallel_endpoints.py::TestErrorResponses::test_404_error_format
+FAILED tests/unit/test_neo4j_fulltext_index.py::TestEnsureFulltextIndex::test_ensure_fulltext_index_idempotent
+FAILED tests/unit/test_qa_38_6_scoring_reliability_extra.py::TestMergedViewEdgeCases::test_merged_view_sort_newest_first
+FAILED tests/unit/test_rag_p0_doc_type_filter.py::test_strip_whiteboard_removes_admonition_callouts
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_sorts_by_timestamp_desc
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_normalizes_schema
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_error_memories_passes_node_id_filter_to_search_memories
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_filter_post_merge
+FAILED tests/unit/test_story_2_3_error_reminders.py::test_search_memories_node_id_none_is_no_filter
+FAILED tests/unit/test_story_38_6_scoring_reliability.py::TestAC4MergedView::test_get_learning_history_merges_failed_scores
+FAILED tests/unit/test_vault_doc_roles.py::test_live_vault_enforce_clean - AssertionError: [2m台账[0m /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox/backend/scripts/vault_doc_roles.yaml
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_physics_filters_to_physics_only
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_explicit_match_returns_only_common_notes
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_with_no_common_and_no_match_returns_empty
+FAILED tests/unit/test_vault_notes_group_filter.py::test_group_id_honors_nested_metadata_json_subject
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_no_history_generates_standard_question
+FAILED tests/unit/test_verification_dedup.py::TestVerificationDedup::test_with_history_generates_alternative_question
+FAILED tests/unit/test_websocket_endpoints.py::TestWebSocketEndpoint::test_validate_session_handles_validator_error
+= 37 failed, 5745 passed, 44 skipped, 13 xfailed, 231 warnings in 1408.80s (0:23:28) =
+rc=1

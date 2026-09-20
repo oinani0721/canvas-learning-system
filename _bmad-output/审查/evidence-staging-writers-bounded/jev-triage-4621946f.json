@@ -1,0 +1,65 @@
+{
+  "commit": "fix(dead-letter): CARD-STAGING-WRITERS-BOUNDED H1 整改——死信链行边界防护 [BATCH-2026-09-18-第十五批]",
+  "ref": "4621946f",
+  "sha": "4621946f99f11e2047cac6c0b29667360aaf6f8c",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T02:25:35-0700",
+  "code_files": [
+    "backend/app/core/failure_counters.py",
+    "backend/app/services/episode_worker.py",
+    "backend/tests/unit/test_staging_writers_bounded.py"
+  ],
+  "files": [
+    {
+      "file": "backend/app/services/episode_worker.py",
+      "added": 14,
+      "removed": 1,
+      "runtime": 0.98,
+      "risk": "logic",
+      "risk_conf": 0.33,
+      "urgency": 2.81,
+      "urgency_conf": 0.83,
+      "review": 0.76,
+      "test": 0.6,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/app/core/failure_counters.py",
+      "added": 9,
+      "removed": 1,
+      "runtime": 0.98,
+      "risk": "logic",
+      "risk_conf": 0.53,
+      "urgency": 2.33,
+      "urgency_conf": 0.59,
+      "review": 0.66,
+      "test": 0.56,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/unit/test_staging_writers_bounded.py",
+      "added": 76,
+      "removed": 0,
+      "runtime": 0.06,
+      "risk": "test_or_docs",
+      "risk_conf": 1.0,
+      "urgency": 1.75,
+      "urgency_conf": 0.0,
+      "review": 0.68,
+      "test": 0.91,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 4299,
+    "output_tokens": 470
+  },
+  "latency_ms": {
+    "min": 237,
+    "median": 246,
+    "max": 335
+  }
+}

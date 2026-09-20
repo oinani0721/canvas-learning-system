@@ -1,0 +1,46 @@
+# zcode r6 findings (B/H/M/L 全文与计数) — 20260919T211823
+# source: _bmad-output/审查/zcode-review-CARD-STAGING-WRITERS-BOUNDED-r6.md (.response，逐字提取)
+sessionId=sess_494e656e-ca27-4ead-b1ff-26e3409d5b77
+traceId=3d199322-770a-4bf5-8b4f-3e1326a68a91
+
+== level tag counts ==
+   [BLOCKER]=0  [HIGH]=1  [MEDIUM]=0  [LOW]=3
+== summary line ==
+**自检汇总：BLOCKER=0 HIGH=1 MEDIUM=0 LOW=3**
+== word scan (response，禁用措辞) ==
+构造=0 可复现片段=0 打穿=0 绕过=0
+
+== full response ==
+# CARD-STAGING-WRITERS-BOUNDED · r6 补审报告（GLM-5.3 / ZCode · 绑定 `d2ebf694`）
+
+**裁决**：终态与送审附录逐处一致，六条作者自述五条成立、一条实质成立但措辞过宽；⓪–⑤ 逐项核验均通过（超时误判面已如实登记并移交 P2-C，无过强声称；即时刷盘的同步 IO 与失败分流如实登记；锁序无反序嵌套；三条 exists 门注入点命中且失配时响亮红；env 走 `bound_from_env`；0 条新增 pyright ignore）。**发现 1 HIGH**：本卡新收口的死信链 `DeadLetterStore.store` 只加了轮转、没做行边界防护——恰是本卡自己在 failed_writes 链上按 Codex r2/r3 HIGH 修掉的同类「半行尾巴吞掉无重试缓冲写者」缺陷，漏到了第四个写者头上。另有 3 LOW。
+
+---
+
+## 一、发现清单
+
+- **[HIGH] backend/app/services/episode_worker.py:276** — `DeadLetterStore.store` 在 `_dead_letter_io_lock` 下仍裸 `f.write(json.dumps(record) + "\n")`，无 `ensure_line_boundary` 等价防护：上次 store 在 ENOSPC/EIO 下写半行后，下一条死信直接粘在残缺尾巴后成不可解析行，且死信无重试缓冲 = 该条**静默丢失**（与本卡 `append_failed_writes_bounded` 入口修的是同一缺陷类，`test_third_writer_does_not_concatenate_onto_dangling_tail` 的论证逐字适用于它）；负控输入：向死信文件预置 `b'{"epi'` 半行尾巴后再 `store(task, err)` 一条，断言新记录自成可解析行——现实现会粘尾；对照输入：同一输入走 failed_writes 链会先补换行；这是**门未覆盖的路径**（新门 26 条无一条盖死信链粘连）。修复面在本卡内：持 `_dead_letter_io_lock` 复用 `ensure_line_boundary` 或把分隔符并进首行。同型残留顺带指出：`failure_counters.write_dead_letter`（:363-366，T6-C 面、本卡未动）也无边界防护，建议一并修。
+- **[LOW] backend/tests/unit/test_staging_writers_bounded.py:1018（`_isolation_offenders`）** — `evidence = literals | identifiers | args` 把 docstring/注释里的字符串字面量计入隔离证据；负控输入：`def test_x(service):` + docstring 含 "bounded_memory_writes" 字样 + 直接调 `service._record_structured_outbox(...)`（未真正隔离）→ 门放行（**未被拦下的输入**）。门自身 docstring 已登记「必要不充分」且有 sha256 快照兜底，且 T6-C 台账 22 已登记同型弱点，故仅 LOW。
+- **[LOW] backend/app/core/failed_writes_constants.py:43** — `REPLAY_WINDOW_MAX_SECONDS` 的 `minimum=1` 允许把窗口上限调到 1 秒；负控输入：`CLS_REPLAY_WINDOW_MAX_SECONDS=1` 时任何超过 1 秒的**健康**回灌都会触发 [C2-01] 并放行轮转，把已登记移交 P2-C 的丢记录缝从「1800 秒才开」放大到「常态化开着」。缝隙本身已登记、默认值安全，建议抬高下限或显著警示，故 LOW。
+- **[LOW] _bmad-output/验收单/UAT-CARD-NEO4J-REPLAY-BOUND-2026-09-15.md:255（台账 21）** — T6-C 建议的「这几个模块禁止裸用 `.exists()`」常驻门未随本卡落地：残余 3 处已按卡文修掉，但这些模块内**再引入**裸 `exists()` 无门拦截（**门未覆盖的路径**）；回灌侧 9 处与 `recover_outbox` 1 处按卡文归下一张卡，不在此列。
+
+## 二、作者自述逐条核验（§②）
+
+1. **成立**（agent_service.py:133-144）：仍读本模块级 `FAILED_WRITES_FILE`，helper 不自持锁；异常语义确未变——`json.dumps` 仍在 `with failed_writes_lock:` 内求值，异常穿出 with 释放锁后被既有 `except (OSError, TypeError, ValueError)`（:148）接住。小口径出入：送审 prompt 写「5 处打桩」、代码注释写「实测 12 处」、新门 fixture 列 5 处——计数口径不一，不影响行为。
+2. **成立**（failed_writes_constants.py:160-189）：三态实现与 docstring 表格一致；时间戳在取锁后打、`finally` 清（fallback_sync_service.py:135-140，`import time` 已在 ：16）；t6c 真锁门 ：474 直接持锁 → 时间戳 `None` → True，不翻红。
+3. **成立**（memory_service.py:1431-1437）：flush 在失败累积 for 循环**之后**、`if neo4j_errors:` 块内，每失败批一次（非每条一次）；append（:1423）与 flush 之间无 await；`_flush_pending_failed_writes` 全程同步。
+4. **实质成立、措辞过宽**：`event_bus.py` 确不在变更集；新有界链仅 `dead_letter_episodes.jsonl` 一条，上限调用时读 `_fc.DEAD_LETTER_MAX_LINES`（episode_worker.py:273）便于 monkeypatch。但「回灌侧零改动」字面不成立——`fallback_sync_service.py` 本身在变更集内（打戳 + finally 清空，共 26 行）；准确表述是**回灌算法本体**（`_sync_failed_writes` / `_sync_all_fallbacks_locked`）一行未改（已核 ：142-194、:302-456）。
+5. **成立**（failure_counters.py:129-135 `iterdir` 分流、:169-174 `stat` 分流、episode_worker.py:288-312 `count`→`count_lines`）；回灌侧 `exists` 未动（实测 `_sync_failed_writes`:309/:389 仍在），与声明一致。
+6. **成立**（failed_writes_constants.py:296-351、:420、:445-449；memory_service.py:2931-2953）：`ensure_line_boundary` 返回语义 =「知不知道」，调用方只决定分隔符、不拒写；「真轮转后清 `sep`」在批量路径旋转分支；`OSError` 保留 / `TypeError·ValueError` 丢弃 / 成功只删本批——三面各有专属门（`test_no_glue_when_probe_fails…`、`test_sep_is_dropped_after_a_real_rotation`、`test_flush_keeps_pending…`/`test_flush_drops…` 成对）。
+
+## 三、按重要性逐项结论（§③）
+
+- **⓪ 如实登记，未发现过强声称。** 两条超时引入的路径（finalize 覆盖/错标 + 游标复活，因果链各自独立）在 `_replay_in_flight` docstring 内各有专属 ⚠️ 段，明写「这是**本卡引入的取舍**，不是回灌算法的旧账…移交 P2-C REPLAY-REWRITE」；`_sync_all_started_at` 注释同向。裁定书 §1.8④/§1.9 确认 `CARD-REPLAY-REWRITE` 已排入后续批次。「调高 env 可缩小这条缝」的措辞准确。实测锚定：finalize 判据 `if len(current_lines) > len(lines)` 在 fallback_sync_service.py:394，与登记逐字相符。
+- **① 引入了同步 IO 新面，已如实登记；返回语义未变；重复/漏落盘未见新路径。** flush 的 mkdir/数行/轮转/追加在事件循环上同步执行，docstring 明写「如实登记，未做异步化」（memory_service.py:2880-2883）；`OSError`/`ValueError` 均被自吞，`errors`/`failed`/`episode_ids` 在 flush 之前组装完毕；重复仅发生在「部分写入后 OSError 重试」（登记为重复轻于丢失），漏落盘未发现——即时刷盘把 kill 丢失窗从「等 cleanup」缩到「批内」。
+- **② 无反序嵌套。** `store` 三处调用（episode_worker.py:679/693/696，`_handle_failure`）均不持其它锁；`_dead_letter_io_lock` 的另一持有者 `write_dead_letter`（failure_counters.py:363）也单独持锁；不存在 `failed_writes_lock → _dead_letter_io_lock` 或反向的任何路径；`rotate_if_over_limit` 本身不取锁（:217-219 自述）。`store` 每条先全文件扫一遍的线性开销已在 `count()` docstring 登记。
+- **③ 注入命中、失配响亮红。** Python 3.14 `Path.exists()` → `os.path.exists` → `genericpath` → `os.stat`（模块属性查找，patch 生效），`Path.stat`/`Path.iterdir` 同理走 `os.stat`/`os.scandir`——卡文原稿 `type(path).stat` 的更正与 T6-C:669 门（被测是 `count_lines`→`path.stat()`，层次不同）自洽。三条门在注入未命中时都会以末尾 `raise AssertionError` **红**（不会假绿）。`_unique_overflow_target` 门按 `-00<suffix>` 精确匹配避开 0 点时间戳误伤（r1 LOW 已修）。门未覆盖的路径：死信链粘连（见 HIGH）。
+- **④ 成立。** 本卡唯一新 env `CLS_REPLAY_WINDOW_MAX_SECONDS` 走 `bound_from_env`（:43）；`bound_from_env`（failure_counters.py:51-69）对坏值/低于下限一律告警 + 退回默认，导入期不崩；`CLS_DEAD_LETTER_*` 为 T6-C 既有、同样经 `bound_from_env`（:77-78）。
+- **⑤ 0 条新增 `# pyright: ignore`。** 7 文件全文/改动面核对无一；pyright 0 errors 非靠 ignore 掩盖。新增抑制仅 1 条 `# noqa: BLE001`（failed_writes_constants.py:174，flake8 盲 except，沿用本模块既有形态，与 pyright 无关）。
+- **⑥** 见发现清单；另两 点核验范围说明：`count()`「backend/app 内零调用方」在本通道读取面内（episode_worker.py 全文 720 行）属实，面外未核、不作发现；本卡改动未使任何已退回项（outbox / recover_outbox / 回灌算法）变差——`event_bus.py` 未动，failed_writes 写者全部有界化 + 边界防护是严格改进。
+
+**自检汇总：BLOCKER=0 HIGH=1 MEDIUM=0 LOW=3**

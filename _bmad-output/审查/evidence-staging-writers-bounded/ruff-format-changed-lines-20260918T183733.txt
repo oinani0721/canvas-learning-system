@@ -1,0 +1,20 @@
+backend/app/core/failed_writes_constants.py
+  本卡改动行数=72  ruff-format 会改的行数=3  交集=[]
+backend/app/core/failure_counters.py
+  本卡改动行数=24  ruff-format 会改的行数=6  交集=[]
+backend/app/services/agent_service.py
+  本卡改动行数=14  ruff-format 会改的行数=497  交集=[]
+backend/app/services/event_bus.py
+  本卡改动行数=22  ruff-format 会改的行数=30  交集=[]
+backend/app/services/memory_service.py
+  本卡改动行数=14  ruff-format 会改的行数=55  交集=[]
+backend/app/services/episode_worker.py
+  本卡改动行数=30  ruff-format 会改的行数=0  交集=[]
+backend/app/services/fallback_sync_service.py
+  本卡改动行数=22  ruff-format 会改的行数=0  交集=[]
+backend/tests/unit/test_staging_writers_bounded.py
+  本卡改动行数=620  ruff-format 会改的行数=0  交集=[]
+
+判据：本卡改动行 ∩ ruff-format 会改的行 == 空集
+结论: PASS（改动行零格式漂移）
+验伪锚（已知格式不合规的两行）：ruff-format 会改的行 = [1] → 判据能抓到漂移

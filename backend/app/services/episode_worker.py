@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+import app.core.failure_counters as _fc
 from app.core.failure_counters import DEAD_LETTER_EPISODES_PATH
 from graphiti_core import Graphiti
 
@@ -260,8 +261,33 @@ class DeadLetterStore:
         if request_id is not None:
             record["request_id"] = request_id
 
-        with open(self._file_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        # CARD-STAGING-WRITERS-BOUNDED (P2-B): 写侧有界 —— 超上限先轮转成
+        # ``<stem>.overflow.<ts>`` 再追加，Neo4j 永久离线时这份 JSONL 不再单调
+        # 增长到占满磁盘。上限在**调用时**读模块属性（``monkeypatch`` 对它生效）；
+        # 复用 ``CLS_DEAD_LETTER_MAX_LINES/ROTATIONS`` 族，不另立 env。
+        # ``rotate_if_over_limit`` 不自持锁 ⇒ 这里要拿 failure_counters 的
+        # ``_dead_letter_io_lock``（与本文件既有的任何锁都不嵌套，无死锁面）。
+        with _fc._dead_letter_io_lock:
+            _fc.rotate_if_over_limit(
+                self._file_path,
+                _fc.DEAD_LETTER_MAX_LINES,
+                _fc.DEAD_LETTER_MAX_ROTATIONS,
+            )
+            # CARD-STAGING-WRITERS-BOUNDED H1 整改（zcode r6 HIGH）：行边界防护 ——
+            # 上次 store 在 ENOSPC/EIO 下可能写到半行（如 ``{"epi``），裸追加会让
+            # 下一条死信粘在残缺尾巴后成不可解析行，且死信**无重试缓冲** = 静默丢失。
+            # 复用 failed_writes 链同一原语（本函数不自持锁，此处已持
+            # ``_dead_letter_io_lock``）：补得上就补换行；探测失败（False）就把分隔符
+            # 并进本条第一行 —— 任何情况下都不粘连，也不拒写。
+            # ⚠️ 顺序与 ``append_failed_writes_bounded`` 一致：**先轮转、后探边界**
+            # （轮转后文件为空 ⇒ 探测自然返回 True，不需要「真轮转后清 sep」的舞步）。
+            # 局部 import 把 diff 收在 DeadLetterStore 段内（本修复硬边界；与
+            # failure_counters 侧的惰性 import 保持对称）。
+            from app.core.failed_writes_constants import ensure_line_boundary
+
+            sep = "" if ensure_line_boundary(self._file_path) else "\n"
+            with open(self._file_path, "a", encoding="utf-8") as f:
+                f.write(sep + json.dumps(record, ensure_ascii=False) + "\n")
 
         # audit-2026-04-07/p1-1: scrub error from logger interpolation. Type
         # name only — full message is in the JSONL record (already redacted).
@@ -273,10 +299,30 @@ class DeadLetterStore:
         )
 
     def count(self) -> int:
-        if not self._file_path.exists():
-            return 0
-        with open(self._file_path, "r", encoding="utf-8") as f:
-            return sum(1 for _ in f)
+        """死信条数。
+
+        CARD-STAGING-WRITERS-BOUNDED (P2-B): 改走 ``failure_counters.count_lines``：
+
+        ① 口径与写侧上限判定统一 —— 与 ``rotate_if_over_limit`` 数的是同一个数
+           （都按 ``b"\\n"``）。⚠️ 不是「旧实现会在 U+2028/U+2029 上漂」
+           （车道自审 2026-09-19 更正初版这句失实）：旧实现
+           ``for _ in open(path, "r", encoding="utf-8")`` 是**文本模式逐行迭代**，
+           只按 ``\\n`` 切、不把 U+2028/U+2029 当行分隔符，计数本来就一致。
+           真正的差别是下面 ② 的异常语义，以及「和上限判定共用同一实现」这件事本身；
+        ② ``Path.exists()`` 在 Python 3.14 走 ``os.path.exists`` → ``os.stat``，
+           而 ``genericpath.exists`` 的 ``except OSError`` 会把 ``PermissionError``
+           **吞成 False** —— 于是「读不到」和「文件不存在」都返回 0，调用方无从
+           分辨。``count_lines`` 用 ``stat()`` 显式分流：``FileNotFoundError`` → 0，
+           其余 ``OSError`` 上抛。
+
+        （``backend/app`` 内本方法**零调用方**，口径变更无下游语义影响。）
+
+        ⚠️ **代价，如实登记**（车道自审 2026-09-19）：``count_lines`` 会把整份文件
+        读一遍。``store()`` 现在每写一条都先经 ``rotate_if_over_limit`` 扫一次全文件，
+        而这段同步 IO 跑在事件循环上、且持 ``_dead_letter_io_lock``。
+        死信量大时这是一笔新的按文件大小线性增长的开销（本卡未做增量计数优化）。
+        """
+        return _fc.count_lines(self._file_path)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
