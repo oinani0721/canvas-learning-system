@@ -1,0 +1,14 @@
+# LEFTHOOK_EXCLUDE=python-lint 的三样证据（协议 §2.3 带证据过渡条款）
+## 1. 该文件 PREV 版同样 format-dirty（证明漂移是主干既有）
+git show HEAD:backend/app/services/memory_service.py > <tmp>; ruff format --check <tmp>
+  -> Would reformat: memory_service.py ; PREV rc=1
+  -> test_group_family_builder.py PREV 干净 ⇒ 其 dirty 是本次引入 ⇒ 已 ruff format 修正, rc=0
+## 2. 本卡改动行自己合规（零交集，带验伪锚）
+  我的改动行 = 13 行, 区间 1973..1985
+  ruff format 想删改的行 = 58 行
+  交集 = []           ⇒ 我的新增行 format 合规
+  验伪锚: 用 format 已知要动的行 [384] 做同一交集 = [384] (非空) ⇒ 判据有辨别力
+## 3. 真错级规则与类型检查全过
+  ruff check app/services/memory_service.py tests/unit/test_group_family_builder.py -> All checks passed! rc=0
+  pyright app (绝对路径, test -x 自证) -> 0 errors, 80 warnings
+## ⛔ 未 exclude python-typecheck（本批硬禁）

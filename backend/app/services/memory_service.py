@@ -1859,10 +1859,7 @@ class MemoryService:
             # M2 双图检索 (2026-07-13, 路线图 v2): 主图 + 语义影子图同查 —
             # 影子图只由 LLM 抽取通道写入 (semantic_group_id 服务端固定),
             # 读侧扩展让对话上下文能召回蒸馏产物的隐式关系 fact。
-            from app.graphiti.group_id_compat import (
-                sanitize_group_id_for_graphiti,
-                semantic_group_id,
-            )
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
 
             # CARD-G4-1a (2026-08-30): 此前 group_id 为空 → _search_groups=None
             # → graphiti search_ 不带 group_ids = **搜全部 vault**。改 fail-closed
@@ -1877,8 +1874,9 @@ class MemoryService:
             # (审查实锤: q1 完美中文答案搁浅在 punycode 组)
             # —— 这正是 Tier 1 侧的"前缀语义"实现: 组集合 = 本组 + 影子组 +
             # 全部 `本组__*` 子组, 与 read_group_filter 的可见面等价。
-            _search_groups = [_gid_phys, semantic_group_id(_gid_phys)]
-            _search_groups += await self._expand_vault_subgroups(
+            # CARD-G4-5: 组族收敛到单一 builder —— 手拼 [本组, 影子组] 的形态已由
+            # tests/unit/test_group_family_builder.py 的 AST 门禁掉。
+            _search_groups = await self._read_group_family(
                 _gid_phys, fail_sink=coverage_sink
             )
             search_kwargs: Dict[str, Any] = {
@@ -1974,10 +1972,7 @@ class MemoryService:
         try:
             # P0-5 (2026-05-14): sanitize group_id at Graphiti boundary
             # M2 双图检索 (2026-07-13): legacy 路径与 Tier1 保持同构 — 主图+影子图
-            from app.graphiti.group_id_compat import (
-                sanitize_group_id_for_graphiti,
-                semantic_group_id,
-            )
+            from app.graphiti.group_id_compat import sanitize_group_id_for_graphiti
 
             # CARD-G4-1a: legacy 路径与 Tier 1 同修 —— 空 group 时 group_ids=None
             # 同样是全 vault 搜索面 (它是 recipe 不可用时的实际生产路径)。
@@ -1988,8 +1983,19 @@ class MemoryService:
                     group_id, context="memory_service._search_graphiti_legacy"
                 )
             )
-            _legacy_groups = [_gid_phys, semantic_group_id(_gid_phys)]
-            _legacy_groups += await self._expand_vault_subgroups(_gid_phys)
+            # CARD-G4-5: 与 Tier 1 走**同一个** builder（本卡范围仅此一项）。
+            # ⛔ 这里**刻意不传 fail_sink**。本卡初版曾传 `fail_sink=fail_sink`, 自称
+            # "修掉一处不同构", 实为制造新的不同构 —— 本函数的 `fail_sink` 形参由
+            # `_search_graphiti` (:1835) 绑定为 `tier_failures`(**硬失败**通道), 而
+            # Tier 1 侧把同一种失败喂给 `coverage_sink`(:1866)。四态折算 (:2473-2481)
+            # 下 `tier_failures` 非空 + 零候选 ⇒ **unavailable**, `coverage_failures`
+            # 只到 degraded。CARD-G4-2 HIGH-5 的注释 (:2376-2381) 明文要求"子组枚举
+            # 失败只影响检索广度, 不该报成 unavailable" —— 传进去正好违反它。
+            # 实测 A/B: 传 ⇒ EMPTY 变 UNAVAILABLE(独立审查 2026-09-19 同进程复现)。
+            # 正确修法是给本函数加 `coverage_sink` 形参并由 :1835 一并下传, 那要动
+            # CARD-G4-2 的 sink 管道, **不在本卡范围** ⇒ 登记移交, 此处保持改前语义
+            # (legacy 的子组枚举失败仍不可见, 与 PREV 逐条相同)。
+            _legacy_groups = await self._read_group_family(_gid_phys)
             results = await asyncio.wait_for(
                 worker._graphiti.search(
                     query=query,
@@ -2025,6 +2031,31 @@ class MemoryService:
 
     #: 批次1'④: 白板级子组枚举缓存 {前缀: (过期时间戳, 组列表)}
     _subgroup_cache: Dict[str, Any] = {}
+
+    async def _read_group_family(
+        self, gid_phys: str, *, fail_sink: Optional[List[str]] = None
+    ) -> List[str]:
+        """读侧**完整**组族 = 静态半边 + 动态半边 (CARD-G4-5)。
+
+        - 静态半边 `static_group_family(gid_phys)` = `[本组, 影子组]` —— 纯函数,
+          与写侧 `semantic_write_group` 同一个模块、同一套规则。这正是本卡要的
+          "写读组对称": 写进哪个组, 读时一定查得到, 因为两边引用的是同一份代码。
+        - 动态半边 `_expand_vault_subgroups(gid_phys)` = 全部 `本组__*` 子组
+          (中文白板名的 punycode 组就落在这里) —— 要连 Neo4j, 所以留在本类。
+
+        去重**保序**: 静态半边在前, 动态半边追加; 重复的丢掉后面那个。
+        ⚠️ 顺序是否对 Graphiti 的 RRF 有语义影响, 本卡**未证明** (见验收单"未证明"),
+        这里只保证与改前逐元素同序 —— 改前也是 `[本组, 影子组] + 子组`。
+        """
+        from app.graphiti.group_id_compat import static_group_family
+
+        family = list(static_group_family(gid_phys))
+        seen = set(family)
+        for gid in await self._expand_vault_subgroups(gid_phys, fail_sink=fail_sink):
+            if gid not in seen:
+                seen.add(gid)
+                family.append(gid)
+        return family
 
     async def _expand_vault_subgroups(
         self, gid_phys: str, fail_sink: Optional[List[str]] = None

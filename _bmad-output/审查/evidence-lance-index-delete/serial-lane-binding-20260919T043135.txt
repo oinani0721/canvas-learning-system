@@ -1,0 +1,9 @@
+# 串行车道绑定口径（协议 §1）：按本卡 diff 面判，跨卡后续 commit 不算破坏
+## P1-B 本卡改过的代码文件 vs HEAD
+(以上为空 => P1-B 本卡面仍绑定 HEAD)
+
+## 验伪锚：同一判据换成 P1-C 的文件，必须非空（证明判据不是恒空）
+ backend/app/services/memory_service.py | 49 +++++++++++++++++++++++++---------
+ 1 file changed, 37 insertions(+), 12 deletions(-)
+(以上非空 => 判据有辨别力)
+rc=0

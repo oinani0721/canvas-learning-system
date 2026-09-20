@@ -736,26 +736,3 @@ r1 的 M-3（"only bare scope"）、M-4（"有 409 终态"）、r2 的"候选数
 11. 本卡引入：端点无异常边界 ⇒ 逃逸异常由 `CORSExceptionMiddleware` 把 `str(e)[:500]` 回进 body，脱敏不变量无执行面
 12. 既有被提升成契约面：`edge_rationales` 不在 `_BUILTIN_LOGICAL_TABLES`；别名 `vault_id` 未归一化；r5-M2 实害未闭合（只换了 `refusal_kind`）
 13. `partial` 仍留下「有内容表、没指纹表」（BLOCKER 降 HIGH，理由见总账 §三 B-2）
-
----
-
-## §十 条件 (n) 结案 —— 以人审替代达成（用户 2026-09-19 授权）
-
-⚠️ **非 Codex r4。** Codex 实况：r1/r2/r3 已真跑并逐轮整改；r4 因 `gpt-6-astra`
-在当前 ChatGPT 账号返回 400 未能执行（实证 `evidence-lance-index-delete/codex-model-unavailable-20260919.md`）。
-用户裁定「认人审替代，本批收口」，依协议 §1「主 session 人审替代，不等配额」先例。
-
-裁定书：`_bmad-output/审查/CARD-LANCE-INDEX-DELETE-CONTRACT-人审裁定-r4替代-20260919.md`
-（4 项重点核查全过，其中控制组有效性与调用方前提两项由注入/实测支撑；阻断级 = 0）
-
-### ⛔ 不变量的已知例外（随裁定同步声明）
-
-「scoped vault 写过内容表就必有指纹表」在**命名空间碰撞的 vault**（如 `a` 与 `a_file`
-并存）上**有意不成立**。强行成立会让 `a` 建出归属 `a_file` 的表，造成
-① `DELETE /index/a` 永久 409 collision；② `DELETE /index/a_file` 销毁 `a` 的指纹基线。
-此类 vault 退回改前口径，**修法是改 vault id**，不在本卡范围 ⇒ 台账移交。
-
-### 台账登记口径（⛔ 照抄，勿简写）
-
-> P1-B 条件 (n)：**以人审替代达成**（用户 2026-09-19 授权），**非 Codex r4**。
-> Codex 轮次实况 = r1/r2/r3。P1-C（CARD-G4-5）Codex 轮次 = **0**，同批同因，同以人审替代收口。

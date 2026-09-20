@@ -1,0 +1,44 @@
+# zcode r1 findings (B/H/M/L 全文与计数) — 2026-09-19 17:08:30
+# source: _bmad-output/审查/zcode-review-CARD-G4-5-r1.md (.response，pre-header)
+sessionId=sess_52f48188-99e1-40c2-995c-cbca166551ae
+traceId=286a7dbf-8312-48b4-a61d-37842a77113d
+
+== level tag counts ==
+   5 [LOW]
+== summary line ==
+BLOCKER=0 HIGH=0 MEDIUM=0 LOW=5
+
+== full response ==
+补审完成。七个读取面文件已全部核完，树内终态与附录变更集逐行一致（`semantic_write_group` group_id_compat.py:145、`static_group_family` :166、`_read_group_family` memory_service.py:2022、写侧单点 episode_worker.py:602、legacy 无 sink 调用 :1985，行号无漂移）。以下为独立复核报告。
+
+---
+
+## 裁决
+
+**终态通过。** 两条 HIGH 的修复均属实并已落到 `bbd2a9fb` 代码面：legacy sink 回退正确（与改前逐条同语义，四态折算判据在 :2479-2488 读面得到佐证），AST 门加宽后对当前对照面零误红。核心 property、两路径同构门、验伪锚在阅读面上全部成立。未发现 BLOCKER/HIGH/MEDIUM；登记 5 条 LOW（3 条门未覆盖路径、1 条扫描面/豁免匹配、1 条既有命名空间碰撞，均不阻断）。
+
+## §③ 逐项结论
+
+**⓪ 策略真覆盖，未退化。** `_CJK_SEG`（test:65）用 12 字符汉字表、min_size=2，非 ASCII 段必走 `_encode_segment` 的 punycode 分支（group_id_compat.py:52-56）；`physical` 形态在 draw 内过真 sanitize；`already_semantic` 生成逻辑 `vault:…:semantic`，其 sanitize 产物恰是物理影子组——CJK 段时即「punycode+影子」组合也被生成。段数 1–3 混合，不是 ASCII 单段恒等式。一个残留：裸物理影子串直传 `semantic_write_group` 无显式用例，但 sanitize 幂等（无冒号+ASCII 时逐段合规原样返回）与后缀幂等（:137-140，既有契约 test_group_id_compat.py:129-136 已锁）两条链分别被钉住，组合可推导，不单列发现。
+
+**① 无召回收窄。** `semantic_group_id` 的幂等早退是既有行为：改前读侧对影子输入产出的是 `[影子, 影子]` **重复对**（`[gid, semantic_group_id(gid)]` 两元素相同），终态 `[影子]` 与之集合相等——去重只删精确重复，主组永不会被删（仅 shadow==input 时本就无独立主组）。`test_static_group_family_is_idempotent_on_the_shadow_group` 与 edge 用例双钉。
+
+**② 回退属实，登记如实。** :1985 `_read_group_family(_gid_phys)` 不传 sink，默认 None 下 `_expand_vault_subgroups(gid_phys, fail_sink=None)` 与改前的无 sink 调用逐条同语义（异常仅 logger.debug + 返部分，memory_service.py:2108-2115）。四态折算读面证实：`tier_failures` 非空+零候选 → unavailable（:2479-2483），`coverage_failures` 只到 degraded（:2484-2487）——HIGH-1 的定性成立，初版传 sink 确会制造 EMPTY→UNAVAILABLE。「legacy 枚举失败不可观测」在 :1973-1984 注释如实登记并移交 CARD-G4-2，与终态一致。守门测试的 probe 验伪锚先证注入生效再断 sink 为空，空判据不空洞。
+
+**③ 加宽无对照误红，但有未覆盖路径。** 裸 Constant（docstring）不计入——`_builds_shadow_suffix` 只看 JoinedStr.values 与 Add 操作数，控制组 test:562-566 钉住；我核了 vault_scope.py 的 f-string List（`read_group_filter` :641-647）与 memory_service 读面，无含 `__semantic`/`:semantic` 字面的 List/Tuple 元素，真实树断言（test:569-571）干净。未拦下的形态如实登记为下方 LOW 发现 1–3。
+
+**④ 顺序语义无实质变化。** 静态半边在前、动态去重追加、保留首次出现序，与改前逐元素同序；唯一差异是去掉改前可能存在的精确重复（子组枚举的前缀 `本组__*` 恰好匹配 `本组__semantic`，改前会把它追加成第二份）。`group_ids` 在读面是过滤器而非权重表，无按序加权证据；「RRF 顺序影响未证明」的登记诚实且风险近零。
+
+**⑤ 无 ignore 掩盖。** 四个改动文件的读面内零 `type: ignore`/`pyright: ignore`；仅有的 `# noqa: BLE001`（:1933/:2015/:2108）是既有 lint 豁免（HIGH-6 要求的白名单外捕获），非类型抑制。Tier 1 的 `coverage_sink` 透传（:1866-1868）与改前 `_expand_vault_subgroups(…, fail_sink=coverage_sink)` 等价。
+
+**⑥ 其它**：见发现 5（既有、非本卡引入）。
+
+## 发现清单
+
+- [LOW] backend/tests/unit/test_group_family_builder.py:438-450 — `_shadow_names` 只解析 ImportFrom 的 asname，局部变量别名与回调位引用不设防；复现思路：**未被拦下的输入**——在 app/ 内写 `_f = semantic_group_id` 再 `_probe = [g, _f(g)]`，或 `[g, *map(semantic_group_id, gs)]`，calls 与 literals 计数均为 0，门④全绿。
+- [LOW] backend/tests/unit/test_group_family_builder.py:429-435 — 后缀构造只认 JoinedStr 与 `+` 拼接，`%` 格式 / `.format` / 拆分常量 / 变量持后缀均不触发；复现思路：**未被拦下的输入**——把组族写成 `[g, "%s__semantic" % g]` 或 `sfx="__semantic"` 后 `[g, g+sfx]`，`_builds_shadow_suffix` 返 False，门不红。
+- [LOW] backend/tests/unit/test_group_family_builder.py:466 — `p.name != "group_id_compat.py"` 按基名豁免，app/ 子树下任何同名文件整文件免检；且 literals 检查对 compat 模块自身无豁免（当前靠先赋值 `shadow` 再入表才不触发）；复现思路：**门未覆盖的路径**——新建 `app/foo/group_id_compat.py` 内手拼 `[g, semantic_group_id(g)]`，两条断言均不触发。
+- [LOW] backend/tests/unit/test_group_family_builder.py:54-60 — 扫描面仅 `backend/app/**/*.py`，scripts / 迁移 / backend 之外的组族拼接不可见；复现思路：**门未覆盖的路径**——在 `backend/scripts/` 写 `[g, semantic_group_id(g)]` 供服务调用，门④对此无断言。
+- [LOW] backend/app/graphiti/group_id_compat.py:137-142 — 既有（M2 后缀方案，非本卡引入）：任何末段字面名为 `semantic` 的 D16 组，其物理主组与父组影子组是同一字符串，主图/影子图合流、M2 隔离对该组失效；复现思路：**对照输入**——`static_group_family(sanitize_group_id_for_graphiti("vault:v:semantic"))` 因幂等早退只返回单元素 `["vault__v__semantic"]`，与 `vault:v` 的影子组同串（property 策略的 ASCII 段表含 `_`，实际能生成该形态且两端同规则照绿——只影响隔离不影响写读对称，故不阻断本卡）。
+
+BLOCKER=0 HIGH=0 MEDIUM=0 LOW=5

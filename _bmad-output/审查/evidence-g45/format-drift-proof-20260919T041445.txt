@@ -1,0 +1,16 @@
+# 证据：被 python-lint 拦下的两个文件在 **PREV 态就已 format-dirty**（主干既有漂移）
+memory_service.py (PREV 态): 1 file would be reformatted
+group_id_compat.py (PREV 态): 1 file would be reformatted
+
+# 对照：本卡**新增的行**自己是否合规 —— 只 format 本卡 diff 的新增段落做对照
+# （做法：把工作树版与 PREV 版都跑一遍 --check，dirty 集应完全相同 ⇒ 本卡零新增漂移）
+memory_service.py (工作树): 1 file would be reformatted
+group_id_compat.py (工作树): 1 file would be reformatted
+
+# 本卡新文件与只改了 9 行的 episode_worker 必须自己过格式（期望 rc=0）
+2 files already formatted
+rc=0
+
+# ruff check（E9/F63/F7/F82）对全部四个文件
+All checks passed!
+rc=0

@@ -1,0 +1,5 @@
+# zcode r1 binding check — 2026-09-19 17:01:29
+# cmd: git --no-pager diff --stat --no-color bbd2a9fb HEAD -- <4 files>
+diff_exit=0
+output_lines=0
+# 判定：output_lines=0 ⇒ 本卡四文件自 bbd2a9fb 后零改动（串行车道口径）

@@ -1,0 +1,35 @@
+{
+  "commit": "test(g4-5): AST 门加宽至 f-string/拼接/别名三形态 [BATCH-2026-09-18-第十五批 / CARD-G4-5]",
+  "ref": "bbd2a9fb",
+  "sha": "bbd2a9fbd281f9d109c2de91c77763d5f48ba0a5",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:31:20-0700",
+  "code_files": [
+    "backend/tests/unit/test_group_family_builder.py"
+  ],
+  "files": [
+    {
+      "file": "backend/tests/unit/test_group_family_builder.py",
+      "added": 75,
+      "removed": 2,
+      "runtime": 0.17,
+      "risk": "test_or_docs",
+      "risk_conf": 0.66,
+      "urgency": 2.56,
+      "urgency_conf": 0.61,
+      "review": 0.7,
+      "test": 0.91,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 2504,
+    "output_tokens": 158
+  },
+  "latency_ms": {
+    "min": 332,
+    "median": 332,
+    "max": 332
+  }
+}

@@ -1,0 +1,19 @@
+# 先红自证：把三个生产文件退回 PREV 版（工作树副本还原，不用 git show —— 改动未提交）
+# 已备份工作树版本
+# 已退回 PREV 版，跑指定两条先红用例：
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_group_family_builder.py:441: AssertionError: 验伪锚失败: 扫描没找到 static_group_family / semantic_write_group 的 def —— 本次扫描很可能是空的，下面的『= 0』证明不了任何事。ROOT=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/app
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_group_family_builder.py:256: AssertionError: legacy 路径的子组枚举失败没有进 fail_sink ⇒ 这条降级在该路径上不可观测。
+FAILED tests/unit/test_group_family_builder.py::test_no_second_place_assembles_the_group_family
+FAILED tests/unit/test_group_family_builder.py::test_legacy_path_reports_subgroup_enumeration_failure_into_its_fail_sink
+======================== 2 failed, 10 warnings in 2.11s ========================
+# 已还原工作树版本
+
+## ⚠️ 如实记录：AST 门先红的位置与卡文 (b)(甲) 的预期不同
+卡文 (b)(甲) 写「断言 literals == 0，改前 2」，期望红在 literals。
+实测红在**验伪锚**：PREV 版还没有 static_group_family / semantic_write_group 的 def，
+而本门的第一条断言就是「扫描必须找到 builder 的 def」——它先触发。
+这是门的**正确**行为（它在说「这次扫描的前提不成立」），不是缺陷。
+「改前 literals = 2」这个事实由**独立**证据给出：ast-gate-before-*.txt 的脚本
+没有验伪锚前置，直接数出 calls=3 literals=2（call = episode_worker:600 /
+memory_service:1867 / :1978；literal = memory_service:1867 / :1978）。
+⇒ 两条先红都成立（该门在改前确实不通过），只是红点位置不同，已登记。

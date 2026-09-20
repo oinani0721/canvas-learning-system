@@ -1,0 +1,10 @@
+# 负控②: legacy 路径改回手拼 [_gid_phys]（不经 builder、不含影子组）
+# 跑前:
+4326846a8c917af35c7ad807a65fa04eb1f61f9c4dc798b857551b24fc9b4fd3  backend/app/services/memory_service.py
+Traceback (most recent call last):
+  File "<stdin>", line 6, in <module>
+AssertionError: 锚点 0
+======================= 14 passed, 10 warnings in 1.74s ========================
+pytest_rc=0
+# 跑后(已还原):
+4326846a8c917af35c7ad807a65fa04eb1f61f9c4dc798b857551b24fc9b4fd3  backend/app/services/memory_service.py

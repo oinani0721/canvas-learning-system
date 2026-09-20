@@ -1,0 +1,7 @@
+# 改前基线（PREV=HEAD 版本，git archive 取出，不动工作树）
+call episode_worker.py 600
+literal memory_service.py 1867
+literal memory_service.py 1978
+call memory_service.py 1867
+call memory_service.py 1978
+calls=3 literals=2 builder_calls=0

@@ -1,0 +1,32 @@
+工作树 spans: {'_expand_vault_subgroups': (2041, 2111), '_read_group_family': (2016, 2039), '_search_graphiti': (1788, 1937), '_search_graphiti_legacy': (1939, 2011)}
+PREV   spans: {'_expand_vault_subgroups': (2016, 2086), '_search_graphiti': (1788, 1939), '_search_graphiti_legacy': (1941, 2011)}
+memory_service 越界 hunk: [('+', 2016, 25)]
+episode_worker hunks: [(592, 4, 592, 6), (600, 1, 602, 1)]
+episode_worker 越界: 无
+
+## 唯一「越界」项的定性：+2016,25 = 新增的 _read_group_family 本身
+
+工作树 spans 里 `_read_group_family` = (2016, 2039)，该 hunk 覆盖 [2016, 2040] ——
+25 行新增方法 + 1 行方法间空行。脚本判它「越界」的原因是判据写成
+`2016 + 25 - 1 = 2040 > 2039`，多出的那 1 行是**方法之间的空行**，不属于任何方法的 AST span。
+
+⇒ 属**判据边界**问题，不是地盘越界。卡文 (l) 明确允许在这里新增 `_read_group_family`。
+如实记录而不是改判据去迎合结果。
+
+## ⚠️ 本轮抓到并已还原的一次真越界（如实记录）
+
+我先前对 `memory_service.py` / `group_id_compat.py` 跑了 **ruff format 全文件**，
+而这两个文件在 **PREV 态就已 format-dirty**（主干既有漂移，`ruff format --check` 对
+PREV 版实测 rc=1）。结果是把**主干的格式漂移揽进本卡地盘**：越界 hunk 一度多达 30 处
+（:384 / :710 / :758 / :809 / :827 / :942 / :1010 / :1126 … 全是纯格式重排）。
+
+处置：把两文件退回 PREV 态，**不跑 format**、只手工重做语义改动。现在：
+
+- `memory_service.py` 只剩 5 个 hunk，全在 `_search_graphiti` / `_search_graphiti_legacy` /
+  新增 `_read_group_family` 三处声明区间内；
+- `group_id_compat.py` 只剩 3 个 hunk（模块 docstring ×2 + 新增 builder 段）；
+- `episode_worker.py` 2 个 hunk，全在 :592-602。
+
+**教训**：对**本就 format-dirty** 的既有文件跑全文件 `ruff format`，等于把别人的漂移写进
+自己的 diff。改既有文件前先 `ruff format --check` 它的 PREV 版；dirty 的话只手工保证
+**自己新增的行**合规，不动别的行。

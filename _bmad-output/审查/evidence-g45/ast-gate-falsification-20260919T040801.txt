@@ -1,0 +1,7 @@
+① 副本原样（应与工作树改后相同）:
+calls=0 literals=0 builder_calls=4
+② 副本末尾加一行**真代码** [_x, semantic_group_id(_x)]（应 calls+1 literals+1）:
+calls=1 literals=1 builder_calls=4
+③ 把那行改成**注释**（应回到 ① 的值 ⇒ 门数 AST 不数文本）:
+calls=0 literals=0 builder_calls=4
+副本已删（不入库）

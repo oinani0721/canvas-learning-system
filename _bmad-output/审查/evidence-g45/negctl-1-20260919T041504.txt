@@ -1,0 +1,12 @@
+# 负控①（新 HEAD b41f49c3 重跑）: static_group_family 只返 [gid]
+# 跑前:
+757ed9da6535fc65114bac5caabd8ac25b7d73f10f8335cf602bb84e5be82024  backend/app/graphiti/group_id_compat.py
+# 变异已注入(自证): True
+E   AssertionError: 写进去的组不在读取家族里 ⇒ 语义影子图的内容搜不到。
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_group_family_builder.py:102: AssertionError: 写进去的组不在读取家族里 ⇒ 语义影子图的内容搜不到。
+FAILED tests/unit/test_group_family_builder.py::test_write_group_is_always_inside_the_read_family
+FAILED tests/unit/test_group_family_builder.py::test_static_group_family_edge_cases
+FAILED tests/unit/test_group_family_builder.py::test_both_search_paths_pass_the_same_group_family
+pytest_rc=1
+# 跑后(已还原):
+757ed9da6535fc65114bac5caabd8ac25b7d73f10f8335cf602bb84e5be82024  backend/app/graphiti/group_id_compat.py

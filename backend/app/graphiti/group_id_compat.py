@@ -16,8 +16,13 @@ Background:
 
     Boundary locations (must call sanitize before passing to graphiti_core):
     - `episode_worker._process_task` → graphiti.add_episode(group_id=...)
+      —— CARD-G4-5 起经 `semantic_write_group()` 单一入口, 不再手拼。
     - `memory_service._search_graphiti` → graphiti.search_(group_ids=[...])
     - `memory_service._search_graphiti_legacy` → graphiti.search(group_ids=[...])
+      —— 这两处 CARD-G4-5 起都经 `memory_service._read_group_family()`, 它
+      = `static_group_family()` (静态半边, 本模块) + `_expand_vault_subgroups()`
+      (动态半边, 连 Neo4j 故留在 memory_service)。手拼 `[gid, semantic_group_id(gid)]`
+      的形态由 `tests/unit/test_group_family_builder.py` 的 AST 门禁掉。
 
     Reverse direction: not currently needed — Canvas readers query
     Neo4j's EpisodicNode.source_description / node_id, not its group_id
@@ -135,6 +140,50 @@ def semantic_group_id(group_id: str) -> str:
         return group_id
     sep = ":" if ":" in group_id else _GRAPHITI_SEPARATOR
     return f"{group_id}{sep}{_SEMANTIC_SUFFIX}"
+
+
+def semantic_write_group(group_id: str) -> str:
+    """**写侧唯一入口**: 任意来源 group_id → 语义影子图的物理组 (CARD-G4-5)。
+
+    := ``semantic_group_id(sanitize_group_id_for_graphiti(group_id))``
+
+    为什么要有这个函数: 写侧 (``episode_worker``) 与读侧 (``memory_service`` 两处)
+    此前各自手拼这条链。手拼的问题不是"写错了", 而是**改一处不会带另一处** ——
+    写侧哪天改了后缀或规范化顺序, 读侧的组集合就不再包含它, 表现为检索静默少召回。
+
+    与读侧的关系 (本函数的**契约**, 由 ``test_group_family_builder.py`` 的 property 锁住):
+
+    - ``semantic_write_group(g) in static_group_family(sanitize_group_id_for_graphiti(g))``
+      —— 写进去的组一定在读取家族里;
+    - ``vault_scope.group_in_read_scope(semantic_write_group(g), g) is True``
+      —— 且落在 R4 前缀可见面内 (``scope`` 或 ``scope + "__"`` 前缀)。
+
+    幂等: 物理形态 / 逻辑形态 / 已带后缀的输入都收敛到同一个 ``…__semantic``。
+    """
+    return semantic_group_id(sanitize_group_id_for_graphiti(group_id))
+
+
+def static_group_family(group_id_phys: str) -> list:
+    """**读侧静态半边唯一入口**: 物理组 → ``[本组, 影子组]`` (CARD-G4-5)。
+
+    ⚠️ 只是**静态**半边。读侧完整的组族 = 本函数 + **动态**半边 (``本组__*`` 子组枚举),
+    后者由 ``memory_service._expand_vault_subgroups`` 提供 —— 它要连 Neo4j, 而本模块
+    必须保持**纯函数**(无 I/O、无 ContextVar), 所以不搬进来。两者的拼接点是
+    ``memory_service._read_group_family``。
+
+    去重保序: 输入若**本身就是影子组**, 返回 ``[gid]`` 单元素 (``semantic_group_id``
+    对已带后缀的输入幂等返回自身, 拼出来会重复)。空串返回 ``[]``。
+
+    ⛔ 不在这里做 ``sanitize``: 调用方给的已经是物理组 (读侧在 ``require_read_group``
+    之后就已物理化)。在这里再 sanitize 一次会把参数语义从"物理组"悄悄放宽成"任意组",
+    而两者在出错时的表现不同 —— 物理组进来才是可断言的前提。
+    """
+    if not group_id_phys:
+        return []
+    shadow = semantic_group_id(group_id_phys)
+    if shadow == group_id_phys:
+        return [group_id_phys]
+    return [group_id_phys, shadow]
 
 
 def to_physical_group_id(group_id: str) -> str:

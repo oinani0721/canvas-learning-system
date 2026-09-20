@@ -1,0 +1,12 @@
+# 负控②（新 HEAD 重跑）: legacy 改回手拼 [_gid_phys]
+# 跑前:
+a01583924d10471a5c2a7b1c158d02db1ec7afd88f073c792b9fb1eb834ae978  backend/app/services/memory_service.py
+# 变异已注入(自证): True
+E   AssertionError: 两条读路径的组集合不同构 ⇒ 同一次查询走哪条路径决定了能搜到什么。
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_group_family_builder.py:210: AssertionError: 两条读路径的组集合不同构 ⇒ 同一次查询走哪条路径决定了能搜到什么。
+FAILED tests/unit/test_group_family_builder.py::test_both_search_paths_pass_the_same_group_family
+FAILED tests/unit/test_group_family_builder.py::test_legacy_path_reports_subgroup_enumeration_failure_into_its_fail_sink
+================== 2 failed, 12 passed, 10 warnings in 1.96s ===================
+pytest_rc=1
+# 跑后(已还原):
+a01583924d10471a5c2a7b1c158d02db1ec7afd88f073c792b9fb1eb834ae978  backend/app/services/memory_service.py

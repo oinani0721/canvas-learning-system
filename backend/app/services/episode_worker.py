@@ -640,15 +640,17 @@ class GraphitiEpisodeWorker:
         # 也不会 invalidate 主图边。分组在此单点固定, 不暴露给任何 enqueue
         # 调用方; 主图只由 graphiti_structured_writer 直写。读侧已同构:
         # search_memories 主图+影子图同查。
-        from app.graphiti.group_id_compat import (
-            sanitize_group_id_for_graphiti,
-            semantic_group_id,
-        )
+        # CARD-G4-5: 写侧收敛到单一入口 semantic_write_group ——
+        # 它就是 semantic_group_id(sanitize_group_id_for_graphiti(x)) 这条链本身,
+        # 行为逐字节等价(既有三处字面量断言原样绿)。收敛的意义是: 读侧
+        # memory_service._read_group_family 引用的是**同一个模块的同一套规则**,
+        # 改一处两边一起改, 不会出现"写进去的组不在读取家族里"。
+        from app.graphiti.group_id_compat import semantic_write_group
 
         kwargs: dict[str, Any] = {
             "name": task.name,
             "episode_body": task.episode_body,
-            "group_id": semantic_group_id(sanitize_group_id_for_graphiti(task.group_id)),
+            "group_id": semantic_write_group(task.group_id),
             "source_description": task.source_description,
             "reference_time": task.reference_time,
         }

@@ -1,0 +1,11 @@
+# 负控③（新 HEAD 重跑）: _read_group_family 内加手拼字面量
+# 跑前:
+a01583924d10471a5c2a7b1c158d02db1ec7afd88f073c792b9fb1eb834ae978  backend/app/services/memory_service.py
+# 变异已注入(自证): True
+E   AssertionError: 又有地方手拼组族字面量 [本组, semantic_group_id(本组)]: ['memory_service.py:2035']
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/backend/tests/unit/test_group_family_builder.py:445: AssertionError: 又有地方手拼组族字面量 [本组, semantic_group_id(本组)]: ['memory_service.py:2035']
+FAILED tests/unit/test_group_family_builder.py::test_no_second_place_assembles_the_group_family
+================== 1 failed, 13 passed, 10 warnings in 1.85s ===================
+pytest_rc=1
+# 跑后(已还原):
+a01583924d10471a5c2a7b1c158d02db1ec7afd88f073c792b9fb1eb834ae978  backend/app/services/memory_service.py

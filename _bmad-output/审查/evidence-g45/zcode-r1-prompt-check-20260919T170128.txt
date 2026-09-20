@@ -1,0 +1,27 @@
+# zcode r1 prompt pre-send checks — 2026-09-19 17:01:28
+== wc ==
+     847   47941 _bmad-output/审查/prompts/zcode-review-prompt-CARD-G4-5-r1.md
+== sections ==
+12:## ① 背景 + 最小读取面（写死）
+40:## ② 作者自述（请独立核对，勿直接采信）
+50:## ③ 按重要性排序的问题（逐项给结论）
+60:## ④ 输出格式
+67:## ⑤ 边界
+77:## 附录：变更集全文（git diff d4c19c06 → bbd2a9fb，4 文件）
+== sha256 ==
+0c6bf0d7f8ccf1e4f6e8cbe4d611f566d5f6e551855c5e49f4ed622514570e63  _bmad-output/审查/prompts/zcode-review-prompt-CARD-G4-5-r1.md
+
+== 禁用措辞扫描（全文，期望仅在附录 diff 段）==
+692:+#: 语义影子组的后缀标记。⛔ 只在**构造式**里认它（f-string 片段 / `+` 拼接操作数），
+816:+    改前的门只认 `ast.Call` 且名为 `semantic_group_id`，于是这三种写法整建制绕过：
+834:+    assert "sg" in names, f"别名未被解析出来 ⇒ 别名调用仍可绕过。names={names!r}"
+scan_rc=0
+
+== 禁用措辞扫描（撰写段 = 第 1-76 行，期望 0 命中）==
+head_scan_rc=1
+
+== 旧模型名扫描（期望 0）==
+0
+
+== 附录起止 ==
+77:## 附录：变更集全文（git diff d4c19c06 → bbd2a9fb，4 文件）

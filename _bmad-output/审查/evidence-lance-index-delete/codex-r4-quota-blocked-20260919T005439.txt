@@ -14,3 +14,33 @@ ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usa
    没有任何一轮 Codex 绑到最终 HEAD。交主 session 裁定。
 ## 复测纪律自证（记忆: 外部服务的重置时间是一次观测不是不变量）
 本次**做了**独立复测，结论是确实限流 —— 不是继承第一次的报错。
+
+## 第三次复测（2026-09-19T04:05:36，用户重新登录 Claude 之后 / 距首次受阻约 2h）
+最小探针仍报 usage limit ×2。
+⇒ Codex CLI 的配额与 Claude 账号相互独立，重登不解除。D-15 仍未达成，维持交主 session 人审。
+
+## 第四次复测（2026-09-19，用户 /login 换账号之后）—— 失败模式变了，我一度判错
+
+探针 stderr 的 `usage limit` 命中 **0**，我据此写了「配额恢复了」并去补跑 r4。**这是错的**。
+
+实际 stderr：
+
+    ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error",
+    "message":"The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account."}}
+
+⇒ 不是配额恢复，是**失败模式换了**：从「配额用尽」变成「当前 ChatGPT 账号不支持 gpt-6-astra」。
+r4 完整 prompt 同样 0 字节，同一个 400。
+
+### 我的判据错在哪
+
+探针只 `grep -c 'usage limit'`，把「那一种失败消失了」当成「成功了」。
+这与工程坑索引里那条「期望 0/空 的判据必须先证输入面非空」同族 ——
+**0 命中有两种成因：真的通过，或者换了一种失败**。
+
+正确判据应当锚在**成功标志**上（stdout 非空 / 出现 `PROBE-OK`），而不是某一种失败的缺席。
+
+### 现状
+
+- 用户 2026-09-05 裁定 D：Codex 统一 `-m gpt-6-astra -c model_reasoning_effort="ultra"`；
+- 当前账号跑不了这个模型（400），换模型需要**用户裁定**，车道不得自判；
+- ⇒ **D-15 仍未达成**，维持交主 session 人审（人审清单已备好）。
