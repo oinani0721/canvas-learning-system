@@ -1,0 +1,12 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index bd5109e2..54b271c5 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -727,7 +727,6 @@ def _persist_card_states_bytes(target: _Path, payload: bytes, seq: int) -> None:
+         try:
+             with open(tmp, "wb") as fh:
+                 fh.write(payload)
+-                fh.flush()  # 先把缓冲写出去, 否则下一行 fsync 同步的是空文件
+                 os.fsync(fh.fileno())
+             os.replace(tmp, target)
+             _card_states_published_seq = seq

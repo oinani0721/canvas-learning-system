@@ -11,18 +11,45 @@ returns `_VaultScopedCardStates.to_nested()` — a vault-scoped nested mapping) 
 `json.dumps(..., ensure_ascii=False, indent=2)`. The write is not incremental: each successful
 call replaces the whole persisted document with the current in-memory contents.
 
-The write MUST be performed as **temp-file-then-atomic-replace**: the serialized text is written
-to `_CARD_STATES_FILE.with_suffix(".json.tmp")` and only then moved onto `_CARD_STATES_FILE` via
-`Path.replace`; both filesystem steps are dispatched through `asyncio.to_thread`. The method MUST
-NOT open the destination path in write mode, so a failure occurring before the replace step leaves
-the destination's previous contents unchanged.
+The write MUST be performed as **temp-file-then-atomic-replace**: the serialized text is first
+encoded to UTF-8 **before any file is opened**; the resulting bytes are written to the
+`_CARD_STATES_FILE.with_suffix(".json.tmp")` sibling, flushed and `os.fsync`'d, published onto
+`_CARD_STATES_FILE` by `os.replace`, and the parent directory is `os.fsync`'d afterwards. The whole
+sequence is dispatched through **one** `asyncio.to_thread` call. Encoding first is what keeps an
+unencodable payload from ever creating the temp file; the `os.fsync` on the temp file is what keeps
+a successful rename from publishing a name whose data has not yet reached the device. Every failure
+path once the temp file exists MUST attempt to remove it. That removal is itself I/O and can fail:
+`missing_ok=True` suppresses only `FileNotFoundError`, and a cleanup that fails for another reason
+surfaces as an `OSError` and is normalized like any other, rather than being silently ignored. The
+guarantee is therefore that every failure path *attempts* the removal — not that a `.json.tmp` can
+never survive a call whose cleanup itself failed. The method MUST NOT open the
+destination path in write mode, so a failure occurring before the replace step leaves the
+destination's previous contents unchanged.
+
+The whole filesystem sequence MUST additionally hold a module-level `threading.Lock`
+(`_card_states_file_lock`), so that it is serialized between *threads* and not only between
+coroutines. `async with _card_states_lock` releases the lock when a coroutine is cancelled, while
+`asyncio.to_thread` cannot cancel a thread that has already started; without the thread lock two
+threads can therefore sit on the same deterministic `.json.tmp` path, where the later one's
+`open(tmp, "wb")` truncates the very inode the earlier one is still writing through. The temp file
+name is deterministic rather than random, so this serialization covers one process only: concurrent
+processes or workers are explicitly out of scope here.
+
+Mutual exclusion is not ordering, so each call MUST also take a monotonic sequence number **before**
+its thread is dispatched, and the publish MUST be discarded when a snapshot with a greater or equal
+sequence number has already landed. Without that check, the still-running thread of a cancelled call
+can publish a payload serialized at an earlier moment *after* a newer snapshot has landed and
+cleared the dirty markers — a silently lost update. Discarding is correct rather than lossy because
+every write is a **full** snapshot of the same in-memory container, so the newer one already
+contains everything this call would have written; the call therefore still reports success.
 
 All card-state access and I/O — reading the previous value, applying the optional `pending`
 mutation, serializing, and both filesystem steps — MUST execute inside the
 `async with _card_states_lock:` critical section (a module-level `asyncio.Lock`). Applying the
 mutation inside the lock is what binds the return value to *this* call's `card_data`: a mutation
 applied outside the lock could be overwritten by a concurrent call, making `True` unable to
-testify to this call's data.
+testify to this call's data. That `asyncio.Lock` alone does not cover a cancelled call whose worker
+thread is still running, which is why the filesystem sequence also takes `_card_states_file_lock`.
 
 When `pending` is supplied and its vault scope cannot be resolved, the method MUST **fail closed**:
 `_card_states_try_set()` returns `False`, the concept is recorded in `self._unpersisted_concepts`,
@@ -66,10 +93,11 @@ latter.
 - **GIVEN** a `ReviewService` whose `self._card_states` holds at least one card state
 - **WHEN** `await review_service._save_card_states()` completes successfully
 - **THEN** the serialized text was written to the `.json.tmp` sibling path and moved onto
-  `_CARD_STATES_FILE` by `Path.replace`
+  `_CARD_STATES_FILE` by `os.replace`
 - **AND** `_CARD_STATES_FILE` was never opened in write mode by this method
 - **AND** the persisted document is the nested vault-scoped snapshot produced by
   `_card_states_payload(self._card_states)`, not a partial or incremental update
+- **AND** no `.json.tmp` sibling remains after the call
 
 #### Scenario: Unresolvable vault scope fails closed without any filesystem write
 
@@ -89,6 +117,7 @@ latter.
 - **AND** `self._card_states` no longer carries this call's mutation — the previous value is
   restored, or the key is removed when there was none
 - **AND** the concept is recorded in `self._unpersisted_concepts`
+- **AND** no `.json.tmp` sibling was created (encoding happens before any file is opened)
 
 #### Scenario: A successful snapshot clears every dirty marker without restoring lost values
 
@@ -112,3 +141,28 @@ latter.
   and that pair is not in the set
 - **AND** a bare-`concept_id` marker identity would instead have reported vault B's `c` as
   unpersisted
+
+#### Scenario: A failure after the temp file exists leaves no residue and keeps the destination unchanged
+
+- **GIVEN** `_CARD_STATES_FILE` already holds a previous snapshot
+- **AND** `pending = (concept_id, card_data)` is serializable, so the temp file does get created
+- **WHEN** `os.replace` raises `OSError` while publishing the temp file onto the destination
+- **THEN** `await review_service._save_card_states(pending)` returns `False` instead of propagating
+- **AND** `concept_id`'s dirty key is present in `self._unpersisted_concepts`
+- **AND** no `.json.tmp` sibling remains — the cleanup runs on every failure path, not only on the
+  replace step (a cleanup that itself fails is the one case where a sibling can survive, and it is
+  reported as a `False` return like any other `OSError`)
+- **AND** `_CARD_STATES_FILE` is byte-for-byte identical to the previous snapshot
+- **AND** at least one `os.fsync` happened **before** the `os.replace` attempt, so a rename that
+  had succeeded could not have published a name whose data was still only in the page cache
+
+#### Scenario: A stale snapshot never overwrites a newer one that already landed
+
+- **GIVEN** a snapshot carrying sequence number `n` has already been published onto
+  `_CARD_STATES_FILE`
+- **WHEN** a thread belonging to an earlier, cancelled call tries to publish its own payload, whose
+  sequence number is smaller than `n`
+- **THEN** that publish is discarded: `_CARD_STATES_FILE` still holds the snapshot for `n`, byte for
+  byte, and no `.json.tmp` is left behind
+- **AND** a later call whose sequence number is greater than `n` does publish, so the check
+  discriminates by sequence rather than refusing every write

@@ -1,0 +1,13 @@
+# [存档说明] 卡文 (m) 收工残留实测。⚠️ 原为 0 字节 —— 「命令没跑成」与「结果真为空」
+# 在磁盘上同形，故补自描述头（协议「0 字节存档不进 commit」）。补写时刻 2026-09-18T21:56:27+0800。
+#
+$ git status --porcelain backend/data
+rc=0  (无输出 = 无未忽略残留)
+
+$ find backend/data -name 'fsrs_card_states*'
+rc=0  (无输出 = 连被 .gitignore:8 忽略的那个也不存在)
+
+# 验伪锚：同口径下一个已知存在的文件必须被命中
+$ find backend/data -name 'reference_priority.json'
+backend/data/reference_priority.json
+rc=0

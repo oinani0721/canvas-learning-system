@@ -1,0 +1,6 @@
+os.linesep='\n'
+old_write_text  sha256=1cd4369d65e278c4e7638d6d56a3cc479c0ab928ac24e775f7377895ef277500 size=181
+new_open_wb     sha256=1cd4369d65e278c4e7638d6d56a3cc479c0ab928ac24e775f7377895ef277500 size=181
+BYTE_IDENTICAL=True
+FALSIFICATION_ANCHOR_differs=True
+rc=0

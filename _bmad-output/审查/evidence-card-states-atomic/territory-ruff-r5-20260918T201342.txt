@@ -1,0 +1,51 @@
+# [绑定] HEAD=d317b2ee7dd6cad8b68da913642d78cdd25a9e5d  2026-09-18T20:13:42+0800
+
+### 字面 argv 1
+git --no-pager diff --stat --no-color 9c4e7e82 HEAD -- . ":(exclude)_bmad-output"
+ backend/app/services/review_service.py             |  94 ++-
+ backend/tests/regression/test_g3_7_truth_source.py | 701 +++++++++++++++++++++
+ openspec/specs/concept-identity/spec.md            |  68 +-
+ 3 files changed, 851 insertions(+), 12 deletions(-)
+
+### 字面 argv 2（验伪锚：去掉 exclude 多出的 _bmad-output/ 路径数）
+git --no-pager diff --name-only --no-color 9c4e7e82 HEAD | grep -c "^\"\?_bmad-output/"
+148
+
+### 字面 argv 3（禁区，必须空）
+git --no-pager diff --stat --no-color 9c4e7e82 HEAD -- backend/openapi.json backend/app/utils/atomic_io.py backend/app/api/v1/endpoints/review.py backend/app/models backend/tests/unit backend/tests/conftest.py openspec/changes
+(上方无输出 = 禁区零改动)
+
+### 字面 argv 4（review_service.py hunk 头，须恰 4）
+git --no-pager diff --no-color 9c4e7e82 HEAD -- backend/app/services/review_service.py | grep '^@@'
+@@ -60,9 +60,12 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
+@@ -656,6 +659,87 @@ def _card_states_count(states: Any) -> int:
+@@ -925,8 +1009,8 @@ class ReviewService:
+@@ -971,9 +1055,9 @@ class ReviewService:
+
+### 字面 argv 5（ruff check）
+backend/.venv/bin/ruff check -- backend/app/services/review_service.py backend/tests/regression/test_g3_7_truth_source.py
+All checks passed!
+ruff_check_rc=0
+
+### 字面 argv 6（ruff format --check）
+backend/.venv/bin/ruff format --check -- backend/app/services/review_service.py backend/tests/regression/test_g3_7_truth_source.py
+2 files already formatted
+ruff_format_rc=0
+
+### 字面 argv 7（验伪锚 A：F821 必红）
+backend/.venv/bin/ruff check --config backend/ruff.toml -- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p4-fsrs/4fddf418-6645-4f1e-b57c-b503c31ea281/scratchpad/ruff_anchor_f821.py
+F821 Undefined name `undefined_name_zz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p4-fsrs/4fddf418-6645-4f1e-b57c-b503c31ea281/scratchpad/ruff_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_zz
+  |            ^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_f821_rc=1
+
+### 字面 argv 8（对照锚 B：F401 未启用必绿）
+backend/.venv/bin/ruff check --config backend/ruff.toml -- /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p4-fsrs/4fddf418-6645-4f1e-b57c-b503c31ea281/scratchpad/ruff_anchor_f401_control.py
+All checks passed!
+control_f401_rc=0

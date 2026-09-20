@@ -1,0 +1,31 @@
+# [绑定] HEAD=b173eb4480d8ca00b98474d576c3c4c723fe32b3  2026-09-18T18:46:49+0800  review_service.py sha256=64d62ddd473a0e5c1d0d62ed88144c3171a073ec95aab857b0b0121678182e59
+# [命令] python3 ast_gate.py backend/app/services/review_service.py  /  … $EV/rs-base.py
+
+## 改后（当前 HEAD）
+file=backend/app/services/review_service.py
+import_os=True
+saver_span=981-1059
+to_thread=1
+  to_thread_arg0@1036=_persist_card_states_bytes
+write_text_attr_refs=0
+encode_calls=1 encode_min_lineno=1035 to_thread_min_lineno=1036
+encode_before_to_thread=True
+helper=present helper_span=671-717
+  helper_fsync_calls=2
+  helper_replace_calls=1
+  helper_unlink_calls=1
+  helper_open_calls=2
+  helper_unlink_in_finally=True at=[717]
+
+## 验伪锚：同一脚本对 git show 9c4e7e82:… 的副本
+file=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/_bmad-output/审查/evidence-card-states-atomic/rs-base.py
+import_os=False
+saver_span=920-999
+to_thread=2
+  to_thread_arg0@975=tmp_file.write_text
+  to_thread_arg0@976=tmp_file.replace
+write_text_attr_refs=1
+  write_text_ref@975=tmp_file.write_text
+encode_calls=0 encode_min_lineno=None to_thread_min_lineno=975
+encode_before_to_thread=False
+helper=absent

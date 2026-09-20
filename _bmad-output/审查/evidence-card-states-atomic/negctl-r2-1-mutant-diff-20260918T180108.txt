@@ -1,0 +1,14 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index 96bee37c..d4ddf79a 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -725,8 +725,7 @@ def _persist_card_states_bytes(target: _Path, payload: bytes) -> None:
+         finally:
+             os.close(dir_fd)
+     finally:
+-        if _tmp_is_ours(tmp, tmp_ino):
+-            tmp.unlink(missing_ok=True)
++        pass  # NEGCTL-1: 只拆掉 finally 里的清理动作 (逐字删这几行 = SyntaxError)
+ 
+ 
+ class ReviewStatus(str, Enum):

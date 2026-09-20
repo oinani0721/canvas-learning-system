@@ -1,0 +1,4 @@
+# [绑定] HEAD=b173eb4480d8ca00b98474d576c3c4c723fe32b3  2026-09-18T18:46:49+0800  review_service.py sha256=64d62ddd473a0e5c1d0d62ed88144c3171a073ec95aab857b0b0121678182e59
+# [命令] (cd backend && "$P" app 2>&1 | grep -E '^[0-9]+ errors?, ')  · P=card-v5-lance/backend/.venv/bin/pyright
+0 errors, 80 warnings, 0 informations
+pyright_pipeline_rc=0

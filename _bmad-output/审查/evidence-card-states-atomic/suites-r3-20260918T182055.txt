@@ -1,0 +1,23 @@
+# [绑定] HEAD=7c504f13b8aa2659120e228b9cc7b38f70c37e29  开跑=2026-09-18T18:20:55+0800
+# [命令] cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -q -p no:cacheprovider -rfE <9 个点名文件>
+# [源码 sha256] review_service.py=48116cade5669144b720830eab9742f173b2b407d4e7cf3eea008d24660cc55c  test_g3_7=66c72731ec2d317729facd8b9e175099725294e665a2d8e57a43fe0842f86a62
+#
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 155 items
+
+tests/unit/test_review_service_fsrs.py ................................. [ 21%]
+..................                                                       [ 32%]
+tests/unit/test_epic32_p0_fixes.py .............                         [ 41%]
+tests/unit/test_card_state_concurrent_write.py ...                       [ 43%]
+tests/unit/test_fsrs_state_query.py ................                     [ 53%]
+tests/unit/test_mastery_fsrs_projection_boundary.py ......               [ 57%]
+tests/regression/test_g3_5_vault_keyed_card_states.py .................. [ 69%]
+...                                                                      [ 70%]
+tests/regression/test_g3_7_truth_source.py ............................. [ 89%]
+....                                                                     [ 92%]
+tests/regression/test_debt8_fsrs_fallback_honest.py 

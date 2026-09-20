@@ -1,0 +1,129 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index bd5109e2..4fb52763 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -60,12 +60,9 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
+ """
+ 
+ import asyncio
+-import itertools
+ import json
+-import os
+ import random
+ import re
+-import threading
+ 
+ import structlog
+ from dataclasses import dataclass
+@@ -659,87 +656,6 @@ def _card_states_count(states: Any) -> int:
+     return len(states)
+ 
+ 
+-#: 落盘那一段(tmp→fsync→replace→清理)的**线程级**串行锁。
+-#: ⚠️ 不能只靠上面那把 asyncio.Lock: 协程被取消时它会**释放**, 而
+-#: ``asyncio.to_thread`` 派出去的线程**取消不掉** —— 于是「上一次落盘的线程还在
+-#: 跑」与「下一次已经拿到 asyncio 锁」可以同时成立, 两条线程会在同一个确定性
+-#: ``.json.tmp`` 路径上互相截断/误删(实测:
+-#: ``_bmad-output/审查/evidence-card-states-atomic/probe-cancel-thread-*.txt``)。
+-#: 本锁只覆盖**进程内**; 跨进程/多 worker 仍需随机 tmp 名, 本卡按卡文硬边界不做。
+-_card_states_file_lock = threading.Lock()
+-
+-#: 落盘序号。**互斥不等于顺序**: 线程锁保证两条落盘线程不重叠, 但不保证谁先。
+-#: 协程被取消后它那条线程仍会跑完, 于是「序列化于较早时刻的 payload」可以**晚于**
+-#: 一份更新的快照落盘 —— 后者已经 `clear()` 掉脏标记, 这次回退因此是**静默丢更新**。
+-#: 每次写的都是全量快照(更新的那份天然包含旧的那份), 所以过期写直接丢弃是语义正确的。
+-#: `itertools.count` 的 `next()` 在 CPython 下是原子的; 取号在派发线程**之前**完成。
+-_card_states_seq = itertools.count(1)
+-#: 已落盘的最大序号 —— 只在持有 `_card_states_file_lock` 时读写。
+-_card_states_published_seq = 0
+-
+-
+-def _persist_card_states_bytes(target: _Path, payload: bytes, seq: int) -> None:
+-    """tmp + fsync + os.replace + 目录 fsync 的**同步**落盘 (整段在一次 to_thread 内跑)。
+-
+-    范式取自 ``canvas-vault/.claude/scripts/sync_board_concepts.py:582-611``
+-    的 ``atomic_write``: 它的 M7 条就是「无 fsync ⇒ rename 的元数据可先于数据
+-    落盘, 掉电留 0 长度白板」—— 那条在真 vault 上发生过, 不是理论风险。
+-
+-    **收 bytes 不收 str**: 编码必须发生在打开任何文件之前。原实现
+-    ``Path.write_text`` 是先 ``open('w')`` 再编码, lone surrogate 的
+-    ``UnicodeEncodeError`` 因此在 tmp 已被建出来之后才抛, 留下一个 0 长度的
+-    ``.json.tmp`` 残留 (调用方的 ValueError 分支只回滚内存, 不碰文件)。
+-
+-    **整段只经一次** ``asyncio.to_thread``: 原实现把 write 与 replace 拆成两次
+-    派发, 两次之间可以被别的协程插进来。
+-
+-    **过期写丢弃**: 互斥不等于顺序。持锁只保证两条落盘线程不重叠, 不保证谁先 ——
+-    被取消的那次调用的线程仍会跑完, 它手里的 payload 序列化于较早时刻, 却可能
+-    **晚于**一份更新的快照落盘, 把后者静默回退(而后者已经 ``clear()`` 掉脏标记)。
+-    ``seq`` 在派发线程**之前**取号, 落盘前与 ``_card_states_published_seq`` 比较,
+-    过期即丢弃; 因为每次写的都是全量快照, 更新的那份天然包含本次的全部内容。
+-
+-    **整段在** :data:`_card_states_file_lock` **内**: 调用方那把 asyncio 锁在协程
+-    被取消时会释放, 而本函数所在的线程取消不掉 —— 只靠 asyncio 锁, 两条线程能
+-    在同一个确定性 tmp 路径上互相截断 (B 的 ``open(tmp,"wb")`` 会 truncate A 正
+-    在用的那个 **inode**, 于是「按 inode 认领」也认不出来)。线程锁让整段真正
+-    串行, 无条件 ``unlink`` 因此重新是安全的。
+-
+-    ``finally`` 里的清理覆盖**全部**失败路径 (open / write / flush / fsync /
+-    replace / 目录 fsync); 成功路径上 tmp 已被 ``os.replace`` 移走, 清理是 no-op。
+-
+-    ⚠️ 三处边界如实声明: ① ``missing_ok=True`` 只吞 ``FileNotFoundError``,
+-    别的 ``OSError`` 照抛 —— 它会顶掉 ``try`` 体里原本的异常, 但两者同属
+-    OSError 族, 调用方归一后的返回值 (``False``) 不变; ② tmp 用确定性 sibling
+-    名而非随机名, **跨进程/多 worker** 在同一路径上互相截断不在本函数的保护
+-    范围内 (卡文硬边界不许换随机名, 已登记); ③ 目录 fsync 失败时文件其实已经
+-    ``os.replace`` 落位, 但异常仍冒到调用方归一成 ``False`` —— 保守诚实口径,
+-    代价是「已落盘却报未持久」。
+-    """
+-    global _card_states_published_seq
+-
+-    tmp = target.with_suffix(".json.tmp")
+-    with _card_states_file_lock:
+-        if seq <= _card_states_published_seq:
+-            # 过期写: 一份更新的全量快照已经落盘, 它包含本次的全部内容。
+-            # 继续写会把新快照回退成旧的(静默丢更新), 所以这里直接丢弃。
+-            return
+-        try:
+-            with open(tmp, "wb") as fh:
+-                fh.write(payload)
+-                fh.flush()  # 先把缓冲写出去, 否则下一行 fsync 同步的是空文件
+-                os.fsync(fh.fileno())
+-            os.replace(tmp, target)
+-            _card_states_published_seq = seq
+-            dir_fd = os.open(target.parent, os.O_RDONLY)  # 目录项本身也要落盘
+-            try:
+-                os.fsync(dir_fd)
+-            finally:
+-                os.close(dir_fd)
+-        finally:
+-            tmp.unlink(missing_ok=True)
+-
+-
+ class ReviewStatus(str, Enum):
+     """复习状态枚举"""
+ 
+@@ -1009,8 +925,8 @@ class ReviewService:
+         fsrs_bridge 写 frontmatter)。调用方须把 persisted 与 truth_source
+         两个信号分开转述, 禁止用前者冒充后者 (D0 修订 T1 / 禁假成功)。
+ 
+-        H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic write
+-        (temp + fsync + replace + finally cleanup) to prevent file corruption.
++        H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic
++        write (temp file + rename) to prevent file corruption.
+ 
+         Args:
+             pending: (concept_id, card_data) 本次要写入的状态。
+@@ -1055,9 +971,9 @@ class ReviewService:
+                     indent=2,
+                 )
+                 # Atomic write: write to temp file then rename
+-                payload = data.encode("utf-8")
+-                seq = next(_card_states_seq)
+-                await asyncio.to_thread(_persist_card_states_bytes, _CARD_STATES_FILE, payload, seq)
++                tmp_file = _CARD_STATES_FILE.with_suffix(".json.tmp")
++                await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
++                await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
+                 logger.debug(f"Saved {_card_states_count(self._card_states)} FSRS card states to {_CARD_STATES_FILE}")
+                 # 全量快照已落盘 → 所有历史写失败的 concept 同时被治愈
+                 self._unpersisted_concepts.clear()

@@ -1,0 +1,12 @@
+file=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/_bmad-output/审查/evidence-card-states-atomic/rs-base.py
+import_os=False
+saver_span=920-999
+to_thread=2
+  to_thread_arg0@975=tmp_file.write_text
+  to_thread_arg0@976=tmp_file.replace
+write_text_attr_refs=1
+  write_text_ref@975=tmp_file.write_text
+encode_calls=0 encode_min_lineno=None to_thread_min_lineno=975
+encode_before_to_thread=False
+helper=absent
+rc=0

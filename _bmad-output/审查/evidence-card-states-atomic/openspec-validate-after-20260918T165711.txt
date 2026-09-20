@@ -1,0 +1,2 @@
+Specification 'concept-identity' is valid
+rc=0

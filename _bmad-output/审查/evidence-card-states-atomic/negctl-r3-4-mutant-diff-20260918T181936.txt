@@ -1,0 +1,14 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index d620d7a5..afca223c 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -134,7 +134,8 @@ _card_states_lock = asyncio.Lock()
+ #: ``.json.tmp`` 路径上互相截断/误删(实测:
+ #: ``_bmad-output/审查/evidence-card-states-atomic/probe-cancel-thread-*.txt``)。
+ #: 本锁只覆盖**进程内**; 跨进程/多 worker 仍需随机 tmp 名, 本卡按卡文硬边界不做。
+-_card_states_file_lock = threading.Lock()
++import contextlib as _negctl_ctx  # NEGCTL-4
++_card_states_file_lock = _negctl_ctx.nullcontext()  # NEGCTL-4: 拆掉线程锁
+ 
+ # ── CARD-G3-7: frontmatter 真相源只读入口 ────────────────────────────────────
+ #: frontmatter **块切分** —— 与 scripts/daily_review_pick.py::scan_nodes 逐字同源

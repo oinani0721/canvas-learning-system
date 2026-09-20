@@ -1,0 +1,13 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index bd5109e2..33844aae 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -1057,7 +1057,7 @@ class ReviewService:
+                 # Atomic write: write to temp file then rename
+                 payload = data.encode("utf-8")
+                 seq = next(_card_states_seq)
+-                await asyncio.to_thread(_persist_card_states_bytes, _CARD_STATES_FILE, payload, seq)
++                _persist_card_states_bytes(_CARD_STATES_FILE, payload, seq)  # NEGCTL-10: 同步直调
+                 logger.debug(f"Saved {_card_states_count(self._card_states)} FSRS card states to {_CARD_STATES_FILE}")
+                 # 全量快照已落盘 → 所有历史写失败的 concept 同时被治愈
+                 self._unpersisted_concepts.clear()

@@ -1,0 +1,13 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index 96bee37c..719de8f7 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -725,7 +725,7 @@ def _persist_card_states_bytes(target: _Path, payload: bytes) -> None:
+         finally:
+             os.close(dir_fd)
+     finally:
+-        if _tmp_is_ours(tmp, tmp_ino):
++        if True:  # NEGCTL-3: 拆掉 inode 认领, 退回无条件 unlink
+             tmp.unlink(missing_ok=True)
+ 
+ 

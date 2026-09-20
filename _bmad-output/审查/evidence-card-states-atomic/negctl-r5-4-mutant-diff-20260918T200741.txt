@@ -1,0 +1,14 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index bd5109e2..225e31e3 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -666,7 +666,8 @@ def _card_states_count(states: Any) -> int:
+ #: ``.json.tmp`` 路径上互相截断/误删(实测:
+ #: ``_bmad-output/审查/evidence-card-states-atomic/probe-cancel-thread-*.txt``)。
+ #: 本锁只覆盖**进程内**; 跨进程/多 worker 仍需随机 tmp 名, 本卡按卡文硬边界不做。
+-_card_states_file_lock = threading.Lock()
++import contextlib as _negctl_ctx  # NEGCTL-4
++_card_states_file_lock = _negctl_ctx.nullcontext()  # NEGCTL-4: 拆掉线程锁
+ 
+ #: 落盘序号。**互斥不等于顺序**: 线程锁保证两条落盘线程不重叠, 但不保证谁先。
+ #: 协程被取消后它那条线程仍会跑完, 于是「序列化于较早时刻的 payload」可以**晚于**

@@ -1,0 +1,12 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index 82985f05..ef001129 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -685,7 +685,6 @@ def _persist_card_states_bytes(target: _Path, payload: bytes) -> None:
+         with open(tmp, "wb") as fh:
+             fh.write(payload)
+             fh.flush()
+-            os.fsync(fh.fileno())
+         os.replace(tmp, target)
+         dir_fd = os.open(target.parent, os.O_RDONLY)  # 目录项本身也要落盘
+         try:

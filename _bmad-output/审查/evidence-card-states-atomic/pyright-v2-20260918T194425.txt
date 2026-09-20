@@ -1,0 +1,5 @@
+# [绑定] HEAD=5d69728a1c7964e9f8e09f0c908b59e5fca7ac2a  2026-09-18T19:44:25+0800  review_service.py sha256=14018aa445158339a7828c5811f3dd5864208e45a281d5ca49e0feeb0a0b2ad1
+# [完整命令] P=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright; (cd backend && "$P" app 2>&1 | grep -E '^[0-9]+ errors?, ')
+# [检查范围] backend/app（cwd=backend，pyrightconfig 取仓内配置）
+0 errors, 80 warnings, 0 informations
+pipeline_rc=0

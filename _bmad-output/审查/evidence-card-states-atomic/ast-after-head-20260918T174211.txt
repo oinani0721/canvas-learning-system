@@ -1,0 +1,15 @@
+file=backend/app/services/review_service.py
+import_os=True
+saver_span=960-1038
+to_thread=1
+  to_thread_arg0@1015=_persist_card_states_bytes
+write_text_attr_refs=0
+encode_calls=1 encode_min_lineno=1014 to_thread_min_lineno=1015
+encode_before_to_thread=True
+helper=present helper_span=660-696
+  helper_fsync_calls=2
+  helper_replace_calls=1
+  helper_unlink_calls=1
+  helper_open_calls=2
+  helper_unlink_in_finally=True at=[696]
+rc=0

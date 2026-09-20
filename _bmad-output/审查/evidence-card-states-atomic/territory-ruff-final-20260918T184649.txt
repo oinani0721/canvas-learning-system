@@ -1,0 +1,39 @@
+# [绑定] HEAD=b173eb4480d8ca00b98474d576c3c4c723fe32b3  2026-09-18T18:47:06+0800
+
+$ git --no-pager diff --stat --no-color 9c4e7e82 HEAD -- . ":(exclude)_bmad-output"
+ backend/app/services/review_service.py             |  70 ++-
+ backend/tests/regression/test_g3_7_truth_source.py | 564 +++++++++++++++++++++
+ openspec/specs/concept-identity/spec.md            |  47 +-
+ 3 files changed, 669 insertions(+), 12 deletions(-)
+
+# 验伪锚：去掉 exclude 多出的 _bmad-output/ 路径数
+88
+
+# 禁区 diff（必须空）
+(上方无输出 = 禁区零改动)
+
+# review_service.py hunk 头（须恰 4 个，对应卡文 (l) 四处）
+@@ -61,8 +61,10 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
+@@ -656,6 +658,65 @@ def _card_states_count(states: Any) -> int:
+@@ -925,8 +986,8 @@ class ReviewService:
+@@ -971,9 +1032,8 @@ class ReviewService:
+
+# ruff（zsh 数组）
+files=2  list=backend/app/services/review_service.py backend/tests/regression/test_g3_7_truth_source.py
+All checks passed!
+ruff_check_rc=0
+2 files already formatted
+ruff_format_rc=0
+# 验伪锚 A（F821 必红） / 对照锚 B（F401 未启用必绿）
+F821 Undefined name `undefined_name_zz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p4-fsrs/4fddf418-6645-4f1e-b57c-b503c31ea281/scratchpad/ruff_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_zz
+  |            ^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_f821_rc=1
+All checks passed!
+control_f401_rc=0

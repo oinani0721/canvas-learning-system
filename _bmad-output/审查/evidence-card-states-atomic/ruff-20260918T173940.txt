@@ -1,0 +1,23 @@
+# ruff 判据 (§二.6) — HEAD=7a5081f1  2026-09-18T17:39:40+0800
+# backend/ruff.toml: select = [E9, F63, F7, F82] —— ⚠️ F401 未启用, 故验伪锚用 F821(属 F82)
+
+files=2
+list=backend/app/services/review_service.py backend/tests/regression/test_g3_7_truth_source.py
+All checks passed!
+ruff_check_rc=0
+
+# 验伪锚 A：已知含 F821 的文件, 同一份 backend/ruff.toml 下必须判红
+F821 Undefined name `undefined_name_zz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p4-fsrs/4fddf418-6645-4f1e-b57c-b503c31ea281/scratchpad/ruff_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_zz
+  |            ^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_f821_rc=1  (期望 1 + F821)
+
+# 对照锚 B：已知含 F401(未启用规则) 的文件必须仍判绿 —— 证明锚 A 的红来自 F82 而非「什么都报」
+All checks passed!
+control_f401_rc=0  (期望 0)

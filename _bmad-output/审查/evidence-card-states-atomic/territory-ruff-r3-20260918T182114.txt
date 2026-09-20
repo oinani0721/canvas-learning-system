@@ -1,0 +1,43 @@
+# [绑定] HEAD=7c504f13b8aa2659120e228b9cc7b38f70c37e29  2026-09-18T18:21:14+0800
+# 地盘门 (l) + ruff 判据 (§二.6)
+
+$ git --no-pager diff --stat --no-color 9c4e7e82 HEAD -- . ":(exclude)_bmad-output"
+ backend/app/services/review_service.py             |  68 ++-
+ backend/tests/regression/test_g3_7_truth_source.py | 564 +++++++++++++++++++++
+ openspec/specs/concept-identity/spec.md            |  47 +-
+ 3 files changed, 667 insertions(+), 12 deletions(-)
+
+# 验伪锚：去掉 exclude 必须多出 _bmad-output/ 路径
+66
+
+# 禁区 diff（必须空）
+(上方无输出 = 禁区零改动)
+
+# review_service.py hunk 头
+@@ -61,8 +61,10 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
+@@ -125,6 +127,14 @@ _CARD_STATES_FILE = _Path(__file__).parent.parent.parent / "data" / "fsrs_card_s
+@@ -656,6 +666,55 @@ def _card_states_count(states: Any) -> int:
+@@ -925,8 +984,8 @@ class ReviewService:
+@@ -971,9 +1030,8 @@ class ReviewService:
+
+# ruff（zsh 数组）
+files=2  list=backend/app/services/review_service.py backend/tests/regression/test_g3_7_truth_source.py
+All checks passed!
+ruff_check_rc=0
+2 files already formatted
+ruff_format_rc=0
+
+# 验伪锚 A：F821 文件在同一份 backend/ruff.toml 下必须红
+F821 Undefined name `undefined_name_zz`
+ --> /private/tmp/claude-501/-Users-Heishing-Desktop-canvas-canvas-learning-system--claude-worktrees-card-p4-fsrs/4fddf418-6645-4f1e-b57c-b503c31ea281/scratchpad/ruff_anchor_f821.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_zz
+  |            ^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+anchor_f821_rc=1
+# 对照锚 B：F401（未启用）必须绿
+All checks passed!
+control_f401_rc=0

@@ -1,0 +1,81 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index 82985f05..4fb52763 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -61,7 +61,6 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
+ 
+ import asyncio
+ import json
+-import os
+ import random
+ import re
+ 
+@@ -657,45 +656,6 @@ def _card_states_count(states: Any) -> int:
+     return len(states)
+ 
+ 
+-def _persist_card_states_bytes(target: _Path, payload: bytes) -> None:
+-    """tmp + fsync + os.replace + 目录 fsync 的**同步**落盘 (整段在一次 to_thread 内跑)。
+-
+-    范式取自 ``canvas-vault/.claude/scripts/sync_board_concepts.py:582-611``
+-    的 ``atomic_write``: 它的 M7 条就是「无 fsync ⇒ rename 的元数据可先于数据
+-    落盘, 掉电留 0 长度白板」—— 那条在真 vault 上发生过, 不是理论风险。
+-
+-    **收 bytes 不收 str**: 编码必须发生在打开任何文件之前。原实现
+-    ``Path.write_text`` 是先 ``open('w')`` 再编码, lone surrogate 的
+-    ``UnicodeEncodeError`` 因此在 tmp 已被建出来之后才抛, 留下一个 0 长度的
+-    ``.json.tmp`` 残留 (调用方的 ValueError 分支只回滚内存, 不碰文件)。
+-
+-    **整段只经一次** ``asyncio.to_thread``: 原实现把 write 与 replace 拆成两次
+-    派发, 两次之间可以被别的协程插进来。
+-
+-    ``finally`` 里的 unlink 覆盖**全部**失败路径 (open / write / fsync /
+-    replace / 目录 fsync); 成功路径上 tmp 已被 ``os.replace`` 移走, unlink 是
+-    no-op。⚠️ 两处边界如实声明: ① ``missing_ok=True`` 只吞
+-    ``FileNotFoundError``, 别的 ``OSError`` 照抛 —— 它会顶掉 ``try`` 体里原本
+-    的异常, 但两者同属 OSError 族, 调用方归一后的返回值 (``False``) 不变;
+-    ② tmp 用确定性 sibling 名而非随机名, 进程内由 ``_card_states_lock`` 串行,
+-    **跨进程/多 worker** 并发不在本函数的保护范围内。
+-    """
+-    tmp = target.with_suffix(".json.tmp")
+-    try:
+-        with open(tmp, "wb") as fh:
+-            fh.write(payload)
+-            fh.flush()
+-            os.fsync(fh.fileno())
+-        os.replace(tmp, target)
+-        dir_fd = os.open(target.parent, os.O_RDONLY)  # 目录项本身也要落盘
+-        try:
+-            os.fsync(dir_fd)
+-        finally:
+-            os.close(dir_fd)
+-    finally:
+-        tmp.unlink(missing_ok=True)
+-
+-
+ class ReviewStatus(str, Enum):
+     """复习状态枚举"""
+ 
+@@ -965,8 +925,8 @@ class ReviewService:
+         fsrs_bridge 写 frontmatter)。调用方须把 persisted 与 truth_source
+         两个信号分开转述, 禁止用前者冒充后者 (D0 修订 T1 / 禁假成功)。
+ 
+-        H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic write
+-        (temp + fsync + replace + finally cleanup) to prevent file corruption.
++        H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic
++        write (temp file + rename) to prevent file corruption.
+ 
+         Args:
+             pending: (concept_id, card_data) 本次要写入的状态。
+@@ -1011,8 +971,9 @@ class ReviewService:
+                     indent=2,
+                 )
+                 # Atomic write: write to temp file then rename
+-                payload = data.encode("utf-8")
+-                await asyncio.to_thread(_persist_card_states_bytes, _CARD_STATES_FILE, payload)
++                tmp_file = _CARD_STATES_FILE.with_suffix(".json.tmp")
++                await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
++                await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
+                 logger.debug(f"Saved {_card_states_count(self._card_states)} FSRS card states to {_CARD_STATES_FILE}")
+                 # 全量快照已落盘 → 所有历史写失败的 concept 同时被治愈
+                 self._unpersisted_concepts.clear()

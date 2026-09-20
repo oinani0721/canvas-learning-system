@@ -1,0 +1,13 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index d620d7a5..36e7dac9 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -706,7 +706,7 @@ def _persist_card_states_bytes(target: _Path, payload: bytes) -> None:
+                 fh.flush()  # 先把缓冲写出去, 否则下一行 fsync 同步的是空文件
+                 os.fsync(fh.fileno())
+             os.replace(tmp, target)
+-            dir_fd = os.open(target.parent, os.O_RDONLY)  # 目录项本身也要落盘
++            dir_fd = os.open(target, os.O_RDONLY)  # NEGCTL-6: 同步的是文件不是父目录  # 目录项本身也要落盘
+             try:
+                 os.fsync(dir_fd)
+             finally:

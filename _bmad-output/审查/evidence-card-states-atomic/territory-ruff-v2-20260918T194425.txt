@@ -1,0 +1,29 @@
+# [绑定] HEAD=5d69728a1c7964e9f8e09f0c908b59e5fca7ac2a  2026-09-18T19:44:44+0800
+
+$ git --no-pager diff --stat --no-color 9c4e7e82 HEAD -- . ":(exclude)_bmad-output"
+ backend/app/services/review_service.py             |  94 ++-
+ backend/tests/regression/test_g3_7_truth_source.py | 644 +++++++++++++++++++++
+ openspec/specs/concept-identity/spec.md            |  66 ++-
+ 3 files changed, 792 insertions(+), 12 deletions(-)
+
+# 验伪锚：去掉 exclude 多出的 _bmad-output/ 路径数
+104
+
+# 禁区 diff（必须空）
+(上方无输出 = 禁区零改动)
+
+# review_service.py hunk 头（须恰 4，对应卡文 (l) 四处）
+@@ -60,9 +60,12 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
+@@ -656,6 +659,87 @@ def _card_states_count(states: Any) -> int:
+@@ -925,8 +1009,8 @@ class ReviewService:
+@@ -971,9 +1055,9 @@ class ReviewService:
+
+# ruff（zsh 数组）
+files=2  list=backend/app/services/review_service.py backend/tests/regression/test_g3_7_truth_source.py
+All checks passed!
+ruff_check_rc=0
+2 files already formatted
+ruff_format_rc=0
+# 验伪锚 A（F821 必红） / 对照锚 B（F401 未启用必绿）
+anchor_f821_rc=1
+control_f401_rc=0

@@ -679,3 +679,704 @@ async def test_record_review_reports_unreadable_truth_source(svc, tmp_vault):
         )
     finally:
         path.chmod(0o644)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 4. CARD-CARD-STATES-ATOMIC-WRITE —— concept-identity Scenario 回归门
+#    [BATCH-2026-09-18-第十五批 / CARD-CARD-STATES-ATOMIC-WRITE]
+#
+# `openspec/specs/concept-identity/spec.md` 的 Requirement「FSRS Card State
+# Projection Snapshot Persistence」自 T4-C 归档以来**一条自动化断言都没有**
+# (`git grep concept-identity -- backend/tests` = 0)，于是 spec 与实现各走各
+# 的：spec 承诺「原子写」，实现是 `write_text → Path.replace`——无 fsync、无
+# finally、无 tmp 清理。本段把 6 个 Scenario 逐条落成断言（S6 为本卡新增）。
+#
+# ⚠️ 本段任何用例都**不得**调用 `monkeypatch.undo()`：那会把 module 级
+# autouse fixture `isolate_card_states` 的 `_CARD_STATES_FILE` 重定向一起撤
+# 掉，后续写入会落到车道树 `backend/data/`（零写门破）。探针一律留到用例
+# teardown 由 monkeypatch 自己还原。
+# ══════════════════════════════════════════════════════════════════════════
+
+from contextlib import contextmanager  # 段内 `_vault_scope` 所需；放段首而非
+# 文件头，是为了让本卡的 diff 严格落在文件尾部，不动既有 21 个 test 与
+# :74-85 的 autouse fixture。
+
+
+@contextmanager
+def _vault_scope(vault_id: str):
+    """把 per-request 作用域切到 `vault_id`，退出时还原。
+
+    逐行复制自 `tests/regression/test_g3_5_vault_keyed_card_states.py:36-54`
+    ——跨测试模块 import 会让两份回归门互相绑死，复制这 12 行更便宜。
+    与生产注入点同源：`review.py::_resolve_vault_group_id` 末行调的就是
+    `set_current_subject_id(<D16 group_id>)`。
+    """
+    from app.core.subject_config import (
+        build_vault_group_id,
+        get_current_subject_id,
+        set_current_subject_id,
+    )
+
+    prev = get_current_subject_id()
+    set_current_subject_id(build_vault_group_id(vault_id))
+    try:
+        yield
+    finally:
+        set_current_subject_id(prev)
+
+
+def _spy_open(monkeypatch) -> list:
+    """记录每一次 open 的 `(path, mode)` —— **两个绑定都要包**。
+
+    `Path.write_text` / `Path.open` 走的是 `io.open`（CPython 3.14 pathlib
+    实现），而 helper 里的裸 `open(...)` 走 `builtins.open`。两者指向同一个
+    函数对象，却是**两个独立的模块属性**：只包 `builtins.open`，旧实现那次
+    `write_text` 一次都抓不到，于是「目标从未以写模式打开」这条断言会绿在一
+    个瞎掉的探针上（假绿）。探针存活由 S1 里的 `.json.tmp` 正控锚自证。
+    """
+    import builtins
+    import io
+    import os as _os
+
+    calls: list = []
+
+    def _wrap(real):
+        def _spy(file, mode="r", *args, **kwargs):
+            try:
+                recorded = str(_os.fspath(file))
+            except TypeError:  # 文件描述符等非路径对象
+                recorded = repr(file)
+            calls.append((recorded, mode))
+            return real(file, mode, *args, **kwargs)
+
+        return _spy
+
+    monkeypatch.setattr(builtins, "open", _wrap(builtins.open))
+    monkeypatch.setattr(io, "open", _wrap(io.open))
+    return calls
+
+
+def _write_modes(calls: list, path) -> list:
+    """`calls` 里对 `path` 的写模式 open（`w`/`a`/`+`/`x` 任一字符即算）。"""
+    target = str(path)
+    return [(p, m) for p, m in calls if p == target and any(c in m for c in ("w", "a", "+", "x"))]
+
+
+async def test_concept_identity_s1_snapshot_published_by_atomic_replace(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: Snapshot is published by atomic replace, never by writing the destination
+    """
+    from app.services.review_service import _card_states_payload
+
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    cid = "g37-s1-atomic"
+
+    calls = _spy_open(monkeypatch)
+    with _vault_scope("vault_s1"):
+        persisted = await svc._save_card_states(pending=(cid, "card-s1"))
+        expected = _card_states_payload(svc._card_states)
+
+    assert persisted is True, "可序列化的快照必须落盘成功"
+    assert _write_modes(calls, target) == [], (
+        f"`_CARD_STATES_FILE` 不得被以写模式打开（快照只能由 os.replace 发布），实得 {_write_modes(calls, target)!r}"
+    )
+    assert _write_modes(calls, tmp), (
+        "探针存活锚：本次落盘必须经由 `.json.tmp` 的写模式 open 发生——一次都没抓到说明 "
+        f"open 探针瞎了（而不是目标没被写），实得末 5 条 {calls[-5:]!r}"
+    )
+    assert json.loads(target.read_text(encoding="utf-8")) == expected, (
+        "落盘文档必须是 `_card_states_payload()` 的嵌套全量快照，不是部分/增量更新"
+    )
+    assert not tmp.exists(), f"成功路径上 `.json.tmp` 不得残留，实得 {tmp}"
+
+
+async def test_concept_identity_s2_unresolvable_scope_fails_closed_without_fs_write(
+    svc, isolate_card_states, monkeypatch
+):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: Unresolvable vault scope fails closed without any filesystem write
+    """
+    from app.core import subject_config
+
+    target = isolate_card_states
+    cid = "g37-s2-failclosed"
+
+    def _broken_derivation():
+        raise RuntimeError("probe: active vault derivation broken")
+
+    # 打断解析链两级（同 test_g3_5:180-182）：ContextVar 落到 DEFAULT，
+    # active vault 推导抛错 ⇒ require_read_group(None) 抛 VaultScopeUnresolved。
+    monkeypatch.setattr(subject_config, "get_current_subject_id", lambda: subject_config.DEFAULT_SUBJECT_ID)
+    monkeypatch.setattr(subject_config, "default_vault_group_id", _broken_derivation)
+
+    persisted = await svc._save_card_states(pending=(cid, "card-s2"))
+
+    assert persisted is False, "作用域解析不出来时必须 fail-closed 返回 False"
+    assert svc._dirty_key(cid) in svc._unpersisted_concepts, "fail-closed 仍要把 concept 记成未落盘"
+    assert not target.parent.exists(), (
+        "fail-closed 必须在 `try:` 之前返回——连父目录 mkdir 都不该跑；"
+        f"实得 {target.parent} 已存在（= 走进了 try 块，spec 的「no filesystem call」被违反）"
+    )
+    assert not target.exists() and not target.with_suffix(".json.tmp").exists()
+
+
+async def test_concept_identity_s3_encoding_failure_rolls_back_and_creates_no_tmp(
+    svc, isolate_card_states, monkeypatch
+):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: Serialization failure is normalized to False and the mutation is rolled back
+
+    本卡新增的「`.json.tmp` 不存在」是先红项：旧实现 `Path.write_text` 先
+    `open('w')` 建/截断 tmp 再编码，lone surrogate 的 `UnicodeEncodeError`
+    因此在 tmp 已经存在之后才抛，留下一个 0 长度残留。
+    """
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    cid = "g37-s3-\ud800"
+
+    calls = _spy_open(monkeypatch)
+    with _vault_scope("vault_s3"):
+        persisted = await svc._save_card_states(pending=(cid, "card-s3"))
+
+        assert persisted is False, "UnicodeEncodeError（ValueError 族）必须归一为 False，不得冒泡"
+        assert cid not in svc._card_states, "先前无值 ⇒ 回滚必须把 key 整个 pop 掉"
+        assert svc._dirty_key(cid) in svc._unpersisted_concepts
+
+    # Codex r1 MEDIUM：只断言「调用后不存在」分不清「从没建过」与「建了又被清掉」。
+    assert _write_modes(calls, tmp) == [], (
+        f"`.json.tmp` **从未被以写模式打开过**：编码必须发生在打开任何文件之前，实得 {_write_modes(calls, tmp)!r}"
+    )
+    size = tmp.stat().st_size if tmp.exists() else "n/a"
+    assert not tmp.exists(), (
+        f"`.json.tmp` 不存在：编码必须发生在打开任何文件之前（先编码再开文件），实得残留 {tmp}（size={size}）"
+    )
+
+
+async def test_concept_identity_s3_rollback_restores_previous_value(svc, isolate_card_states):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: Serialization failure is normalized to False and the mutation is rolled back
+    （回滚的另一半：先前**有**值 ⇒ 恢复旧值，而不是 pop。）
+    """
+    cid = "g37-s3b-\ud800"
+
+    with _vault_scope("vault_s3b"):
+        svc._card_states[cid] = "card-old"
+
+        persisted = await svc._save_card_states(pending=(cid, "card-new"))
+
+        assert persisted is False
+        assert svc._card_states[cid] == "card-old", (
+            "先前有值 ⇒ 回滚必须恢复旧值（pop 掉等于替这次失败的写额外删了一条既有记录）"
+        )
+        assert svc._dirty_key(cid) in svc._unpersisted_concepts
+
+
+async def test_concept_identity_s4_successful_snapshot_clears_every_dirty_marker(svc, isolate_card_states):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A successful snapshot clears every dirty marker without restoring lost values
+    """
+    target = isolate_card_states
+    poisoned = "g37-s4-\ud800"
+    clean = "g37-s4-clean"
+
+    with _vault_scope("vault_s4"):
+        assert await svc._save_card_states(pending=(poisoned, "card-poison")) is False
+        assert svc._unpersisted_concepts, "前置：序列化失败必须先留下脏标记，否则下面这条断言恒绿"
+
+        assert await svc._save_card_states(pending=(clean, "card-clean")) is True
+        assert svc._unpersisted_concepts == set(), "成功的全量快照 clear 全部脏标记（含更早那条）"
+
+    snapshot = json.loads(target.read_text(encoding="utf-8"))
+    assert snapshot == {"vault_s4": {clean: "card-clean"}}, (
+        f"被回滚出内存的值不得因为「脏标记被清掉」而回到快照里（清标记不是治愈数据），实得 {snapshot!r}"
+    )
+    assert not target.with_suffix(".json.tmp").exists()
+
+
+async def test_concept_identity_s5_dirty_marker_is_vault_scoped(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A dirty marker in one vault does not make a same-named concept in another look unpersisted
+    """
+    import os as _os
+
+    cid = "c"
+    # spec 里的 vault「A」/「B」在这里写成小写：`build_vault_group_id()` 会过
+    # `sanitize_subject_name()`，后者 **lower()**（subject_config.py:152），
+    # 于是 "A" 落桶其实叫 "a"。硬写 ("A", cid) 断言的是一个永远不存在的键。
+    vault_a, vault_b = "a", "b"
+
+    def _refuse(src, dst, **kwargs):
+        raise OSError("probe: replace refused for vault a")
+
+    monkeypatch.setattr(_os, "replace", _refuse)
+
+    with _vault_scope(vault_a):
+        persisted = await svc._save_card_states(pending=(cid, "card-a"))
+        assert persisted is False
+        assert (vault_a, cid) in svc._unpersisted_concepts, "脏标记身份必须是 (vault_id, concept_id) 对"
+        assert svc._is_unpersisted(cid) is True
+
+    with _vault_scope(vault_b):
+        # ⛔ 这里**不做成功保存**：成功快照会 clear 掉 vault a 的脏标记，把下面
+        # 两条断言变成恒绿（判据被自己的前置动作掏空）。
+        assert svc._dirty_key(cid) == (vault_b, cid)
+        assert svc._is_unpersisted(cid) is False, (
+            "跨 vault 误报：vault b 的同名 concept 不得因 vault a 的写失败被报成 persisted=False"
+        )
+
+    with _vault_scope(vault_a):
+        assert svc._is_unpersisted(cid) is True, "vault a 自己的脏标记必须还在"
+
+
+async def test_concept_identity_s6_failure_after_tmp_leaves_no_residue(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A failure after the temp file exists leaves no residue and keeps the destination unchanged
+    （本卡新增；先红项 = 「`.json.tmp` 不存在」。）
+    """
+    import os as _os
+
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps({"vault_s6": {"c": "old"}}, ensure_ascii=False, indent=2), encoding="utf-8")
+    old_bytes = target.read_bytes()
+
+    def _refuse(src, dst, **kwargs):
+        raise OSError("probe: replace refused after the temp file exists")
+
+    monkeypatch.setattr(_os, "replace", _refuse)
+
+    with _vault_scope("vault_s6"):
+        persisted = await svc._save_card_states(pending=("c", "card-new"))
+
+        assert persisted is False, "OSError 必须归一为 False，不得冒泡"
+        assert svc._dirty_key("c") in svc._unpersisted_concepts
+
+    assert target.read_bytes() == old_bytes, (
+        "replace 失败 ⇒ 目标必须逐字节保持旧快照（这条排除「目标被就地截断/半写」）"
+    )
+    assert not tmp.exists(), (
+        f"`.json.tmp` 不存在：临时文件已经建出来之后的任何失败都必须由 finally 清掉，实得残留 {tmp}"
+    )
+
+
+async def test_concept_identity_s6_fsync_precedes_replace(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A failure after the temp file exists leaves no residue and keeps the destination unchanged
+    （同一 Scenario 的持久顺序半边；本卡新增，先红项 = 「fsync 调用序列非空」。）
+    """
+    import os as _os
+
+    target = isolate_card_states
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("{}", encoding="utf-8")
+
+    ops: list = []
+    sizes: list = []
+    real_fsync = _os.fsync
+
+    def _rec_fsync(fd):
+        ops.append(("fsync", fd))
+        sizes.append(_os.fstat(fd).st_size)  # Codex r2 MEDIUM：钉「flush 先于 fsync」
+        return real_fsync(fd)
+
+    def _rec_replace(src, dst, **kwargs):
+        ops.append(("replace", str(src)))
+        raise OSError("probe: replace refused")
+
+    monkeypatch.setattr(_os, "fsync", _rec_fsync)
+    monkeypatch.setattr(_os, "replace", _rec_replace)
+
+    with _vault_scope("vault_s6b"):
+        persisted = await svc._save_card_states(pending=("c6b", "card-6b"))
+
+    assert persisted is False
+    kinds = [op for op, _ in ops]
+    assert "fsync" in kinds, (
+        f"fsync 调用序列非空：发布前必须至少发生一次 os.fsync，实得调用序列 {ops!r}——"
+        "无 fsync 时 rename 的元数据可先于数据落盘，掉电会留下一份 0 长度快照"
+    )
+    assert "replace" in kinds, "探针存活锚：本次必须真的走到 os.replace（否则上一条恒绿）"
+    assert kinds.index("fsync") < kinds.index("replace"), f"os.fsync 必须发生在 os.replace **之前**，实得顺序 {kinds!r}"
+    # Codex r2 MEDIUM：只断言「fsync 发生过」挡不住「删掉 fh.flush()」——缓冲数据会在
+    # 退出 with 时才写出，内容断言照样过，但这次 fsync 同步的是一个空文件。
+    from app.services.review_service import _card_states_payload
+
+    expected = json.dumps(_card_states_payload(svc._card_states), ensure_ascii=False, indent=2).encode("utf-8")
+    assert sizes[0] == len(expected), (
+        f"fsync 发生时 `.json.tmp` 必须已经是完整 {len(expected)} 字节（flush 必须先于 fsync），"
+        f"实得 {sizes[0]} 字节——为 0 说明数据还在用户态缓冲里"
+    )
+
+
+async def test_concept_identity_s6_write_phase_failure_leaves_no_residue(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A failure after the temp file exists leaves no residue and keeps the destination unchanged
+    （写阶段那一半。）
+
+    Codex r1 MEDIUM：另外两条 S6 都只让 `os.replace` 失败 ⇒ 一个把 try/finally
+    缩到只包住 replace 及其后续步骤的负控输入仍能让 8 条全绿。本条让**文件
+    fsync** 失败，把 finally 的覆盖范围钉到写阶段。
+    """
+    import os as _os
+
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b'{"kept": 1}')
+    old_bytes = target.read_bytes()
+
+    def _refuse_fsync(fd):
+        raise OSError("probe: fsync refused during the write phase")
+
+    monkeypatch.setattr(_os, "fsync", _refuse_fsync)
+
+    with _vault_scope("vault_s6d"):
+        persisted = await svc._save_card_states(pending=("c6d", "card-6d"))
+        assert persisted is False
+        assert svc._dirty_key("c6d") in svc._unpersisted_concepts
+
+    assert target.read_bytes() == old_bytes, "写阶段失败 ⇒ 目标原封不动（replace 根本没跑到）"
+    assert not tmp.exists(), (
+        f"`.json.tmp` 不存在：finally 必须覆盖写阶段（open/write/flush/fsync），不只是 replace 之后；实得残留 {tmp}"
+    )
+
+
+async def test_concept_identity_s6_directory_fsync_failure_is_reported_not_swallowed(
+    svc, isolate_card_states, monkeypatch
+):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A failure after the temp file exists leaves no residue and keeps the destination unchanged
+    （目录 fsync 那一半 —— 本卡的保守诚实口径。）
+
+    目标其实**已经**被 replace 落位，但目录项还没落盘 ⇒ 返回 False + 保留脏标记。
+    这条同时是「spec 那句『replace 成功即清全部脏标记』在本卡之后不再逐字成立」
+    的可观测证据（该段在卡文硬约束下一字不动，已登记）。
+    """
+    import os as _os
+    import stat
+
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    real_fsync = _os.fsync
+    seen = []
+    dir_ino = _os.stat(target.parent).st_ino
+
+    def _fail_only_directory_fsync(fd):
+        # Codex r2 MEDIUM：按 fd **指向的对象**判定，不按「第几次调用」。绑调用
+        # 序号时，把 os.open(target.parent) 改成 os.open(target) 的变异体仍能全绿
+        # （父目录从未 fsync），而实现若多一次文件 fsync 又会误红。
+        st = _os.fstat(fd)
+        is_dir = stat.S_ISDIR(st.st_mode)
+        seen.append(("dir" if is_dir else "file", st.st_ino))
+        if not is_dir:
+            return real_fsync(fd)
+        raise OSError("probe: directory fsync refused")
+
+    monkeypatch.setattr(_os, "fsync", _fail_only_directory_fsync)
+
+    with _vault_scope("vault_s6e"):
+        persisted = await svc._save_card_states(pending=("c6e", "card-6e"))
+        assert persisted is False, "目录 fsync 失败 ⇒ 保守诚实报未持久"
+        assert svc._dirty_key("c6e") in svc._unpersisted_concepts
+        assert svc._unpersisted_concepts, "clear() 没有跑到 —— 这正是那句 spec 的失真点"
+
+    assert ("dir", dir_ino) in seen, f"探针存活锚：必须真的对**父目录本身**（inode {dir_ino}）fsync 过，实得 {seen!r}"
+    assert seen and seen[0][0] == "file", f"文件 fsync 必须先于目录 fsync，实得 {seen!r}"
+    assert json.loads(target.read_text(encoding="utf-8")) == {"vault_s6e": {"c6e": "card-6e"}}, (
+        "如实面：replace 已经成功，目标**确实**是新快照，尽管返回 False"
+    )
+    assert not tmp.exists(), "目录 fsync 失败同样要清掉 tmp"
+
+
+class _WriteRefusingFile:
+    """真文件对象的**薄代理**：只让 `write` 抛 OSError，其余全部转发。
+
+    DD-03 口径：这是在 I/O 边界上对**真**文件对象做失败注入（与包装 `os.replace`
+    / `os.fsync` 同类），不是 mock `ReviewService` 的内部方法。
+    """
+
+    def __init__(self, fh):
+        self._fh = fh
+
+    def write(self, *args, **kwargs):
+        raise OSError("probe: write refused")
+
+    def __getattr__(self, name):
+        return getattr(self._fh, name)
+
+    def __enter__(self):
+        self._fh.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        return self._fh.__exit__(*exc)
+
+
+async def test_concept_identity_s6_write_failure_leaves_no_residue(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A failure after the temp file exists leaves no residue and keeps the destination unchanged
+    （`write` 本身失败的那一半。）
+
+    Codex r2 MEDIUM：只让「文件 fsync」失败，挡不住「把 open/write/flush 挪到清理
+    `try` 之外、只从 fsync 开始覆盖」的变异体。本条让 **`write` 自己**失败——此时
+    tmp 已经被 open 建出来，清理若不覆盖 open/write 段就会留残留。
+    """
+    import builtins
+    import io
+
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(b'{"kept": 1}')
+    old_bytes = target.read_bytes()
+    real_builtins_open = builtins.open
+    real_io_open = io.open
+
+    def _wrap(real):
+        def _opener(file, mode="r", *args, **kwargs):
+            fh = real(file, mode, *args, **kwargs)
+            if str(file) == str(tmp) and any(c in mode for c in ("w", "a", "+", "x")):
+                return _WriteRefusingFile(fh)
+            return fh
+
+        return _opener
+
+    monkeypatch.setattr(builtins, "open", _wrap(real_builtins_open))
+    monkeypatch.setattr(io, "open", _wrap(real_io_open))
+
+    with _vault_scope("vault_s6f"):
+        persisted = await svc._save_card_states(pending=("c6f", "card-6f"))
+        assert persisted is False, "write 失败（OSError）必须归一为 False"
+        assert svc._dirty_key("c6f") in svc._unpersisted_concepts
+
+    assert target.read_bytes() == old_bytes, "write 失败 ⇒ 目标原封不动"
+    assert not tmp.exists(), f"`.json.tmp` 不存在：清理必须覆盖 open/write 段，不只是 fsync 之后；实得残留 {tmp}"
+
+
+def test_concept_identity_s6_persist_is_serialized_across_threads(isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: The publish sequence is serialized within the process
+
+    Codex r2 HIGH 回归门。`asyncio.Lock` 在协程被取消时**会释放**，而
+    `asyncio.to_thread` 派出去的线程**取消不掉**（实测存档
+    `_bmad-output/审查/evidence-card-states-atomic/probe-cancel-thread-*.txt`）
+    ⇒ 两条线程能同时落在同一个确定性 `.json.tmp` 路径上：后来者的
+    `open(tmp,"wb")` 会 **truncate 先到者正在用的同一个 inode**。
+    `_card_states_file_lock` 让整段真正串行。
+
+    ⚠️ 观测点取**锁本身**而不是「tmp 被打开」（Codex r4 MEDIUM 整改）：加了过期写
+    丢弃之后，一次**合法**的丢弃会在锁内直接 return、根本不开文件，于是「四条线程
+    都必须打开过 tmp」不再是不变量，那个存活锚自带 flaky。进出锁则是每次调用都发生
+    的，`entered == 4` 因此是确定性的；重叠检测直接测的就是互斥本身。
+    """
+    import os as _os
+    import threading
+    import time
+
+    from app.services import review_service as _rs
+
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    real_replace = _os.replace
+    real_lock = _rs._card_states_file_lock
+    guard = threading.Lock()
+    held: list = []
+    entered: list = []
+    overlaps: list = []
+    errors: list = []
+
+    class _TrackingLock:
+        """包一层真锁，只记录持有区间，不改变互斥语义。"""
+
+        def __enter__(self):
+            real_lock.__enter__()
+            me = threading.current_thread().name
+            with guard:
+                entered.append(me)
+                if held:
+                    overlaps.append((me, tuple(held)))
+                held.append(me)
+            return self
+
+        def __exit__(self, *exc):
+            me = threading.current_thread().name
+            with guard:
+                if me in held:
+                    held.remove(me)
+            return real_lock.__exit__(*exc)
+
+    def _slow_replace(src, dst, **kwargs):
+        time.sleep(0.05)  # 撑开窗口：不串行的话必然重叠
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(_rs, "_card_states_file_lock", _TrackingLock())
+    monkeypatch.setattr(_os, "replace", _slow_replace)
+
+    def _run(tag: str) -> None:
+        try:
+            _rs._persist_card_states_bytes(target, ('{"%s": 1}' % tag).encode("utf-8"), next(_rs._card_states_seq))
+        except Exception as exc:  # noqa: BLE001 —— 任何线程异常都要让本门变红
+            errors.append((tag, repr(exc)))
+
+    threads = [threading.Thread(target=_run, args=(f"t{i}",), name=f"t{i}") for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=30)
+
+    assert not [t for t in threads if t.is_alive()], "线程未在 30s 内收敛（可能死锁）"
+    assert errors == [], f"串行落盘不得抛异常，实得 {errors!r}"
+    assert len(entered) == 4, f"探针存活锚：四条线程都必须真的进过临界区（无论是否因过期被丢弃），实得 {entered!r}"
+    assert held == [], f"收工时不得还有人持锁，实得 {held!r}"
+    assert overlaps == [], f"落盘整段必须在进程内串行：实测有 {len(overlaps)} 次临界区重叠 {overlaps!r}"
+    assert not tmp.exists(), "串行跑完不得留 tmp"
+    final_doc = json.loads(target.read_text(encoding="utf-8"))
+    assert list(final_doc.keys()) in ([["t0"], ["t1"], ["t2"], ["t3"]]), (
+        f"目标必须**恰好**是某一次完整的快照（单键），不是空文档、也不是交错写出的混合物，实得 {final_doc!r}"
+    )
+
+
+def test_concept_identity_s6_stale_publish_is_discarded(isolate_card_states):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A stale snapshot never overwrites a newer one that already landed
+
+    Codex r3 HIGH 回归门。**互斥不等于顺序**：线程锁保证两条落盘线程不重叠，
+    但不保证谁先。协程被取消后它那条线程仍会跑完，手里的 payload 序列化于较早
+    时刻，却可能**晚于**一份更新的快照落盘——而更新的那次已经 `clear()` 掉脏
+    标记，于是这次回退是**静默丢更新**。
+    """
+    from app.services import review_service as _rs
+
+    target = isolate_card_states
+    tmp = target.with_suffix(".json.tmp")
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    old_seq = next(_rs._card_states_seq)
+    new_seq = next(_rs._card_states_seq)
+    assert old_seq < new_seq, "前提：序号必须单调递增"
+
+    _rs._persist_card_states_bytes(target, b'{"new": 1}', new_seq)
+    assert json.loads(target.read_text(encoding="utf-8")) == {"new": 1}
+
+    _rs._persist_card_states_bytes(target, b'{"old": 1}', old_seq)  # 过期写
+    assert json.loads(target.read_text(encoding="utf-8")) == {"new": 1}, (
+        "过期快照不得覆盖已落盘的更新快照（静默丢更新）"
+    )
+    assert not tmp.exists(), "被丢弃的过期写不得留下 tmp"
+
+    # 探针存活锚：更新的序号必须真的落盘，否则上面那条会绿在「什么都不写」上。
+    newer_seq = next(_rs._card_states_seq)
+    _rs._persist_card_states_bytes(target, b'{"newer": 1}', newer_seq)
+    assert json.loads(target.read_text(encoding="utf-8")) == {"newer": 1}, "探针存活锚：序号更大的快照必须真的落盘"
+
+
+async def test_concept_identity_s6_cleanup_failure_is_normalized_not_swallowed(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A failure after the temp file exists leaves no residue and keeps the destination unchanged
+    （清理**自身**失败的那一半。）
+
+    Codex r3 MEDIUM：`finally` 里的 `unlink` 本身也是 I/O，它失败时
+    `missing_ok=True` 吞不掉（那只吞 `FileNotFoundError`）。spec 写明这种失败按
+    `OSError` 归一而不是被静默忽略——本门把那句话钉住。
+    """
+    import pathlib
+
+    target = isolate_card_states
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(".json.tmp")
+    real_unlink = pathlib.Path.unlink
+
+    def _refuse_unlink(self, *args, **kwargs):
+        if str(self) == str(tmp):
+            raise OSError("probe: unlink refused")
+        return real_unlink(self, *args, **kwargs)
+
+    monkeypatch.setattr(pathlib.Path, "unlink", _refuse_unlink)
+
+    with _vault_scope("vault_s6g"):
+        persisted = await svc._save_card_states(pending=("c6g", "card-6g"))
+        assert persisted is False, "清理自身失败必须归一为 False，不得静默当成功"
+        assert svc._dirty_key("c6g") in svc._unpersisted_concepts
+
+    # 如实面：replace 其实已经成功，目标**确实**是新快照——报 False 是保守诚实。
+    assert json.loads(target.read_text(encoding="utf-8")) == {"vault_s6g": {"c6g": "card-6g"}}
+
+
+def test_concept_identity_s7_failed_publish_does_not_advance_the_watermark(isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A stale snapshot never overwrites a newer one that already landed
+    （水位只在 `os.replace` **成功之后**推进。）
+
+    Codex r4 MEDIUM：把 published 记账挪到 `os.replace` **之前**，一次失败的高序号
+    发布就会把水位顶上去，后面那些序号更小、却从未发布过的快照会被全部误丢。
+    """
+    import os as _os
+
+    from app.services import review_service as _rs
+
+    target = isolate_card_states
+    target.parent.mkdir(parents=True, exist_ok=True)
+    real_replace = _os.replace
+
+    small_seq = next(_rs._card_states_seq)
+    large_seq = next(_rs._card_states_seq)
+    assert small_seq < large_seq, "前提：序号单调递增"
+
+    def _refuse(src, dst, **kwargs):
+        raise OSError("probe: replace refused for the large-seq publish")
+
+    monkeypatch.setattr(_os, "replace", _refuse)
+    try:
+        _rs._persist_card_states_bytes(target, b'{"failed": 1}', large_seq)
+    except OSError:
+        pass  # helper 不吞异常，归一由调用方做
+    monkeypatch.setattr(_os, "replace", real_replace)
+
+    # 序号更**小**、但从未发布过：只有在「失败的发布没有推进水位」时它才应当落盘。
+    _rs._persist_card_states_bytes(target, b'{"kept": 1}', small_seq)
+    assert json.loads(target.read_text(encoding="utf-8")) == {"kept": 1}, (
+        "失败的发布不得推进已发布水位，否则后续从未发布过的快照会被全部误丢"
+    )
+    assert not target.with_suffix(".json.tmp").exists()
+
+
+async def test_concept_identity_s7_seq_is_allocated_before_dispatch(svc, isolate_card_states, monkeypatch):
+    """spec `openspec/specs/concept-identity/spec.md`
+    Scenario: A stale snapshot never overwrites a newer one that already landed
+    （取号必须发生在**派发线程之前**。）
+
+    Codex r4 MEDIUM：把 `next(_card_states_seq)` 挪进线程里（或把 `to_thread` 改成
+    同步直调），stale 门照样全绿——它是手工取号后直接调 helper 的。本门从**生产调用
+    方**观测：`asyncio.to_thread` 必须被调到、被派发的必须是 helper、且 seq 必须已经
+    是一个算好的 `int` 实参（挪进线程 ⇒ 实参会变成可调用对象或根本不存在）。
+    """
+    import asyncio as _aio
+
+    real_to_thread = _aio.to_thread
+    captured: list = []
+
+    async def _recording_to_thread(fn, *args, **kwargs):
+        captured.append((getattr(fn, "__name__", repr(fn)), args))
+        return await real_to_thread(fn, *args, **kwargs)
+
+    monkeypatch.setattr(_aio, "to_thread", _recording_to_thread)
+
+    with _vault_scope("vault_s7d"):
+        assert await svc._save_card_states(pending=("d1", "card-d1")) is True
+        assert await svc._save_card_states(pending=("d2", "card-d2")) is True
+
+    assert len(captured) == 2, (
+        f"探针存活锚：两次落盘都必须经 asyncio.to_thread 派发（同步直调会让这里为空），实得 {captured!r}"
+    )
+    seqs = []
+    for name, args in captured:
+        assert name == "_persist_card_states_bytes", f"派发的必须是落盘 helper，实得 {name!r}"
+        assert len(args) == 3, f"helper 必须收到 (target, payload, seq) 三个实参，实得 {len(args)} 个"
+        assert isinstance(args[2], int), f"seq 必须在派发**之前**取好并作为 int 实参传入，实得 {type(args[2]).__name__}"
+        seqs.append(args[2])
+    assert seqs[0] < seqs[1], f"连续两次落盘的序号必须严格递增，实得 {seqs!r}"

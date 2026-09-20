@@ -1,0 +1,15 @@
+# 卡文 (a)：开工 tests/unit 目录级跑完后的 backend/data 残留实测
+# 存档时刻(补写): 2026-09-18T17:36:37+0800  HEAD=9c4e7e82
+# ⚠️ 原存档 0 字节 —— 「命令没跑成」与「结果真为空」在磁盘上同形，故补写本自描述头。
+# 两个口径都跑（git 看不见被 .gitignore:8 忽略的 fsrs_card_states.json，故必须配 find）:
+
+$ git status --porcelain backend/data
+rc=0  (无输出 = 无未忽略残留)
+
+$ find backend/data -name 'fsrs_card_states*'
+rc=0  (无输出 = 连被忽略的那个也不存在)
+
+# 验伪锚：同口径下一个已知存在的文件必须被 find 命中
+$ find backend/data -name 'reference_priority.json'
+backend/data/reference_priority.json
+rc=0

@@ -1,0 +1,11 @@
+A_coro_cancelled=True
+lock_locked_after_cancel=False
+lock_acquirable=True
+A_ino=51278263
+B_ino=51278264
+A_finally_saw_file=True
+A_finally_ino=51278264
+B_tmp_survived=False
+结论_A的finally删掉了B的tmp=True
+结论_inode可区分=True
+rc=0

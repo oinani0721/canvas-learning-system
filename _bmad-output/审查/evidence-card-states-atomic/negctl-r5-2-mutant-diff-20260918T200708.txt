@@ -1,0 +1,12 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index bd5109e2..cb86e4ac 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -728,7 +728,6 @@ def _persist_card_states_bytes(target: _Path, payload: bytes, seq: int) -> None:
+             with open(tmp, "wb") as fh:
+                 fh.write(payload)
+                 fh.flush()  # 先把缓冲写出去, 否则下一行 fsync 同步的是空文件
+-                os.fsync(fh.fileno())
+             os.replace(tmp, target)
+             _card_states_published_seq = seq
+             dir_fd = os.open(target.parent, os.O_RDONLY)  # 目录项本身也要落盘

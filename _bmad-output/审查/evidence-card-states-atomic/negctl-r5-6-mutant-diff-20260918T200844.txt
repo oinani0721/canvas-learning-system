@@ -1,0 +1,13 @@
+diff --git a/backend/app/services/review_service.py b/backend/app/services/review_service.py
+index bd5109e2..f585c2a3 100644
+--- a/backend/app/services/review_service.py
++++ b/backend/app/services/review_service.py
+@@ -731,7 +731,7 @@ def _persist_card_states_bytes(target: _Path, payload: bytes, seq: int) -> None:
+                 os.fsync(fh.fileno())
+             os.replace(tmp, target)
+             _card_states_published_seq = seq
+-            dir_fd = os.open(target.parent, os.O_RDONLY)  # 目录项本身也要落盘
++            dir_fd = os.open(target, os.O_RDONLY)  # NEGCTL-6: 同步的是文件不是父目录  # 目录项本身也要落盘
+             try:
+                 os.fsync(dir_fd)
+             finally:

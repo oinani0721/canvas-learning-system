@@ -1,0 +1,5 @@
+# [绑定] HEAD=d317b2ee7dd6cad8b68da913642d78cdd25a9e5d  2026-09-18T20:13:42+0800  review_service.py sha256=14018aa445158339a7828c5811f3dd5864208e45a281d5ca49e0feeb0a0b2ad1
+# [字面 argv] cd backend && /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/pyright app
+# [提取] 上述输出过 grep -E '^[0-9]+ errors?, '
+0 errors, 80 warnings, 0 informations
+pipeline_rc=0

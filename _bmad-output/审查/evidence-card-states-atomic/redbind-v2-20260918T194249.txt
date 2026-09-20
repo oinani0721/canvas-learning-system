@@ -1,0 +1,186 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 35 items / 21 deselected / 14 selected
+
+tests/regression/test_g3_7_truth_source.py ..F...FFFFFFFF                [100%]
+
+=================================== FAILURES ===================================
+___ test_concept_identity_s3_encoding_failure_rolls_back_and_creates_no_tmp ____
+tests/regression/test_g3_7_truth_source.py:847: in test_concept_identity_s3_encoding_failure_rolls_back_and_creates_no_tmp
+    assert _write_modes(calls, tmp) == [], (
+E   AssertionError: `.json.tmp` **从未被以写模式打开过**：编码必须发生在打开任何文件之前，实得 [('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-404/test_concept_identity_s3_encod0/card_states/fsrs_card_states.json.tmp', 'w')]
+E   assert [('/private/v...on.tmp', 'w')] == []
+E     
+E     Left contains one more item: ('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-404/test_concept_identity_s3_encod0/card_states/fsrs_card_states.json.tmp', 'w')
+E     Use -v to get more diff
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-18T11:43:21.631756Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.631893Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.631986Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:757 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.631893Z'}
+INFO     app.services.review_service:review_service.py:827 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.631986Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Failed to save FSRS card states: 'utf-8' codec can't encode character '\\ud800' in position 30: surrogates not allowed", "logger": "app.services.review_service", "level": "warning", "timestamp": "2026-09-18T11:43:21.633910Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.review_service:review_service.py:991 {'event': "Failed to save FSRS card states: 'utf-8' codec can't encode character '\\ud800' in position 30: surrogates not allowed", 'logger': 'app.services.review_service', 'level': 'warning', 'timestamp': '2026-09-18T11:43:21.633910Z'}
+_________ test_concept_identity_s6_failure_after_tmp_leaves_no_residue _________
+tests/regression/test_g3_7_truth_source.py:959: in test_concept_identity_s6_failure_after_tmp_leaves_no_residue
+    assert not tmp.exists(), (
+E   AssertionError: `.json.tmp` 不存在：临时文件已经建出来之后的任何失败都必须由 finally 清掉，实得残留 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-404/test_concept_identity_s6_failu0/card_states/fsrs_card_states.json.tmp
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-404/test_concept_identity_s6_failu0/card_states/fsrs_card_states.json.tmp').exists
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-18T11:43:21.884077Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.884226Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.884328Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:757 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.884226Z'}
+INFO     app.services.review_service:review_service.py:827 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.884328Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Failed to save FSRS card states: probe: replace refused after the temp file exists", "logger": "app.services.review_service", "level": "warning", "timestamp": "2026-09-18T11:43:21.886905Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.review_service:review_service.py:998 {'event': 'Failed to save FSRS card states: probe: replace refused after the temp file exists', 'logger': 'app.services.review_service', 'level': 'warning', 'timestamp': '2026-09-18T11:43:21.886905Z'}
+_______________ test_concept_identity_s6_fsync_precedes_replace ________________
+tests/regression/test_g3_7_truth_source.py:996: in test_concept_identity_s6_fsync_precedes_replace
+    assert "fsync" in kinds, (
+E   AssertionError: fsync 调用序列非空：发布前必须至少发生一次 os.fsync，实得调用序列 [('replace', '/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-404/test_concept_identity_s6_fsync0/card_states/fsrs_card_states.json.tmp')]——无 fsync 时 rename 的元数据可先于数据落盘，掉电会留下一份 0 长度快照
+E   assert 'fsync' in ['replace']
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-18T11:43:21.907164Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.907325Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.907429Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:757 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.907325Z'}
+INFO     app.services.review_service:review_service.py:827 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.907429Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Failed to save FSRS card states: probe: replace refused", "logger": "app.services.review_service", "level": "warning", "timestamp": "2026-09-18T11:43:21.910154Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.review_service:review_service.py:998 {'event': 'Failed to save FSRS card states: probe: replace refused', 'logger': 'app.services.review_service', 'level': 'warning', 'timestamp': '2026-09-18T11:43:21.910154Z'}
+________ test_concept_identity_s6_write_phase_failure_leaves_no_residue ________
+tests/regression/test_g3_7_truth_source.py:1037: in test_concept_identity_s6_write_phase_failure_leaves_no_residue
+    assert persisted is False
+E   assert True is False
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-18T11:43:21.931095Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.931255Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.931350Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:757 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.931255Z'}
+INFO     app.services.review_service:review_service.py:827 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.931350Z'}
+__ test_concept_identity_s6_directory_fsync_failure_is_reported_not_swallowed __
+tests/regression/test_g3_7_truth_source.py:1082: in test_concept_identity_s6_directory_fsync_failure_is_reported_not_swallowed
+    assert persisted is False, "目录 fsync 失败 ⇒ 保守诚实报未持久"
+E   AssertionError: 目录 fsync 失败 ⇒ 保守诚实报未持久
+E   assert True is False
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-18T11:43:21.954186Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.954328Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.954425Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:757 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.954328Z'}
+INFO     app.services.review_service:review_service.py:827 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.954425Z'}
+___________ test_concept_identity_s6_write_failure_leaves_no_residue ___________
+tests/regression/test_g3_7_truth_source.py:1156: in test_concept_identity_s6_write_failure_leaves_no_residue
+    assert not tmp.exists(), f"`.json.tmp` 不存在：清理必须覆盖 open/write 段，不只是 fsync 之后；实得残留 {tmp}"
+E   AssertionError: `.json.tmp` 不存在：清理必须覆盖 open/write 段，不只是 fsync 之后；实得残留 /private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-404/test_concept_identity_s6_write1/card_states/fsrs_card_states.json.tmp
+E   assert not True
+E    +  where True = exists()
+E    +    where exists = PosixPath('/private/var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/pytest-of-Heishing/pytest-404/test_concept_identity_s6_write1/card_states/fsrs_card_states.json.tmp').exists
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-18T11:43:21.979045Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.979301Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:21.979465Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:757 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.979301Z'}
+INFO     app.services.review_service:review_service.py:827 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:21.979465Z'}
+----------------------------- Captured stdout call -----------------------------
+{"event": "Failed to save FSRS card states: probe: write refused", "logger": "app.services.review_service", "level": "warning", "timestamp": "2026-09-18T11:43:21.981989Z"}
+------------------------------ Captured log call -------------------------------
+WARNING  app.services.review_service:review_service.py:998 {'event': 'Failed to save FSRS card states: probe: write refused', 'logger': 'app.services.review_service', 'level': 'warning', 'timestamp': '2026-09-18T11:43:21.981989Z'}
+________ test_concept_identity_s6_persist_is_serialized_across_threads _________
+tests/regression/test_g3_7_truth_source.py:1182: in test_concept_identity_s6_persist_is_serialized_across_threads
+    from app.services.review_service import _persist_card_states_bytes
+E   ImportError: cannot import name '_persist_card_states_bytes' from 'app.services.review_service' (/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/services/review_service.py)
+_____________ test_concept_identity_s6_stale_publish_is_discarded ______________
+tests/regression/test_g3_7_truth_source.py:1277: in test_concept_identity_s6_stale_publish_is_discarded
+    old_seq = next(_rs._card_states_seq)
+                   ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'app.services.review_service' has no attribute '_card_states_seq'. Did you mean: '_card_states_lock'?
+_____ test_concept_identity_s6_cleanup_failure_is_normalized_not_swallowed _____
+tests/regression/test_g3_7_truth_source.py:1321: in test_concept_identity_s6_cleanup_failure_is_normalized_not_swallowed
+    assert persisted is False, "清理自身失败必须归一为 False，不得静默当成功"
+E   AssertionError: 清理自身失败必须归一为 False，不得静默当成功
+E   assert True is False
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Initialized FSRS scheduler with retention=0.9", "logger": "memory.temporal.fsrs_manager", "level": "info", "timestamp": "2026-09-18T11:43:22.037661Z"}
+{"event": "FSRSManager created (desired_retention=0.9)", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:22.037834Z"}
+{"event": "FSRS manager auto-created via factory", "logger": "app.services.review_service", "level": "info", "timestamp": "2026-09-18T11:43:22.037946Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     memory.temporal.fsrs_manager:fsrs_manager.py:127 Initialized FSRS scheduler with retention=0.9
+INFO     app.services.review_service:review_service.py:757 {'event': 'FSRSManager created (desired_retention=0.9)', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:22.037834Z'}
+INFO     app.services.review_service:review_service.py:827 {'event': 'FSRS manager auto-created via factory', 'logger': 'app.services.review_service', 'level': 'info', 'timestamp': '2026-09-18T11:43:22.037946Z'}
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s3_encoding_failure_rolls_back_and_creates_no_tmp
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_failure_after_tmp_leaves_no_residue
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_fsync_precedes_replace
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_write_phase_failure_leaves_no_residue
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_directory_fsync_failure_is_reported_not_swallowed
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_write_failure_leaves_no_residue
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_persist_is_serialized_across_threads
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_stale_publish_is_discarded
+FAILED tests/regression/test_g3_7_truth_source.py::test_concept_identity_s6_cleanup_failure_is_normalized_not_swallowed
+=========== 9 failed, 5 passed, 21 deselected, 10 warnings in 1.34s ============
+rc=1

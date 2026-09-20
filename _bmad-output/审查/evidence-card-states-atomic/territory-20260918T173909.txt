@@ -1,0 +1,22 @@
+# 地盘门 (l) — HEAD=7a5081f1  BASE=9c4e7e82  2026-09-18T17:39:09+0800
+
+$ git --no-pager diff --stat --no-color 9c4e7e82 HEAD -- . ":(exclude)_bmad-output"
+ backend/app/services/review_service.py             |  49 +++-
+ backend/tests/regression/test_g3_7_truth_source.py | 311 +++++++++++++++++++++
+ openspec/specs/concept-identity/spec.md            |  30 +-
+ 3 files changed, 380 insertions(+), 10 deletions(-)
+
+# 验伪锚：去掉 exclude 必须多出 _bmad-output/ 路径
+$ git --no-pager diff --name-only --no-color 9c4e7e82 HEAD | grep -c "^_bmad-output/"
+26
+
+# 禁区必须为空
+$ git --no-pager diff --stat --no-color 9c4e7e82 HEAD -- backend/openapi.json backend/app/utils/atomic_io.py backend/app/api/v1/endpoints/review.py backend/app/models backend/tests/unit backend/tests/conftest.py openspec/changes
+(以上无输出 = 禁区零改动)
+
+# review_service.py hunk 头（必须恰 4 个）
+4
+@@ -61,6 +61,7 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
+@@ -656,6 +657,45 @@ def _card_states_count(states: Any) -> int:
+@@ -925,8 +965,8 @@ class ReviewService:
+@@ -971,9 +1011,8 @@ class ReviewService:
