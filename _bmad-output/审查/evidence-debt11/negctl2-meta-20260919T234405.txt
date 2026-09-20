@@ -1,0 +1,10 @@
+tree-clean-pre=ok
+== negctl2 pre-sha ==
+bc3b87daaa9fb2ceccf6e3fcc79692f9cb8f56f65ec7d54a907aec2915f2c306  backend/app/graphiti/canvas_episode.py
+== negctl2 post-sha ==
+bc3b87daaa9fb2ceccf6e3fcc79692f9cb8f56f65ec7d54a907aec2915f2c306  backend/app/graphiti/canvas_episode.py
+py-restored-clean=ok
+porcelain-nonself=0
+== failed lines ==
+FAILED tests/unit/test_canvas_episode_v1.py::test_callout_added_valid - Asser...
+assert-hits=1

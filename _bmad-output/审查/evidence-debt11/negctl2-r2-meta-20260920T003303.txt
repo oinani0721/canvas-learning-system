@@ -1,0 +1,6 @@
+# negctl2-r2 meta — 2026-09-20 00:33:03  (L_LIT=226)
+pre-sha: 7b2f8f19267a35b2fd4f92f7a9b8ec117d842ac0ed447818d7db91446c3c0bc8  backend/app/graphiti/canvas_episode.py
+mutated:     schema_version: Literal["CanvasGraphEpisodeV2"] = "CanvasGraphEpisodeV2"
+post-sha: 7b2f8f19267a35b2fd4f92f7a9b8ec117d842ac0ed447818d7db91446c3c0bc8  backend/app/graphiti/canvas_episode.py
+restored-ok
+failed: 1 / assert-hit: 1

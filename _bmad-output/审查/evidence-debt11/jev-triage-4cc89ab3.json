@@ -1,0 +1,35 @@
+{
+  "commit": "docs(p1): CARD-DEBT-11 r2 整改（字段级冻结/行号订正/probe 重生成）[BATCH-2026-09-18-第十五批 / CARD-DEBT-11]",
+  "ref": "4cc89ab3",
+  "sha": "4cc89ab3dbb0d70b60ad9db47cad25b9070263b9",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:02:47-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-debt11/probe.py\""
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-debt11/probe.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-debt11/probe.py\"",
+      "added": 1,
+      "removed": 0,
+      "runtime": 0.03,
+      "risk": "test_or_docs",
+      "risk_conf": 0.95,
+      "urgency": 0.05,
+      "urgency_conf": 0.96,
+      "review": 0.23,
+      "test": 0.35,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 1046,
+    "output_tokens": 158
+  },
+  "latency_ms": {
+    "min": 270,
+    "median": 270,
+    "max": 270
+  }
+}

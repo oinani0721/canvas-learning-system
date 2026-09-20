@@ -1,0 +1,13 @@
+# territory r2 corrected — 2026-09-20 00:32:48
+--non-bmad--
+backend/app/graphiti/canvas_episode.py
+--bmad total--
+56
+--offwhite--
+_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md
+_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md
+_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1-canvas-graph-episode-v1.md
+_bmad-output/implementation-artifacts/sprint-status.yaml
+offwhite-count=4
+--services+openapi--
+0

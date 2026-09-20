@@ -1,0 +1,2 @@
+D32-AST-EQUAL= True
+PROBE-EQUAL= False

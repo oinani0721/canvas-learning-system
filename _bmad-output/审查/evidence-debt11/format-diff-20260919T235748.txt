@@ -1,0 +1,76 @@
+--- app/graphiti/canvas_episode.py
++++ app/graphiti/canvas_episode.py
+@@ -70,9 +70,7 @@
+ class CalloutPayload(BaseModel):
+     """批注内容载荷 (callout 类事件)。anchor 由 node_path + offset 派生 (belief_key 用)。"""
+ 
+-    callout_type: str = Field(
+-        ..., description="批注类型: question/tip/error/hint/note/warning/info"
+-    )
++    callout_type: str = Field(..., description="批注类型: question/tip/error/hint/note/warning/info")
+     text: str = Field(..., description="批注正文 (用户写下的内容)")
+     offset: int = Field(
+         default=0,
+@@ -88,12 +86,8 @@
+         default_factory=list,
+         description="用户到达该节点的探索路径, 如 ['概览','递归定义','base case']",
+     )
+-    in_links: list[str] = Field(
+-        default_factory=list, description="反向引用该节点的其他节点 (wikilink in-links)"
+-    )
+-    out_links: list[str] = Field(
+-        default_factory=list, description="该节点出链到的其他节点 (wikilink out-links)"
+-    )
++    in_links: list[str] = Field(default_factory=list, description="反向引用该节点的其他节点 (wikilink in-links)")
++    out_links: list[str] = Field(default_factory=list, description="该节点出链到的其他节点 (wikilink out-links)")
+ 
+ 
+ # ═══════════════════════════════════════════════════════════════════════════════
+@@ -230,9 +224,7 @@
+     event_type: EventType
+     occurred_at: datetime
+     vault_id: str
+-    group_id: str = Field(
+-        ..., description="vault:<vault_id>[:<subject>] (Canvas D16 格式)"
+-    )
++    group_id: str = Field(..., description="vault:<vault_id>[:<subject>] (Canvas D16 格式)")
+     canvas_path: str
+     node_id: str
+     source_node_id: str | None = None
+@@ -241,14 +233,10 @@
+         default=None,
+         description="prerequisite/depends_on/refines/extends/example_of/contradicts/related_to",
+     )
+-    belief_key: str = Field(
+-        ..., description="belief 版本链 key (见 5-ge-2 BeliefKeyResolver)"
+-    )
++    belief_key: str = Field(..., description="belief 版本链 key (见 5-ge-2 BeliefKeyResolver)")
+     callout: CalloutPayload | None = None
+     context: ContextPayload
+-    narrative: str = Field(
+-        ..., description="⛔ 必填自然语言句子 (Graphiti search_facts 命中关键)"
+-    )
++    narrative: str = Field(..., description="⛔ 必填自然语言句子 (Graphiti search_facts 命中关键)")
+ 
+     @field_validator("narrative")
+     @classmethod
+@@ -261,15 +249,11 @@
+     def _autofill_event_id(self) -> CanvasGraphEpisodeV1:
+         if not self.event_id:
+             anchor = self.belief_key or self.node_id
+-            self.event_id = self.compute_event_id(
+-                self.vault_id, self.canvas_path, anchor, self.occurred_at
+-            )
++            self.event_id = self.compute_event_id(self.vault_id, self.canvas_path, anchor, self.occurred_at)
+         return self
+ 
+     @staticmethod
+-    def compute_event_id(
+-        vault_id: str, canvas_path: str, anchor: str, timestamp: datetime
+-    ) -> str:
++    def compute_event_id(vault_id: str, canvas_path: str, anchor: str, timestamp: datetime) -> str:
+         """确定性事件 ID = SHA-256(vault_id + canvas_path + anchor + ISO 时间戳)。"""
+         raw = f"{vault_id}|{canvas_path}|{anchor}|{timestamp.isoformat()}"
+         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+1 file would be reformatted

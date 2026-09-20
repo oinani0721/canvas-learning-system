@@ -1,0 +1,16 @@
+# 收尾 spot checks（post-③ / pre-④）— 2026-09-20 01:17:08
+== D-32 (worktree vs PREV 6f25de8b) ==
+D32-AST-EQUAL= True
+== py diff PREV..4cc89ab3 非# ==
+0
+== freeze grep（spec/py） ==
+_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1-canvas-graph-episode-v1.md:9
+backend/app/graphiti/canvas_episode.py:4
+== yaml: ss-count/sb-count ==
+ss=0 sb=2
+== prod identity f21cd421..4cc89ab3（期望 0） ==
+0
+== 证据文件计数（EV） ==
+72
+== §二.12 预检（③..HEAD 非_bmad，④ 前应空） ==
+0

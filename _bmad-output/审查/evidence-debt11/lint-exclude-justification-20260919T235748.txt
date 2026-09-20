@@ -1,0 +1,25 @@
+# lint-exclude justification (LEFTHOOK_EXCLUDE=python-lint) — 2026-09-19 23:57:48
+# 卡文 (o) 预期「python-lint 真跑必绿」；实测为 PREV 既有 format 漂移（D-40 整仓 462 漂移之一），以下为三件证据。
+
+== 1) 工作树 format --check ==
+Would reformat: app/graphiti/canvas_episode.py
+1 file would be reformatted
+worktree_fmt_rc=1
+
+== 1b) PREV 版 format --check（stdin，同一 config）==
+prev_fmt_rc=1
+
+== 2) 本卡新增行段 vs format 想改旧侧行段（交集应为空）==
+added_new_lines= [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+format_wants_old_ranges= [(70, 78), (88, 99), (230, 238), (241, 254), (261, 275)]
+intersection= []
+control(按行70判有辨别力)= [70]
+
+== 3) ruff check（lint 本体）应绿 ==
+All checks passed!
+check_rc=0
+
+== body wc ==
+      89
+      77
+     103

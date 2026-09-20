@@ -1,0 +1,12 @@
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage
+card/p1-storage
+PREV=6f25de8b
+1
+anc-9c4e7e82-ok
+anchor-c33240fa-ok
+tolerance_nonbmad_commits=0
+       1
+pytest-ok
+env-ok
+pyright-ok
+33

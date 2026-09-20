@@ -1,0 +1,9 @@
+# negctl1-r2 meta — 2026-09-20 00:32:48  (L_RAISE=258)
+tree-clean-pre=ok
+pre-sha: 7b2f8f19267a35b2fd4f92f7a9b8ec117d842ac0ed447818d7db91446c3c0bc8  backend/app/graphiti/canvas_episode.py
+mutated:             pass  # NEGCTL-1
+NEGCTL1-count=1
+post-sha: 7b2f8f19267a35b2fd4f92f7a9b8ec117d842ac0ed447818d7db91446c3c0bc8  backend/app/graphiti/canvas_episode.py
+restored-ok
+porcelain-nonself=0
+failed: 2 / didnotraise: 2

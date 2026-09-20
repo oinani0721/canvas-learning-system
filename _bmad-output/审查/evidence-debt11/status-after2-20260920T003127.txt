@@ -1,0 +1,14 @@
+status: "review"
+Status: review
+--yaml-5ge1--
+615:    STORY-5-ge-1:
+616-      title: "CanvasGraphEpisodeV1 统一事件 schema + edge_type_map 透传"
+617-      status: review
+618-      schema_frozen: "2026-09-18 CARD-DEBT-11 (CanvasGraphEpisodeV1; 解冻须开 V2)"
+ss-count=0 sb-count=2 sa-count=2
+--oldspecs--
+_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md:24:Status: superseded → 5-ge-1 (partial, 2026-09-18)
+_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md:23:Status: superseded → 5-ge-1 (partial, 2026-09-18)
+old1-superseded-hits=5 old2-superseded-hits=5
+--yaml-parse--
+yaml-parse=OK

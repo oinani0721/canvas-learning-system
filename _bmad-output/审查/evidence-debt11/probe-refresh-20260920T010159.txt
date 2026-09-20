@@ -1,0 +1,8 @@
+# probe refresh (r3) — 2026-09-20 01:01:59
+pre: sha256(probe)=018c9989a1f4201c2325f08b45323eb53c8a589738ef12e803858f5faf58ac27
+post: sha256(probe)=51d612e323fbb27a3b649ef6417540a600f2b05ce80d0f1062b577cb022da682
+diff-lines: 2
+diff-body:
+276a277
+> X_PROBE = 1
+falsification: PROBE-EQUAL= False

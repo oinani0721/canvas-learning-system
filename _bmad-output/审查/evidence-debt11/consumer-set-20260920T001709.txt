@@ -1,0 +1,4 @@
+consumer_files=3
+tests/unit/test_belief_version_chain.py
+tests/unit/test_canvas_episode_v1.py
+tests/unit/test_graphiti_structured_writer.py

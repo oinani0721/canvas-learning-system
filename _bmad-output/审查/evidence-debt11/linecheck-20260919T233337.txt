@@ -1,0 +1,44 @@
+==spec 5/19/102-107/111==
+status: "in-progress"
+Status: in-progress
+- [ ] Task 3: episode_worker edge_type_map 透传 (AC: #4) — ⏸ **本期 Q2 未选** (已解锁可选后续; Phase 0 后无冲突)
+  - [ ] `_process_episode` 加 `edge_type_map=CANVAS_EDGE_TYPE_MAP` 参数
+- [ ] Task 4: 统一 events_queue 表 (AC: #5) — ⏸ **D5 降级 5-ge-3** (本期用 payload 进 episode_body 达成; 不新建平行主干护 C-1)
+  - [ ] `canvas_graph_events` LanceDB 表
+- [ ] Task 5: endpoint (AC: #5) — ⏸ **D5 降级 5-ge-3**
+  - [ ] POST `/api/v1/event/canvas-graph`
+- [~] Task 7: 单元测试 (AC: #7) — schema 部分完成, edge_type_map 透传测试随 Task 3 延后
+
+==yaml STORY-5-ge-1==
+611:    STORY-5-ge-1:
+612-      title: "CanvasGraphEpisodeV1 统一事件 schema + edge_type_map 透传"
+613-      status: ready-for-dev
+
+==yaml 2-10/1-16==
+493:    STORY-2-10-wikilink-graphiti-sync:
+494-      title: "wikilink → Graphiti 单向事件流 (Lazy + Batch) — 用户 1B 决策插队"
+495-      status: backlog
+--
+560:    STORY-1-16-callout-graphiti-hook:
+561-      title: "Callout 写 Graphiti Episode 自动 hook (含 wikilink 上下文, V-07 修复 2026-05-26)"
+562-      status: backlog
+
+==yaml superseded_specs 682-686==
+    # ─── V-07/V-08/V-10 旧修复 spec 状态变更 ───
+    superseded_specs:
+      V-07_1-16-callout-graphiti-hook: "superseded by 5-ge-1 (callout 走 unified schema)"
+      V-08_LITE-4-3_route_0: "partial superseded by 5-ge-5 facade (路线 0 改调 search_relation_facts)"
+      V-10_questions_registry: "superseded by 5-ge-2 belief_key 版本链"
+superseded-status-count=0
+
+==py 14/208/214==
+# [Source: _bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1-canvas-graph-episode-v1.md]
+class CanvasGraphEpisodeV1(BaseModel):
+    schema_version: Literal["CanvasGraphEpisodeV1"] = "CanvasGraphEpisodeV1"
+
+==test count==
+19
+
+==freeze grep before==
+_bmad-output/implementation-artifacts/epic-5a-graphiti-runtime/5-ge-1-canvas-graph-episode-v1.md:0
+backend/app/graphiti/canvas_episode.py:0

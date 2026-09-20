@@ -493,6 +493,8 @@ development_status:
     STORY-2-10-wikilink-graphiti-sync:
       title: "wikilink → Graphiti 单向事件流 (Lazy + Batch) — 用户 1B 决策插队"
       status: backlog
+      superseded_by: "5-ge-1 (partial, CARD-DEBT-11 2026-09-18)"
+      superseded_at: "2026-09-18"
       estimate_hours: 6
       day: 9
       spec_path: "_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md"
@@ -560,6 +562,8 @@ development_status:
     STORY-1-16-callout-graphiti-hook:
       title: "Callout 写 Graphiti Episode 自动 hook (含 wikilink 上下文, V-07 修复 2026-05-26)"
       status: backlog
+      superseded_by: "5-ge-1 (partial, CARD-DEBT-11 2026-09-18)"
+      superseded_at: "2026-09-18"
       estimate_hours: 5  # V-07 修复: 3 → 5 (+2h Task 1.5 wikilink-context plugin helper)
       sprint: "Sprint 2 (修正方案 A 第 4 步, V-07 patch 升级)"
       spec_path: "_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md"
@@ -610,7 +614,8 @@ development_status:
   sprint_v3_graphiti_era:
     STORY-5-ge-1:
       title: "CanvasGraphEpisodeV1 统一事件 schema + edge_type_map 透传"
-      status: ready-for-dev
+      status: review
+      schema_frozen: "2026-09-18 CARD-DEBT-11 (CanvasGraphEpisodeV1; 解冻须开 V2)"
       estimate_hours: 16
       priority: P0
       sprint: "Sprint 2 v3 Day 6-7 (Session B)"

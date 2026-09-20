@@ -1,0 +1,50 @@
+{
+  "commit": "docs(p1): CARD-DEBT-11 r1 整改（冻结面展开/枚举回退/证据入库）[BATCH-2026-09-18-第十五批 / CARD-DEBT-11]",
+  "ref": "f21cd421",
+  "sha": "f21cd4217375af62a7b05bef58633ed51a0244d1",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T00:48:29-0700",
+  "code_files": [
+    "\"_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-debt11/probe.py\"",
+    "backend/app/graphiti/canvas_episode.py"
+  ],
+  "files": [
+    {
+      "file": "\"a/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-debt11/probe.py\" \"b/_bmad-output/\\345\\256\\241\\346\\237\\245/evidence-debt11/probe.py\"",
+      "added": 276,
+      "removed": 0,
+      "runtime": 0.34,
+      "risk": "api_contract",
+      "risk_conf": 0.67,
+      "urgency": 2.72,
+      "urgency_conf": 0.57,
+      "review": 0.75,
+      "test": 0.52,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/app/graphiti/canvas_episode.py",
+      "added": 1,
+      "removed": 0,
+      "runtime": 0.02,
+      "risk": "test_or_docs",
+      "risk_conf": 0.97,
+      "urgency": 0.03,
+      "urgency_conf": 0.98,
+      "review": 0.17,
+      "test": 0.39,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 5873,
+    "output_tokens": 315
+  },
+  "latency_ms": {
+    "min": 227,
+    "median": 346,
+    "max": 346
+  }
+}

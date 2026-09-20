@@ -1,0 +1,27 @@
+status: "review"
+Status: review
+---
+613:    STORY-5-ge-1:
+614-      title: "CanvasGraphEpisodeV1 统一事件 schema + edge_type_map 透传"
+615-      status: review
+616-      schema_frozen: "2026-09-18 CARD-DEBT-11 (CanvasGraphEpisodeV1; 解冻须开 V2)"
+---
+superseded-status-count=2
+---
+493:    STORY-2-10-wikilink-graphiti-sync:
+495-      status: superseded
+496-      superseded_by: "5-ge-1 (partial, CARD-DEBT-11 2026-09-18)"
+561:    STORY-1-16-callout-graphiti-hook:
+563-      status: superseded
+564-      superseded_by: "5-ge-1 (partial, CARD-DEBT-11 2026-09-18)"
+---
+_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md:24:Status: superseded → 5-ge-1 (partial, 2026-09-18)
+_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md:23:Status: superseded → 5-ge-1 (partial, 2026-09-18)
+_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md:5:status: "superseded"
+_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md:6:superseded_by: "5-ge-1 (partial)"
+_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md:7:superseded_at: "2026-09-18"
+_bmad-output/implementation-artifacts/epic-1/1-16-callout-graphiti-hook.md:8:superseded_reason: "callout 事件走 CanvasGraphEpisodeV1 统一 schema；本 spec 未被并入的剩余面 = plugin 侧 `callout-sync.ts` 采集与双链上下文抓取（Task 1/1.5/2）、`POST /api/v1/event/callout` 端点与 `callout_events` 表（Task 3/4）、`wikilink_batch_sweep.py` 的 callout sweep 扩展与 valid_at/invalid_at 时序、失败重试（Task 5-7），其归属待登记"
+_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md:5:status: "superseded"
+_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md:6:superseded_by: "5-ge-1 (partial)"
+_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md:7:superseded_at: "2026-09-18"
+_bmad-output/implementation-artifacts/epic-2/2-10-wikilink-graphiti-sync.md:8:superseded_reason: "wikilink 事件走 CanvasGraphEpisodeV1 统一 schema；本 spec 未被并入的剩余面 = plugin 侧 `wikilink-sync.ts` 采集（Task 1/2）、`POST /api/v1/event/navigation` 端点与 `events_queue` 表（Task 3/4）、`wikilink_batch_sweep.py` hourly sweep / 分块写入 / 性能验证（Task 5/9/10，与 5-ge-3 路径相关但无 owner 落位），其归属待登记"

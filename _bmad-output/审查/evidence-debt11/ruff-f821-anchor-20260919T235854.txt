@@ -1,0 +1,10 @@
+F821 Undefined name `undefined_name_zz`
+ --> backend/_ruff_anchor_tmp.py:1:5
+  |
+1 | x = undefined_name_zz
+  |     ^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1
+residue=0

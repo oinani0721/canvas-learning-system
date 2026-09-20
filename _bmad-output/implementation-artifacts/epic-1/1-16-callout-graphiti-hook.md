@@ -2,7 +2,10 @@
 story_id: "1.16-callout-graphiti-hook"
 epic_id: "1"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
+status: "superseded"
+superseded_by: "5-ge-1 (partial)"
+superseded_at: "2026-09-18"
+superseded_reason: "callout 事件走 CanvasGraphEpisodeV1 统一 schema；本 spec 未被并入的剩余面 = plugin 侧 `callout-sync.ts` 采集与双链上下文抓取（Task 1/1.5/2）、`POST /api/v1/event/callout` 端点与 `callout_events` 表（Task 3/4）、`wikilink_batch_sweep.py` 的 callout sweep 扩展与 valid_at/invalid_at 时序、失败重试（Task 5-7）、集成测试（Task 8，e2e: plugin 写 callout → 1h cron → search_facts）；以上归属待登记（推荐落点：plugin 事件采集卡 / 5-ge-2 / 5-ge-3 承接，见 CARD-DEBT-11 验收单「台账待登记条目」）"
 priority: "P1"
 estimate_hours: 5
 depends_on: ["INFRA-002", "STORY-2-10-wikilink-graphiti-sync"]
@@ -18,7 +21,7 @@ trace:
 
 # Story 1.16-callout-graphiti-hook: Callout 写 Graphiti Episode 自动 hook
 
-Status: ready-for-dev
+Status: superseded → 5-ge-1 (partial, 2026-09-18)
 
 > **2026-05-24 新建**: 修正方案 A 第 4 步 — 让用户日常写 callout 时自动写入 Graphiti **学习历程系统**，激活用户 2026-05-13 锁定的"个人记忆系统理解原白板学习过程"诉求。复用 STORY-2-10 的 events_queue 管道，零额外基础设施。
 

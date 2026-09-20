@@ -274,3 +274,4 @@ class CanvasGraphEpisodeV1(BaseModel):
         """确定性事件 ID = SHA-256(vault_id + canvas_path + anchor + ISO 时间戳)。"""
         raw = f"{vault_id}|{canvas_path}|{anchor}|{timestamp.isoformat()}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+X_PROBE = 1

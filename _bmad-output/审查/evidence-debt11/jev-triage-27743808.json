@@ -1,0 +1,35 @@
+{
+  "commit": "docs(p1): 5-ge-1 schema 冻结 + Task 3/4/5 裁定 + 旧 spec supersede [BATCH-2026-09-18-第十五批 / CARD-DEBT-11]",
+  "ref": "27743808",
+  "sha": "2774380842708660b63c64bff08a8193711f3962",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T00:17:10-0700",
+  "code_files": [
+    "backend/app/graphiti/canvas_episode.py"
+  ],
+  "files": [
+    {
+      "file": "backend/app/graphiti/canvas_episode.py",
+      "added": 11,
+      "removed": 0,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 0.96,
+      "urgency": 0.41,
+      "urgency_conf": 0.66,
+      "review": 0.51,
+      "test": 0.44,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 1210,
+    "output_tokens": 158
+  },
+  "latency_ms": {
+    "min": 313,
+    "median": 313,
+    "max": 313
+  }
+}

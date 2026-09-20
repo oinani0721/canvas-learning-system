@@ -1,0 +1,13 @@
+# minute-0 status 澄清 — 2026-09-19 23:33:53
+== raw git status --porcelain ==
+?? "_bmad-output/\345\256\241\346\237\245/evidence-debt11/"
+
+== 非自建条目数（排除 evidence-debt11 与 prev-sha）==
+0
+== 说明：上一条 minute0 tee 的 1 行 = 本命令组自建 _bmad-output/审查/evidence-debt11/ 目录与 minute0 tee 文件（tee 与 git status 并发竞态）；补审 session 收工时 status 为空（见补审存档），此后无第三方改动。
+
+== untracked in EV ==
+"_bmad-output/\345\256\241\346\237\245/evidence-debt11/linecheck-20260919T233337.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-debt11/minute0-20260919T233336.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-debt11/minute0-status-clarify-20260919T233353.txt"
+"_bmad-output/\345\256\241\346\237\245/evidence-debt11/prev-sha.txt"

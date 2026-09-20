@@ -1,0 +1,11 @@
+tree-clean-pre=ok
+== negctl1 pre-sha ==
+bc3b87daaa9fb2ceccf6e3fcc79692f9cb8f56f65ec7d54a907aec2915f2c306  backend/app/graphiti/canvas_episode.py
+== negctl1 post-sha ==
+bc3b87daaa9fb2ceccf6e3fcc79692f9cb8f56f65ec7d54a907aec2915f2c306  backend/app/graphiti/canvas_episode.py
+py-restored-clean=ok
+porcelain-nonself=0
+== failed lines ==
+FAILED tests/unit/test_canvas_episode_v1.py::test_narrative_empty_string_raises
+FAILED tests/unit/test_canvas_episode_v1.py::test_narrative_whitespace_only_raises
+didnotraise-hits=2

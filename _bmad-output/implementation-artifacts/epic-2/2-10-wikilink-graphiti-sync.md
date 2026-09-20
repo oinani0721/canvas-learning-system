@@ -2,7 +2,10 @@
 story_id: "STORY-2-10-wikilink-graphiti-sync"
 epic_id: "2"
 prd_id: "canvas-learning-system"
-status: "ready-for-dev"
+status: "superseded"
+superseded_by: "5-ge-1 (partial)"
+superseded_at: "2026-09-18"
+superseded_reason: "wikilink 事件走 CanvasGraphEpisodeV1 统一 schema；本 spec 未被并入的剩余面 = plugin 侧 `wikilink-sync.ts` 采集（Task 1/2）、`POST /api/v1/event/navigation` 端点与 `events_queue` 表（Task 3/4）、`wikilink_batch_sweep.py` hourly sweep / 分块写入 / 性能验证（Task 5/9/10）、失败重试（Task 7，failed_events 路径）、集成测试（Task 8，e2e）；以上归属待登记（推荐落点：plugin 事件采集卡 / 5-ge-3 承接）。⚠️ 依赖方 STORY-LITE-4-3 / STORY-LITE-5-6 的 depends_on 仍指向本 spec，需主 session 重定向（本卡 yaml 地盘仅三块，不能改）"
 priority: "P1"
 estimate_hours: 6
 depends_on: ["INFRA-002", "PLUGIN-001"]
@@ -17,7 +20,7 @@ trace:
 
 # Story 2.10: Wikilink → Graphiti 单向事件流同步（Lazy + Batch）
 
-Status: ready-for-dev
+Status: superseded → 5-ge-1 (partial, 2026-09-18)
 
 ## Story
 

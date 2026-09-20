@@ -1,0 +1,3 @@
+# territory r2 (regex fixed) — 2026-09-20 00:33:43
+offwhite-list:
+offwhite-count=0

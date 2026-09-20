@@ -1,0 +1,13 @@
+Ref:    4cc89ab3 (4cc89ab3dbb0)
+Commit: docs(p1): CARD-DEBT-11 r2 整改（字段级冻结/行号订正/probe 重生成）[BATCH-2026-09-18-第十五批 / CARD-DEBT-11]
+Files:  1 个含代码改动（分诊前 1 个，按 churn 降序）
+
+FILE                                                             CHURN    URG  REVIEW   TEST  RISK             VERDICT
+------------------------------------------------------------------------------------------------------------
+ad-output/\345\256\241\346\237\245/evidence-debt11/probe.py"     +1/-0   0.05    0.23   0.35  test_or_docs     pass
+------------------------------------------------------------------------------------------------------------
+Model: jev-1.13.0 | calls: 1 | input_tokens: 1046 | output_tokens: 158
+Latency ms: min 270 / median 270 / max 270
+标记人工审查: 0/1
+
+报告已保存: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage/_bmad-output/审查/evidence-debt11/jev-triage-4cc89ab3.json
