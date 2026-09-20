@@ -1,0 +1,35 @@
+{
+  "commit": "test(g5-12): sentinel 用户文字区 sha256 门 + 写入方清单 [BATCH-2026-09-18-第十五批 / CARD-G5-12]",
+  "ref": "5e608026",
+  "sha": "5e6080267b8af81bafbb381116f8c3db60b7565e",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-19T22:37:36-0700",
+  "code_files": [
+    "backend/tests/regression/test_sync_board_concepts.py"
+  ],
+  "files": [
+    {
+      "file": "backend/tests/regression/test_sync_board_concepts.py",
+      "added": 163,
+      "removed": 0,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 0.97,
+      "urgency": 2.23,
+      "urgency_conf": 0.36,
+      "review": 0.74,
+      "test": 0.92,
+      "truncated": false,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 3635,
+    "output_tokens": 158
+  },
+  "latency_ms": {
+    "min": 292,
+    "median": 292,
+    "max": 292
+  }
+}

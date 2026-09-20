@@ -1,0 +1,15 @@
+=== CARD-G5-12 minute-0（2026-09-19 22:11:26 PDT） ===
+pwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x
+branch=card/p7-skills-x
+HEAD=1191dc1f subject=docs(p7): G5-10 五轮 Codex 存档+UAT（绑 80e4a319；r5 仍 H3 交主 session） [BATCH-2026-09-18-第十五批 / CARD-G5-10]
+ancestor9c4e7e82=ok porcelain_lines=1
+BASE grep -vc '^#' = 33
+BASE 跑法: # 跑法：cd backend && PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest tests/unit -q -p no:cacheprovider -rfE（不带 --ignore；T2-A 已合入）
+pyright-ok
+sync_board_concepts.py sha256 = 282b7a968033f622cba03fae57e4330424c2465ad08d73f5abdc8f3162f6d123
+--- (b) 先红结构 ---
+hashlib|_user_region count = 0
+writers-census: absent
+test_fns = 25
+--- 手册 P7 行（:453） ---
+| **P7** | `card-p7-skills-x` | **P7-A**（CARD-G5-7） | P7-A → P7-B → P7-C | 三张全数据面（G5-7 首张：X1 四条开放面「真删执行侧落地前不得解除」+ G8-2c 等本卡）。⛔ 不加 SKILL.md（避免触 check_skill_trigger_matrix EXPECTED_SKILLS）。inbox_preview.py（P5 写 :430）/ split_preview.py /  |

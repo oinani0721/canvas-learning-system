@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import difflib
+import hashlib
 import importlib.util
 import os
 import re
@@ -39,6 +41,98 @@ def _load_module():
 
 
 sbc = _load_module()
+
+
+def _user_region(text: str, member_ids: "set[str] | None" = None) -> bytes:
+    """用户文字区: sha256 逐字节断言的规范化视图（⛔ 排除面 = 机器行, 多排一行 = 门假绿）。
+
+    先按脚本同口径把 `\\r\\n` 归一为 `\\n`（sync_board :505）再逐行过滤:
+      (i) sentinel 三行（BEGIN / 收尾 NOTE / END 收尾）—— 只丢 `-->` 及其之前的
+          机器头; `-->` 之后的用户尾巴 lstrip 后**保留为一行**（与脚本 :345 拆行
+          归一映射到同一串: 「粘在行尾」与「独立成行」两种写法 hash 相同）;
+      (ii) `## Concepts` 段内、围栏外、匹配**稳态白名单**（`_SCRIPT_LINE` /
+          `_PLUGIN_LINE`）**且 `node_id ∈ member_ids`** 的概念行（脚本 :434-445
+          真正会收编重建的集合）; 非成员行与带自定义文字的成员行**留在区域里**
+          （脚本保留 + 告警）;
+      (iii) sentinel 块内（BEGIN..END 之间）等于 `_EMPTY_HINT` 的占位行。
+    `member_ids=None` ⇒ 不敢证成员身份, 概念行一律保留（保守侧, 可能误红不误绿）。
+    段边界/围栏口径与脚本 `locate_section` / `code_spans` 对齐（原始行匹配、
+    无 `---` 段界、同字符闭合的 ```/~~~）。其余行一行不动。
+    """
+    members = member_ids or set()
+    out: list[str] = []
+    in_begin_comment = False
+    in_concepts = False
+    in_block = False
+    fence: "str | None" = None
+    for ln in text.replace("\r\n", "\n").split("\n"):
+        st = ln.strip()
+        is_sentinel = bool(sbc._BEGIN_RE.match(st)) or bool(sbc._END_RE.match(st)) or in_begin_comment
+        if sbc._BEGIN_RE.match(st):
+            in_begin_comment = True
+            in_block = True
+        if is_sentinel:
+            if sbc._END_RE.match(st):
+                in_block = False
+            idx = ln.find("-->")
+            if idx != -1:
+                in_begin_comment = False
+                tail = ln[idx + 3 :]
+                if tail.strip():
+                    out.append(tail.lstrip())
+            continue
+        if sbc._CONCEPTS_HEADING.match(ln):
+            in_concepts = True
+            out.append(ln)
+            continue
+        if in_concepts and sbc._NEXT_HEADING.match(ln):
+            in_concepts = False
+            fence = None
+        if in_concepts:
+            m = sbc._FENCE_RE.match(ln)
+            if fence is None and m:
+                fence = m.group(1)[0]
+            elif fence is not None and m and m.group(1)[0] == fence:
+                fence = None
+        if in_concepts and fence is None and sbc._CONCEPT_LINE.match(ln):
+            wm = sbc._SCRIPT_LINE.match(ln) or sbc._PLUGIN_LINE.match(ln)
+            if wm is not None and wm.group(1).rsplit("/", 1)[-1] in members:
+                continue
+        if in_block and ln == sbc._EMPTY_HINT:
+            continue
+        out.append(ln)
+    return "\n".join(out).encode("utf-8")
+
+
+def _g512_sample_board(
+    synced: str = "2026-09-19T00:00:00Z", n: int = 1, member_line: str = "- [[节点/甲]] — 种子 · 待剖析占位"
+) -> str:
+    """自测样板板文: sentinel 块 + 一条成员行 + 一条块外用户 callout。"""
+    return "\n".join(
+        [
+            "---",
+            "type: whiteboard",
+            "doc_count: 1",
+            "---",
+            "",
+            "# 板",
+            "",
+            "## Concepts",
+            "",
+            sbc._SENTINEL_BEGIN,
+            sbc._SENTINEL_NOTE,
+            member_line,
+            f"<!-- /AUTO-GENERATED n={n} · synced {synced} -->",
+            "",
+            "> [!note]+ 我的用户批注",
+            "> 这行必须被 hash 看见",
+            "",
+            "## 其他段",
+            "",
+            "正文。",
+            "",
+        ]
+    )
 
 
 @pytest.fixture()
@@ -111,8 +205,31 @@ def test_h1_user_handwritten_content_survives_sync(vault, capsys):
     )
     (vault / "原白板" / "板.md").write_text(text, encoding="utf-8")
 
+    before = _user_region(text, {"甲"})
+    assert "我自己的分组备忘".encode("utf-8") in before and "我贴的一段例子".encode("utf-8") in before, (
+        "验伪锚: 区域必须非空且真含用户文字, 否则两个空串也会相等"
+    )
+
     _sync(vault, "--board", "板")
     after = (vault / "原白板" / "板.md").read_text(encoding="utf-8")
+
+    after_bytes = _user_region(after, {"甲"})
+    assert hashlib.sha256(after_bytes).hexdigest() == hashlib.sha256(before).hexdigest(), (
+        "⛔ 用户文字区逐字节不一致:\nbefore="
+        + hashlib.sha256(before).hexdigest()
+        + "\nafter ="
+        + hashlib.sha256(after_bytes).hexdigest()
+        + "\n"
+        + "\n".join(
+            difflib.unified_diff(
+                before.decode("utf-8").split("\n"),
+                after_bytes.decode("utf-8").split("\n"),
+                "before",
+                "after",
+                lineterm="",
+            )
+        )
+    )
 
     assert "我自己的分组备忘" in after, "⛔ 用户手写 callout 被吞"
     assert "下周把 asymptotics 补进来" in after
@@ -141,9 +258,36 @@ def test_h1b_text_appended_to_sentinel_line_survives(vault, where):
         text = text.replace(_SENTINEL_NOTE_TAIL, _SENTINEL_NOTE_TAIL + note, 1)
     p.write_text(text, encoding="utf-8")
 
+    before = _user_region(text, {"甲"})
+    assert note.encode("utf-8") in before, "验伪锚: 待保护的用户尾巴必须在区域里"
+
     _sync(vault, "--board", "板")
     after = p.read_text(encoding="utf-8")
+
+    after_bytes = _user_region(after, {"甲"})
+    assert hashlib.sha256(after_bytes).hexdigest() == hashlib.sha256(before).hexdigest(), (
+        f"⛔ [{where}] 用户尾巴区逐字节不一致: "
+        + hashlib.sha256(before).hexdigest()
+        + " != "
+        + hashlib.sha256(after_bytes).hexdigest()
+    )
+
     assert note in after, f"⛔ 追加在 {where} 行尾的用户文字被删除"
+
+    _sync(vault, "--board", "板")
+    mid = p.read_text(encoding="utf-8")
+    stale = "- [[节点/甲]] — seed note (mastery: 0.30)"
+    swapped = re.sub(r"^- \[\[节点/甲\]\].*$", stale, mid, count=1, flags=re.M)
+    assert swapped != mid, "构造前提: 应存在可被收编重建的成员行"
+    p.write_text(swapped, encoding="utf-8")
+    _sync(vault, "--board", "板")  # 真写盘: 收编重建该行（--check 不写盘; 收敛后的 no-op 也不够）
+    final = p.read_text(encoding="utf-8")
+    assert stale not in final, "构造前提: 第二遍必须真的发生收编重建(写盘)"
+    third_bytes = _user_region(final, {"甲"})
+    assert hashlib.sha256(third_bytes).hexdigest() == hashlib.sha256(before).hexdigest(), (
+        f"⛔ [{where}] 真实写盘第二次同步后用户尾巴区又不一致"
+    )
+
     assert _sync(vault, "--check") == 0, "拆行后必须收敛 (第二遍幂等)"
     assert note in p.read_text(encoding="utf-8"), "⛔ 第二遍同步又把它吃了"
 
@@ -155,6 +299,46 @@ def test_h1_horizontal_rule_and_prose_outside_block_survive(vault):
     _sync(vault, "--board", "板")
     after = p.read_text(encoding="utf-8")
     assert "\n---\n" in after and "我手写的分栏说明" in after and "这段绝不能删" in after
+
+
+def test_g512_user_region_hash_is_sensitive():
+    """_user_region 敏感性自测: 用户行变化必变 hash; 四类机器行变化必须不变（门非空转）。"""
+
+    def h(s: str, members: "set[str] | None" = None) -> str:
+        return hashlib.sha256(_user_region(s, {"甲"} if members is None else members)).hexdigest()
+
+    base = _g512_sample_board()
+
+    dropped = "\n".join(ln for ln in base.split("\n") if ln != "> 这行必须被 hash 看见")
+    assert h(dropped) != h(base), "(a) 用户文字行被删而 hash 不变 = 门假绿"
+
+    assert h(_g512_sample_board(synced="2030-01-01T00:00:00Z", n=2)) == h(base), (
+        "(b) END 行的 synced 时间戳与 n= 属机器头, 变化不得改变 hash"
+    )
+
+    assert h(_g512_sample_board(member_line="- [[节点/甲]] — extracted, weak (0.30)")) == h(base), (
+        "(c) 成员行收编重建（_CONCEPT_LINE 面）不得改变 hash"
+    )
+
+    end = "<!-- /AUTO-GENERATED n=1 · synced 2026-09-19T00:00:00Z -->"
+    glued = base.replace(end, end + "我的备注：先补 asymptotics", 1)
+    standalone = base.replace(end, end + "\n我的备注：先补 asymptotics", 1)
+    assert h(glued) == h(standalone) != h(base), "(d) 尾巴「粘在 sentinel 行尾」与「独立成行」必须映射到同一串"
+
+    member = "- [[节点/甲]] — 种子 · 待剖析占位"
+    with_hint = base.replace(member, sbc._EMPTY_HINT, 1)
+    without_hint = base.replace(member + "\n", "", 1)
+    changed_hint = base.replace(member, sbc._EMPTY_HINT + "x", 1)
+    assert h(with_hint) == h(without_hint), "(e1) _EMPTY_HINT 占位行必须真的在排除面内（排除非空转）"
+    assert h(changed_hint) != h(with_hint), "(e2) 只有逐字等于 _EMPTY_HINT 的行才被排除"
+
+    custom_a = base.replace(member, "- [[节点/甲]] 我卡在第 3 步", 1)
+    custom_b = base.replace(member, "- [[节点/甲]] 我卡在第 4 步", 1)
+    assert h(custom_a) != h(custom_b), "(f) 带自定义文字的成员行不在收编白名单内, 必须在区域内（脚本会保留）"
+
+    nonmember = base.replace(member, "- [[节点/不是成员]] — 种子 · 待剖析占位", 1)
+    assert h(nonmember) != h(base), "(g1) 机器形状的非成员行不在收编集合内（脚本按成员身份保留）"
+    assert h(nonmember, {"甲", "不是成员"}) == h(base), "(g2) 同样的行在册为成员时才被排除"
 
 
 # ══ 根因 A: 白名单收编 —— 只删「我能从真相源逐字重建的机器产物」 ══

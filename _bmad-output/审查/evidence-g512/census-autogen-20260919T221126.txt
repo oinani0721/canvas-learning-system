@@ -1,0 +1,19 @@
+backend/app/services/board_manifest_service.py:2
+backend/scripts/vault_lint.py:5
+backend/tests/regression/test_sync_board_concepts.py:9
+backend/tests/skills/test_split_preview.py:7
+backend/tests/skills/test_split_stable_id.py:1
+backend/tests/unit/test_vault_lint.py:29
+canvas-vault/.claude/scripts/sync_board_concepts.py:7
+canvas-vault/.claude/skills/board-split/scripts/split_preview.py:7
+canvas-vault/.claude/skills/configure-whiteboard/templates/whiteboard.md.template:2
+frontend/obsidian-plugin/src/configure-whiteboard.ts:4
+frontend/obsidian-plugin/tests/configure-whiteboard.test.ts:5
+canvas-vault/.claude/skills/ai-linked-doc/SKILL.md:2
+canvas-vault/.claude/skills/configure-whiteboard/SKILL.md:2
+canvas-vault/.claude/skills/quiz-answer/SKILL.md:2
+764:      const updated = appendBoardLines(cur, conceptsLine, activityLine);
+1039:      const updated = appendBoardLines(cur, conceptsLine, activityLine);
+1111:      const updated = appendBoardLines(cur, conceptsLine, activityLine);
+1410:        const updated = appendBoardLines(cur, conceptsLine, activityLine);
+2558:function appendBoardLines(
