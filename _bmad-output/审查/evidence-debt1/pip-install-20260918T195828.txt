@@ -1,0 +1,11 @@
+Collecting pytest-timeout==2.4.0
+  Downloading pytest_timeout-2.4.0-py3-none-any.whl.metadata (20 kB)
+Requirement already satisfied: pytest>=7.0.0 in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages (from pytest-timeout==2.4.0) (9.0.2)
+Requirement already satisfied: iniconfig>=1.0.1 in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages (from pytest>=7.0.0->pytest-timeout==2.4.0) (2.3.0)
+Requirement already satisfied: packaging>=22 in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages (from pytest>=7.0.0->pytest-timeout==2.4.0) (26.0)
+Requirement already satisfied: pluggy<2,>=1.5 in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages (from pytest>=7.0.0->pytest-timeout==2.4.0) (1.6.0)
+Requirement already satisfied: pygments>=2.7.2 in /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages (from pytest>=7.0.0->pytest-timeout==2.4.0) (2.20.0)
+Downloading pytest_timeout-2.4.0-py3-none-any.whl (14 kB)
+Installing collected packages: pytest-timeout
+Successfully installed pytest-timeout-2.4.0
+rc=0

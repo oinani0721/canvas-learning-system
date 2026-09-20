@@ -1,0 +1,6 @@
+=== ini 语义 diff：PREV vs HEAD 工作树（除新增两键外应完全相同） TS=20260918T205552 ===
+新增键 : [('timeout', '300'), ('timeout_method', 'signal')]
+删除键 : []
+改值键 : []
+结论   : 只新增 timeout/timeout_method，其余零变化
+rc=0

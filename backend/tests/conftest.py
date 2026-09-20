@@ -1032,3 +1032,73 @@ def mock_agent_service():
     mock._trigger_memory_write = AsyncMock()
     mock._call_gemini_api = AsyncMock(return_value="mock gemini response")
     return mock
+
+
+# ============================================================================
+# 按目录自动补 marker —— 「默认门」的地基
+# [BATCH-2026-09-18-第十五批 / CARD-DEBT-1]
+# ============================================================================
+
+
+def pytest_collection_modifyitems(config, items):
+    """按用例所在的一级目录补 ``contract`` / ``integration`` / ``e2e`` marker。
+
+    **默认门**（本卡定义，理由写在 ``backend/pytest.ini`` 的注释里，⛔ 不进
+    ``addopts``）::
+
+        pytest tests --ignore=tests/integration --ignore=tests/e2e
+               -m "not integration and not e2e and not contract"
+
+    在这之前这条表达式挡不住多少东西：``tests/integration`` 的 89 个文件里只有
+    27 个手写了 ``pytest.mark.integration``，``tests/e2e`` 的 13 个里只有 4 个写了
+    ``pytest.mark.e2e``，``tests/contract`` 的 6 个里只有 1 个写了
+    ``pytest.mark.contract``（``test_openapi_snapshot_drift.py:36``）。
+    谁新建一个文件忘了写 ``pytestmark``，它就会悄悄混进默认门。有了这个 hook，
+    「放在哪个目录」直接决定 marker。
+
+    ⚠️ **覆盖面如实说（2026-09-19 人审替代更正）**：原文写「忘写不再是一种可能」
+    与「``tests/contract`` 一个都没有」，两句都**过强/失实**：
+
+    - 本 hook 只管这三个目录。``backend/tests`` 下另外 11 个一级目录
+      （api / bdd / benchmark / core / load / performance / regression /
+      security / skills / smoke / unit）与约 25 个顶层 ``test_*.py``
+      一律不打标 —— 例如 ``tests/test_rollback_e2e.py``（顶层、无 pytestmark、
+      名字带 e2e）今天仍在默认门里。
+    - 不是安全洞：这些路径在 W4 里全是 fail-closed，真去连 7691 会被拦红。
+      但「忘写不再是一种可能」这句话**只在这三个目录内成立**。
+
+    **映射恰好三条**，不多不少::
+
+        {"contract": "contract", "integration": "integration", "e2e": "e2e"}
+
+    ⛔ **不打 ``real_neo4j``**，⛔ 不往这三条之外扩目录。理由在 W4：
+    ``tests/support/live_port_guard.py`` 的 ``EXEMPT_MARKERS``
+    = {integration, e2e, real_neo4j} 是「只记不拦」名单，``EXEMPT_PATH_PREFIXES``
+    = ("integration", "e2e") 是同一件事的路径侧。本 hook 打的 ``integration`` /
+    ``e2e`` 只落在**路径上早已豁免**的那两个目录里 ⇒ 对 W4 语义中性；打的
+    ``contract`` 不在 ``EXEMPT_MARKERS`` 里 ⇒ ``tests/contract`` 仍然 fail-closed。
+
+    要往映射里加第四条目录、或改其中任何一个 marker 名之前，**必须回去重核
+    ``EXEMPT_MARKERS``**：往这里写一个豁免 marker，等于悄悄把一批用例从 W4 的
+    拦截面挪进 advisory 面。``tests/unit/test_debt1_default_gate.py`` 的第三条用例
+    把这句话钉成了可执行判据 —— 那里的 marker 表达式由 ``EXEMPT_MARKERS`` 动态
+    拼出来，不是手抄的副本。
+
+    相对化口径与 ``live_port_guard.is_exempt`` 一致：取相对 ``backend/tests`` 的
+    首段目录；相对化失败（rootdir 之外的文件）一律不打 —— 和那边一样 fail-closed，
+    宁可漏打也不错打。
+    """
+    dir_to_marker = {"contract": "contract", "integration": "integration", "e2e": "e2e"}
+    tests_dir = Path(__file__).parent.resolve()
+    for item in items:
+        try:
+            rel = item.path.resolve().relative_to(tests_dir)
+        except Exception:  # noqa: BLE001 —— 相对化失败一律不打，与 is_exempt 同口径
+            continue
+        first = rel.parts[0] if rel.parts else ""
+        marker = dir_to_marker.get(first)
+        if marker is None:
+            continue
+        if item.get_closest_marker(marker) is not None:
+            continue
+        item.add_marker(marker)

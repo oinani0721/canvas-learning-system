@@ -1,0 +1,50 @@
+{
+  "commit": "docs(p9): CARD-DEBT-1 round-3 人审裁定（非 Codex r3）+ D-32 纯注释更正 [BATCH-2026-09-18-第十五批 / CARD-DEBT-1]",
+  "ref": "9d270cdf",
+  "sha": "9d270cdff95449dcd6e5f994438af995f1db1079",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T01:28:43-0700",
+  "code_files": [
+    "backend/tests/conftest.py",
+    "backend/tests/unit/test_debt1_default_gate.py"
+  ],
+  "files": [
+    {
+      "file": "backend/tests/unit/test_debt1_default_gate.py",
+      "added": 16,
+      "removed": 2,
+      "runtime": 0.03,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.09,
+      "urgency_conf": 0.43,
+      "review": 0.65,
+      "test": 0.68,
+      "truncated": false,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/conftest.py",
+      "added": 15,
+      "removed": 3,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 0.47,
+      "urgency_conf": 0.61,
+      "review": 0.49,
+      "test": 0.62,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 3270,
+    "output_tokens": 316
+  },
+  "latency_ms": {
+    "min": 245,
+    "median": 262,
+    "max": 262
+  }
+}

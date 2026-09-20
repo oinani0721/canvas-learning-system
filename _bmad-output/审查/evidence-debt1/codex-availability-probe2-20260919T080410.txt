@@ -1,0 +1,25 @@
+# CARD-DEBT-1 · Codex 失败形态复测 #2（2026-09-19，用户裁定「核实并统一两边记录」后）
+
+命令：codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="low" "回答两个字：可用"
+codex: codex-cli 0.153.3 · rc=1 · stdout 字节 = 0
+
+## 会话头自证（抄 stderr；stderr 本身不入库）
+  2:OpenAI Codex v0.153.3
+  5:model: gpt-6-astra
+  9:reasoning effort: low
+
+## 服务端返回
+  ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 23rd, 2026 11:05 AM.
+
+## ⚠️ 对照组无效（如实记）
+  想拿「不带 -m」做对照区分「账号级配额」vs「该模型不支持」，
+  但会话头第 5 行自证 model 仍是 gpt-6-astra（配置默认值）⇒ 不是对照组，两次问的是同一个模型。
+  且配额是账号级的：换任何模型都会先撞配额 ⇒ **在配额恢复之前，本机无法区分这两者**。
+
+## 结论（只说测得出来的）
+  1. **当前**（2026-09-19 06:2x）服务端给的是 `You've hit your usage limit … Sep 23rd, 2026 11:05 AM`
+     = **账号级配额**，不是 `400 … model is not supported`。
+  2. 04:2x 那次的 400 与现在的配额是**两种不同的服务端拒绝**，都有观测。
+  3. ⛔ **不能据此断言「模型可用」**：配额在前，模型校验在后还是在前，本机测不出来。
+     诚实表述 = 「**当前的阻塞是配额**；模型是否支持，要等配额恢复后才能再测」。
+  4. ⇒ 记忆里「已复测，非配额 = 模型对本账号不支持」这个**根因判断**过强，据此更正。

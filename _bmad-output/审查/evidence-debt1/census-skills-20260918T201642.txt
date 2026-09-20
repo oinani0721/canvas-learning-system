@@ -1,0 +1,109 @@
+# census batch: skills
+# cmd: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/.venv/bin/pytest tests/skills -q -p no:cacheprovider -rfE --durations=25 --timeout=300
+# cwd: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend
+# wall_cap_s: 1200
+# outer_wall_clock_kill: False
+# ---- stdout ----
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+timeout: 300.0s
+timeout method: signal
+timeout func_only: False
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 555 items
+
+tests/skills/test_ai_linked_doc_writer.py .........                      [  1%]
+tests/skills/test_g5_6_clear_inbox.py .................................. [  7%]
+...................................................................      [ 19%]
+tests/skills/test_g5_9_recap_exam.py ................................... [ 26%]
+........................................................................ [ 39%]
+.................                                                        [ 42%]
+tests/skills/test_skill_portability_lint.py ............................ [ 47%]
+........................................................................ [ 60%]
+........................................................................ [ 73%]
+.....                                                                    [ 74%]
+tests/skills/test_split_preview.py ..................................    [ 80%]
+tests/skills/test_split_stable_id.py ................................... [ 86%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/skills/test_g5_9_recap_exam.py: 12 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+============================= slowest 25 durations =============================
+4.62s call     tests/skills/test_ai_linked_doc_writer.py::test_concurrent_same_evid_under_held_lock_writes_once
+2.34s call     tests/skills/test_split_stable_id.py::TestDiffGuards::test_summary_accounting_balances_across_shapes
+1.69s call     tests/skills/test_g5_9_recap_exam.py::test_undo_rejects_malformed_expect_sha
+1.48s call     tests/skills/test_g5_9_recap_exam.py::test_undo_same_second_collision_keeps_both
+1.06s call     tests/skills/test_g5_9_recap_exam.py::test_undo_refuses_path_escape_and_vault_inner_undo_dir
+1.04s call     tests/skills/test_g5_9_recap_exam.py::test_create_refuses_stale_content_sha
+1.00s call     tests/skills/test_skill_portability_lint.py::test_parse_unit_cost_on_current_tree
+0.91s call     tests/skills/test_g5_9_recap_exam.py::test_create_refuses_existing_target
+0.78s call     tests/skills/test_split_preview.py::TestReadOnly::test_board_name_containment_rejects_specifically
+0.77s call     tests/skills/test_g5_9_recap_exam.py::test_undo_refuses_sha_mismatch_after_user_edit
+0.72s call     tests/skills/test_split_stable_id.py::TestLiveRealBoards::test_two_runs_on_real_boards_give_identical_stable_ids
+0.70s call     tests/skills/test_g5_9_recap_exam.py::test_undo_refuses_when_retention_bytes_corrupted
+0.68s call     tests/skills/test_g5_9_recap_exam.py::test_m7_control_char_board_refused_before_write[u007f-del]
+0.67s call     tests/skills/test_split_stable_id.py::TestDiffGuards::test_diff_is_byte_identical_on_rerun
+0.66s call     tests/skills/test_skill_portability_lint.py::test_escaping_tmp_paths_match_baseline
+0.66s call     tests/skills/test_skill_portability_lint.py::test_negative_control_selective_expression_must_be_registered[P = b"/tmp/cls-exam/" + bytes([46, 46]) + b"/x"-bytes: \u539f\u5148 `isinstance(v, str)` \u628a\u5b83\u6574\u4e2a\u4e22\u6389]
+0.64s call     tests/skills/test_g5_9_recap_exam.py::test_undo_returns_to_byte_baseline_and_retains
+0.64s call     tests/skills/test_g5_6_clear_inbox.py::test_stable_id_is_path_determined_and_content_agnostic
+0.62s call     tests/skills/test_g5_9_recap_exam.py::test_undo_refuses_when_exam_dir_symlinked_out
+0.62s call     tests/skills/test_g5_9_recap_exam.py::test_undo_refuses_replaced_inode
+0.61s call     tests/skills/test_g5_9_recap_exam.py::test_create_exactly_one_new_file_receipt_matches_preview
+0.60s call     tests/skills/test_g5_9_recap_exam.py::test_undo_refuses_when_target_swapped_before_unlink
+0.60s call     tests/skills/test_skill_portability_lint.py::test_negative_control_open_paren_continuation_must_be_registered[P = os.path.join(\n    "/tmp/cls-exam/", updir, "x"); p = json.load(open(P, encoding="utf-8"))-\u5f00\u62ec\u53f7\u6362\u884c: `black` \u6298\u957f\u884c\u7684\u81ea\u7136\u4ea7\u7269, \u7b2c\u4e00\u884c\u4e0d\u5b8c\u6574\u3001\u7b2c\u4e8c\u884c\u62ec\u53f7\u4e0d\u5e73\u8861]
+0.59s call     tests/skills/test_g5_9_recap_exam.py::test_m7_control_char_board_refused_before_write[u0085-nel]
+0.59s call     tests/skills/test_g5_9_recap_exam.py::test_undo_hint_is_actually_executable
+================= 555 passed, 22 warnings in 114.46s (0:01:54) =================
+
+# ---- stderr ----
+
+wall_clock_s=138.88
+rc=0

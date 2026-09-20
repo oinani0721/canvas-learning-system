@@ -1,0 +1,91 @@
+<!-- 来源: _bmad-output/审查/zcode-review-CARD-DEBT-1-r4.md（--json 原文的 response 字段逐字拷贝；本拷贝为可读行号版）
+sessionId=sess_3e4be0d5-bfff-42a7-8140-4f167b91592b traceId=241e1a6f-4ec5-491d-876b-c012be515dad turnId=turn_a276addd-9103-4f65-8741-69a462e7c198 -->
+
+# CARD-DEBT-1 补审 round-4（ZCode × GLM-5.3）· 复核报告
+
+**审查绑定**：`9d270cdf`（三份代码文件；工作树实读与 prompt 内嵌 diff 逐段一致）。**读取面**：§① 列出的全部文件与存档已实读，另按 ⓪ 的明示要求加读了 `backend/tests/unit/conftest.py`（核查叠加 hook）与 `live_port_guard.py` 的 pytest 接线段。未运行任何命令、未改任何文件。
+
+**总判定：BLOCKER 0 / HIGH 0（新增）/ MEDIUM 2（新增，登记不阻断）/ LOW 若干。** 人审裁定的 1 HIGH + 7 MEDIUM 处置**全部可接受**，其中 1 条 MEDIUM 的**危害方向写反了**（M-2，见 ⑥）；裁定书自身有一处模板残痕（R1/R2/R4 结论列是 `<!-- FILL -->`，见 LOW-5）。作者自述 9 条中 8 条与存档逐一吻合，1 条措辞不精确（自述 6，见 LOW-2）。
+
+---
+
+## ③ 六问逐答
+
+### ⓪ 自动打标有没有越过 `tests/integration` / `tests/e2e` 的边界？
+
+**没有（在真实路径下）。** hook 的唯一 marker 来源是 `conftest.py:1091` 那张恰三条映射，`conftest.py:1095-1104` 按 `resolve()` 后相对 `backend/tests` 的首段目录取值——目录不在三条映射里就 `continue`，`relative_to` 失败也 `continue`（fail-closed，与 `live_port_guard.py:1578-1581` 同口径）。逐条排查你点名的四条路径：
+
+- **软链**：唯一能越界的方向是「物理上放在别的目录、resolve 进这三个目录」的文件（如 `tests/unit/foo.py → ../integration/bar.py`）。又因 `is_exempt` 是 **marker 先于路径**判豁免（`live_port_guard.py:1575-1577` 先查 `EXEMPT_MARKERS`，`:1578-1585` 才查路径），这个文件会经 marker 通道进 advisory 面。**这条已登记**（Codex r1/r2 MEDIUM，gate docstring `test_debt1_default_gate.py:16-18`），且它与「手写 `pytest.mark.integration`」这一既有能力等价，不是本卡新开的口子。维持登记不改，同意。
+- **rootdir 之外**：相对化失败 → 不打标（`conftest.py:1096-1097`）。fail-closed ✓。
+- **conftest 加载顺序 / hook 不执行**：hook 在根 conftest，凡收集到 `backend/tests` 下文件必加载。我能核实的三处：根 conftest 恰 1 个 `pytest_collection_modifyitems`（gate 第 3 条 `:237-238` 断言 + 5 passed 实证）；`tests/unit/conftest.py` 全文只有 fixture，无任何 hook；`tests/integration/conftest.py` 无此 hook 有 `live_port_guard.py:198-199` 的在案陈述。**其余 conftest 无法全树枚举（Bash 被禁），是本报告的覆盖面限制**（见文末）。
+- **别处叠加 hook**：同上，可核实范围内不存在。gate 对「未来在别的文件里加第二个 hook」确实盲（`_hook_dir_marker_map` 只锚根 conftest），这与已登记的 M-1（同文件 `.update()` 绕过）同族，归门加固卡即可。
+
+**结论：advisory 面没有被这次改动扩大**——`contract` 不在 `EXEMPT_MARKERS`（`live_port_guard.py:195`），`integration`/`e2e` 只落在路径早已豁免的两个目录（`:202`）。
+
+### ① signal 方法在 asyncio auto + anyio portal 组合下的假归因 / 杀不掉
+
+两种情况都会发生，且**都已如实声明**（`pytest.ini:69-83` 三类例外、`:85-101` 第四类）。按对照输入分述：
+
+- **「显示成别的失败」较轻的形态其实不存在，最坏形态是「根本不显示」**：signal handler 在主线程抛的 `Failed` 走 `OutcomeException → BaseException`，普通 `except Exception` 接不住；一旦落进 `except BaseException`（asyncio `Handle._run`），它被当「回调里的异常」记账、**用例照常通过**，且闹钟只上一次弦、已经花掉——后续真挂死反而无保护。**对照输入**：`asyncio_mode=auto`（本仓实况，`pytest.ini:14` + 存档 header `gate-after-r5:9`）下，SIGALRM 落地瞬间事件循环正在步进**后台任务**的回调而非测试协程本身。
+- **C 级阻塞杀不掉**：主线程在长 C 调用里时 handler 被推迟到调用返回。**对照输入**：本仓真实存在这类栈——C-2b 的超时快照就是 `lxml feed`（`hang-census.md:339-343`），只是那次落在 worker 线程；若落在主线程即为此类。
+- **值得补充的正面事实**：本仓实测到的**主导挂起形态**（主线程卡在 TestClient portal 的 `thread.join()`，C-1 链）signal 是**有效**的——两个取证探针把它变成了 3+1 个有 `+ Timeout +` 横幅的 teardown ERROR（`hang-census.md:136-139`）。也就是说假归因风险集中在声明的三类里，不是本仓主导形态。
+
+### ② census 每条结论：读出来的还是推断的？
+
+**逐条有存档，且弱表述已自觉到位。** 重点核对：
+
+- **「不是 pact」**：两条独立证据——静态读（`PACT_DIR` 不存在 / broker 空 / `:298` skipif，`hang-census.md:442-448`）+ 定向探针实跑（25 passed / 0.55s / rc=0，`:147`）。census 自己把结论限定为「只排除**本次配置下**的 pact 探针，不能反证历史批次」（`:74-75`、`:362-364`）——这个弱化**恰好弱到对的程度**。协议 §2.2 `:60` 的措辞更正有依据。
+- **contract 的慢归 `test_openapi_contract.py`**：两面探针是「把答案交给实测」的正确形态（`:328-331`）；且证据边界写得很准——栈快照只证明「被打断时在 markdown 解析」，明确否认「300 秒全耗在解析」（`:347-351`）；`blocked=19` 与 schemathesis 面已拆成两个文件两件事（`:352-359`）。**唯一建议再收一档措辞的地方**：§六建议写进协议的「至少有一条**单条**超过 300 秒」——census 自己在 `:360-362` 承认只能证 **item 合计**（setup+call+teardown）超 300，「单条」易被读成单条请求/example。见 LOW-4。
+- **C-1 等待链**：等待对象（bge-m3 加载吊在 executor shutdown 上）是从栈 dump + 捕获 stdout 读出的，不是推断（`:271-285`）。
+
+### ③ 默认门有没有让本来在跑的用例静默消失？
+
+**没有找到可点名的条目；数量判据成立，身份判据按 census 的如实声明未做。** `deselected=196`（`census-default-gate:3180`）与 contract 收集数 196（`contract-collect:239`）相等；integration/e2e 走 `--ignore` 不产生 deselect，所以这 196 只能来自 contract 目录或「目录外手写排除 marker 的用例」。census `:170` 已如实写明这是**数量判据不是身份判据**，并有「其余目录收集数合计与 9257 selected 吻合」的旁证。反向面（顶层级 ~25 个 `test_*.py` 留在门内）已在 hook docstring `conftest.py:1062-1066` 声明。**但要指出选择集变化的另一侧无人登记**——见 MEDIUM-1。
+
+### ④ 没装插件的 venv 里这两个键：警告还是失败？
+
+**在本仓配置面内「只警告」成立，且写得如实、依据够。** 我独立核到的支撑：`pytest.ini` 全文无 `filterwarnings`、无 `-W`、无 strict-config（addopts `:19-21` 仅 `-v --tb=short`）；三个 marker 均已注册（`:32-34`），自动打标不会踩未注册 marker；`tests/unit/conftest.py:289-291` 另有一份在案陈述（本仓无 `-W error` 配置）；实测基础是 census 控制组（`-p no:timeout`，两条 PytestConfigWarning、rc 不变，`hang-census.md:121-125`）。ini `:130-137` 还主动写出了这句话的失效条件（`strict_config` / `-W error::PytestConfigWarning`）并更正了「拿 --strict-markers 当依据」的不充分——这是加分项。**残留**：CI workflow 自身的 pytest 旗标未验证（DEBT-4 面，我按边界未读），见 ⑥ 的升级分支。
+
+### ⑤ 两段负控是否红在指定断言、控制组标注是否属实
+
+**属实，存档逐行核实。** 段①（删 hook）：`3 failed, 2 passed`（`negctl-1:227`），第 1 条红在 `:189` 的 `deselected` 断言（`:16-18`），第 3 条红在 `:238` 的「应恰 1 个，实得 0」（`:177-180`）——与 docstring `test_debt1_default_gate.py:327-331` 的预告**逐字吻合**（取证前提不成立，非不变量被推翻）；控制组第 4、5 条绿 ✓。段②（删 ini `timeout` 行）：`1 failed, 4 passed`（`negctl-2:232`），红在 `:417-418` 的 header 正则，且失败正文里子进程 header 确实**没有** `timeout:` 行（插件在无 timeout 时不打该 header）✓；控制组 1/2/3/5 绿 ✓。「未被拦下的输入仍会绿」的已知残留 = M-1（`.update()` 绕过）与 M-4（缺正控），均已登记；我未发现新的此类空洞。
+
+### ⑥ D-32 证明是否严密 · 1H/7M 处置是否可接受 · 有没有实际是 HIGH 的
+
+- **D-32**：形式与协议 `§1:16`（D-32 条款：非注释行 diff 空 + AST 相同）吻合，裁定书 §三 带 configparser 9 键对照和 `x=1/x=2` 验伪锚。我从最终态独立复核了「注释里藏不进行为」的两个通道：新增块全部是**列首 `#` 整行注释**（configparser 默认不认行内注释，也无新 section header，`timeout = 300` / `timeout_method = signal` 仍落在 `[pytest]` 内）；两份 `.py` 的可执行行与 r1/r2 整改描述一致（rc 白名单、按名锚定、unresolved 拒绝都在最终代码里）。**严密，认可。**（`47c94bab→9d270cdf` 那一步本身我无 git 可复跑，采信裁定书 §三 与 prompt 的绑定声明，两者互洽。）
+- **H-1（第四类例外）**：A/B 实证 + 两条源码路径实读，结论坐实；处置（声明收窄 `pytest.ini:85-101` + 行为侧登记 DEBT-3 且进下批必排，裁定书 §五.1）在一债务卡框架下**可接受**。附带条件：今后任何地方引用本卡结论时不得再说无条件的「全量跑法不再挂死」——ini `:99` 已自我限定为「对已失败 item 给不出保证」，验收侧应保持同一口径。
+- **7 MEDIUM 无一够 HIGH**，其中 M-5 是唯一有升级分支的：若 DEBT-4 核出 CI 带 `-W error::PytestConfigWarning` 或 `strict_config`，这两个 ini 键会把 CI 从「两条警告」变成「失败」= 本卡引入的 CI 回归——那一分支成立时才升 HIGH。建议把它写成 DEBT-4 的首项核查。M-2 的危害方向写反了（见 LOW-1）。
+
+---
+
+## ④ 分级发现（本轮新增）
+
+**MEDIUM-1 · 正选择侧的选择集变化未登记（M-6 只登记了反选择侧）**
+`backend/tests/conftest.py:1091`。任何现存/未来的 `pytest -m integration`（或 `e2e`/`contract`）**正向**选择跑法，选择集从「27 个手写标记文件」扩到整个目录（integration 89 文件、e2e 13、contract 6），其中 integration 20 个 / e2e 7 个文件 import 期就 `from app.main import app`（`hang-census.md:46-48`）——原先静默漏跑的文件会新进执行面并真起 lifespan。**未被拦下的输入**：任一正选择调用点（我无 Bash 不能全树枚举调用方；已知的是反选择侧的 `stop-test-runner.js:53`）。方向上与 marker 语义一致、大概率是纠错，但属未声明的基线变化，建议并入 M-6 的登记。
+
+**MEDIUM-2 · 裁定书 M-2 的危害方向与门的设计不符（裁定书 `:92`）**
+M-2 称 `PYTEST_TIMEOUT` 环境变量会让「第 5 条门的两条断言全绿而 ini 根本没被读」。实况：第 5 条用 CLI `--timeout=1`，优先级高于 env，ini 本就不在场；而真正读 ini 的第 4 条是**双读对照**（header vs ini 文本，`test_debt1_default_gate.py:417-425`），env 覆盖会产生 header≠ini 的**假红**（fail-closed），造不成假绿。**对照输入**：`PYTEST_TIMEOUT=999` 下跑门 → 第 4 条红在「不一致」上。修法（`env.pop("PYTEST_TIMEOUT")`）照登门加固卡不变，但台账里那条的危害表述应更正为「环境噪声导致假红，非假绿」。
+
+**LOW-1（并入 MEDIUM-2）** — 同上条，不单列。
+
+**LOW-2 · 自述 6 的括号措辞与存档不符**
+段① 的第 2 条用例实际红在 `test_debt1_default_gate.py:217` 的「零收集」断言（`negctl-1:119-121`），不是「`deselected` 断言」；gate docstring 只承诺「红点是第 1、2 条用例」，是自述的括号写窄了。不影响结论。
+
+**LOW-3 · 协议 §2.2 建议文案的「单条」歧义**
+`hang-census.md:465`「至少有一条单条超过 300 秒」：证据只支持 **item 合计**（census 自己在 `:360-362` 写明了边界）。**对照输入**：把建议文案拿去与 §二.3 探针存档对读即可发现措辞强于证据。落协议前把「单条」改成「单个 item」。
+
+**LOW-4 · 裁定书方法表有模板残痕**
+`CARD-DEBT-1-人审裁定-20260919.md:54-57`：R1/R2/R4 三行的结论列是 `<!-- FILL -->`（只有 R3 填了）。细节都在 §二，但终版裁定书留占位符与其自身的如实标准不符。补跑 r3 时顺手补全或删表。
+
+**LOW-5 · 默认门存档的 `--timeout=300` 与 ini 同值，47 分钟那一跑单独不能证明「ini 键被读」**
+`hang-census.md:157-161`：命令行显式带了 `--timeout=300`。证明「ini 键生效」的其实是第 4 条门 + 段② 负控，证据链完整；此处只是存档引用时别把 47 分钟那一跑当「ini 生效」的独立证据用。
+
+---
+
+## 覆盖面限制（如实）
+
+1. **Bash 被禁**：无法全树 grep「其他 `pytest_collection_modifyitems`」「正选择 `-m` 调用点」「`PYTEST_TIMEOUT` 使用点」；⓪ 的结论限定在我核实过的三处 conftest + 既有登记。
+2. **DEBT-4 面（CI workflow / requirements）按边界未读**：④ 与 ⑥ 的 M-5 升级分支以此为准。
+3. 存档数字（196/196、147、217.38s、5 passed、3f/2p、1f/4p）均为**对读核验**，非重跑；两份探针/负控的可复现性采信存档本身的 `rc=` 尾行。
+
+**结论**：本卡代码面在绑定态 `9d270cdf` 上未发现新的阻断级或 HIGH 问题；人审裁定的处置整体经得起对抗复核，仅 M-2 表述与上述 LOW 需要更正。新增 MEDIUM-1/MEDIUM-2 均为登记不阻断，建议随「门加固卡 / DEBT-4」一并入台账。

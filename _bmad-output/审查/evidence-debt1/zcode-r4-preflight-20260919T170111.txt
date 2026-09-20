@@ -1,0 +1,23 @@
+# CARD-DEBT-1 补审（zcode r4）第 0 分钟核验落档
+date: 2026-09-19T17:01:11-0700
+pwd: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra
+branch: card/p9-testinfra
+HEAD: 96da70c657ee7a35462779aee66a3f7d30f94e33
+anchor-check: git merge-base --is-ancestor 96da70c6 HEAD = TRUE (HEAD == 96da70c6)
+status-line-count: 1
+--- zcode --version ---
+zcode-app-cli 3.12.3-26
+zcode-runtime 0.16.5
+cfg-ok
+--- binding: diff --stat 9d270cdf HEAD -- <3 files> (expect EMPTY) ---
+binding-diff-rc=0
+--- review face: diff --stat a7341ca4 9d270cdf -- <3 files> ---
+ backend/pytest.ini                            |  98 ++++++
+ backend/tests/conftest.py                     |  70 ++++
+ backend/tests/unit/test_debt1_default_gate.py | 481 ++++++++++++++++++++++++++
+ 3 files changed, 649 insertions(+)
+--- sha256 at HEAD (3 card files) ---
+64ccac4c7df2cf32b8c3ebad4dc173cf3b6ccf5074e13c54fb5ec6d83ffa782c  backend/pytest.ini
+e68b8f683abb1b24f1739286274c72cd6a11e83544013e09df5c8168117b3c5f  backend/tests/conftest.py
+8077e9e552394652df45b704a12b1d3f917905c0ded9696558908cc1c7aa5d65  backend/tests/unit/test_debt1_default_gate.py
+注（本行为写后补记）：status-line-count=1 是 tee 自指效应 —— 本存档文件由 tee 在本命令内先行创建（未跟踪），被同命令的 git status 计入；**写入前**（第 0 分钟独立核验）实测 `git status --porcelain` = 空。本文件与后续补审产物将随补审 commit 入库。

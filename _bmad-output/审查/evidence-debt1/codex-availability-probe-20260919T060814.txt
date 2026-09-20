@@ -1,0 +1,22 @@
+# CARD-DEBT-1 · Codex round-3 可用性复测（2026-09-19 本机 HKT）
+
+缘由：§五之四 原记「第三次 0 字节 = gpt-6-astra 对本账号确定性不可用（400）」。
+按「外部服务的重置时间是一次观测不是不变量」复测，不继承两小时前的结论。
+
+命令：codex exec --sandbox read-only -m gpt-6-astra -c model_reasoning_effort="low" "回答两个字：可用"
+codex: codex-cli 0.153.3
+rc=1 · stdout 字节 = 0
+
+## 会话头自证（抄 stderr，stderr 本身不入库）
+  2:OpenAI Codex v0.153.3
+  5:model: gpt-6-astra
+  9:reasoning effort: low
+
+## 实际错误（与上次不同）
+  ERROR: You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Sep 23rd, 2026 11:05 AM.
+
+## 结论
+  - 错误已从 400 invalid_request_error（model not supported）**变回配额限流**。
+  - ⇒ 那条 400 同样是一次观测，不是永久判定；模型对本账号**可用**，当前卡在配额。
+  - round-3 仍跑不成，结论不变：按协议 §2.2 走主 session 人审替代，不等配额。
+  - 但 §五之四 里「模型已不可用 = 确定性」的**根因表述失实**，据此更正。

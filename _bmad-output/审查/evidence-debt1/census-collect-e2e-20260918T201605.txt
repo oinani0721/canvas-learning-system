@@ -1,0 +1,162 @@
+# census batch: collect-e2e
+# cmd: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/.venv/bin/pytest tests/e2e --collect-only -q -p no:cacheprovider --override-ini=addopts=
+# cwd: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend
+# wall_cap_s: 1200
+# outer_wall_clock_kill: False
+# ---- stdout ----
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11SchemaIsCanonical::test_no_legacy_uuid_nodes
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11SchemaIsCanonical::test_all_nodes_have_canonical_id_and_canvas_id
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11KgRelevanceDirect::test_weighted_score_matches_expected[nodeA]
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11KgRelevanceDirect::test_weighted_score_matches_expected[nodeB]
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11KgRelevanceDirect::test_weighted_score_matches_expected[nodeC]
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11KgRelevanceDirect::test_weighted_score_matches_expected[nodeD]
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11KgRelevanceDirect::test_weighted_score_matches_expected[nodeE]
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11KgRelevanceDirect::test_nodeC_four_edges_NOT_marked_as_degraded
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11SelectionSequence::test_first_pick_is_highest_connectivity
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11SelectionSequence::test_full_sequence_reflects_connectivity_ranking
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11SelectionSequence::test_at_least_three_distinct_kg_values_observed
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11Phase0HardeningCrossCanvasIsolation::test_cross_canvas_node_id_does_not_leak
+tests/e2e/test_a11_kg_relevance_e2e.py::TestA11Phase0HardeningBoundedConcurrency::test_select_target_node_semaphore_bounds_inflight_queries
+tests/e2e/test_epic33_batch_pipeline.py::TestFullBatchPipeline::test_full_batch_flow_analyze_confirm_poll_complete
+tests/e2e/test_epic33_batch_pipeline.py::TestFullBatchPipeline::test_analyze_returns_correct_structure
+tests/e2e/test_epic33_batch_pipeline.py::TestCancelFlow::test_cancel_running_session
+tests/e2e/test_epic33_batch_pipeline.py::TestCancelFlow::test_cancel_nonexistent_session_returns_404
+tests/e2e/test_epic36_endpoints.py::TestSyncEdgesEndpointHTTP::test_sync_edges_returns_200
+tests/e2e/test_epic36_endpoints.py::TestSyncEdgesEndpointHTTP::test_sync_edges_correct_edge_count
+tests/e2e/test_epic36_endpoints.py::TestSyncEdgesEndpointHTTP::test_sync_edges_nonexistent_canvas_error
+tests/e2e/test_epic36_endpoints.py::TestSyncEdgesEndpointHTTP::test_sync_edges_graceful_without_neo4j
+tests/e2e/test_epic36_endpoints.py::TestSyncEdgesEndpointHTTP::test_sync_edges_idempotent
+tests/e2e/test_epic36_endpoints.py::TestHealthStorageEpic36::test_health_storage_includes_latency_metrics
+tests/e2e/test_epic36_endpoints.py::TestHealthStorageEpic36::test_health_storage_cached_field_present
+tests/e2e/test_epic36_integration.py::TestEdgeToNeo4jSyncE2E::test_edge_creation_triggers_sync
+tests/e2e/test_epic36_integration.py::TestEdgeToNeo4jSyncE2E::test_edge_sync_success_path
+tests/e2e/test_epic36_integration.py::TestRollbackSwitchE2E::test_edge_sync_json_fallback_when_no_memory_client
+tests/e2e/test_epic36_integration.py::TestRollbackSwitchE2E::test_edge_sync_json_fallback_when_neo4j_unavailable
+tests/e2e/test_epic36_integration.py::TestResilienceE2E::test_edge_sync_graceful_with_neo4j_down
+tests/e2e/test_epic36_integration.py::TestResilienceE2E::test_dual_write_graceful_with_client_down
+tests/e2e/test_epic36_integration.py::TestHealthCheckIntegrationE2E::test_health_storage_degraded_with_failures
+tests/e2e/test_epic36_integration.py::TestConfigurationDefaults::test_enable_graphiti_json_dual_write_default_true
+tests/e2e/test_epic36_integration.py::TestConfigurationDefaults::test_dead_letter_paths_exist
+tests/e2e/test_health_endpoint.py::TestHealthEndpoint::test_basic_health_check
+tests/e2e/test_health_endpoint.py::TestHealthEndpoint::test_health_storage_endpoint
+tests/e2e/test_health_endpoint.py::TestHealthEndpoint::test_health_metrics_endpoint
+tests/e2e/test_health_endpoint.py::TestHealthEndpoint::test_health_degraded_scenario
+tests/e2e/test_intelligent_parallel.py::TestHappyPathAPIIntegration::test_complete_batch_processing_workflow
+tests/e2e/test_intelligent_parallel.py::TestHappyPathAPIIntegration::test_grouping_preview_response_structure
+tests/e2e/test_intelligent_parallel.py::TestCancellationAPIIntegration::test_batch_cancellation_workflow
+tests/e2e/test_intelligent_parallel.py::TestCancellationAPIIntegration::test_cancel_already_completed_returns_409
+tests/e2e/test_intelligent_parallel.py::TestRetryAPIIntegration::test_retry_failed_node_workflow
+tests/e2e/test_intelligent_parallel.py::TestWebSocketAPIIntegration::test_websocket_realtime_updates
+tests/e2e/test_intelligent_parallel.py::TestWebSocketAPIIntegration::test_websocket_multiple_clients_same_session
+tests/e2e/test_intelligent_parallel.py::TestWebSocketAPIIntegration::test_websocket_event_broadcast_integration
+tests/e2e/test_intelligent_parallel.py::TestPerformanceAPIIntegration::test_100_nodes_performance
+tests/e2e/test_intelligent_parallel.py::TestPerformanceAPIIntegration::test_semaphore_concurrency_working
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiE2E::test_memory_api_full_cycle
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiE2E::test_create_episode_returns_201
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiE2E::test_get_episodes_returns_200
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiE2E::test_create_episode_with_all_required_fields
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiE2E::test_create_episode_missing_required_field
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiE2E::test_get_episodes_with_subject_filter
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiE2E::test_get_episodes_pagination
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiErrorHandling::test_get_episodes_without_user_id
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiErrorHandling::test_invalid_page_size
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiDataPersistence::test_data_persists_across_requests
+tests/e2e/test_memory_api_e2e.py::TestMemoryApiDataPersistence::test_multiple_episodes_same_user
+tests/e2e/test_memory_learning_flow_e2e.py::TestBatchEpisodesE2E::test_batch_single_event_returns_200
+tests/e2e/test_memory_learning_flow_e2e.py::TestBatchEpisodesE2E::test_batch_5_events_all_succeed
+tests/e2e/test_memory_learning_flow_e2e.py::TestBatchEpisodesE2E::test_batch_empty_returns_422
+tests/e2e/test_memory_learning_flow_e2e.py::TestBatchEpisodesE2E::test_batch_partial_failure
+tests/e2e/test_memory_learning_flow_e2e.py::TestBatchEpisodesE2E::test_batch_over_50_returns_422
+tests/e2e/test_memory_learning_flow_e2e.py::TestHealthEndpointE2E::test_health_endpoint_returns_200
+tests/e2e/test_memory_learning_flow_e2e.py::TestHealthEndpointE2E::test_health_layers_structure
+tests/e2e/test_memory_learning_flow_e2e.py::TestLearningFlowE2E::test_create_then_query_cycle
+tests/e2e/test_memory_learning_flow_e2e.py::TestLearningFlowE2E::test_batch_then_health_stable
+tests/e2e/test_memory_learning_flow_e2e.py::TestLearningFlowE2E::test_subject_isolation
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalPerformanceE2E::test_batch_upload_10_images_under_5_seconds
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalPerformanceE2E::test_concurrent_upload_performance
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalPerformanceE2E::test_search_response_time
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalUtilityE2E::test_health_endpoint_returns_status
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalUtilityE2E::test_list_endpoint_returns_results
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalUtilityE2E::test_list_respects_media_type_filter
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalUtilityE2E::test_get_content_by_id
+tests/e2e/test_multimodal_perf_utility_e2e.py::TestMultimodalUtilityE2E::test_update_content_metadata
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalSearchE2E::test_search_endpoint_returns_200
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalSearchE2E::test_search_returns_relevance_ordered_results
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalSearchE2E::test_search_respects_top_k_parameter
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalSearchE2E::test_search_filters_by_media_type
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalSearchE2E::test_search_degrades_gracefully_without_vector_store
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalSearchE2E::test_search_returns_empty_for_nonexistent_concept
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalDeletionE2E::test_delete_returns_success
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalDeletionE2E::test_delete_removes_from_get
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalDeletionE2E::test_delete_removes_from_concept_query
+tests/e2e/test_multimodal_search_delete_e2e.py::TestMultimodalDeletionE2E::test_delete_nonexistent_returns_404
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_image_returns_201
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_image_returns_content_details
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_pdf_stores_correctly
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_validates_required_fields
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_rejects_unsupported_media_type
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_rejects_file_exceeding_size_limit
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_rejects_mime_spoofed_exe_as_png
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_rejects_empty_file
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalUploadE2E::test_upload_handles_corrupted_png
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalRelationshipE2E::test_upload_creates_concept_association
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalRelationshipE2E::test_get_by_concept_returns_associated_media
+tests/e2e/test_multimodal_upload_e2e.py::TestMultimodalRelationshipE2E::test_multiple_media_per_concept
+tests/e2e/test_review_fsrs_degradation.py::TestEbbinghausFallbackE2E::test_record_review_uses_ebbinghaus
+tests/e2e/test_review_fsrs_degradation.py::TestEbbinghausFallbackE2E::test_schedule_review_ebbinghaus_fallback
+tests/e2e/test_review_fsrs_degradation.py::TestEbbinghausFallbackE2E::test_fsrs_state_not_initialized
+tests/e2e/test_review_fsrs_degradation.py::TestHealthFSRSDegraded::test_health_fsrs_degraded
+tests/e2e/test_review_fsrs_degradation.py::TestEbbinghausNextReviewTiming::test_ebbinghaus_next_review_timing
+tests/e2e/test_review_generate.py::TestReviewGenerateE2E::test_generate_returns_201_with_valid_canvas
+tests/e2e/test_review_generate.py::TestReviewGenerateE2E::test_generate_returns_422_with_missing_params
+tests/e2e/test_review_generate.py::TestReviewGenerateE2E::test_generate_degrades_gracefully_without_agent
+tests/e2e/test_review_generate.py::TestReviewGenerateE2E::test_generate_returns_zero_nodes_for_nonexistent_canvas
+tests/e2e/test_review_generate.py::TestReviewGenerateE2E::test_generate_targeted_mode
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+108 tests collected in 0.25s
+
+# ---- stderr ----
+
+wall_clock_s=37.07
+rc=0

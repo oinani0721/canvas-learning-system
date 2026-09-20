@@ -1,0 +1,233 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 5 items
+
+tests/unit/test_debt1_default_gate.py ...F.                              [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_ini_timeout_header ____________________________
+tests/unit/test_debt1_default_gate.py:307: in test_ini_timeout_header
+    assert m is not None, _fail_msg(
+E   AssertionError: pytest-timeout 没有打出 `timeout: <N>s` header：backend/pytest.ini 的 timeout 值没有被读到。
+E     --- stdout ---
+E     ============================= test session starts ==============================
+E     platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python3.14
+E     hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+E     rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend
+E     configfile: pytest.ini
+E     plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+E     asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+E     collecting ... collected 50 items
+E     
+E     <Dir backend>
+E       <Package tests>
+E         <Package contract>
+E           <Module test_node_id_patterns.py>
+E             Story 12.K.5: Node ID Pattern Contract Tests
+E             
+E             Tests node ID validation against the relaxed pattern defined in:
+E             - backend/app/models/schemas.py:221
+E             - specs/data/canvas-node.schema.json:20
+E             - docs/architecture/decisions/ADR-012-NODE-ID-PATTERNS.md
+E             
+E             Pattern: ^[a-zA-Z0-9][-a-zA-Z0-9]*$
+E             <Class TestNodeIdPatternValidation>
+E               Contract tests for node ID patterns.
+E               <Function test_obsidian_native_ids_valid[b33c50660173e5d3]>
+E                 Obsidian native hexadecimal IDs should be accepted.
+E               <Function test_obsidian_native_ids_valid[a1b2c3d4e5f67890]>
+E                 Obsidian native hexadecimal IDs should be accepted.
+E               <Function test_obsidian_native_ids_valid[1234567890abcdef]>
+E                 Obsidian native hexadecimal IDs should be accepted.
+E               <Function test_obsidian_native_ids_valid[abcdef1234567890]>
+E                 Obsidian native hexadecimal IDs should be accepted.
+E               <Function test_obsidian_native_ids_valid[0]>
+E                 Obsidian native hexadecimal IDs should be accepted.
+E               <Function test_obsidian_native_ids_valid[a]>
+E                 Obsidian native hexadecimal IDs should be accepted.
+E               <Function test_obsidian_native_ids_valid[A1B2C3]>
+E                 Obsidian native hexadecimal IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[vq-b33c5066-0-ee742d-VQ with index 0]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[vq-a1b2c3d4-5-abc123-VQ with higher index]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[qd-b33c5066-1-ab12cd-QD sub-question]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[qd-original-0-xyz789-QD from text node]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[explain-oral-b33c50-a1b2c3d4-Oral explanation]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[explain-clarification-abc12-uuid4-Clarification path]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[explain-comparison-def34-uuid4-Comparison table]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[explain-memory-ghi56-uuid4-Memory anchor]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[explain-example-jkl78-uuid4-Example teaching]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[explain-four-level-b33c-a1b2-Four-level explanation]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[understand-b33c5066-a1b2c3d4-Understanding node]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[error-oral-12345678-Error from oral agent]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[error-scoring-abcd1234-Error from scoring agent]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[edge-vq-abc12-qd-def34-Edge between VQ and QD]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_agent_generated_ids_valid[edge-a1b2c3d4-e5f67890-Edge with hex IDs]>
+E                 Agent-generated semantic prefix IDs should be accepted.
+E               <Function test_invalid_ids_rejected[-Empty string]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[   -Only whitespace]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node@special-Contains @]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node#hash-Contains #]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node$dollar-Contains $]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node%percent-Contains %]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node&ampersand-Contains &]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node*asterisk-Contains *]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node!exclaim-Contains !]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node with spaces-Contains spaces]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[node id-Contains space]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[ leadingspace-Leading space]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[trailingspace -Trailing space]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[-starts-with-hyphen-Starts with hyphen]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[--Only hyphen]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[--double-hyphen-Starts with double hyphen]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[\u8282\u70b9id-Contains Chinese characters]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[n\xf6de-Contains umlaut]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[[bracket]-Contains brackets]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected[(paren)-Contains parentheses]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected['quote'-Contains single quotes]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_invalid_ids_rejected["doublequote"-Contains double quotes]>
+E                 Invalid IDs should raise ValidationError.
+E               <Function test_edge_cases_valid[a-b]>
+E                 Edge case IDs that should be valid.
+E               <Function test_edge_cases_valid[A-B-C-D-E-F]>
+E                 Edge case IDs that should be valid.
+E               <Function test_edge_cases_valid[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]>
+E                 Edge case IDs that should be valid.
+E               <Function test_edge_cases_valid[0-1-2-3-4-5]>
+E                 Edge case IDs that should be valid.
+E               <Function test_edge_cases_valid[Z]>
+E                 Edge case IDs that should be valid.
+E             <Class TestNodeIdPatternConsistency>
+E               Tests ensuring schema consistency between Pydantic and JSON Schema.
+E               <Function test_pattern_matches_json_schema>
+E                 Pydantic pattern should match JSON Schema pattern.
+E     
+E     =============================== warnings summary ===============================
+E     ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+E         VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+E     
+E     ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+E         from pydantic.v1.fields import FieldInfo as FieldInfoV1
+E     
+E     ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+E         class SearchInterface(BaseModel):
+E     
+E     ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+E         import pkg_resources
+E     
+E     <frozen importlib._bootstrap>:491
+E       <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+E     
+E     <frozen importlib._bootstrap>:491
+E       <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+E     
+E     app/api/v1/endpoints/chat.py:807
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+E         class HookEnrichRequest(BaseModel):
+E     
+E     app/api/v1/endpoints/metadata.py:103
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+E         canvas_path: str = Query(
+E     
+E     app/api/v1/endpoints/metadata.py:177
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+E         canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+E     
+E     ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+E       /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+E         schema = annotation_get_schema(source, get_inner_schema)
+E     
+E     -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+E     NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+E     ========================= 50 tests collected in 0.03s ==========================
+E     
+E     --- stderr ---
+E     
+E   assert None is not None
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/unit/test_debt1_default_gate.py::test_ini_timeout_header - Asser...
+============= 1 failed, 4 passed, 10 warnings in 101.68s (0:01:41) =============
+rc=1

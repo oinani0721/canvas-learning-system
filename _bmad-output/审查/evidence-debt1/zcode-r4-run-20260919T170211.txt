@@ -1,0 +1,9 @@
+# CARD-DEBT-1 补审 zcode r4 — 送审记录
+date: 2026-09-19T17:10:20-0700
+preflight-evidence: zcode-r4-preflight-20260919T170111.txt
+prompt: _bmad-output/审查/prompts/zcode-review-prompt-CARD-DEBT-1-r4.md (53518 bytes)
+command: zcode --prompt "$(cat _bmad-output/审查/prompts/zcode-review-prompt-CARD-DEBT-1-r4.md)" --cwd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra --mode build --no-color --json > _bmad-output/审查/zcode-review-CARD-DEBT-1-r4.md 2> _bmad-output/审查/zcode-review-CARD-DEBT-1-r4.stderr
+rc=0
+wall_clock_s=489
+stdout-md-bytes: 14752
+stderr-bytes: 297

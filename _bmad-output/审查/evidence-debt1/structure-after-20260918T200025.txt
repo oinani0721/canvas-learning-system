@@ -1,0 +1,20 @@
+=== CARD-DEBT-1 结构判据（改后） TS=20260918T200025 PREV=a7341ca4ebb6d7f2a12ed35ffe643df4f62d7bad ===
+1. grep -cE '^(timeout|timeout_method)' backend/pytest.ini = 2
+2. AST pytest_collection_modifyitems 计数 = 1
+3. grep -c '^addopts' = 1
+   sed -n '19,21p':
+addopts =
+    -v
+    --tb=short
+4. hook 体内 Dict 键集 = ['contract', 'e2e', 'integration']
+5. live_port_guard 逐字同：
+   worktree: 290fc5b139dc6110287e4da01b0e07f325fc6f7e5cade0a084fdd95ffced78d3
+   PREV    : 290fc5b139dc6110287e4da01b0e07f325fc6f7e5cade0a084fdd95ffced78d3
+   sed -n '195p;202p':
+EXEMPT_MARKERS = frozenset({"integration", "e2e", "real_neo4j"})
+EXEMPT_PATH_PREFIXES = ("integration", "e2e")
+   conftest 零删改行数（应 0）= 0
+6. 验伪锚：
+   grep -c '^asyncio_mode' backend/pytest.ini = 1
+   grep -c 'def pytest_terminal_summary' backend/tests/conftest.py = 1
+rc=0
