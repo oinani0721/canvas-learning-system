@@ -1,0 +1,5 @@
+files=9
+All checks passed!
+rc=0
+9 files already formatted
+fmt_rc=0

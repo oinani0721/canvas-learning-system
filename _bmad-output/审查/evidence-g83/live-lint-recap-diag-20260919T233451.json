@@ -1,0 +1,84 @@
+{
+  "vault": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault",
+  "today": "2026-09-19",
+  "summary": {
+    "exit_code": 0,
+    "checks_run": [
+      "recap_unsourced"
+    ],
+    "checks_skipped": [
+      "orphan_nodes",
+      "raw_derived_confusion",
+      "projection_freshness",
+      "annotation_coverage",
+      "dlq_backlog",
+      "backup_freshness"
+    ],
+    "status_counts": {
+      "ok": 1,
+      "warn": 0,
+      "fail": 0
+    }
+  },
+  "checks": [
+    {
+      "name": "recap_unsourced",
+      "status": "ok",
+      "summary": "6 板均无无来源结论 (0/无据)",
+      "findings": [],
+      "notes": [
+        "fallback 模式 availability=推定 (role 本地推定), 非 manifest 精确档",
+        "子进程复用 recap_scan.py (timeout=60s); ⛔ 不 import、不传 --manifest、不动 outputs/"
+      ],
+      "details": {
+        "boards": {
+          "CS 61B": {
+            "status": "ok",
+            "value": null,
+            "denominator": 0,
+            "availability": "无据",
+            "node_ids": []
+          },
+          "CS": {
+            "status": "ok",
+            "value": null,
+            "denominator": 0,
+            "availability": "无据",
+            "node_ids": []
+          },
+          "CS188 lecture 2": {
+            "status": "ok",
+            "value": 0,
+            "denominator": 7,
+            "availability": "推定",
+            "node_ids": []
+          },
+          "特征值与特征向量": {
+            "status": "ok",
+            "value": 0,
+            "denominator": 2,
+            "availability": "推定",
+            "node_ids": []
+          },
+          "线性代数": {
+            "status": "ok",
+            "value": null,
+            "denominator": 0,
+            "availability": "无据",
+            "node_ids": []
+          },
+          "递归与分治 (Recursion & Divide-Conquer)": {
+            "status": "ok",
+            "value": null,
+            "denominator": 0,
+            "availability": "无据",
+            "node_ids": []
+          }
+        },
+        "boards_scanned": 6,
+        "boards_degraded": 0,
+        "total_unsourced": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+=== struct after ===
+4
+7
+95
+0
+=== DLQ keys AST ===
+absent
+=== traces import lines ===
+0
+=== AST top-level name diff ===
+removed: []
+added: ['_annotation_hits', '_count_jsonl_lines', '_degraded', '_now_dt', 'check_annotation_coverage', 'check_backup_freshness', 'check_dlq_backlog', 'check_recap_unsourced']

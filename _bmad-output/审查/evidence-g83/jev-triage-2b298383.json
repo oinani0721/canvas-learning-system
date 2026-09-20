@@ -1,0 +1,50 @@
+{
+  "commit": "feat(p6-skills): vault_lint 第二批四检查 + degraded 统一表示 [BATCH-2026-09-18-第十五批/CARD-G8-3]",
+  "ref": "2b298383",
+  "sha": "2b298383283c996928b15c4661cc68e5176827c3",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-19T23:48:07-0700",
+  "code_files": [
+    "backend/scripts/vault_lint.py",
+    "backend/tests/unit/test_vault_lint.py"
+  ],
+  "files": [
+    {
+      "file": "backend/scripts/vault_lint.py",
+      "added": 675,
+      "removed": 5,
+      "runtime": 0.97,
+      "risk": "logic",
+      "risk_conf": 0.76,
+      "urgency": 2.92,
+      "urgency_conf": 0.93,
+      "review": 0.87,
+      "test": 0.7,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/unit/test_vault_lint.py",
+      "added": 483,
+      "removed": 20,
+      "runtime": 0.1,
+      "risk": "test_or_docs",
+      "risk_conf": 0.94,
+      "urgency": 2.18,
+      "urgency_conf": 0.31,
+      "review": 0.74,
+      "test": 0.92,
+      "truncated": true,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 8894,
+    "output_tokens": 314
+  },
+  "latency_ms": {
+    "min": 239,
+    "median": 382,
+    "max": 382
+  }
+}

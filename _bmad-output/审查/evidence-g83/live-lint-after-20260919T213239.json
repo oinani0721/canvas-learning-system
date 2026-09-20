@@ -1,0 +1,402 @@
+{
+  "vault": "/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault",
+  "today": "2026-09-19",
+  "summary": {
+    "exit_code": 2,
+    "checks_run": [
+      "orphan_nodes",
+      "raw_derived_confusion",
+      "projection_freshness",
+      "annotation_coverage",
+      "dlq_backlog",
+      "backup_freshness",
+      "recap_unsourced"
+    ],
+    "checks_skipped": [],
+    "status_counts": {
+      "ok": 2,
+      "warn": 5,
+      "fail": 0
+    }
+  },
+  "checks": [
+    {
+      "name": "orphan_nodes",
+      "status": "ok",
+      "summary": "14 个节点, 0 个孤儿",
+      "findings": [],
+      "notes": [
+        "不比: frontmatter 里的 wikilink (source_note/up/derived-from) 不算入链; 自身出链不豁免自己 (含顶层裸自链); 围栏/行内 code、HTML 注释 (含 AUTO-GENERATED 哨兵段)、跨行 [[..]] 不算入链; 大小写与 NFC/NFD 归一后匹配 (方向=少报孤儿); symlink 文件、symlink 目录的后代、解析越界文件拒读并记盲区"
+      ],
+      "details": {
+        "nodes_scanned": 14,
+        "inbound_targets": 23,
+        "blind_spots": 0,
+        "blind_detail": {}
+      }
+    },
+    {
+      "name": "raw_derived_confusion",
+      "status": "warn",
+      "summary": "326 文件 / 176 目录, 3 条混淆 (含 0 条 recap 标记缺失)",
+      "findings": [
+        {
+          "subject": "backups",
+          "detail": "[G1] live 目录未被任何 vault_entries.dir_glob 命中"
+        },
+        {
+          "subject": "backups",
+          "detail": "[G1] 文件 backups/fsrs_bridge.py.pre-deploy-2026-09-05T1052.bak 所在目录未被登记"
+        },
+        {
+          "subject": "backups",
+          "detail": "[G1] 文件 backups/fsrs_bridge.py.pre-deploy-2026-09-07T0328.bak 所在目录未被登记"
+        }
+      ],
+      "notes": [
+        "采信 finding 子集: G1/G2/G3/G4/G9; 台账 = vault_doc_roles.yaml (SHA 契约已校验)",
+        "本次**未验证** G5/G6/G7 (台账双列与真实准入函数是否一致) —— 需 probe 档, 而 probe 的 import 链会写系统临时缓存, 与本卡零写铁律冲突",
+        "台账扫描 info: 写侧 frontmatter 解析器不可用 (无 venv / 严格只读), G3/G4 走本模块的保守回落解析 —— 与写侧可能有细微差异, 结论按此打折",
+        "台账扫描 info: .quarantine/UAT-2.5.X-test.md 的准入两列取自 any_level 行 root-uat-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-quarantine 为准",
+        "台账扫描 info: raw/CS188/CLAUDE.md 的准入两列取自 any_level 行 root-claude-md(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准",
+        "台账扫描 info: raw/CS188/_misc/junk/未命名 1.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准",
+        "台账扫描 info: raw/CS188/_misc/junk/未命名.md 的准入两列取自 any_level 行 root-untitled-scratch(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-misc-junk 为准",
+        "台账扫描 info: raw/CS188/管道设计.md 的准入两列取自 any_level 行 root-pipeline-design(文件名黑名单盖过目录), 但其 owner/retention 只描述根级实例 —— 本文件的治理以容器行 dir-raw 为准"
+      ],
+      "details": {
+        "files_seen": 326,
+        "dirs_seen": 176,
+        "codes_counted": [
+          "G1",
+          "G2",
+          "G3",
+          "G4",
+          "G9"
+        ],
+        "recap_missing_type": 0,
+        "recap_blind": {},
+        "blind_spots": 0,
+        "probe_skipped": true
+      }
+    },
+    {
+      "name": "projection_freshness",
+      "status": "warn",
+      "summary": "projection_status=stale",
+      "findings": [
+        {
+          "subject": "outputs/今日复习.json",
+          "detail": "generated_at='2026-09-19T09:14:56+08:00' 不是 2026-09-19 (America/Los_Angeles) 的投影"
+        }
+      ],
+      "notes": [
+        "口径复制自 review_overview.py:845-860 (`_vault_entry` 内联逻辑, 无可 import 的函数; 该文件 W6 独占禁改), 由 test_vault_lint.py 的同源锁绑定",
+        "不比: corrupt 面比 oracle 窄 —— 本检查不复现 `_summarize()` 的 v3 形状门禁, 只判 读不出/非 object/缺 generated_at"
+      ],
+      "details": {
+        "projection_status": "stale",
+        "generated_at": "2026-09-19T09:14:56+08:00",
+        "error": null
+      }
+    },
+    {
+      "name": "annotation_coverage",
+      "status": "warn",
+      "summary": "未答批注 24 条 (共 25 条批注), 最老 139 天 (验收单/Story-1.17-ai-linked-doc.md)",
+      "findings": [
+        {
+          "subject": "验收单/2026-06-27-UAT-A+prime同步契约-用户验收.md:52",
+          "detail": "**User：1，我觉得生成的考题应该是优先考虑到原白板层面而不是节点层面，2，你生成检验白板来考察我是使用什么 AI，请问你是使用 claude code 吗"
+        },
+        {
+          "subject": "验收单/Story-1.17-ai-linked-doc.md:381",
+          "detail": "**User：我现在有一个在任意文件夹的 md 文件那么我想要从这个文件开始生成原白板，请问我该如何操作？**"
+        },
+        {
+          "subject": "验收单/Story-1.17-ai-linked-doc.md:512",
+          "detail": "**User：1，我发现节点创建原白板的时候，并没有标记来源于哪一个原白板；2，我们的原白板标记节点之间的联系我觉得使用 mermaid 还是用 Karpath"
+        },
+        {
+          "subject": "验收单/Story-1.19-configure-whiteboard.md:463",
+          "detail": "**User：原白板我目前已经创建了，但是我想知道原白板难道不就是用来呈现节点和节点之间的关系和索引节点的目录吗？**"
+        },
+        {
+          "subject": "验收单/Story-1.19-configure-whiteboard.md:544",
+          "detail": "**User：截图上呈现的就是我们节点所呈现的内容。**"
+        },
+        {
+          "subject": "验收单/Story-2.1-Phase1-成熟度升级-2026-05-03.md:204",
+          "detail": "**User：输入：/chat-with-context**"
+        },
+        {
+          "subject": "验收单/Story-2.1-ai-dialog-context-injection.md:103",
+          "detail": "**User：这里的上下文注入，你是学习 Karpathy 的 wiki 方式通过双向链接方式读取了链接的文档，然后同时 后端的 Graphiti 也是有把前端"
+        },
+        {
+          "subject": "验收单/Story-2.3-UAT-操作指引-2026-05-13.md:182",
+          "detail": "**User：你这里关于我在 path B 使用原白板的过程，会在节点打下批注，你举的例子是我标记的这个批注是 error，那么关于批注本身以及批注怎么产出的原"
+        },
+        {
+          "subject": "验收单/Story-2.5.X-progressive-confirmation.md:256",
+          "detail": "**User：你这里的错误列表我并没有在 dashboard 看到**"
+        },
+        {
+          "subject": "验收单/Story-2.5.X-progressive-confirmation.md:295",
+          "detail": "**User：1，你这里的错误记录没有显示的告诉我错误是什么？这里接受错误的使用操作体验，我是需要具体进行 claudian 的使用才知道具体的效果如何；2，我"
+        },
+        {
+          "subject": "验收单/Story-MVP-α-end-to-end-learning-loop.md:244",
+          "detail": "**User：我需要 agent 能清晰知道我是如何使用原白板剖析理解知识点的，通过我的批注和拆解路程，最后可以让我进一步加深理解我对原白板知识的印象加深和理解"
+        },
+        {
+          "subject": "验收单/Story-S2-2-graphiti-belief-spine.md:115",
+          "detail": "**User：我很有可能不是更改原来的批注，而是对于相关的内容增加了新的批注，或者从当前节点发现了什么值得单独讨论的点，所以我拉出了新的节点讨论，也就是说我的讨"
+        },
+        {
+          "subject": "验收单/UAT-CARD-G2-1-cypher读写契约审计-2026-08-27.md:51",
+          "detail": "**User：**"
+        },
+        {
+          "subject": "验收单/UAT-CARD-G4-12-检索指标名实修正-2026-08-27.md:44",
+          "detail": "**User：**"
+        },
+        {
+          "subject": "验收单/UAT-CARD-G5-6-clear-inbox只读盘点提名preview-2026-08-31.md:426",
+          "detail": "**User：**"
+        },
+        {
+          "subject": "验收单/UAT-CARD-G8-6-dogfood协议v2-2026-08-28.md:67",
+          "detail": "**User：**"
+        },
+        {
+          "subject": "验收单/UAT-CARD-G8-9-统一验收门底账-2026-08-28.md:49",
+          "detail": "**User：**"
+        },
+        {
+          "subject": "验收单/UAT-Study-Question-Skill-2026-05-10.md:77",
+          "detail": "**User: 我在 claudian 输入的时候，是没有看到/study-question 这个 skill 的命令。**"
+        },
+        {
+          "subject": "验收单/_reference/范本-双段-Story-10.4.md:101",
+          "detail": "**User：这里完全没有对上我们的白板的任何功能，你这里线性的 add chapter 有什么作用，**"
+        },
+        {
+          "subject": "验收单/批注回复/2026-05-13-User批注-后端运行机制与-Graphiti-全景.md:522",
+          "detail": "**User：我个人极其关注的是我的批注，以及我在原白板使用双向链接来拆分和联系节点的整一个探索的过程，批注是核心，我需要用我的个人记忆系统充分的理解我使用原白"
+        },
+        {
+          "subject": "审查/2026-08-02-ChatGPT-规模化结构检索终审-吸收与验证.md:62",
+          "detail": "**User：我们目前的 Graphiti 的设计主要保存什么内容，然后又是由我们的本地模型进行提取是吗**"
+        },
+        {
+          "subject": "审查/2026-08-20-Canvas-Learning-System-生产力化长期Goal计划书.md:494",
+          "detail": "**User：我需要让 codex 审查明确知道我之前的所有批注（最重要的是 User：），从而明确知道当前我聚焦的 Canvas learning syste"
+        },
+        {
+          "subject": "审查/memory-system_research_pack_2026-07-22.md:110",
+          "detail": "**User：没有被消费的数据，那么设计出来是干什么的？**"
+        },
+        {
+          "subject": "审查/rag-scale_pack_2026-08-02.md:442",
+          "detail": "**User：我这里引用 Graphiti 的真正原因在于我希望在文档处于大量的时候，我们的 claude code 还是可以精确检索我原白板是怎么拆解的，然后"
+        }
+      ],
+      "notes": [
+        "不计 `[!question]+` / `[!error]+` callout 批注与 blockquote 历史引用 —— 口径为轻量 grep, 非批注面全量",
+        "年龄 = 文件 mtime 折算显示时区日 (批注行本身无日期), 不是批注写入时刻"
+      ],
+      "details": {
+        "unanswered": 24,
+        "annotations_total": 25,
+        "oldest_age_days": 139,
+        "oldest_subject": "验收单/Story-1.17-ai-linked-doc.md",
+        "files_scanned": 1583,
+        "blind_spots": 0,
+        "blind_detail": {}
+      }
+    },
+    {
+      "name": "dlq_backlog",
+      "status": "warn",
+      "summary": "总积压 112 行 / overflow 兄弟 0 个",
+      "findings": [
+        {
+          "subject": "data/failed_edge_syncs.jsonl",
+          "detail": "backlog=20 overflow_files=0 size_bytes=3806"
+        },
+        {
+          "subject": "data/dead_letter_episodes.jsonl",
+          "detail": "backlog=92 overflow_files=0 size_bytes=99915"
+        }
+      ],
+      "notes": [
+        "口径复制自 traces.py:80-93 (BACKLOG_FILES, 8 条) —— 同源锁 test_dlq_paths_match_traces_backlog_files 绑定; ⛔ 不 import app.* (import 零重依赖不变量)",
+        "只做文件级计数: 不调端点、不 replay、不读 .overflow.* 内容与时间戳 (那是端点面)"
+      ],
+      "details": {
+        "entries": [
+          {
+            "name": "failed_writes.jsonl",
+            "rel_path": "data/failed_writes.jsonl",
+            "exists": false,
+            "backlog": 0,
+            "size_bytes": null,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          },
+          {
+            "name": "failed_edge_syncs.jsonl",
+            "rel_path": "data/failed_edge_syncs.jsonl",
+            "exists": true,
+            "backlog": 20,
+            "size_bytes": 3806,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          },
+          {
+            "name": "failed_dual_writes.jsonl",
+            "rel_path": "data/failed_dual_writes.jsonl",
+            "exists": false,
+            "backlog": 0,
+            "size_bytes": null,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          },
+          {
+            "name": "dead_letter_episodes.jsonl",
+            "rel_path": "data/dead_letter_episodes.jsonl",
+            "exists": true,
+            "backlog": 92,
+            "size_bytes": 99915,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          },
+          {
+            "name": "neo4j_memory.json",
+            "rel_path": "data/neo4j_memory.json",
+            "exists": true,
+            "backlog": null,
+            "size_bytes": 148,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          },
+          {
+            "name": "learning_memories.json",
+            "rel_path": "data/learning_memories.json",
+            "exists": true,
+            "backlog": null,
+            "size_bytes": 110,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          },
+          {
+            "name": "canvas_events_fallback.json",
+            "rel_path": "app/data/canvas_events_fallback.json",
+            "exists": false,
+            "backlog": null,
+            "size_bytes": null,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          },
+          {
+            "name": "outbox/events.jsonl",
+            "rel_path": "data/outbox/events.jsonl",
+            "exists": false,
+            "backlog": 0,
+            "size_bytes": null,
+            "overflow_files": 0,
+            "partial": false,
+            "size_capped": false,
+            "degraded": false
+          }
+        ],
+        "total_backlog": 112,
+        "overflow_files_total": 0,
+        "incomplete": false
+      }
+    },
+    {
+      "name": "backup_freshness",
+      "status": "ok",
+      "summary": "最近 OK 2026-09-18 04:30:10 (41.0h 前 ≤ 48h), 7 份 dump",
+      "findings": [],
+      "notes": [
+        "成功只信 backup.log 的 `OK:` 行 + `neo4j-*.dump` 存在; ⛔ 不校验 dump 可恢复、不做现网对账 (D-41/D-42 面)",
+        "max_age_hours=48 (每日备份 + 1 天余量; --backup-max-age-hours 可调)"
+      ],
+      "details": {
+        "last_ok_at": "2026-09-18 04:30:10",
+        "age_hours": 41.042066608055556,
+        "max_age_hours": 48,
+        "dump_count": 7,
+        "latest_dump": "neo4j-20260918-043001.dump",
+        "latest_dump_mtime": "2026-09-17T13:30:08.574946-07:00",
+        "ok_lines": 42
+      }
+    },
+    {
+      "name": "recap_unsourced",
+      "status": "warn",
+      "summary": "degraded: 6/6 板子进程不可用: CS 61B: json-decode; CS: json-decode; CS188 lecture 2: json-decode",
+      "findings": [],
+      "notes": [
+        "fallback 模式 availability=推定 (role 本地推定), 非 manifest 精确档",
+        "子进程复用 recap_scan.py (timeout=60s); ⛔ 不 import、不传 --manifest、不动 outputs/"
+      ],
+      "details": {
+        "boards": {
+          "CS 61B": {
+            "status": "degraded",
+            "reason": "json-decode"
+          },
+          "CS": {
+            "status": "degraded",
+            "reason": "json-decode"
+          },
+          "CS188 lecture 2": {
+            "status": "degraded",
+            "reason": "json-decode"
+          },
+          "特征值与特征向量": {
+            "status": "degraded",
+            "reason": "json-decode"
+          },
+          "线性代数": {
+            "status": "degraded",
+            "reason": "json-decode"
+          },
+          "递归与分治 (Recursion & Divide-Conquer)": {
+            "status": "degraded",
+            "reason": "json-decode"
+          }
+        },
+        "boards_scanned": 6,
+        "boards_degraded": 6,
+        "total_unsourced": 0,
+        "degraded": true,
+        "degraded_reasons": [
+          "CS 61B: json-decode",
+          "CS: json-decode",
+          "CS188 lecture 2: json-decode",
+          "特征值与特征向量: json-decode",
+          "线性代数: json-decode",
+          "递归与分治 (Recursion & Divide-Conquer): json-decode"
+        ]
+      }
+    }
+  ]
+}

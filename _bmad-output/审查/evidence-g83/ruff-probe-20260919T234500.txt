@@ -1,0 +1,10 @@
+F821 Undefined name `undefined_name_g83`
+ --> /var/folders/vq/gssw8vy54671lh9nlqc_ft2w0000gn/T/opencode/_g83_probe.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name_g83
+  |            ^^^^^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+probe_rc=1

@@ -1,0 +1,50 @@
+{
+  "commit": "fix(p6-skills): recap degraded 原因名区分 no-signals/json-decode [BATCH-2026-09-18-第十五批/CARD-G8-3]",
+  "ref": "4dbee2f4",
+  "sha": "4dbee2f416ae23dacd3aef055a80025e5ee8a78a",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-19T23:45:14-0700",
+  "code_files": [
+    "backend/scripts/vault_lint.py",
+    "backend/tests/unit/test_vault_lint.py"
+  ],
+  "files": [
+    {
+      "file": "backend/scripts/vault_lint.py",
+      "added": 13,
+      "removed": 6,
+      "runtime": 0.96,
+      "risk": "error_handling",
+      "risk_conf": 0.71,
+      "urgency": 1.92,
+      "urgency_conf": 0.66,
+      "review": 0.54,
+      "test": 0.52,
+      "truncated": false,
+      "flag": false
+    },
+    {
+      "file": "backend/tests/unit/test_vault_lint.py",
+      "added": 18,
+      "removed": 0,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 1.0,
+      "urgency": 1.07,
+      "urgency_conf": 0.54,
+      "review": 0.44,
+      "test": 0.92,
+      "truncated": false,
+      "flag": false
+    }
+  ],
+  "usage": {
+    "input_tokens": 2221,
+    "output_tokens": 317
+  },
+  "latency_ms": {
+    "min": 271,
+    "median": 316,
+    "max": 316
+  }
+}

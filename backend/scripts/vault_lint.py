@@ -4,11 +4,15 @@
 锚点: 计划书 §3.7 Karpathy 映射表 L189 (lint 缺口: "census 零散存在, 没有统一生产门")
       + §G8 L344 (统一 /lint: orphan / 污染 / 事实支持 / 批注覆盖 / 恢复检查)。
 
-单命令跑首批**三**项确定性检查, 逐检查报告 + 汇总退出码:
+单命令跑**七**项确定性检查 (首批三 + CARD-G8-3 第二批四), 逐检查报告 + 汇总退出码:
 
   orphan_nodes           `节点/` 下既无入链、又无 frontmatter source_board 的 md
   raw_derived_confusion  派生物混入 raw/wiki 区 (读 G8-1 台账) + `回顾-*.md` 缺 recap frontmatter
   projection_freshness   `outputs/今日复习.json` 的 generated_at 是否过期 (上海本地日)
+  annotation_coverage    `验收单`+`审查` 下 `**User：**` 批注的未答数与最老年龄 (轻量 grep)
+  dlq_backlog            Neo4j 降级暂存 8 文件的文件级积压 (复制 traces.py 口径, ⛔ 不 import app.*)
+  backup_freshness       `backups/neo4j/backup.log` 最近一条 `OK:` 的新鲜度 (小时)
+  recap_unsourced        `原白板/` 各板的 recap 无来源结论 (子进程复用 recap_scan.py)
 
 ## 退出码 (⚠️ 与同目录两个 checker 的 2 号码语义**不同**, 见下)
 
@@ -75,6 +79,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
@@ -903,6 +908,587 @@ def check_projection_freshness(vault: Path, today: date) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
+# 检查 4-7 — CARD-G8-3 第二批四检查 (annotation_coverage / dlq_backlog /
+# backup_freshness / recap_unsourced)
+#
+# degraded 的统一表示 (四检查同口径, `_EPILOG` 有分级规则):
+#   status=WARN + details["degraded"]=True + details["degraded_reasons"]=[原因名…]
+#   + summary 以 "degraded:" 开头。
+# ⛔ 不新增第四种 status (exit_code / render_text 的三态映射不动);
+#   「输入面不存在」既不是「没问题」(ok) 也不是「坏了」(fail), 必须走 degraded。
+# ---------------------------------------------------------------------------
+#: DLQ 积压文件 —— **复制**自 traces.py:80-93 的 BACKLOG_FILES (值 = backend 根相对路径)。
+#: ⛔ 不 import traces.py / 不 import app.*: 那会经 app.clients.neo4j_client / event_bus /
+#:    security 把 lint 拉进服务图, 与本模块 :95-97「import 零重依赖」不变量相冲。
+#: 同源锁: test_dlq_paths_match_traces_backlog_files (AST 键集 + 子进程解析后逐路径相等)。
+DLQ_BACKLOG_FILES = {
+    "failed_writes.jsonl": "data/failed_writes.jsonl",
+    "failed_edge_syncs.jsonl": "data/failed_edge_syncs.jsonl",
+    "failed_dual_writes.jsonl": "data/failed_dual_writes.jsonl",
+    "dead_letter_episodes.jsonl": "data/dead_letter_episodes.jsonl",
+    "neo4j_memory.json": "data/neo4j_memory.json",
+    "learning_memories.json": "data/learning_memories.json",
+    "canvas_events_fallback.json": "app/data/canvas_events_fallback.json",
+    "outbox/events.jsonl": "data/outbox/events.jsonl",
+}
+
+#: 复制自 traces.py:99 的尺寸闸 —— 超过就不数行 (标 size_capped 走 degraded, 不压成 0)。
+_DLQ_SCAN_MAX_BYTES = 8 * 1024 * 1024
+
+#: 四检查的默认输入面 (run_checks 默认值 与 argparse 帮助文案共用同一组常量)。
+_DEFAULT_BMAD_ROOT = _SCRIPTS_DIR.parents[1] / "_bmad-output"
+_DEFAULT_BACKEND_DIR = _SCRIPTS_DIR.parent
+_DEFAULT_BACKUPS_DIR = _SCRIPTS_DIR.parents[1] / "backups" / "neo4j"
+_DEFAULT_RECAP_SCAN = (
+    _SCRIPTS_DIR.parents[1] / "canvas-vault" / ".claude" / "skills" / "board-recap" / "scripts" / "recap_scan.py"
+)
+_DEFAULT_BACKUP_MAX_AGE_HOURS = 48
+
+_ANNOTATION_LINE_RE = re.compile(r"^\*\*User\d*[：:]")
+#: 「已答」三形态 (skill Step-4 回复 blockquote / R-Q wikilink / 历史 `**vX 回复**` 形态)。
+_ANSWERED_MARKERS = (
+    re.compile(r"^> \*\*\[A\d+ "),
+    re.compile(r"\[\[R\d+-Q\d+"),
+    re.compile(r"^\*\*v[\d.]+ 回复"),
+)
+_ANNOTATION_WINDOW = 30
+_ANNOTATION_BOUNDARY_RE = re.compile(r"^## ")
+_BACKUP_OK_RE = re.compile(r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] OK: (\S+)")
+
+
+def _now_dt(now: str | None) -> datetime:
+    """`--now` → 显示时区 aware datetime (与 resolve_today 同一解析规则; 缺省 `_utcnow()`)。
+
+    供 backup_freshness 的小时级年龄 —— resolve_today 只给到「日」, 粒度不够。
+    """
+    if now is None:
+        return _utcnow().astimezone(_display_tz())
+    try:
+        dt = datetime.fromisoformat(now.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise LintConfigError(f"--now 不是合法 ISO-8601 时间: {now!r} ({exc})") from exc
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_display_tz())
+    return dt.astimezone(_display_tz())
+
+
+def _degraded(
+    name: str,
+    *,
+    summary: str,
+    reasons: list[str],
+    findings: list[Finding] | None = None,
+    notes: list[str] | None = None,
+    details: dict[str, Any] | None = None,
+) -> CheckResult:
+    """degraded 的统一构造 (见本节头注释): warn + details.degraded=true + "degraded:" 前缀。"""
+    merged = dict(details or {})
+    merged["degraded"] = True
+    merged["degraded_reasons"] = list(reasons)
+    return CheckResult(
+        name=name,
+        status=WARN,
+        summary=f"degraded: {summary}",
+        findings=findings or [],
+        notes=notes or [],
+        details=merged,
+    )
+
+
+def _annotation_hits(text: str) -> list[tuple[int, bool]]:
+    """→ [(行号 1-based, 是否已答)]; 批注 = 行首 `**User<n>：**`。
+
+    「已答」= 该行之后、下一条批注或 `^## ` 或 EOF 之前 (窗口 ≤ 30 行) 出现三形态任一。
+    ⛔ 不新增第三种「已答」形态 (callout 批注 / 历史引用不计, 如实登记)。
+    """
+    lines = text.split("\n")
+    hits: list[tuple[int, bool]] = []
+    for idx, line in enumerate(lines):
+        if not _ANNOTATION_LINE_RE.match(line):
+            continue
+        answered = False
+        for j in range(idx + 1, min(idx + 1 + _ANNOTATION_WINDOW, len(lines))):
+            cand = lines[j]
+            if _ANNOTATION_LINE_RE.match(cand) or _ANNOTATION_BOUNDARY_RE.match(cand):
+                break
+            if any(marker.search(cand) for marker in _ANSWERED_MARKERS):
+                answered = True
+                break
+        hits.append((idx + 1, answered))
+    return hits
+
+
+def _count_jsonl_lines(path: Path) -> int:
+    """复制 failure_counters.count_lines :81-105 口径: 分块数 `b"\\n"`; 末行无换行 +1。
+
+    ⛔ 不用 `path.exists()` (它把 PermissionError 吞成 False) —— stat 显式分流,
+    其他 OSError 上抛给调用方记 partial。
+    """
+    try:
+        path.stat()
+    except FileNotFoundError:
+        return 0
+    total = 0
+    tail = b""
+    with open(path, "rb") as f:
+        while chunk := f.read(65536):
+            total += chunk.count(b"\n")
+            tail = chunk[-1:]
+    if tail and tail != b"\n":
+        total += 1
+    return total
+
+
+def check_annotation_coverage(bmad_root: Path, today: date) -> CheckResult:
+    """`验收单` + `审查` 下 `**User：**` 批注的未答数与最老年龄 (轻量 grep 口径)。
+
+    ⛔ 不计入 (如实登记, 不冒充全量): `[!question]+` / `[!error]+` callout 批注与
+    blockquote 历史引用; 「已答」只认 skill Step-4 三形态; 年龄 = **文件 mtime** 折算
+    显示时区日 (批注行本身无日期), 不是批注写入时刻。
+    状态: unanswered==0 → ok; >0 → warn; bmad_root 或两子目录任一缺失 → degraded。
+    """
+    notes = [
+        "不计 `[!question]+` / `[!error]+` callout 批注与 blockquote 历史引用 —— 口径为轻量 grep, 非批注面全量",
+        "年龄 = 文件 mtime 折算显示时区日 (批注行本身无日期), 不是批注写入时刻",
+    ]
+    empty_details: dict[str, Any] = {
+        "unanswered": None,
+        "annotations_total": None,
+        "oldest_age_days": None,
+        "oldest_subject": None,
+        "files_scanned": 0,
+        "blind_spots": 0,
+        "blind_detail": {},
+    }
+    subdirs = ("验收单", "审查")
+    if not bmad_root.is_dir():
+        return _degraded(
+            "annotation_coverage",
+            summary=f"批注面不可用: bmad_root 不存在 ({bmad_root})",
+            reasons=[f"bmad_root 不是目录: {bmad_root}"],
+            notes=notes,
+            details=empty_details,
+        )
+    missing = [sub for sub in subdirs if not (bmad_root / sub).is_dir()]
+    if missing:
+        return _degraded(
+            "annotation_coverage",
+            summary=f"批注面不完整: 缺子目录 {missing}",
+            reasons=[f"缺子目录: {', '.join(missing)}"],
+            notes=notes,
+            details=empty_details,
+        )
+    blind: dict[str, str] = {}
+    findings: list[Finding] = []
+    unanswered = 0
+    total = 0
+    files_scanned = 0
+    oldest: tuple[int, str] | None = None
+    for sub in subdirs:
+        mds, walk_blind = _walk_md(bmad_root / sub)
+        for rel, why in walk_blind.items():
+            blind[f"{sub}/{rel}"] = why
+        for md in mds:
+            files_scanned += 1
+            rel = md.relative_to(bmad_root).as_posix()
+            blocked = _scan_block_reason(bmad_root, md)
+            if blocked:
+                blind[rel] = blocked
+                continue
+            text = _read_text(md)
+            if text is None:
+                blind[rel] = "unreadable"
+                continue
+            lines = text.split("\n")
+            hits = _annotation_hits(text)
+            total += len(hits)
+            bad = [lineno for lineno, answered in hits if not answered]
+            if not bad:
+                continue
+            unanswered += len(bad)
+            age = (today - datetime.fromtimestamp(md.stat().st_mtime, tz=_display_tz()).date()).days
+            if oldest is None or age > oldest[0]:
+                oldest = (age, rel)
+            for lineno in bad:
+                findings.append(Finding(f"{rel}:{lineno}", lines[lineno - 1].strip()[:80]))
+    if blind:
+        notes.append(
+            f"扫描盲区: {len(blind)} 个文件未参与判定 (原因见前缀), "
+            + ", ".join(f"{rel}[{why}]" for rel, why in sorted(blind.items())[:5])
+            + " —— 这些文件里可能有未答批注, 结论按此打折"
+        )
+    status = WARN if unanswered else OK
+    if unanswered:
+        summary = f"未答批注 {unanswered} 条 (共 {total} 条批注), 最老 {oldest[0]} 天 ({oldest[1]})"
+    else:
+        summary = f"未答批注 0 条 (共 {total} 条批注)"
+    return CheckResult(
+        name="annotation_coverage",
+        status=status,
+        summary=summary,
+        findings=findings,
+        notes=notes,
+        details={
+            "unanswered": unanswered,
+            "annotations_total": total,
+            "oldest_age_days": oldest[0] if oldest else None,
+            "oldest_subject": oldest[1] if oldest else None,
+            "files_scanned": files_scanned,
+            "blind_spots": len(blind),
+            "blind_detail": dict(sorted(blind.items())),
+        },
+    )
+
+
+def check_dlq_backlog(backend_dir: Path) -> CheckResult:
+    """Neo4j 降级暂存文件的**文件级**积压 (复制 traces.py:80-93 八条路径口径)。
+
+    ⛔ 不 import app.*、不调 `/traces/dead-letter-backlog` 端点、不 replay、
+    不读 `.overflow.*` 内容与时间戳 (那些是端点面)。jsonl 才数行 (count_lines 口径);
+    `> 8 MiB` 只报尺寸并标 size_capped —— 计数不完整 ⇒ degraded, **绝不压成 0**。
+    状态: Σjsonl backlog>0 或 overflow_files>0 → warn; 全 0/不存在 → ok;
+    任一条 partial/size_capped 或 backend_dir 不是目录 → degraded。
+    """
+    notes = [
+        "口径复制自 traces.py:80-93 (BACKLOG_FILES, 8 条) —— 同源锁 test_dlq_paths_match_traces_backlog_files "
+        "绑定; ⛔ 不 import app.* (import 零重依赖不变量)",
+        "只做文件级计数: 不调端点、不 replay、不读 .overflow.* 内容与时间戳 (那是端点面)",
+    ]
+    if not backend_dir.is_dir():
+        return _degraded(
+            "dlq_backlog",
+            summary=f"backend 根不可用: {backend_dir} 不是目录",
+            reasons=[f"backend_dir 不是目录: {backend_dir}"],
+            notes=notes,
+            details={"entries": [], "total_backlog": None, "overflow_files_total": None, "incomplete": True},
+        )
+    entries: list[dict[str, Any]] = []
+    reasons: list[str] = []
+    total_backlog = 0
+    overflow_total = 0
+    for name, rel in DLQ_BACKLOG_FILES.items():
+        path = backend_dir / rel
+        entry: dict[str, Any] = {
+            "name": name,
+            "rel_path": rel,
+            "exists": False,
+            "backlog": 0 if name.endswith(".jsonl") else None,
+            "size_bytes": None,
+            "overflow_files": 0,
+            "partial": False,
+            "size_capped": False,
+            "degraded": False,
+        }
+        try:
+            st = path.stat()
+        except FileNotFoundError:
+            entries.append(entry)
+            continue
+        except OSError as exc:
+            entry["partial"] = True
+            entry["degraded"] = True
+            reasons.append(f"{name}: stat {type(exc).__name__}")
+            entries.append(entry)
+            continue
+        entry["exists"] = True
+        entry["size_bytes"] = st.st_size
+        if name.endswith(".jsonl"):
+            if st.st_size > _DLQ_SCAN_MAX_BYTES:
+                entry["size_capped"] = True
+                entry["degraded"] = True
+                entry["backlog"] = None  # 未数行 = 未知, 不许留成 0
+                reasons.append(f"{name}: size_capped (>{_DLQ_SCAN_MAX_BYTES}B, 未数行)")
+            else:
+                try:
+                    entry["backlog"] = _count_jsonl_lines(path)
+                    total_backlog += entry["backlog"]
+                except OSError as exc:
+                    entry["partial"] = True
+                    entry["degraded"] = True
+                    reasons.append(f"{name}: count {type(exc).__name__}")
+        try:
+            if path.parent.is_dir():
+                entry["overflow_files"] = sum(
+                    1 for sib in path.parent.iterdir() if sib.name.startswith(path.stem + ".overflow.")
+                )
+                overflow_total += entry["overflow_files"]
+        except OSError as exc:
+            entry["partial"] = True
+            entry["degraded"] = True
+            reasons.append(f"{name}: iterdir {type(exc).__name__}")
+        entries.append(entry)
+    findings = [
+        Finding(
+            e["rel_path"],
+            f"backlog={e['backlog']} overflow_files={e['overflow_files']} size_bytes={e['size_bytes']}",
+        )
+        for e in entries
+        if (e["backlog"] or 0) > 0 or e["overflow_files"] > 0
+    ]
+    details: dict[str, Any] = {
+        "entries": entries,
+        "total_backlog": total_backlog,
+        "overflow_files_total": overflow_total,
+        "incomplete": any(e["partial"] or e["size_capped"] for e in entries),
+    }
+    if reasons:
+        return _degraded(
+            "dlq_backlog",
+            summary=f"DLQ 计数不完整 ({len(reasons)} 条): " + "; ".join(reasons[:3]),
+            reasons=reasons,
+            findings=findings,
+            notes=notes,
+            details=details,
+        )
+    if total_backlog > 0 or overflow_total > 0:
+        summary = f"总积压 {total_backlog} 行 / overflow 兄弟 {overflow_total} 个"
+        status = WARN
+    else:
+        exists = sum(1 for e in entries if e["exists"])
+        summary = f"8 条 DLQ 文件均无积压 (存在 {exists} 条)"
+        status = OK
+    return CheckResult(
+        name="dlq_backlog", status=status, summary=summary, findings=findings, notes=notes, details=details
+    )
+
+
+def check_backup_freshness(
+    backups_dir: Path,
+    today: date,
+    *,
+    max_age_hours: int = 48,
+    now_dt: datetime | None = None,
+) -> CheckResult:
+    """`backups/neo4j/backup.log` 最近一条 `OK:` 的新鲜度 (小时) + dump 计数。
+
+    取**最后一条 OK 行**的时间 (不是最后一行 —— 其后的 SKIP 行不得遮住真实新鲜度),
+    按显示时区解释 (backup-neo4j.sh:53 的 `date '+%F %T'` 本地时间)。
+    状态: age ≤ max_age_hours 且最新 dump 存在 → ok; 超龄 / 无 OK 行 / 无 dump → warn;
+    backups_dir 不是目录 / backup.log 不存在或读不了 → degraded。
+    """
+    notes = [
+        "成功只信 backup.log 的 `OK:` 行 + `neo4j-*.dump` 存在; ⛔ 不校验 dump 可恢复、不做现网对账 (D-41/D-42 面)",
+        f"max_age_hours={max_age_hours} (每日备份 + 1 天余量; --backup-max-age-hours 可调)",
+    ]
+    empty_details: dict[str, Any] = {
+        "last_ok_at": None,
+        "age_hours": None,
+        "max_age_hours": max_age_hours,
+        "dump_count": 0,
+        "latest_dump": None,
+        "latest_dump_mtime": None,
+        "ok_lines": 0,
+    }
+    if not backups_dir.is_dir():
+        return _degraded(
+            "backup_freshness",
+            summary=f"备份目录不可用: {backups_dir} 不是目录",
+            reasons=[f"backups_dir 不是目录: {backups_dir}"],
+            notes=notes,
+            details=empty_details,
+        )
+    log_path = backups_dir / "backup.log"
+    raw = _read_text(log_path)
+    if raw is None:
+        return _degraded(
+            "backup_freshness",
+            summary=f"backup.log 不存在或读不了: {log_path}",
+            reasons=[f"backup.log 缺失/不可读: {log_path}"],
+            notes=notes,
+            details=empty_details,
+        )
+    ok_lines = [m for m in (_BACKUP_OK_RE.match(ln) for ln in raw.split("\n")) if m]
+    last_ok_at = ok_lines[-1].group(1) if ok_lines else None
+    try:
+        dumps = sorted(p for p in backups_dir.iterdir() if p.name.startswith("neo4j-") and p.name.endswith(".dump"))
+    except OSError as exc:
+        return _degraded(
+            "backup_freshness",
+            summary=f"备份目录不可枚举: {type(exc).__name__}",
+            reasons=[f"iterdir {type(exc).__name__}"],
+            notes=notes,
+            details=empty_details,
+        )
+    now = now_dt if now_dt is not None else _now_dt(None)
+    age_hours: float | None = None
+    if last_ok_at is not None:
+        try:
+            parsed = datetime.strptime(last_ok_at, "%Y-%m-%d %H:%M:%S").replace(tzinfo=_display_tz())
+            age_hours = (now - parsed).total_seconds() / 3600.0
+        except ValueError:
+            last_ok_at = None
+    latest = dumps[-1] if dumps else None
+    latest_mtime: str | None = None
+    if latest is not None:
+        try:
+            latest_mtime = datetime.fromtimestamp(latest.stat().st_mtime, tz=_display_tz()).isoformat()
+        except OSError:
+            latest_mtime = None
+    details: dict[str, Any] = {
+        "last_ok_at": last_ok_at,
+        "age_hours": age_hours,
+        "max_age_hours": max_age_hours,
+        "dump_count": len(dumps),
+        "latest_dump": latest.name if latest else None,
+        "latest_dump_mtime": latest_mtime,
+        "ok_lines": len(ok_lines),
+    }
+    if last_ok_at is None:
+        findings = [Finding("backup.log", "日志里没有任何 `OK:` 行 (只有 SKIP/其他) —— 备份没有成功记录")]
+        return CheckResult(
+            name="backup_freshness",
+            status=WARN,
+            summary="backup.log 无 OK 记录",
+            findings=findings,
+            notes=notes,
+            details=details,
+        )
+    if latest is None:
+        findings = [Finding("neo4j-*.dump", "目录里没有 neo4j-*.dump —— 只有日志记录, 没有落盘产物")]
+        return CheckResult(
+            name="backup_freshness",
+            status=WARN,
+            summary="无 neo4j-*.dump 文件",
+            findings=findings,
+            notes=notes,
+            details=details,
+        )
+    if age_hours is not None and age_hours <= max_age_hours:
+        summary = f"最近 OK {last_ok_at} ({age_hours:.1f}h 前 ≤ {max_age_hours}h), {len(dumps)} 份 dump"
+        return CheckResult(name="backup_freshness", status=OK, summary=summary, notes=notes, details=details)
+    findings = [Finding("backup.log", f"最近 OK {last_ok_at} 已 {age_hours:.1f}h > {max_age_hours}h")]
+    return CheckResult(
+        name="backup_freshness",
+        status=WARN,
+        summary=f"备份超龄: 最近 OK {last_ok_at} ({age_hours:.1f}h > {max_age_hours}h)",
+        findings=findings,
+        notes=notes,
+        details=details,
+    )
+
+
+def check_recap_unsourced(vault: Path, today: date, *, recap_scan: Path, timeout_s: int = 60) -> CheckResult:
+    """`原白板/` 下各板的 recap 无来源结论 (子进程复用 recap_scan.py 收集模式)。
+
+    ⛔ 不 import recap_scan (含 @dataclass, 动态 import 有 sys.modules 坑)、不传 `--manifest`、
+    不动 `outputs/`。fallback 模式 availability=推定, 非 manifest 精确档。
+    状态: 任一板 `value > 0` → warn (findings 每板一行); 全 0/「无据」→ ok;
+    recap_scan 不存在 / 任一板 rc≠0 / 超时 / JSON 解析失败 → degraded (该板记原因名, 其余板照报)。
+    """
+    notes = [
+        "fallback 模式 availability=推定 (role 本地推定), 非 manifest 精确档",
+        f"子进程复用 recap_scan.py (timeout={timeout_s}s); ⛔ 不 import、不传 --manifest、不动 outputs/",
+    ]
+    empty_details: dict[str, Any] = {
+        "boards": {},
+        "boards_scanned": 0,
+        "boards_degraded": 0,
+        "total_unsourced": None,
+    }
+    if not recap_scan.is_file():
+        return _degraded(
+            "recap_unsourced",
+            summary=f"recap_scan.py 不存在: {recap_scan}",
+            reasons=[f"recap_scan 不存在: {recap_scan}"],
+            notes=notes,
+            details=empty_details,
+        )
+    boards_dir = vault / BOARD_DIR
+    if not boards_dir.is_dir():
+        return _degraded(
+            "recap_unsourced",
+            summary=f"原白板目录不存在: {boards_dir}",
+            reasons=[f"缺目录: {boards_dir}"],
+            notes=notes,
+            details=empty_details,
+        )
+    boards = _iter_md(boards_dir)
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    results: dict[str, dict[str, Any]] = {}
+    reasons: list[str] = []
+    findings: list[Finding] = []
+    total_unsourced = 0
+    for md in boards:
+        stem = md.stem
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(recap_scan), "--vault", str(vault), "--board", stem, "--date", today.isoformat()],
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                env=env,
+            )
+        except subprocess.TimeoutExpired:
+            results[stem] = {"status": "degraded", "reason": "timeout"}
+            reasons.append(f"{stem}: timeout>{timeout_s}s")
+            continue
+        except OSError as exc:
+            results[stem] = {"status": "degraded", "reason": f"spawn {type(exc).__name__}"}
+            reasons.append(f"{stem}: spawn {type(exc).__name__}")
+            continue
+        if proc.returncode != 0:
+            results[stem] = {"status": "degraded", "reason": f"rc={proc.returncode}"}
+            reasons.append(f"{stem}: rc={proc.returncode}")
+            continue
+        try:
+            payload = json.loads(proc.stdout)
+        except (ValueError, RecursionError):
+            results[stem] = {"status": "degraded", "reason": "json-decode"}
+            reasons.append(f"{stem}: json-decode")
+            continue
+        sig = payload.get("signals") if isinstance(payload, dict) else None
+        sig = sig.get("unsourced_conclusions") if isinstance(sig, dict) else None
+        if not isinstance(sig, dict):
+            # stdout 是合法 JSON 但缺 signals.unsourced_conclusions —— 多半是旧版脚本
+            # (现网 live 副本即此类), 记「no-signals」而不是「json-decode」(如实)
+            results[stem] = {"status": "degraded", "reason": "no-signals"}
+            reasons.append(f"{stem}: no-signals (合法 JSON 但无 signals.unsourced_conclusions)")
+            continue
+        value = sig.get("value")
+        denominator = sig.get("denominator")
+        availability = sig.get("availability")
+        node_ids = list(sig.get("node_ids") or [])
+        results[stem] = {
+            "status": "ok",
+            "value": value,
+            "denominator": denominator,
+            "availability": availability,
+            "node_ids": node_ids[:5],
+        }
+        if value:
+            total_unsourced += value
+            findings.append(
+                Finding(
+                    f"{BOARD_DIR}/{md.name}",
+                    f"value={value}/{denominator} availability={availability} node_ids={node_ids[:5]}",
+                )
+            )
+    details: dict[str, Any] = {
+        "boards": results,
+        "boards_scanned": len(boards),
+        "boards_degraded": sum(1 for r in results.values() if r["status"] == "degraded"),
+        "total_unsourced": total_unsourced,
+    }
+    if reasons:
+        return _degraded(
+            "recap_unsourced",
+            summary=f"{details['boards_degraded']}/{len(boards)} 板子进程不可用: " + "; ".join(reasons[:3]),
+            reasons=reasons,
+            findings=findings,
+            notes=notes,
+            details=details,
+        )
+    if findings:
+        summary = f"无来源结论 {total_unsourced} 条 (共 {len(boards)} 板)"
+        return CheckResult(
+            name="recap_unsourced", status=WARN, summary=summary, findings=findings, notes=notes, details=details
+        )
+    summary = f"{len(boards)} 板均无无来源结论 (0/无据)"
+    return CheckResult(name="recap_unsourced", status=OK, summary=summary, notes=notes, details=details)
+
+
+# ---------------------------------------------------------------------------
 # runner
 # ---------------------------------------------------------------------------
 #: 检查注册表 —— name → (说明, 是否需要 today)
@@ -910,11 +1496,31 @@ CHECKS: dict[str, str] = {
     "orphan_nodes": "节点/ 下既无入链、又无 source_board 的 md",
     "raw_derived_confusion": "派生物混入 raw/wiki 区 (读 G8-1 台账) + 回顾-*.md 缺 recap frontmatter",
     "projection_freshness": "outputs/今日复习.json 的 generated_at 是否过期",
+    "annotation_coverage": "验收单/审查 下 **User：** 批注的未答数与最老年龄 (轻量 grep 口径)",
+    "dlq_backlog": "Neo4j 降级暂存 8 文件的文件级积压 (复制 traces.py:80-93 口径, ⛔ 不 import app.*)",
+    "backup_freshness": "backups/neo4j/backup.log 最近一条 OK: 的新鲜度 (小时)",
+    "recap_unsourced": "原白板各板的 recap 无来源结论 (子进程复用 recap_scan.py)",
 }
 
 
-def run_checks(vault: Path, today: date, *, only: list[str] | None = None) -> LintReport:
-    """跑选中的检查。`only=None` = 全跑。未跑的检查进 `skipped`, **不伪造 ok**。"""
+def run_checks(
+    vault: Path,
+    today: date,
+    *,
+    only: list[str] | None = None,
+    bmad_root: Path = _DEFAULT_BMAD_ROOT,
+    backend_dir: Path = _DEFAULT_BACKEND_DIR,
+    backups_dir: Path = _DEFAULT_BACKUPS_DIR,
+    recap_scan: Path = _DEFAULT_RECAP_SCAN,
+    backup_max_age_hours: int = _DEFAULT_BACKUP_MAX_AGE_HOURS,
+    now_dt: datetime | None = None,
+) -> LintReport:
+    """跑选中的检查。`only=None` = 全跑。未跑的检查进 `skipped`, **不伪造 ok**。
+
+    CARD-G8-3 新增只读输入面参数: bmad_root / backend_dir / backups_dir / recap_scan /
+    backup_max_age_hours; `now_dt` 让 backup_freshness 的小时级年龄与 `--now` 同源
+    (缺省 `None` → `_now_dt(None)`, 与 resolve_today 的缺省同一条时钟缝)。
+    """
     if not vault.is_dir():
         raise LintConfigError(f"vault 根目录不存在: {vault}")
     selected = list(CHECKS) if not only else [n for n in CHECKS if n in only]
@@ -926,6 +1532,14 @@ def run_checks(vault: Path, today: date, *, only: list[str] | None = None) -> Li
             checks.append(check_raw_derived(vault))
         elif name == "projection_freshness":
             checks.append(check_projection_freshness(vault, today))
+        elif name == "annotation_coverage":
+            checks.append(check_annotation_coverage(bmad_root, today))
+        elif name == "dlq_backlog":
+            checks.append(check_dlq_backlog(backend_dir))
+        elif name == "backup_freshness":
+            checks.append(check_backup_freshness(backups_dir, today, max_age_hours=backup_max_age_hours, now_dt=now_dt))
+        elif name == "recap_unsourced":
+            checks.append(check_recap_unsourced(vault, today, recap_scan=recap_scan))
     return LintReport(
         vault=str(vault),
         today=today.isoformat(),
@@ -973,6 +1587,22 @@ _EPILOG = f"""
   projection_freshness    {CHECKS["projection_freshness"]}
                             warn = stale (今天还没跑推送) 或 no_projection;
                             fail = corrupt (投影文件坏, 下游拿不到数据)
+  annotation_coverage     {CHECKS["annotation_coverage"]}
+                            warn = 有未答批注 (findings 逐条 subject=<file>:<line>);
+                            degraded = bmad_root 或 验收单/审查 子目录缺席 (输入面不可用, 不冒充 ok)
+  dlq_backlog             {CHECKS["dlq_backlog"]}
+                            warn = Σjsonl 积压行 > 0 或存在 .overflow.* 兄弟 (findings 逐文件);
+                            degraded = 任一条 stat/计数失败或 > 8 MiB 未数行 (计数不完整, 不压成 0)
+  backup_freshness        {CHECKS["backup_freshness"]}
+                            warn = 最近 OK 超龄 / 无 OK 行 / 无 neo4j-*.dump;
+                            degraded = backups_dir 或 backup.log 不可用 (--backup-max-age-hours 可调)
+  recap_unsourced         {CHECKS["recap_unsourced"]}
+                            warn = 任一板 unsourced_conclusions value > 0;
+                            degraded = recap_scan 缺失 / 某板 rc≠0 / 超时 / JSON 失败 (其余板照报)
+
+degraded 的统一表示 (第二批四检查同口径):
+  status=warn + details.degraded=true + details.degraded_reasons=[原因名…] + summary 以 "degraded:" 开头
+  —— 「输入面不存在」既不是「没问题」(ok) 也不是「坏了」(fail); ⛔ 不新增第四种 status
 
 退出码:
   0  全部检查 ok
@@ -1005,7 +1635,7 @@ class _LintArgumentParser(argparse.ArgumentParser):
 def main(argv: list[str] | None = None) -> int:
     ap = _LintArgumentParser(
         prog="vault_lint.py",
-        description="CARD-G8-2 统一 vault lint (live vault 只读, 三检查)",
+        description="CARD-G8-2/G8-3 统一 vault lint (live vault 只读, 七检查)",
         epilog=_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -1019,10 +1649,50 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="只跑指定检查 (可重复)。未选中的显式记为 skipped, 不算 ok",
     )
+    ap.add_argument(
+        "--bmad-root",
+        type=Path,
+        default=_DEFAULT_BMAD_ROOT,
+        help=f"annotation_coverage 的 `_bmad-output` 根 (验收单/审查 的父目录; 默认: {_DEFAULT_BMAD_ROOT})",
+    )
+    ap.add_argument(
+        "--backend-dir",
+        type=Path,
+        default=_DEFAULT_BACKEND_DIR,
+        help=f"dlq_backlog 的 backend 根 (8 条 DLQ 文件的父目录; 默认: {_DEFAULT_BACKEND_DIR})",
+    )
+    ap.add_argument(
+        "--backups-dir",
+        type=Path,
+        default=_DEFAULT_BACKUPS_DIR,
+        help=f"backup_freshness 的 neo4j 备份目录 (含 backup.log; 默认: {_DEFAULT_BACKUPS_DIR})",
+    )
+    ap.add_argument(
+        "--recap-scan",
+        type=Path,
+        default=_DEFAULT_RECAP_SCAN,
+        help=f"recap_unsourced 的子进程脚本路径 (默认: {_DEFAULT_RECAP_SCAN})",
+    )
+    ap.add_argument(
+        "--backup-max-age-hours",
+        type=int,
+        default=_DEFAULT_BACKUP_MAX_AGE_HOURS,
+        help=f"backup_freshness 的 ok 阈值 (小时; 默认: {_DEFAULT_BACKUP_MAX_AGE_HOURS})",
+    )
     args = ap.parse_args(argv)
 
     try:
-        report = run_checks(args.vault.expanduser(), resolve_today(args.now), only=args.only)
+        report = run_checks(
+            args.vault.expanduser(),
+            resolve_today(args.now),
+            only=args.only,
+            bmad_root=args.bmad_root.expanduser(),
+            backend_dir=args.backend_dir.expanduser(),
+            backups_dir=args.backups_dir.expanduser(),
+            recap_scan=args.recap_scan.expanduser(),
+            backup_max_age_hours=args.backup_max_age_hours,
+            now_dt=_now_dt(args.now),
+        )
     except LintConfigError as exc:
         print(f"{RED}{TAG} 配置/环境错误: {exc}{RESET}", file=sys.stderr)
         return EXIT_CONFIG

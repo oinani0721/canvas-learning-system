@@ -1,0 +1,3 @@
+ backend/scripts/vault_lint.py         | 680 +++++++++++++++++++++++++++++++++-
+ backend/tests/unit/test_vault_lint.py | 503 ++++++++++++++++++++++++-
+ 2 files changed, 1158 insertions(+), 25 deletions(-)

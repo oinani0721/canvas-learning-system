@@ -184,11 +184,21 @@ def _projection(root: Path, generated_at: object) -> None:
 
 
 def _clean_vault(root: Path) -> Path:
-    """全部检查 ok 的最小 vault: 1 节点有 source_board + 1 节点被板链 + 今日投影。"""
+    """全部检查 (7 项) ok 的最小 vault + 三个新输入面 (兄弟目录, CARD-G8-3)。
+
+    vault 面: 1 节点有 source_board + 1 节点被板链 + 今日投影 (三旧检查);
+    新输入面: `_bmad_root` 一条**已答**批注 / `_backend_dir` 八条 DLQ 文件全不存在 /
+    `_backups_dir` 最近 OK = NOW_ARG 前 1h + 一个 `neo4j-*.dump` (四新检查)。
+    """
     _node(root, "有源", extra_fm='source_board: "[[原白板/板]]"\n')
     _node(root, "被链")
-    _board(root, "板", "- [[节点/被链]]\n")
+    # `## Concepts` 小节是 recap_scan 认成员的锚 (recap_scan.py:3558-3565) —— 板面文案
+    # 对 orphan 无影响, 对 recap 面是"一板零派生"的必要形状
+    _board(root, "板", "## Concepts\n\n- [[节点/被链]]\n")
     _projection(root, "2026-08-31T09:05:05+08:00")
+    _bmad_root(root.parent)
+    _backend_dir(root.parent)
+    _backups_dir(root.parent)
     return root
 
 
@@ -261,10 +271,8 @@ def test_freshness_stale_and_corrupt_are_caught(tmp_path):
 
 def test_clean_vault_all_ok_exit0(tmp_path):
     root = _clean_vault(tmp_path / "v")
-    report = vl.run_checks(root, TODAY)
-    assert [c.status for c in report.checks] == [vl.OK, vl.OK, vl.OK], [
-        (c.name, c.status, c.summary) for c in report.checks
-    ]
+    report = vl.run_checks(root, TODAY, **_new_faces_kwargs(tmp_path))
+    assert [c.status for c in report.checks] == [vl.OK] * 7, [(c.name, c.status, c.summary) for c in report.checks]
     assert vl.exit_code(report) == 0
 
 
@@ -287,19 +295,20 @@ def test_exit_code_mapping():
 
 
 def test_cli_exit_codes_match_report(tmp_path):
-    clean = _run_cli(_clean_vault(tmp_path / "clean"), "--now", NOW_ARG, "--json")
+    faces = _new_faces_args(tmp_path)
+    clean = _run_cli(_clean_vault(tmp_path / "clean"), "--now", NOW_ARG, *faces, "--json")
     assert clean.returncode == 0, clean.stderr
 
     orphan = tmp_path / "orphan"
     _node(orphan, "孤儿")
     _projection(orphan, "2026-08-31T09:05:05+08:00")
-    r = _run_cli(orphan, "--now", NOW_ARG)
+    r = _run_cli(orphan, "--now", NOW_ARG, *faces)
     assert r.returncode == 2, (r.returncode, r.stdout, r.stderr)
 
     corrupt = tmp_path / "corrupt"
     (corrupt / "outputs").mkdir(parents=True)
     (corrupt / "outputs" / "今日复习.json").write_text("break", encoding="utf-8")
-    r = _run_cli(corrupt, "--now", NOW_ARG)
+    r = _run_cli(corrupt, "--now", NOW_ARG, *faces)
     assert r.returncode == 1
 
     r = _run_cli(tmp_path / "不存在", "--now", NOW_ARG)
@@ -817,17 +826,18 @@ def test_json_and_text_are_same_source(tmp_path):
     root = tmp_path / "v"
     _node(root, "孤儿")
     _projection(root, "2026-08-30T09:05:05+08:00")  # stale
-    proc = _run_cli(root, "--now", NOW_ARG)
+    faces = _new_faces_args(tmp_path)
+    proc = _run_cli(root, "--now", NOW_ARG, *faces)
     assert proc.returncode == 2
     text_rows = dict(_TEXT_STATUS_RE.findall(proc.stdout))
-    payload = json.loads(_run_cli(root, "--now", NOW_ARG, "--json").stdout)
+    payload = json.loads(_run_cli(root, "--now", NOW_ARG, *faces, "--json").stdout)
 
     json_rows = {c["name"]: c["status"] for c in payload["checks"]}
     assert text_rows == json_rows, "文本与 JSON 的 per-check status 必须逐项相等 (同源)"
     assert proc.returncode == payload["summary"]["exit_code"]
     assert payload["summary"]["checks_skipped"] == []
     # 同一输入跑两次, JSON 输出必须语义稳定 (排除随机序/时间依赖)
-    again = json.loads(_run_cli(root, "--now", NOW_ARG, "--json").stdout)
+    again = json.loads(_run_cli(root, "--now", NOW_ARG, *faces, "--json").stdout)
     assert again == payload, "同输入两次运行 JSON 输出不一致 —— 存在隐藏的非确定性"
 
 
@@ -836,8 +846,9 @@ def test_json_findings_match_text_findings(tmp_path):
     _node(root, "孤儿甲")
     _node(root, "孤儿乙")
     _projection(root, "2026-08-31T09:05:05+08:00")
-    text = _run_cli(root, "--now", NOW_ARG).stdout
-    payload = json.loads(_run_cli(root, "--now", NOW_ARG, "--json").stdout)
+    faces = _new_faces_args(tmp_path)
+    text = _run_cli(root, "--now", NOW_ARG, *faces).stdout
+    payload = json.loads(_run_cli(root, "--now", NOW_ARG, *faces, "--json").stdout)
     orphans = next(c for c in payload["checks"] if c["name"] == "orphan_nodes")
     assert {f["subject"] for f in orphans["findings"]} == {"节点/孤儿甲.md", "节点/孤儿乙.md"}
     for f in orphans["findings"]:
@@ -851,13 +862,27 @@ def test_only_skips_explicitly(tmp_path):
     root = _clean_vault(tmp_path / "v")
     report = vl.run_checks(root, TODAY, only=["orphan_nodes"])
     assert [c.name for c in report.checks] == ["orphan_nodes"]
-    assert report.skipped == ["raw_derived_confusion", "projection_freshness"]
+    assert report.skipped == [
+        "raw_derived_confusion",
+        "projection_freshness",
+        "annotation_coverage",
+        "dlq_backlog",
+        "backup_freshness",
+        "recap_unsourced",
+    ]
     assert vl.exit_code(report) == 0  # skipped 不参与聚合
 
     r = _run_cli(root, "--now", NOW_ARG, "--only", "orphan_nodes", "--json")
     payload = json.loads(r.stdout)
     assert payload["summary"]["checks_run"] == ["orphan_nodes"]
-    assert payload["summary"]["checks_skipped"] == ["raw_derived_confusion", "projection_freshness"]
+    assert payload["summary"]["checks_skipped"] == [
+        "raw_derived_confusion",
+        "projection_freshness",
+        "annotation_coverage",
+        "dlq_backlog",
+        "backup_freshness",
+        "recap_unsourced",
+    ]
 
     # --only 场景的同源门: 文本的 status=skipped 行 ↔ JSON checks_skipped 逐项相等
     text = _run_cli(root, "--now", NOW_ARG, "--only", "orphan_nodes").stdout
@@ -908,14 +933,18 @@ def test_vault_lint_source_has_no_write_primitives():
 
 
 def test_vault_lint_never_writes_fixture(tmp_path):
-    """真跑前后 fixture 全树 sha 逐字节相同 (三检查全跑 + CLI 子进程各一遍)。"""
+    """真跑前后 fixture 全树 sha 逐字节相同 (七检查全跑 + CLI 子进程各一遍)。"""
     root = _clean_vault(tmp_path / "v")
     _node(root, "孤儿")
+    faces_dirs = [_bmad_root(tmp_path), _backend_dir(tmp_path), _backups_dir(tmp_path)]
     before = _vault_digest(root)
-    vl.run_checks(root, TODAY)
+    before_faces = [_vault_digest(d) for d in faces_dirs]
+    vl.run_checks(root, TODAY, **_new_faces_kwargs(tmp_path))
     assert _vault_digest(root) == before, "run_checks 改动了 vault"
-    proc = _run_cli(root, "--now", NOW_ARG)
+    assert [_vault_digest(d) for d in faces_dirs] == before_faces, "run_checks 改动了新输入面"
+    proc = _run_cli(root, "--now", NOW_ARG, *_new_faces_args(tmp_path))
     assert _vault_digest(root) == before, "CLI 子进程改动了 vault"
+    assert [_vault_digest(d) for d in faces_dirs] == before_faces, "CLI 子进程改动了新输入面"
     assert proc.returncode == 2  # 有孤儿, 顺带确认跑的是真检查
 
 
@@ -962,14 +991,45 @@ def test_help_lists_checks_and_exit_semantics():
 # 9. live 只读跑通 (live 不可达时 skip; 卡文裁判 2 的单测内缩样)
 # ---------------------------------------------------------------------------
 _LIVE_VAULT = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault")
+#: CARD-G8-3: live 门的三处只读面 (主干树 _bmad-output 子目录 / 现网 backups/neo4j)
+_MAIN_TREE = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev")
+_LIVE_BACKUPS = Path("/Users/Heishing/Desktop/canvas/canvas-learning-system/backups/neo4j")
 
 
 def test_live_vault_readonly_and_runs():
     if not _LIVE_VAULT.is_dir():
         pytest.skip(f"live vault 不可达: {_LIVE_VAULT}")
+    bmad_dirs = [_MAIN_TREE / "_bmad-output" / "验收单", _MAIN_TREE / "_bmad-output" / "审查"]
+    bmad_before = None
+    if all(d.is_dir() for d in bmad_dirs):
+        bmad_before = [_vault_digest(d) for d in bmad_dirs]
+    else:
+        print(f"[live-test] skip bmad digest: 不可达 {[str(d) for d in bmad_dirs if not d.is_dir()]}")
+    backups_before = None
+    if _LIVE_BACKUPS.is_dir():
+        backups_before = _vault_digest(_LIVE_BACKUPS)
+    else:
+        print(f"[live-test] skip backups digest: 不可达 {_LIVE_BACKUPS}")
     before = _vault_digest(_LIVE_VAULT)
-    report = vl.run_checks(_LIVE_VAULT, TODAY)
+    t0 = time.monotonic()
+    report = vl.run_checks(
+        _LIVE_VAULT,
+        TODAY,
+        bmad_root=_MAIN_TREE / "_bmad-output",
+        backend_dir=_MAIN_TREE / "backend",
+        backups_dir=_LIVE_BACKUPS,
+        recap_scan=_LIVE_VAULT / ".claude" / "skills" / "board-recap" / "scripts" / "recap_scan.py",
+    )
+    elapsed = time.monotonic() - t0
+    print(f"[live-test] 七检查全跑耗时 {elapsed:.2f}s")
     assert _vault_digest(_LIVE_VAULT) == before, "live vault 被改动 —— 零写铁律被打破"
+    if bmad_before is not None:
+        assert [_vault_digest(d) for d in bmad_dirs] == bmad_before, "主干树 _bmad-output 被改动"
+    if backups_before is not None:
+        assert _vault_digest(_LIVE_BACKUPS) == backups_before, "现网 backups/neo4j 被改动"
+    assert [c.name for c in report.checks] == list(vl.CHECKS), f"live 应恰 7 检查: {[c.name for c in report.checks]}"
+    for c in report.checks:
+        assert c.status in (vl.OK, vl.WARN), f"{c.name} 不该 fail: {c.summary}"
     assert vl.exit_code(report) in (0, 1, 2)
     # 卡文裁判 2 的单测侧缩影: rc 与 JSON summary 一致
     assert vl.exit_code(report) == vl.report_to_json(report)["summary"]["exit_code"]
@@ -1549,3 +1609,406 @@ def test_auto_anomaly_keys_disambiguate_same_name_across_subdirs(tmp_path):
     # 值也各自在场 —— 不是只有 key 唯一而 value 被覆盖
     assert all(detail[k] for k in keys)
     assert res.details["blind_spots"] >= 2, "盲区计数必须把两条都算进去"
+
+
+# ---------------------------------------------------------------------------
+# 10. CARD-G8-3 第二批四检查 —— 输入面 fixture builders
+# ---------------------------------------------------------------------------
+#: 真 recap_scan.py 路径 (子进程调用, ⛔ 不 import) —— 从 BACKEND_DIR 推, 不依赖 vl 新属性
+#: (模块级引用 vl 的新名字会让"改前"整文件 collection error, 违反"先红不是 import 错")
+_REAL_RECAP_SCAN = (
+    BACKEND_DIR.parent / "canvas-vault" / ".claude" / "skills" / "board-recap" / "scripts" / "recap_scan.py"
+)
+
+
+def _bmad_root(root: Path) -> Path:
+    """最小 `_bmad-output` (两子目录齐 + 验收单一条**已答**批注) —— 干净形态。"""
+    b = root / "bmad-output"
+    (b / "验收单").mkdir(parents=True, exist_ok=True)
+    (b / "审查").mkdir(parents=True, exist_ok=True)
+    (b / "验收单" / "UAT-已答示例.md").write_text(
+        "# 已答示例\n\n**User：** 这条批注已经有回复。\n\n> **[A1 2026-08-30 → round1]** 已回复, 详见 [[R1-Q1_示例|📚 R1-Q1]]\n",
+        encoding="utf-8",
+    )
+    return b
+
+
+def _backend_dir(root: Path) -> Path:
+    """最小 backend 根: `data/` 与 `app/data/` 存在、八条 DLQ 文件全不存在。"""
+    b = root / "backend"
+    (b / "data").mkdir(parents=True, exist_ok=True)
+    (b / "app" / "data").mkdir(parents=True, exist_ok=True)
+    return b
+
+
+def _backups_dir(root: Path) -> Path:
+    """最小备份目录: 最近 OK = NOW_ARG 前 1h + 一个 `neo4j-*.dump`。"""
+    b = root / "backups-neo4j"
+    b.mkdir(parents=True, exist_ok=True)
+    (b / "backup.log").write_text("[2026-08-31 11:00:00] OK: neo4j-20260831-110000.dump ( 14M)\n", encoding="utf-8")
+    (b / "neo4j-20260831-110000.dump").write_bytes(b"fake-dump-bytes")
+    return b
+
+
+def _pin_mtime(path: Path, dt: datetime) -> None:
+    """把文件 mtime 钉到指定时刻 —— 让 oldest_age_days 确定 (不依赖跑测时刻)。"""
+    ts = dt.timestamp()
+    os.utime(path, (ts, ts))
+
+
+def _new_faces_args(root: Path) -> list[str]:
+    """四新检查的 tmp 输入面 CLI 参数 (确定性; 不读现网)。"""
+    return [
+        "--bmad-root",
+        str(_bmad_root(root)),
+        "--backend-dir",
+        str(_backend_dir(root)),
+        "--backups-dir",
+        str(_backups_dir(root)),
+        "--recap-scan",
+        str(_REAL_RECAP_SCAN),
+    ]
+
+
+def _new_faces_kwargs(root: Path) -> dict:
+    """四新检查的 tmp 输入面 run_checks 关键字 (now_dt 与 `--now NOW_ARG` 同源)。"""
+    return {
+        "bmad_root": _bmad_root(root),
+        "backend_dir": _backend_dir(root),
+        "backups_dir": _backups_dir(root),
+        "recap_scan": _REAL_RECAP_SCAN,
+        "now_dt": vl._now_dt(NOW_ARG),
+    }
+
+
+# ---------------------------------------------------------------------------
+# 10.1 四反例 (先红) —— 每个反例 findings 非空; 删掉对应检查逻辑此处必红
+# ---------------------------------------------------------------------------
+def test_annotation_unanswered_counterexample_is_caught(tmp_path):
+    """反例: 一条未答 `**User：**` 批注 ⇒ warn + findings + unanswered=1 + 最老年龄。
+
+    ⛔ 先红 (改前): `run_checks` 注册表里还没有 annotation_coverage —— 本条在
+    「report.checks 里没有该 name」处红。负控段① 把「已答」判定改恒 True ⇒
+    本条在含 `unanswered` 的断言处红 (已答文件照旧 0, 未答文件被吞成 0)。
+    """
+    root = tmp_path / "v"
+    bmad = _bmad_root(root)
+    unanswered = bmad / "验收单" / "UAT-未答.md"
+    unanswered.write_text("# 未答示例\n\n**User：** 这条批注还没有人回复。\n", encoding="utf-8")
+    _pin_mtime(unanswered, datetime(2026, 8, 21, 12, 0, tzinfo=vl._display_tz()))
+    report = vl.run_checks(root, TODAY, only=["annotation_coverage"])
+    chk = next((c for c in report.checks if c.name == "annotation_coverage"), None)
+    assert chk is not None, f"report.checks 里没有该 name (改前红点): {[c.name for c in report.checks]}"
+    res = vl.check_annotation_coverage(bmad, TODAY)
+    assert res.details["unanswered"] == 1, f"unanswered 应为 1, 实为 {res.details.get('unanswered')!r}"
+    assert res.status == vl.WARN, f"未答批注应报 warn, 实为 {res.status}: {res.summary}"
+    assert res.findings, f"未答批注应产生 findings: {res.summary}"
+    assert res.details["oldest_age_days"] == 10, f"oldest_age_days 应为 10: {res.details}"
+    assert any("UAT-未答.md" in f.subject for f in res.findings), f"findings 应点名未答文件: {res.findings}"
+
+
+def test_dlq_backlog_counterexample_is_caught(tmp_path):
+    """反例: 一条 3 行 jsonl + 一个 `.overflow.` 兄弟 ⇒ warn + total_backlog=3。
+
+    ⛔ 先红 (改前): report.checks 无该 name。负控段② 把行数改恒 0 ⇒ 本条在
+    `total_backlog == 3` 处红 (overflow 兄弟仍让 status=warn, 只有计数断言抓得住)。
+    """
+    root = tmp_path / "v"
+    backend = _backend_dir(root)
+    (backend / "data" / "failed_writes.jsonl").write_text('{"a": 1}\n{"b": 2}\n{"c": 3}\n', encoding="utf-8")
+    (backend / "data" / "failed_writes.overflow.20260901T000000.jsonl").write_bytes(b"{}\n")
+    report = vl.run_checks(root, TODAY, only=["dlq_backlog"])
+    chk = next((c for c in report.checks if c.name == "dlq_backlog"), None)
+    assert chk is not None, f"report.checks 里没有该 name (改前红点): {[c.name for c in report.checks]}"
+    res = vl.check_dlq_backlog(backend)
+    assert res.status == vl.WARN, f"积压应报 warn, 实为 {res.status}: {res.summary}"
+    assert res.findings, f"积压应产生 findings: {res.summary}"
+    assert res.details["total_backlog"] == 3, f"total_backlog 应为 3: {res.details}"
+    entry = next(e for e in res.details["entries"] if e["name"] == "failed_writes.jsonl")
+    assert entry["backlog"] == 3 and entry["overflow_files"] == 1, f"entry 计数不对: {entry}"
+
+
+def test_backup_stale_counterexample_is_caught(tmp_path):
+    """反例: 最近 OK 超 48h (其后还有 SKIP 行) ⇒ warn —— 取**最后一条 OK**, 不被 SKIP 遮。
+
+    ⛔ 先红 (改前): report.checks 无该 name。负控段③ 把 `age_hours <= max_age_hours`
+    改恒 True ⇒ 本条在 warn 断言处红。
+    """
+    root = tmp_path / "v"
+    bdir = _backups_dir(root)
+    (bdir / "backup.log").write_text(
+        "[2026-08-27 11:00:00] OK: neo4j-20260827-110000.dump ( 14M)\n"
+        "[2026-08-31 04:00:00] SKIP: docker daemon 不可用\n",
+        encoding="utf-8",
+    )
+    report = vl.run_checks(root, TODAY, only=["backup_freshness"])
+    chk = next((c for c in report.checks if c.name == "backup_freshness"), None)
+    assert chk is not None, f"report.checks 里没有该 name (改前红点): {[c.name for c in report.checks]}"
+    res = vl.check_backup_freshness(bdir, TODAY, now_dt=vl._now_dt(NOW_ARG))
+    assert res.status == vl.WARN, f"超龄备份应报 warn, 实为 {res.status}: {res.summary}"
+    assert res.findings, f"超龄应产生 findings: {res.summary}"
+    assert res.details["last_ok_at"] == "2026-08-27 11:00:00", f"应取最后一条 OK: {res.details}"
+    assert res.details["age_hours"] > 48, f"age_hours 应 > 48: {res.details}"
+
+
+def test_recap_unsourced_counterexample_is_caught(tmp_path):
+    """反例: 一板一派生节点无 source_note/derived-from ⇒ warn (真起 recap_scan 子进程)。
+
+    ⛔ 先红 (改前): report.checks 无该 name。负控段④ 把 `value > 0` 改
+    `value > 10**9` ⇒ 本条在 warn 断言处红。
+    """
+    root = _clean_vault(tmp_path / "v")
+    (root / "节点" / "派生无据.md").write_text(
+        '---\ntype: concept\nsource_board: "[[原白板/板]]"\ncreated_from: ai_linked_doc\n---\n正文\n',
+        encoding="utf-8",
+    )
+    with open(root / "原白板" / "板.md", "a", encoding="utf-8") as fh:
+        fh.write("- [[节点/派生无据]]\n")
+    report = vl.run_checks(root, TODAY, only=["recap_unsourced"])
+    chk = next((c for c in report.checks if c.name == "recap_unsourced"), None)
+    assert chk is not None, f"report.checks 里没有该 name (改前红点): {[c.name for c in report.checks]}"
+    res = vl.check_recap_unsourced(root, TODAY, recap_scan=_REAL_RECAP_SCAN)
+    assert res.status == vl.WARN, f"无来源结论应报 warn, 实为 {res.status}: {res.summary}"
+    assert res.findings, f"无来源结论应产生 findings: {res.summary}"
+    assert res.details["boards"]["板"]["value"] == 1, f"板 value 应为 1: {res.details}"
+
+
+# ---------------------------------------------------------------------------
+# 10.2 四干净 fixture ok (输入面全部 tmp_path 派生)
+# ---------------------------------------------------------------------------
+def test_annotation_clean_is_ok(tmp_path):
+    bmad = _bmad_root(tmp_path)
+    res = vl.check_annotation_coverage(bmad, TODAY)
+    assert res.status == vl.OK, f"{res.status}: {res.summary}"
+    assert res.details["unanswered"] == 0 and res.details["annotations_total"] == 1
+    assert res.findings == [] and not res.details.get("degraded")
+
+
+def test_dlq_clean_is_ok(tmp_path):
+    backend = _backend_dir(tmp_path)
+    res = vl.check_dlq_backlog(backend)
+    assert res.status == vl.OK, f"{res.status}: {res.summary}"
+    assert res.details["total_backlog"] == 0 and res.details["incomplete"] is False
+    assert not res.details.get("degraded")
+
+
+def test_backup_fresh_is_ok(tmp_path):
+    bdir = _backups_dir(tmp_path)
+    res = vl.check_backup_freshness(bdir, TODAY, now_dt=vl._now_dt(NOW_ARG))
+    assert res.status == vl.OK, f"{res.status}: {res.summary}"
+    assert res.details["last_ok_at"] == "2026-08-31 11:00:00"
+    assert res.details["age_hours"] == pytest.approx(1.0)
+    assert res.details["dump_count"] == 1 and not res.details.get("degraded")
+
+
+def test_recap_clean_is_ok(tmp_path):
+    root = _clean_vault(tmp_path / "v")
+    res = vl.check_recap_unsourced(root, TODAY, recap_scan=_REAL_RECAP_SCAN)
+    assert res.status == vl.OK, f"{res.status}: {res.summary}"
+    assert res.details["boards"]["板"]["value"] is None  # 无派生成员 = 「无据」= ok
+    assert res.details["boards"]["板"]["availability"] == "无据"
+
+
+# ---------------------------------------------------------------------------
+# 10.3 四 degraded (输入面不可用) —— warn + details.degraded=true + "degraded:" 前缀
+# ---------------------------------------------------------------------------
+def test_annotation_missing_dirs_degraded(tmp_path):
+    res = vl.check_annotation_coverage(tmp_path / "absent", TODAY)
+    assert res.status == vl.WARN and res.details["degraded"] is True and res.summary.startswith("degraded:")
+    assert res.details["degraded_reasons"], "degraded 必须带原因名"
+    partial = tmp_path / "partial"
+    (partial / "验收单").mkdir(parents=True)  # 审查/ 缺席
+    res2 = vl.check_annotation_coverage(partial, TODAY)
+    assert res2.status == vl.WARN and res2.details["degraded"] is True and res2.summary.startswith("degraded:")
+
+
+def test_dlq_backend_dir_not_dir_degraded(tmp_path):
+    not_dir = tmp_path / "file-not-dir"
+    not_dir.write_text("x", encoding="utf-8")
+    res = vl.check_dlq_backlog(not_dir)
+    assert res.status == vl.WARN and res.details["degraded"] is True and res.summary.startswith("degraded:")
+    assert res.details["degraded_reasons"]
+
+
+def test_backup_log_missing_degraded(tmp_path):
+    bdir = tmp_path / "backups"
+    bdir.mkdir()
+    res = vl.check_backup_freshness(bdir, TODAY, now_dt=vl._now_dt(NOW_ARG))
+    assert res.status == vl.WARN and res.details["degraded"] is True and res.summary.startswith("degraded:")
+    assert res.details["degraded_reasons"]
+
+
+def test_recap_scan_missing_degraded(tmp_path):
+    root = _clean_vault(tmp_path / "v")
+    res = vl.check_recap_unsourced(root, TODAY, recap_scan=tmp_path / "no-such-recap.py")
+    assert res.status == vl.WARN and res.details["degraded"] is True and res.summary.startswith("degraded:")
+    assert res.details["degraded_reasons"]
+
+
+# ---------------------------------------------------------------------------
+# 10.4 DLQ 同源锁 (两层) —— AST 键集 + 真包路由子进程解析后逐路径相等
+# ---------------------------------------------------------------------------
+_TRACES = BACKEND_DIR / "app" / "api" / "v1" / "endpoints" / "traces.py"
+
+
+def test_dlq_paths_match_traces_backlog_files():
+    """同源锁 (CARD-G8-3): DLQ_BACKLOG_FILES 与 traces.py:80-93 BACKLOG_FILES 两层绑定。
+
+    (A) AST 层: 不 import, 取 `BACKLOG_FILES` 字典字面量键集 == `set(vl.DLQ_BACKLOG_FILES)`;
+    (B) 解析层: 子进程走**真包路由** (cwd=backend) import 后 8 条 resolve 逐条相等。
+    子进程失败 = 测试 fail (不 skip, 贴 stderr); 跑前/跑后 `git status backend/` 逐字同
+    (证明包路由 import 没往 backend/ 落 .pyc/缓存); 子进程耗时打印进存档。
+    """
+    import ast as _ast
+
+    tree = _ast.parse(_TRACES.read_text(encoding="utf-8"))
+    keys: set[str] | None = None
+    for node in tree.body:
+        if isinstance(node, _ast.AnnAssign):
+            target, value = node.target, node.value
+        elif isinstance(node, _ast.Assign):
+            target, value = (node.targets[0] if node.targets else None), node.value
+        else:
+            continue
+        if getattr(target, "id", "") == "BACKLOG_FILES" and isinstance(value, _ast.Dict):
+            keys = {k.value for k in value.keys if isinstance(k, _ast.Constant)}
+    assert keys == set(vl.DLQ_BACKLOG_FILES), f"AST 键集不等: traces={keys} vs vl={set(vl.DLQ_BACKLOG_FILES)}"
+
+    def _git_dirty() -> str:
+        # ⛔ `git status` 不支持 `--no-color` (本机 git 2.50 报 unknown option) —— 用
+        # `-c color.status=never`; 误写会让命令报错、stdout 恒空 ⇒ 判据假绿。
+        return subprocess.run(
+            ["git", "-c", "color.status=never", "--no-pager", "status", "--porcelain", "backend/"],
+            cwd=BACKEND_DIR.parent,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        ).stdout
+
+    before = _git_dirty()
+    code = (
+        "import json; from app.api.v1.endpoints.traces import BACKLOG_FILES; "
+        "print(json.dumps({k: str(v) for k, v in BACKLOG_FILES.items()}))"
+    )
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    t0 = time.monotonic()
+    proc = subprocess.run(
+        [sys.executable, "-c", code], cwd=BACKEND_DIR, capture_output=True, text=True, env=env, timeout=120
+    )
+    elapsed = time.monotonic() - t0
+    assert proc.returncode == 0, f"包路由子进程失败 (fail 不 skip): rc={proc.returncode}\n{proc.stderr[-2000:]}"
+    # 包路由 import 的启动期日志 (RAGService …) 会污染 stdout —— 取最后一行 JSON
+    json_lines = [ln for ln in proc.stdout.splitlines() if ln.startswith("{")]
+    assert json_lines, f"子进程 stdout 无 JSON 行: {proc.stdout[:400]!r}"
+    parsed = json.loads(json_lines[-1])
+    assert set(parsed) == set(vl.DLQ_BACKLOG_FILES)
+    for name, rel in vl.DLQ_BACKLOG_FILES.items():
+        assert Path(parsed[name]).resolve() == (BACKEND_DIR / rel).resolve(), (
+            f"{name}: traces 解析={parsed[name]} vs vl 口径={BACKEND_DIR / rel}"
+        )
+    after = _git_dirty()
+    assert after == before, f"包路由子进程改动了 backend/ 工作树: before={before!r} after={after!r}"
+    print(f"[dlq-lock] git status backend/ before={before!r} after={after!r}")
+    print(f"[dlq-lock] 包路由子进程耗时 {elapsed:.2f}s")
+
+
+# ---------------------------------------------------------------------------
+# 10.5 --help 的四新检查名 + degraded 分级规则
+# ---------------------------------------------------------------------------
+def test_help_documents_degraded_semantics():
+    env = dict(os.environ)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    proc = subprocess.run([sys.executable, str(SCRIPT), "--help"], capture_output=True, text=True, env=env, timeout=60)
+    assert proc.returncode == 0
+    out = proc.stdout
+    for name in ("annotation_coverage", "dlq_backlog", "backup_freshness", "recap_unsourced"):
+        assert name in out, f"--help 缺新检查名 {name}"
+    assert "degraded" in out and "details.degraded=true" in out
+    for token in ("degraded = bmad_root", "不压成 0", "其余板照报", "输入面不可用"):
+        assert token in out, f"--help 缺分级规则片段: {token!r}"
+
+
+# ---------------------------------------------------------------------------
+# 10.6 新检查的 --only 单选 + skipped 同源门
+# ---------------------------------------------------------------------------
+def test_only_annotation_coverage_single_selection(tmp_path):
+    root = _clean_vault(tmp_path / "v")
+    report = vl.run_checks(root, TODAY, only=["annotation_coverage"], **_new_faces_kwargs(tmp_path))
+    assert [c.name for c in report.checks] == ["annotation_coverage"]
+    assert report.checks[0].status == vl.OK
+    assert len(report.skipped) == 6 and "annotation_coverage" not in report.skipped
+    r = _run_cli(root, "--now", NOW_ARG, "--only", "annotation_coverage", "--json", *_new_faces_args(tmp_path))
+    payload = json.loads(r.stdout)
+    assert payload["summary"]["checks_run"] == ["annotation_coverage"]
+    assert payload["summary"]["checks_skipped"] == [n for n in vl.CHECKS if n != "annotation_coverage"]
+
+
+# ---------------------------------------------------------------------------
+# 10.7 边界: size_capped / 盲区 / 无 OK / 无 dump / 超时
+# ---------------------------------------------------------------------------
+def test_dlq_size_capped_degrades_not_zero(tmp_path):
+    """`> 8 MiB` 的 jsonl 不数行 ⇒ degraded —— 计数不完整**不许压成 0** (评审问①方向)。"""
+    backend = _backend_dir(tmp_path)
+    big = backend / "data" / "failed_writes.jsonl"
+    big.write_bytes(b"\n" * (8 * 1024 * 1024 + 1))
+    res = vl.check_dlq_backlog(backend)
+    assert res.status == vl.WARN and res.details["degraded"] is True and res.summary.startswith("degraded:")
+    entry = next(e for e in res.details["entries"] if e["name"] == "failed_writes.jsonl")
+    assert entry["size_capped"] is True and entry["backlog"] is None, f"size_capped 不许报成 0: {entry}"
+
+
+def test_annotation_symlink_blind_recorded(tmp_path):
+    """symlink 拒读记盲区 (不参与判定); 盲区只登记不改状态 (卡文只规定 unanswered/degraded 两档)。"""
+    bmad = _bmad_root(tmp_path)
+    outside = tmp_path / "outside.md"
+    outside.write_text("**User：** 外部的批注不该被读\n", encoding="utf-8")
+    os.symlink(outside, bmad / "验收单" / "链接批注.md")
+    res = vl.check_annotation_coverage(bmad, TODAY)
+    assert res.status == vl.OK, f"无未答批注时状态应为 ok: {res.status} {res.summary}"
+    assert res.details["unanswered"] == 0
+    assert res.details["blind_spots"] >= 1, f"symlink 未记盲区: {res.details}"
+    assert any("盲区" in n for n in res.notes), f"盲区未进 notes: {res.notes}"
+
+
+def test_backup_skip_only_warns(tmp_path):
+    bdir = _backups_dir(tmp_path)
+    (bdir / "backup.log").write_text("[2026-08-31 04:00:00] SKIP: docker daemon 不可用\n", encoding="utf-8")
+    res = vl.check_backup_freshness(bdir, TODAY, now_dt=vl._now_dt(NOW_ARG))
+    assert res.status == vl.WARN, f"{res.status}: {res.summary}"
+    assert res.findings and not res.details.get("degraded"), f"无 OK 行应 warn 非 degraded: {res.details}"
+
+
+def test_backup_fresh_but_no_dump_warns(tmp_path):
+    bdir = _backups_dir(tmp_path)
+    (bdir / "neo4j-20260831-110000.dump").unlink()
+    res = vl.check_backup_freshness(bdir, TODAY, now_dt=vl._now_dt(NOW_ARG))
+    assert res.status == vl.WARN, f"{res.status}: {res.summary}"
+    assert any("dump" in f.subject for f in res.findings), f"缺 dump 应被点名: {res.findings}"
+
+
+def test_recap_timeout_degrades_but_board_reason_recorded(tmp_path):
+    """子进程超时 ⇒ degraded 且该板记原因名 (timeout), 不把整检查吞成 ok。"""
+    root = _clean_vault(tmp_path / "v")
+    res = vl.check_recap_unsourced(root, TODAY, recap_scan=_REAL_RECAP_SCAN, timeout_s=0)
+    assert res.status == vl.WARN and res.details["degraded"] is True and res.summary.startswith("degraded:")
+    assert res.details["boards"]["板"]["reason"] == "timeout"
+    assert res.details["boards_degraded"] == 1
+
+
+def test_recap_old_schema_and_broken_json_reason_names(tmp_path):
+    """负控输入 (坏环境形态): 旧版脚本缺 signals ⇒ no-signals; 非法 JSON ⇒ json-decode。
+
+    ⛔ 两个原因名必须分开 —— 现网 live 副本就是「合法 JSON 但无 signals」的旧版,
+    报成 json-decode 不实 (JSON 明明解开了)。
+    """
+    root = _clean_vault(tmp_path / "v")
+    old = tmp_path / "old-recap.py"
+    old.write_text("import json\nprint(json.dumps({'board_exists': True}))\n", encoding="utf-8")
+    res = vl.check_recap_unsourced(root, TODAY, recap_scan=old)
+    assert res.status == vl.WARN and res.details["degraded"] is True
+    assert res.details["boards"]["板"]["reason"] == "no-signals"
+    broken = tmp_path / "broken-recap.py"
+    broken.write_text("print('not-json-at-all')\n", encoding="utf-8")
+    res2 = vl.check_recap_unsourced(root, TODAY, recap_scan=broken)
+    assert res2.status == vl.WARN and res2.details["boards"]["板"]["reason"] == "json-decode"
