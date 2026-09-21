@@ -27,7 +27,8 @@
 - r6（绑 `a6303136`）：**B0/H1/M1/L2**（H1=empty blob 未 fail-closed；M1=冻结容忍未限定 P3；L1=负控脚本/全文未入库；L2=freeze JSON 措辞）→ 整改见 `D-15-r6-整改说明.md`（semantic v2.3 + 4 变异脚本/全文负控 + freeze 措辞）；**B-1 冻结/排除获 r6 确认**；**r6 复核存档已入库**。
 - r7（绑 `9b96e5a6`）：**B0/H0/M1/L1**（M1=8-hex pin 前缀比较可绕过；L1=freeze guard 措辞）→ 整改见 `D-15-r7-整改说明.md`（v2.4 全 SHA pin + shortpin/prefixcollision 负控 + guard 措辞）；**r7 已确认 r6 的 H1/L1 闭合、语义核心复算一致**；**r7 复核存档已入库**。
 - r8（绑 `ae467fae`）：**B0/H0/M0/L2**（L1=G4-13 主 UAT 终态字段滞后；L2=unit 差集 nodeid 误归因）→ 整改见 `D-15-r8-整改说明.md`（UAT 终态勘误指针 + unit 差集勘误）；**r8 已独立确认 v2.4 全 SHA 比较/6 负控/P3 冻结排除/docs-only 等核心面**；**r8 复核存档已入库**。
-- r9：绑本整改档 tip（GLM-5.3 max；prompt 审后随 r9 档入库）——待跑。
+- r9（绑 `c11487c8`）：**B0/H0/M1/L2**（M1=STATUS「剩余」块滞后；L1=汇报行时序；L2=勘误清单漏 r5）→ 整改见 `D-15-r9-整改说明.md`（剩余块改终态 + 时间勘误 + 清单补列）；**r9 已确认 r8 的 L1/L2 实质闭合**；**r9 复核存档已入库**。
+- r10：绑本整改档 tip（GLM-5.3 max；prompt 审后随 r10 档入库）——待跑。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。
