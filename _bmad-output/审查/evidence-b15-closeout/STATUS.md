@@ -1,4 +1,23 @@
-# B15-CLOSEOUT 状态（2026-09-20 13:56 · 主 session）
+# B15-CLOSEOUT 状态（2026-09-20 17:40 · 主 session · 候选树已就绪）
+
+## 候选树就绪（tip 6819f74e，树净；全部门已跑）
+- 32 卡全合（G8-10 squash `0400d848` = 24 lane commits，r21 绑 67db0c61 = B/H/M/L 0/0/0/0）。
+- 协议回写 `f26e6a85`；R-SLO 锁版 `69d26ed5`（用户口令+签字）；集成修复 `2bdbc685`/`d0e42bc4`/`4f6d17ca`（7692 门新契约）；底账重锚 `62151cf1`/`46984d80`；D40 `04eb9a9f`；台账/总账 `2d6d9abf`；复核存档 `22f68228`；终证据 `6819f74e`。
+- 终跑门（全部在最终 tip）：openapi `DRIFT: none`；pyright `app` **0 errors**；tests/unit **只减**（32 vs 基线 33，0 引入/1 修）；**7692 四文件 107 passed**；contract 3 文件 = 2 既有红/75 passed（与基线逐字同）；G8-10 checker failures=0 rc=0。
+- schemathesis 面（test_openapi_contract.py 89 操作）本机 ≈2 分钟/条 → 显式 skip 登记（未跑全量）。
+
+## 剩余（等用户裁定 ⇒ 才 ff/push；协议 §1 + 用户 goal 停止条件）
+1. **G8-7 签字位**（UAT-CARD-G8-7-2026-09-20 :90 起 6 步体验勾选 + :95 旅程签字）：走查已执行、产物 sha 已落；用户未勾 ⇒ 登记为「待签字（或 SKIP）」。
+2. **G6-13 J07 / G4-13 103 标注**：无口令 ⇒ not_run + SKIP 登记（第十六批）；若有口令则改走窗口。
+3. **feature 树 3 处删除处置**（research-pack 3 文件 / .gdr prompt / 2026-05-27 任务书）：恢复 or 保留。
+4. ff-only 前置已实测：仅 `.claude/rules/card-batch-protocol.md` 需 restore（内容 ⊆ 候选版）；untracked 无碰撞。
+
+## ff 后步骤（已备）
+ff-only → feature 收尾登记 commit（命令卡/进度表/协议侧清理/批次 docs）→ 推送 origin+backup+tags（逐个）→ 状态账 MERGED + `第十五批-完成的卡-汇报.md` → **D-15 GLM-5.3 max 终审绑最终 HEAD（M/L 也须 0；模板已备 /tmp/b15-closeout/final-glm-prompt-template.md）**。
+
+---
+
+# 历史记录（本轮早段）
 
 ## 已完成（候选树 batch15-integ）
 - `f26e6a85` **协议回写**：G1-1 §5 批注检索 + G1-3 ledger 行（patch 文件套用；G1-3 因同段上下文冲突改手工落位）+ §2.4.2 zcode 实测定正 + §3 哨兵总账标签澄清 + §6 第十五批回流条款。
