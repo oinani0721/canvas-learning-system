@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""跨车道语义等价核验 v2.3（r3 H-3 + r4-L2 + r5-H1 + r6-H1/M1：Git rc/退出码 + 空 blob 即红 + tip 策略机器化 + 计数下限）。
+"""跨车道语义等价核验 v2.4（r6 链 + r7-M1：pin 改 40-hex 全 SHA 精确比较 + pin 格式 fail-closed）。
 
 按后缀选择比较口径（均双端同口径；无法结构化则字节比较）：
   .py     → ast.dump(ast.parse)  相等
@@ -32,9 +32,16 @@ EXCEPTIONS = {
 #  ② 逐 lane code-face pin（r3 对比轮 tip）：pin..HEAD 的非 _bmad-output 面必须为空，否则 [CODE-DRIFT]；
 #     P3 lane 冻结后的 docs-only 前进属 B15 显式排除面（见 b15-freeze-exclusions.json），代码面不动即容忍；
 #  ③ 计数下限：每 lane files>0 且 checked>=100，否则红（防空枚举 vacuous PASS）；末尾以退出码传播 verdict。
-CODE_TIPS = {
-    "p2": "ac52e3b8", "p3": "32a405a4", "p4": "aa126e5b", "p5": "7af5306b",
-    "p6": "6346facb", "p7": "eb798680", "p8": "447eb50f", "p9": "430dcf25", "p10": "d2db49af",
+CODE_TIPS = {  # r7-M1：40-hex 全 SHA（禁止 8 位前缀比较）
+    "p2": "ac52e3b8ad7ecaca540153722f7b6aa9d050462e",
+    "p3": "32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67",  # 记录值=对比轮车道 tip；P3 属登记排除面（当前 docs-drift 至 1726b695）
+    "p4": "aa126e5bbc70cb786b7b49adf5c8ad03b04166c3",
+    "p5": "7af5306b3b28764574895aa5b38d952474e01b69",
+    "p6": "6346facb8d367f7b3d282e77569cae11289351d9",
+    "p7": "eb79868003915e730590a452fbc482913ed9f00c",
+    "p8": "447eb50fc25b333362d76ecfb59458a2aa79f57d",
+    "p9": "430dcf25501b48887f4ad05ebfc134e16e4c78a9",
+    "p10": "d2db49afe15b047e3622519ec5f460c5ff3d44cc",
 }
 failures = []
 
@@ -165,8 +172,10 @@ for lane, d in LANES.items():
     pin = CODE_TIPS.get(lane, "")
     if not pin:
         failures.append(f"pin-missing: {lane} CODE_TIPS 缺键（fail-closed）")
+    elif len(pin) != 40 or any(c not in "0123456789abcdef" for c in pin):
+        failures.append(f"pin-invalid: {lane} pin={pin!r} 非 40-hex 全 SHA（r7-M1 fail-closed）")
     drift = [x for x in run_checked(["diff", "--name-only", f"{pin}..HEAD", "--", ".", ":(exclude)_bmad-output"], L).decode("utf-8","surrogateescape").splitlines() if x]
-    tip_drift = bool(pin) and tip != pin
+    tip_drift = bool(pin) and tip_full != pin
     if ALLOWED_DRIFT is not None and lane in ALLOWED_DRIFT:
         if drift:
             failures.append(f"code-drift: {lane} {pin}..{tip} 非 _bmad-output 面 {len(drift)} 文件: {drift[:3]}")
@@ -174,14 +183,14 @@ for lane, d in LANES.items():
             print(f"  [DOCS-DRIFT-ALLOWED] {lane} {pin}..{tip}（登记排除面；代码面零漂移）")
     else:
         if tip_drift:
-            failures.append(f"tip-drift: {lane} tip={tip} != pin={pin}（未登记排除面的车道必须 tip 精确相等）")
+            failures.append(f"tip-drift: {lane} tip={tip_full} != pin={pin}（未登记排除面的车道必须 tip 精确相等）")
         if drift:
             failures.append(f"code-drift: {lane} {pin}..{tip} 非 _bmad-output 面 {len(drift)} 文件: {drift[:3]}")
     files = [f for f in run_checked(["diff", "--name-only", "-z", f"{BASE}..HEAD", "--", ".", ":(exclude)_bmad-output"], L).decode("utf-8","surrogateescape").split("\0") if f]
     if not files:
         lane_empty_n += 1
         failures.append(f"lane-empty: {lane} tip={tip} 枚举 0 文件（防空枚举 vacuous PASS）")
-    print(f"## {lane} tip={tip} pin={pin} code_drift={len(drift)} files={len(files)}")
+    print(f"## {lane} tip={tip_full[:8]} pin={pin[:8]} full_pin_ok={(tip_full == pin)} code_drift={len(drift)} files={len(files)}")
     for f in files:
         ok_c, a = blob_checked(C, "HEAD", f); ok_l, b = blob_checked(L, "HEAD", f)
         if not (ok_c and ok_l):

@@ -33,9 +33,9 @@ EXCEPTIONS = {
 #     P3 lane 冻结后的 docs-only 前进属 B15 显式排除面（见 b15-freeze-exclusions.json），代码面不动即容忍；
 #  ③ 计数下限：每 lane files>0 且 checked>=100，否则红（防空枚举 vacuous PASS）；末尾以退出码传播 verdict。
 CODE_TIPS = {  # r7-M1：40-hex 全 SHA（禁止 8 位前缀比较）
-    "p1": "39144558946094707a5223e4cedbf599e73b2ba7",
+    "p1": "39144558",
     "p2": "ac52e3b8ad7ecaca540153722f7b6aa9d050462e",
-    "p3": "9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680",  # 记录值=对比轮车道 tip；P3 属登记排除面（当前 docs-drift 至 1726b695）
+    "p3": "32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67",  # 记录值=对比轮车道 tip；P3 属登记排除面（当前 docs-drift 至 1726b695）
     "p4": "aa126e5bbc70cb786b7b49adf5c8ad03b04166c3",
     "p5": "7af5306b3b28764574895aa5b38d952474e01b69",
     "p6": "6346facb8d367f7b3d282e77569cae11289351d9",

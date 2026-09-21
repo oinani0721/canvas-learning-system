@@ -12,6 +12,6 @@
       "registered_as": "第十六批（待车道收敛后按自身 D-15 复核合入）"
     }
   ],
-  "guard": "semantic v2.2 以 code-face pin（r3 对比轮 tip）监控：P3 docs-only 前进可容忍（code_drift=0）；任何非 _bmad-output 面异动 ⇒ [CODE-DRIFT] 红",
+  "guard": "semantic v2.4：40-hex 全 SHA pin；仅登记工作树允许 docs-only 前进（code-face 必须零漂移）；未登记车道 tip 全 SHA 精确相等；pin 非 40-hex/缺键/registry 缺失/空 blob/枚举失败/计数不足 ⇒ 红",
   "documented_in": ["D-15-r5-整改说明.md", "未合卡追踪台账.md", "STATUS.md", "第十五批-完成的卡-汇报.md"]
 }
