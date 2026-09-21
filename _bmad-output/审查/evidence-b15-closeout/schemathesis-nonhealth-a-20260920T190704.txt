@@ -3,6 +3,9 @@
 collected 92 items / 15 deselected / 77 selected
 =============== 77/92 tests collected (15 deselected) in 18.96s ================
 ## 执行
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 92 items / 15 deselected / 77 selected
 
-# 注（主 session）：本组执行 2026-09-20 19:07 启动，仍在跑（77 ops × hypothesis examples，真实 app 查询）；
-# 结末汇总行落地后追加。收集数已核：92 collected / 15 deselected(=health) / 77 selected。
+tests/contract/test_openapi_contract.py FFFFFFFFFFF
