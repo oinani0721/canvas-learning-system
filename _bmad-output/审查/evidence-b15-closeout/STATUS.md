@@ -14,6 +14,7 @@
 - tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
 - G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 **v2.4** verdict=PASS（129 文件：123 equiv + 6 声明例外；missing=0/empty=0/lane_empty=0/failures=0）——fail-closed（git rc + 退出码 + 空 blob 即红 + 计数下限 + **40-hex 全 SHA pin**〔8 位前缀不豁免〕+ P3-only docs-drift 白名单〔解析 `b15-freeze-exclusions.json`〕）；`--self-test` + **6 个 one-line 变异负控**（badbase/drift/tipdrift/missingkey/shortpin/prefixcollision）全文入库。
 - **schemathesis 90-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
+- J07 开窗前置证据补档：`j07-window-open-preflight-recapture-20260920T2326.txt`（r12-L1 处置；5/5 部署一致 + docker StartedAt + :05 档 + 8011 GET 200；原 18:23 原始档缺失已登记）。
 - D40 `04eb9a9f`：format-only（480 `.py` + openapi 时间戳）；`LEFTHOOK_EXCLUDE=python-lint` 归因证据 = `d40-hook-exclusion-evidence-20260920T225429.txt`（协议 §2.3：hook 原始输出 2×F821 rc=1 + 父子 AST 全等/名次相同 + `ruff format --check` 复跑 rc=0）。
 - 推送：分支 local=origin=backup 逐 commit 对齐；`83a280db` 的 branch push 自证 = `branch-push-verify-20260920T203135.txt`（local/origin/backup 三列 + ls-remote 活态）；**35 tag 逐个三列 SHA 全 OK**（`push-and-tags-evidence-20260920T202239.txt` + `push-and-tags-evidence-20260920T203021.txt`）。
 - 冻结声明（r6 前置）：B15 面 = 主干冻结档；P3 lane 冻结后 docs-only 证据推进（32a405a4→ec9845fa→80665fc1→…）**显式排除**（`b15-freeze-exclusions.json`），登记第十六批；semantic v2.4 以 40-hex 全 SHA pin 监控（仅登记工作树容忍 docs-only 前进；未登记车道全 SHA 精确相等；代码面异动即红）。
@@ -31,7 +32,8 @@
 - r9（绑 `c11487c8`）：**B0/H0/M1/L2**（M1=STATUS「剩余」块滞后；L1=汇报行时序；L2=勘误清单漏 r5）→ 整改见 `D-15-r9-整改说明.md`（剩余块改终态 + 时间勘误 + 清单补列）；**r9 已确认 r8 的 L1/L2 实质闭合**；**r9 复核存档已入库**。
 - r10（绑 `b55744ba`）：**B0/H1/M1/L1**（H1=r9-M1 假整改〔整块改写声称未落盘〕；M1=D40 hook-exclusion 缺少协议要求的原始输出/归因；L1=汇报 18:02 行负时序）→ 整改见 `D-15-r10-整改说明.md`（STATUS 剩余块真实落盘 + D40 归因证据档 + 汇报 18:02→17:50；并登记根因=整改包同文件双补丁覆盖）；**r10 复核存档已入库**。
 - r11（绑 `96835a44`）：**B0/H0/M1/L2**（M1=台账顶部 J07 摘要滞后；L1=汇报相对引用；L2=STATUS ff 后步骤标题互斥）→ 整改见 `D-15-r11-整改说明.md`（台账/状态账 J07 口径同步 + 相对引用 + 标题）；**r11 已确认 r10 三项实质闭合**；**r11 复核存档已入库**。
-- r12：绑定本整改档（GLM-5.3 max；prompt 审后随 r12 档入库）——待跑。
+- r12（绑 `9d799e22`）：**B0/H0/M1/L1**（M1=J07 终态未同步主 UAT/manifest；L1=J07 前置四查缺原始档）→ 整改见 `D-15-r12-整改说明.md`（UAT 指针 + manifest notes 补记 + 23:26 复捕获档；原 18:23 原始档缺失登记）；**r12 已确认 r11 三项真实落盘**；**r12 复核存档已入库**。
+- r13：绑定本整改档（GLM-5.3 max；prompt 审后随 r13 档入库）——待跑。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。

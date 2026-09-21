@@ -1,0 +1,6 @@
+# J07 manifest 校验（notes 补记后；r12-M1 处置自证） 20260920T232725
+# cmd: backend/.venv/bin/python backend/scripts/validate_release_manifest.py docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+✅ PASS docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0

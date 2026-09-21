@@ -1,0 +1,45 @@
+# J07 开窗前置证据补档（r12-L1 处置）  recapture @ 2026-09-20 23:26 PDT
+# 原始声称：台账 :157「J07 窗口 2026-09-20 18:23 开启（用户口令 + 前置四查：live 5/5 == 车道验证版 / 容器 StartedAt / :05 档 / 8011 GET）」；1e907037 message 同。
+# 契约要求：P5-C §一(c)「开窗前主 session 须已把 P5-A(R3)+P5-B 合入并部署 live、并核过一档 launchd（:05）已跑新代码（车道只读 log 与 docker ps 存档）」。
+# ⚠️ 登记（r12-L1 属实）：18:23 时点的四查**原始输出未落树**。本档为 23:26 的**复算/复捕获**（时点不同，不能替代原始档）；原始权威记录 = 1e907037 message + 台账 :157（不修改）。
+
+## 复算 1：live 5/5 部署一致性（2026-09-20 23:26 复跑）
+命令：`shasum -a 256` 逐文件对比 [live vault 副本] / [feature 主干树副本] / [card-p5-review 车道副本]（后两文件为 主干树 vs 车道）：
+- `canvas-vault/.claude/scripts/decay_beta.py`   live=3bf4ed94…abb90  wt=3bf4ed94…abb90  lane=同  ⇒ **YES**
+- `canvas-vault/.claude/scripts/fsrs_bridge.py`  live=a766fbcc…90f0  wt=a766fbcc…90f0  lane=同  ⇒ **YES**
+- `~/Library/Application Support/CanvasReview/bin/daily-review-wrapper.sh` vs `scripts/launchd/daily-review-wrapper.sh`（wt/lane）  d78d16be…8f303 三处同 ⇒ **YES**
+- `scripts/daily_review_run.py`   wt=64e0d754…44d8c  lane=同  ⇒ **YES**
+- `scripts/daily_review_pick.py`  wt=9a6936a4…11df3a  lane=同  ⇒ **YES**
+结果：5/5 一致。
+
+## 复算 2：容器 StartedAt（2026-09-20 23:26:35 捕获）
+# captured 2026-09-20 23:26:35 -0700
+$ docker ps --format '{{.Names}}	{{.Status}}	{{.CreatedAt}}'
+canvas-learning-system-backend	Up 9 hours (healthy)	2026-08-30 22:50:31 -0700 PDT
+canvas-learning-system-neo4j-test	Up 9 hours (healthy)	2026-08-26 15:33:27 -0700 PDT
+canvas-learning-system-neo4j	Up 9 hours (healthy)	2026-07-31 05:45:59 -0700 PDT
+docker_rc=0
+
+## 复算 3：launchd :05 档（boot log；开窗后 19:05/20:05 两档在场）
+$ tail -8 ~/Library/Logs/canvas-daily-review.boot.log
+[2026-09-20 17:05:00] wrapper start
+[2026-09-20 17:05:00] vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault (清单=canvas-vault)
+[2026-09-20 18:05:06] wrapper start
+[2026-09-20 18:05:06] vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault (清单=canvas-vault)
+[2026-09-20 19:05:00] wrapper start
+[2026-09-20 19:05:00] vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault (清单=canvas-vault)
+[2026-09-20 20:05:04] wrapper start
+[2026-09-20 20:05:04] vault=/Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault (清单=canvas-vault)
+$ stat -f '%N %Sm' 两份日志
+/Users/Heishing/Library/Logs/canvas-daily-review.boot.log Sep 20 20:05:04 2026
+/Users/Heishing/Library/Logs/canvas-daily-review.log Sep 20 20:05:04 2026
+（17:05/18:05 为开窗前档；19:05/20:05 为 18:23 开窗后的 :05 档；日志 mtime 停在 20:05。）
+
+## 复算 4：8011 GET（2026-09-20 23:25 复探）
+$ curl -s -m 6 -o j07-8011-probe2.json -w 'http_code=%{http_code}' http://127.0.0.1:8011/api/v1/review/overview
+http_code=200；响应 4461 bytes，sha256=dabeb86e756e1a719be598073e3a52c51450d366439365277e55b6fee151a1b2，generated_at=2026-09-21T06:25:48+00:00，vaults=[_bmad-output, canvas-vault, test-vault]。响应首 200 字节：
+{"generated_at":"2026-09-21T06:25:48+00:00","display_tz":"Etc/UTC","tonight_available":true,"vaults_root":"/vaults","active_vault":"canvas-vault","vaults":[{"vault_id":"_bmad-output","path":"/vaults/_
+
+## 结论与限制登记
+- 可恢复子集（23:26 复算）= 5/5 部署一致 + 容器 healthy/StartedAt 可读 + 开窗后 :05 档在场 + 8011 GET 200 ⇒ 与「18:23 窗口已开」相符。
+- **未闭合面**：18:23 时点四查的原始输出档缺失（本档已如实登记）；其权威记录为 1e907037 message + 台账 :157。后续如需原始级证据，应在下一次窗口开启时按 P5-C §一(c) 即时落档。
