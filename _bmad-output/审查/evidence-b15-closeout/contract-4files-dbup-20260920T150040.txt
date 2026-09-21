@@ -1,0 +1,22 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+timeout: 300.0s
+timeout method: signal
+timeout func_only: False
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 169 items
+
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  0%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/metrics] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  1%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/metrics/summary] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  1%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/agents] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  2%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/ai] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  2%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/full] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  3%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/neo4j] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  4%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/knowledge-graph] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py FAILED [  4%]
+tests/contract/test_openapi_contract.py::test_api_contract[GET /api/v1/health/memory-logs] <- ../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/schemathesis/generation/hypothesis/builder.py 

@@ -1,0 +1,10 @@
+# G8-10 checker 在候选树（合并后）重跑 —— re-anchor digest
+# candidate HEAD=8ebc795e9549faa1b032bf7cda48771b15beef3a
+# checker=v4.9
+# re-anchored digest=dd076eda0f5d9458ba0a5c06f98adf49
+quote-miss: row2
+quote-miss: row2
+quote-miss: row6
+quote-miss: row6
+chains=6 obj07=5 failures=4 source_digest=dd076eda0f5d9458ba0a5c06f98adf49 expect_digest=dd076eda0f5d9458ba0a5c06f98adf49 head=8ebc795e9549faa1b032bf7cda48771b15beef3a dirty=4 dirty_tracked=0 dirty_untracked=4
+rc=1

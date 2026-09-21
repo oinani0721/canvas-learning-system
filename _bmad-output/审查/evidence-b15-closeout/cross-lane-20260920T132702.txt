@@ -1,0 +1,33 @@
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ
+# candidate_head=f26e6a853721fdcf3d21418a663a5c614b7f0add
+
+## p1 (tip 39144558): files=17 identical=14 differs=3
+   - backend/app/clients/neo4j_client.py: lane-added=33 present_in_candidate=33 UNION-OK
+   - backend/app/services/episode_worker.py: lane-added=7 present_in_candidate=7 UNION-OK
+   - backend/app/services/memory_service.py: lane-added=38 present_in_candidate=38 UNION-OK
+
+## p2 (tip ac52e3b8): files=15 identical=12 differs=3
+   - backend/app/clients/neo4j_client.py: lane-added=61 present_in_candidate=61 UNION-OK
+   - backend/app/services/episode_worker.py: lane-added=53 present_in_candidate=53 UNION-OK
+   - backend/app/services/memory_service.py: lane-added=78 present_in_candidate=78 UNION-OK
+
+## p3 (tip d9d64ea1): files=5 identical=5 differs=0
+
+## p4 (tip aa126e5b): files=7 identical=7 differs=0
+
+## p5 (tip 7af5306b): files=32 identical=32 differs=0
+
+## p6 (tip 3457f70b): files=11 identical=11 differs=0
+
+## p7 (tip eb798680): files=6 identical=6 differs=0
+
+## p8 (tip 447eb50f): files=15 identical=15 differs=0
+
+## p9 (tip 3d0ad468): files=16 identical=16 differs=0
+
+## p10 (tip 7f6dfeb8): files=5 identical=4 differs=1
+   - docs/release-evidence/README.md: lane-added=81 present_in_candidate=79 MISSING=2
+       MISSING: - **现网只读口径**（本文件实测沿此）：8011 只打 GET + `/rag/query` 一个读查询；7691 只经 8011 GET 或白名单两条只读语句（`RETURN 1` / `MATCH (n) RETURN count(
+       MISSING: - **「校验器不做数值比较」既有句与 S9 数值交叉核对并存**（CARD-R-SLO 实测，非红队清单）：既有句描述的是自由文本间比较不是机械门的义务；但 S9 在 `threshold`/`measured` 都能解析成同单位数字且方
+
+# verdict=FAIL(1)

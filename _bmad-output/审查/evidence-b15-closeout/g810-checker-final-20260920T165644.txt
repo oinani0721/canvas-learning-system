@@ -1,0 +1,4 @@
+# G8-10 checker on candidate FINAL tip 62151cf16f8710e747a3c96a36c66b5563259f87
+# digest=997c008ee7861c77426e043f8208b296
+chains=6 obj07=5 failures=0 source_digest=997c008ee7861c77426e043f8208b296 expect_digest=997c008ee7861c77426e043f8208b296 head=62151cf16f8710e747a3c96a36c66b5563259f87 dirty=4 dirty_tracked=0 dirty_untracked=4
+rc=0

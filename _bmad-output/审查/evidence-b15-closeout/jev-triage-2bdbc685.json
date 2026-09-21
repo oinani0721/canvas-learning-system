@@ -1,0 +1,35 @@
+{
+  "commit": "fix(integ): 7692 门回放测试随 CARD-REPLAY-REWRITE 新契约更新 [BATCH-2026-09-18-第十五批]",
+  "ref": "2bdbc685",
+  "sha": "2bdbc68557a368811f7024797cf888903c32b4aa",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-20T15:15:17-0700",
+  "code_files": [
+    "backend/tests/integration/test_cypher_contract_gate.py"
+  ],
+  "files": [
+    {
+      "file": "backend/tests/integration/test_cypher_contract_gate.py",
+      "added": 152,
+      "removed": 205,
+      "runtime": 0.06,
+      "risk": "test_or_docs",
+      "risk_conf": 0.95,
+      "urgency": 2.66,
+      "urgency_conf": 0.71,
+      "review": 0.8,
+      "test": 0.88,
+      "truncated": true,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 4772,
+    "output_tokens": 158
+  },
+  "latency_ms": {
+    "min": 331,
+    "median": 331,
+    "max": 331
+  }
+}

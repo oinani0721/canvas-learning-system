@@ -1,0 +1,4 @@
+# G8-10 checker on candidate @ 2d84d0102c0c7ae36245cc07dc835dffad2711a8
+# digest=5db034495e8bed7a4e92d4e92dcf9210
+chains=6 obj07=5 failures=0 source_digest=5db034495e8bed7a4e92d4e92dcf9210 expect_digest=5db034495e8bed7a4e92d4e92dcf9210 head=2d84d0102c0c7ae36245cc07dc835dffad2711a8 dirty=4 dirty_tracked=0 dirty_untracked=4
+rc=0

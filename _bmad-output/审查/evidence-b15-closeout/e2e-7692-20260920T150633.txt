@@ -1,0 +1,183 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0 -- /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'dev' -> max_examples=20, deadline=timedelta(milliseconds=10000)
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+timeout: 300.0s
+timeout method: signal
+timeout func_only: False
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 92 items
+
+tests/integration/test_cypher_contract_gate.py::test_gate_never_targets_live_7691 PASSED [  1%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[R1-map] PASSED [  2%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[R1-multi-alias] PASSED [  3%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[R1-where] PASSED [  4%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[W1-composite-merge] PASSED [  5%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[W2-scoped-delete] PASSED [  6%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_contract_patterns[W5-scoped-update] PASSED [  7%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-delete] PASSED [  8%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-orderby] PASSED [  9%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-return] PASSED [ 10%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_supported_shapes[match-set] PASSED [ 11%]
+tests/integration/test_cypher_contract_gate.py::test_syntax_gate_helper_output_existing_where_and PASSED [ 13%]
+tests/integration/test_cypher_contract_gate.py::test_helper_merge_lead_limitation_documented PASSED [ 14%]
+tests/integration/test_cypher_contract_gate.py::test_dual_vault_read_isolation_raw_filter PASSED [ 15%]
+tests/integration/test_cypher_contract_gate.py::test_dual_vault_read_isolation_helper_injection PASSED [ 16%]
+tests/integration/test_cypher_contract_gate.py::test_dual_vault_w1_composite_key_no_collision PASSED [ 17%]
+tests/integration/test_cypher_contract_gate.py::test_concept_write_identity_dual_vault_current_state PASSED [ 18%]
+tests/integration/test_cypher_contract_gate.py::test_learned_edge_write_identity_dual_vault_current_state PASSED [ 19%]
+tests/integration/test_cypher_contract_gate.py::test_canvas_node_write_identity_dual_vault PASSED [ 20%]
+tests/integration/test_cypher_contract_gate.py::test_score_history_write_identity_dual_vault PASSED [ 21%]
+tests/integration/test_cypher_contract_gate.py::test_edge_delete_scoped_dual_vault PASSED [ 22%]
+tests/integration/test_cypher_contract_gate.py::test_canvas_association_scoped_update_and_delete PASSED [ 23%]
+tests/integration/test_cypher_contract_gate.py::test_fallback_replay_write_identity_dual_vault FAILED [ 25%]
+tests/integration/test_cypher_contract_gate.py::test_group_unresolvable_fail_closed_no_500 PASSED [ 26%]
+tests/integration/test_cypher_contract_gate.py::test_group_resolved_from_contextvar_branch PASSED [ 27%]
+tests/integration/test_cypher_contract_gate.py::test_group_resolved_from_canvas_path_branch PASSED [ 28%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_punycode_subgroup_is_really_punycode PASSED [ 29%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_contract_fragment_recall_and_isolation PASSED [ 30%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_canvas_scope_still_isolates_sibling_board PASSED [ 31%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_recall_and_isolation_in_one_read PASSED [ 32%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_zero_cross_vault_leak PASSED [ 33%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_recall_and_isolation PASSED [ 34%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_scoped_read PASSED [ 35%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_fail_closed_on_unresolved_group PASSED [ 36%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_per_alias[g21gate_g41a_xr-False] PASSED [ 38%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_per_alias[g21gate_g41a_xc-False] PASSED [ 39%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_review_suggestions_per_alias[g21gate_g41a_ok-True] PASSED [ 40%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_per_alias[g21gate_g41a_xr-False] PASSED [ 41%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_per_alias[g21gate_g41a_xc-False] PASSED [ 42%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_learning_history_per_alias[g21gate_g41a_ok-True] PASSED [ 43%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[c] PASSED [ 44%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[cn] PASSED [ 45%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[e] PASSED [ 46%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[n] PASSED [ 47%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[ok] PASSED [ 48%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_score_history_per_alias[r] PASSED [ 50%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_canvas_scope_via_production_methods PASSED [ 51%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_inheritance_neighbors_are_vault_scoped PASSED [ 52%]
+tests/integration/test_cypher_contract_gate.py::test_g41a_inheritance_per_alias_negative PASSED [ 53%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_concept_history_recall_and_isolation PASSED [ 54%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_concept_history_is_not_reading_the_json_simulator PASSED [ 55%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_concept_history_per_alias[g21gate_g41a_xr-False] PASSED [ 56%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_concept_history_per_alias[g21gate_g41a_xc-False] PASSED [ 57%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_concept_history_per_alias[g21gate_g41a_ok-True] PASSED [ 58%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_all_recent_episodes_scoped PASSED [ 59%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_recovery_loads_only_active_vault_family PASSED [ 60%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_json_mirror_visibility_equals_cypher PASSED [ 61%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_midflight_fallback_misroute_stays_scoped PASSED [ 63%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_concept_history_matches_production_shape_without_c_id PASSED [ 64%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_concept_history_matches_by_distinct_id PASSED [ 65%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_handle_query_history_fail_closed_without_scope PASSED [ 66%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_production_shape_reaches_api_response_model PASSED [ 67%]
+tests/integration/test_cypher_contract_gate.py::test_g41b_learned_reads_return_same_timestamp_type_as_json_mirror PASSED [ 68%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_neo4j_attribute_error_degrades_to_207 PASSED [ 69%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[ServiceUnavailable] PASSED [ 70%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[SessionExpired] PASSED [ 71%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[TransientError] PASSED [ 72%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[DatabaseError] PASSED [ 73%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[RetryError] PASSED [ 75%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_每个被收进元组的对端故障类型都降级成_207[BoltError] PASSED [ 76%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_BoltError_私有导入漂移必须可见而不是静默收窄 PASSED [ 77%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[ClientError] PASSED [ 78%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[AuthError] PASSED [ 79%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[ConfigurationError] PASSED [ 80%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[ConnectionPoolError] PASSED [ 81%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[ConnectionAcquisitionTimeoutError] PASSED [ 82%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[TypeError] PASSED [ 83%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_本进程与部署缺陷不得被伪装成对端写失败[KeyError] PASSED [ 84%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_取_client_阶段的异常必须穿透成_500_而不是被降级 PASSED [ 85%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_run_query_返回空行必须记成写失败而不是_200 PASSED [ 86%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_run_query_返回一行是成功路径 PASSED [ 88%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_真客户端在_json_fallback_态下不得报写成功 PASSED [ 89%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_test_uri_port_whitelist_rejects_everything_but_7692 PASSED [ 90%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_run_query_writes_edge_rationale_to_7692 PASSED [ 91%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_对部署缺陷必须上抛而不转_fallback[AuthError] PASSED [ 92%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_对部署缺陷必须上抛而不转_fallback[ConfigurationError] PASSED [ 93%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_对照_对端不可达仍然保留_json_fallback[ServiceUnavailable] PASSED [ 94%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_对照_对端不可达仍然保留_json_fallback[SessionExpired] PASSED [ 95%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_对照_对端不可达仍然保留_json_fallback[ConnectionAcquisitionTimeoutError] PASSED [ 96%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_端到端_凭据错误必须_500_而不是_207 PASSED [ 97%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_neo4j_客户端为_None_时端点给出可分辨的错误文案 PASSED [ 98%]
+tests/integration/test_edges_dual_write_neo4j_t5b.py::test_init_fail_closed_真库_7692_错密码必须抛_AuthError PASSED [100%]
+
+=================================== FAILURES ===================================
+________________ test_fallback_replay_write_identity_dual_vault ________________
+tests/integration/test_cypher_contract_gate.py:553: in test_fallback_replay_write_identity_dual_vault
+    assert all(ok), f"replay returned False: {ok}"
+E   AssertionError: replay returned False: [False, True, False, True]
+E   assert False
+E    +  where False = all([False, True, False, True])
+---------------------------- Captured stdout setup -----------------------------
+{"event": "Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T22:06:43.603048Z"}
+{"event": "Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T22:06:43.607956Z"}
+------------------------------ Captured log setup ------------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:317 Neo4jClient initialized: mode=NEO4J, uri=bolt://127.0.0.1:7692, pool_size=50
+INFO     app.clients.neo4j_client:neo4j_client.py:420 Neo4j driver initialized: bolt://127.0.0.1:7692, pool_size=50
+----------------------------- Captured stdout call -----------------------------
+{"event": "[P2-C] scoring replay refused: unresolved entry source (reason=quarantined, concept='g21gate_replay_concept', canvas_name='g21gate_replay.canvas')", "logger": "app.services.fallback_sync_service", "level": "error", "timestamp": "2026-09-20T22:06:43.622763Z"}
+{"event": "[P2-C] scoring replay refused: unresolved entry source (reason=quarantined, concept='g21gate_replay_concept', canvas_name='g21gate_replay.canvas')", "logger": "app.services.fallback_sync_service", "level": "error", "timestamp": "2026-09-20T22:06:43.682468Z"}
+------------------------------ Captured log call -------------------------------
+ERROR    app.services.fallback_sync_service:fallback_sync_service.py:914 {'event': "[P2-C] scoring replay refused: unresolved entry source (reason=quarantined, concept='g21gate_replay_concept', canvas_name='g21gate_replay.canvas')", 'logger': 'app.services.fallback_sync_service', 'level': 'error', 'timestamp': '2026-09-20T22:06:43.622763Z'}
+ERROR    app.services.fallback_sync_service:fallback_sync_service.py:914 {'event': "[P2-C] scoring replay refused: unresolved entry source (reason=quarantined, concept='g21gate_replay_concept', canvas_name='g21gate_replay.canvas')", 'logger': 'app.services.fallback_sync_service', 'level': 'error', 'timestamp': '2026-09-20T22:06:43.682468Z'}
+--------------------------- Captured stdout teardown ---------------------------
+{"event": "Neo4j driver closed", "logger": "app.clients.neo4j_client", "level": "info", "timestamp": "2026-09-20T22:06:43.736342Z"}
+---------------------------- Captured log teardown -----------------------------
+INFO     app.clients.neo4j_client:neo4j_client.py:521 Neo4j driver closed
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/integration/test_edges_dual_write_neo4j_t5b.py: 20 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ/backend/app/api/v1/endpoints/edges.py:628: DeprecationWarning: deprecated
+    legacy_group_id=rationale.group_id,
+
+tests/integration/test_edges_dual_write_neo4j_t5b.py: 10 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/batch15-integ/backend/app/models/edge_rationale.py:115: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    default_factory=lambda: datetime.utcnow().isoformat(),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+=========================== short test summary info ============================
+FAILED tests/integration/test_cypher_contract_gate.py::test_fallback_replay_write_identity_dual_vault - AssertionError: replay returned False: [False, True, False, True]
+assert False
+ +  where False = all([False, True, False, True])
+================== 1 failed, 91 passed, 40 warnings in 6.98s ===================

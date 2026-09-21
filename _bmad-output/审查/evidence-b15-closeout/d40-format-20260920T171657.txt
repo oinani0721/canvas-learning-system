@@ -1,0 +1,8 @@
+# D40 整仓（代码面 backend/）ruff format —— 2026-09-20 17:16:57 -0700
+# before: would-reformat=480
+== ruff format backend ==
+480 files reformatted, 432 files left unchanged
+rc=0
+== after: ruff format --check backend ==
+912 files already formatted
+rc=0
