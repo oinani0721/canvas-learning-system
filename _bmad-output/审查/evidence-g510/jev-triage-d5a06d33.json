@@ -1,0 +1,50 @@
+{
+  "commit": "feat(board-split): 执行侧 split_apply（确认后原子创建 + 复用 P7-A 账本可撤销） [BATCH-2026-09-18-第十五批 / CARD-G5-10]",
+  "ref": "d5a06d33",
+  "sha": "d5a06d33578ff682034493afd15c2078486eb80b",
+  "model": "jev-1.13.0",
+  "generated_at": "2026-09-19T21:22:25-0700",
+  "code_files": [
+    "backend/tests/skills/test_g5_10_split_apply.py",
+    "canvas-vault/.claude/skills/board-split/scripts/split_apply.py"
+  ],
+  "files": [
+    {
+      "file": "canvas-vault/.claude/skills/board-split/scripts/split_apply.py",
+      "added": 928,
+      "removed": 0,
+      "runtime": 0.96,
+      "risk": "logic",
+      "risk_conf": 0.47,
+      "urgency": 3.24,
+      "urgency_conf": 0.79,
+      "review": 0.91,
+      "test": 0.55,
+      "truncated": true,
+      "flag": true
+    },
+    {
+      "file": "backend/tests/skills/test_g5_10_split_apply.py",
+      "added": 817,
+      "removed": 0,
+      "runtime": 0.04,
+      "risk": "test_or_docs",
+      "risk_conf": 0.99,
+      "urgency": 1.78,
+      "urgency_conf": 0.0,
+      "review": 0.74,
+      "test": 0.91,
+      "truncated": true,
+      "flag": true
+    }
+  ],
+  "usage": {
+    "input_tokens": 9674,
+    "output_tokens": 314
+  },
+  "latency_ms": {
+    "min": 270,
+    "median": 401,
+    "max": 401
+  }
+}

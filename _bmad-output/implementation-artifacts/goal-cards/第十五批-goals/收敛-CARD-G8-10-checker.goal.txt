@@ -1,0 +1,7 @@
+Goal：收敛 CARD-G8-10 checker——DeepSeek 连续 develop，GLM-5.3 max + JEV 连续审，直到绑最终 HEAD 的一轮 B/H/M/L = 0/0/0/0 才说「复核第十五批 P6」并释放合并门；不逐轮交主 session。
+车道：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w（分支 card/p6-skills-w，起点 HEAD = dce85102，树净；r7 评审绑 6816ff71 = B0/H1/M0/L1）。
+第 0 分钟：核 pwd/分支/HEAD = dce85102/git status --porcelain 空；unit 红基线 evidence-b15/unit-red-baseline-9c4e7e82.txt → grep -vc '^#' = 33（只作开工自证，不跑 pytest）。
+开跑第一件事：通读卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/收敛-CARD-G8-10-checker.md 全文（loop 协议、全部已知 M/L 闭合口径、commit 预算、无进展检测、JEV sidecar）；协议 .claude/rules/card-batch-protocol.md §2.4（实际按 §2.1-§2.3 执行，幽灵引用登记）。
+每轮：读上轮 GLM+JEV+UAT → 修完所有 open B/H/M/L → 负控先红后绿 + 重锚 digest → 单 commit → JEV + 机器可读 sidecar → GLM-5.3 max rN 绑新 HEAD → 全 0 才放行，否则自动 rN+1；最多 8 个 develop commit，连续 2 轮无进展即停。
+硬边界：只改 _bmad-output/**（checker/UAT/evidence/loop-state/sidecar）；底账内容与 product code 不动；不 amend 已入库 commit；不 push；不写 live vault；不连 7691/7687；*.stderr*/0 字节不入库；禁用 stash/checkout-HEAD 式还原。
+B0/H0/M0/L0 才说「复核第十五批 P6」，交主 session 做 G8-10 → batch15-integ 合并与集成门；否则停并报告 round/HEAD/open findings。D-15：Codex glm-5.3 max 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0，并 M/L = 0；BATCH-2026-09-18-第十五批；不 push。

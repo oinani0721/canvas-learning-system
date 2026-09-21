@@ -1,0 +1,7 @@
+完成 CARD-G8-10 r7：把 pass 扫描从正则改为解析所有 ```yaml fenced block（PyYAML 6.0.3；0 块/import 失败/解析失败必须红），必须拦下 outcome: "pa\u0073s" 与 outcome: &not_yet pass；保留 r6 两项修复；两段新负控先红后绿；重锚 digest；UAT §九.22/§十一 更新；用户已授权第 4 个收尾 commit；r7 仍有 HIGH 即停不合并。
+车道：/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w（分支 card/p6-skills-w，r7 基线 HEAD = 9457ba43，树净；r6 评审绑 9e058c5d = B0/H1/M2/L1）。
+第 0 分钟：核 pwd/分支/HEAD = 9457ba43/git status --porcelain 空；unit 红基线 evidence-b15/unit-red-baseline-9c4e7e82.txt → grep -vc '^#' = 33（只作开工自证，本卡不跑 pytest）。
+开跑第一件事：通读卡文 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/implementation-artifacts/goal-cards/第十五批-goals/修复-CARD-G8-10-r7.md 全文（含 YAML 真解析修法、两段先红负控、digest 重锚、JEV+GLM 复核链、第 4 commit 豁免）；协议 .claude/rules/card-batch-protocol.md §2.4。
+完成条件（AND）：负控 A/B 均 rc=1 含 pass-unsupported；r6 两负控仍红；正常底账 rc=0 + 新 digest；UAT/存档更新含 r6-M2；Codex glm-5.3 max 多轮直到绑最终 HEAD 的一轮 BLOCKER/HIGH = 0；JEV 真审到 check_g810_refs.py；第 4 commit 入库、树净、product code diff=0；「本卡未证明什么」「台账待登记条目」各 ≥4。
+硬边界：只改 _bmad-output/**（checker/UAT/evidence）；底账内容不动；r6-M1/L1 只登记；不 amend 9457ba43；不 push；不写 live vault；不连 7691/7687；*.stderr*/0 字节不入库；禁用 stash/checkout-HEAD 式还原。
+跑完说「复核第十五批 P6」，交主 session 做 G8-10 → batch15-integ 合并与集成门。BATCH-2026-09-18-第十五批 / CARD-G8-10-r7；不 push。

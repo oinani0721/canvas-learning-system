@@ -10,3 +10,17 @@ backup merged-squash/card-u2-pyright-rest :: Everything up-to-date
 origin merged-squash/card-u3-deploy :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': Could not resolve host: github.com
 backup merged-squash/card-u3-deploy :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system-backup.git/': Could not resolve host: github.com
 origin merged-squash/card-u4-hosts :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': Could not resolve host: github.com
+backup merged-squash/card-u4-hosts :: Everything up-to-date
+origin merged-squash/card-u5-lance :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+backup merged-squash/card-u5-lance :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system-backup.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+origin merged-squash/card-u6-reviewtime :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+backup merged-squash/card-u6-reviewtime :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system-backup.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+origin merged-squash/card-u7-w4guard :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+backup merged-squash/card-u7-w4guard :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system-backup.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+origin merged-squash/card-u8-mutgates :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+backup merged-squash/card-u8-mutgates :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system-backup.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+origin merged-squash/card-u9-mastery :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+backup merged-squash/card-u9-mastery :: fatal: unable to access 'https://github.com/oinani0721/canvas-learning-system-backup.git/': LibreSSL SSL_connect: SSL_ERROR_SYSCALL in connection to github.com:443 
+-- verify --
+== origin ==
+== backup ==

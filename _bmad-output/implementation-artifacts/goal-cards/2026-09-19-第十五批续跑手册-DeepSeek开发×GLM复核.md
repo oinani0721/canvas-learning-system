@@ -34,7 +34,7 @@
 - **安装**：`npm i -g zcode-app-cli@latest`（非官方终端客户端，MIT；实测 `zcode-app-cli 3.12.3-26` + `zcode-runtime 0.16.5`；Node ≥22.19）。
 - **配置**：`~/.zcode/v2/provider_config.json`（600，已写）——`providerId=zai-coding-plan` / `templateId=zai-api` / `access.type=zhipu-coding-plan-api-key`（复用同一把 z.ai key）/ `defaultModelSelection = glm-5.3 + max`。
 - **补审命令（只读强制）**：`zcode --prompt "$(cat <prompt>)" --cwd <车道树> --mode build --no-color --json > <存档>.md 2> <存档>.stderr`
-  - **实测（2026-09-19）**：`--prompt` rc=0；工具读文件正常（`FOUND=ZCODE_TOOL_OK_7777`）；`--json` 输出 `sessionId/traceId/turnId/usage`；**`--mode build` 下 Bash 与 Write 一律被「No permission client configured」阻断 = 天然只读**（yolo 可跑 git，补审不用）。
+  - **实测（2026-09-19）**：`--prompt` rc=0；工具读文件正常（`FOUND=ZCODE_TOOL_OK_7777`）；`--json` 输出 `sessionId/traceId/turnId/usage`；**`--mode build` 下写工具（Edit/Write）恒被阻断；Bash 部分可用**（实测 2026-09-19：`git`/`grep` 通过、`python3`/`git apply` 被拦）——只读性由「写工具全拦 + 评审者不改文件」共同保证（补审实测外部可证：评审零写盘）。
   - ⚠️ build 模式无 Bash ⇒ prompt 内**必须内嵌** `git diff <PREV> <审SHA> --no-color` 输出（车道先跑 git、把 diff 贴进 prompt 再送审）。
 - **zcode 存档首部（协议 §2.4.2）**：`模型: glm-5.3` · `工具: zcode-app-cli 3.12.3-26 / runtime 0.16.5` · `命令:` 全文 · `审查绑定: <审SHA>` · `自证: --json 的 sessionId/traceId 原文`（缺 sessionId / JSON 解析失败 = 不计轮次）。
 - **通道分工**：10 张新 goal 的开发复核走 codex+zai（§零.1）；**补审**（§二）走本通道；同一卡同一轮只走一条。
