@@ -1,20 +1,13 @@
-#!/usr/bin/env python3
-"""汇报时序/完整性机器门 v4（v3 + r19-M1/L1/L2：期望值从 STATUS/台账推导，禁用 caller 常量造绿）。
+"""汇报时序/完整性机器门 v5（v4 + r20-M2/L1/L3：sha 必填 + 权威序列连续/已提交 + 描述清理）。
 
 判据（任一失败 rc=1）：
-  ① 每 `| MM-DD HH:MM[:SS] |` 行的**事件时间** ≤ 该行**引入 commit 的 committer 时间**
-     （归属 = `git blame --porcelain -L <行号>,<行号>` 逐行定位；行未提交 ⇒ 红）；
-  ② `--min-rows N`：行数下限（防删行）；
-  ③ `--expect-latest rNN`：现存 `**D-15 rNN 结果**` 轮次的**最大值**必须 = rNN（防漏最新轮）；
-  ④ `--min-round rM`：最早标记轮次必须 = rM；且轮次序号**连续无缺、无重复**（防“删中间轮+复制另轮”置换）；
-  ⑤ `--expect-rows-sha256 <hex>`：全部行文本 `"\n".join(rows)` 的 sha256 必须 = 给定值（行集合/内容冻结）；
-  ⑥ **权威状态推导（v4）**：从 `STATUS.md` 的 `- rNN（绑 …）`（已完成）与 `- rNN：绑定本整改档`（待跑）
-     和 台账 的 `B15 D-15 终审（rNN）` 行推导 {completed, next}；报告轮次集合必须 == 已完成集合、
-     报告须含 `r{next} 绑整改档待跑`；三方（STATUS 待跑 == 已完成 max+1 == 台账 next）必须自洽；
-     caller 不可用常量绕过（`--expect-latest/--expect-next` 已移除）；
-  ⑦ `--self-test`：内存模拟 (a) 丢最后一行 (b) 删中间轮+复制另一轮 (c) 行集合哈希篡改，
-     三类都必须被 ②③④⑤ 的相应守卫捕捉。
-用法：python3 check-report-chronology.py <repo-root> [--min-round rM] [--expect-rows-sha256 HEX] [--self-test]
+  ① 每 `| MM-DD HH:MM[:SS] |` 行事件时间 ≤ 其引入 commit committer 时间（`git blame --porcelain -L` 逐行）；
+  ② 权威推导：从 STATUS 与台账推导 completed/next；两侧 completed 序列 r1..rN 必须连续无缺无重、
+     pending == N+1、台账最新轮行含同一 next；且 STATUS/台账 工作区必须干净（已提交）；
+  ③ 报告轮次集合必须 == r4..rN（r1–r3 为叙事行）；行数 ≥ 标注轮次+6；须含 `r{next} 绑整改档待跑`；
+  ④ `--expect-rows-sha256 HEX` 必填（缺省即红）：全部行文本 join 的 sha256 必须相符；
+  ⑤ `--self-test`：丢行 / 删中间+复制置换 / 哈希篡改 三类必须被捕捉。
+用法：python3 check-report-chronology.py <repo-root> --expect-rows-sha256 HEX [--min-round rM] [--self-test]
 """
 import argparse
 import datetime as dt
@@ -65,6 +58,13 @@ def authoritative_state(root):
         last_lg_row = [l for l in lg if re.match(rf"^\| \*\*B15 D-15 终审（r{last}）\*\*", l)]
         if not last_lg_row or f"r{nxt} 绑整改档（待跑）" not in last_lg_row[0]:
             bad.append(f"ledger-next 与 STATUS 不一致: 期望最新轮行含 'r{nxt} 绑整改档（待跑）'")
+    if completed and completed != list(range(1, max(completed) + 1)):
+        bad.append(f"status-completed 非连续: {['r' + str(n) for n in completed]}")
+    if l_rounds and l_rounds != list(range(min(l_rounds), max(l_rounds) + 1)):  # 台账 D-15 行自 r4 起
+        bad.append(f"ledger-rounds 非连续: {['r' + str(n) for n in l_rounds]}")
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", STATUS, LEDGER], cwd=root, capture_output=True, text=True).stdout.strip()
+    if dirty:
+        bad.append(f"authority-dirty: STATUS/台账 工作区未提交变更: {dirty.splitlines()[:2]}")
     if pend and nxt and pend[-1] != nxt:
         bad.append(f"round-not-contiguous: completed-max=r{last} 但 STATUS 待跑=r{pend[-1]}（期望 r{nxt}）")
     return completed, nxt, bad
@@ -115,7 +115,8 @@ def main() -> int:
         cur_sha = rows_sha256(rows)
         # (a) 丢最后一行（权威期望不变 ⇒ 应红）
         d1 = completeness_failures(rows[:-1], text, completed, nxt, args.min_round, args.expect_rows_sha256 or cur_sha, [])
-        got1 = len(d1) > 0  # 丢行必须触发任一守卫（行数下限或轮次集合）
+        d1 = d1 + [b for b in auth_bad]
+        got1 = any("rows<" in b for b in d1)
         print(f"[self-test] drop-last-row caught: {got1} ({d1[:1]}) -> {'OK' if got1 else 'BAD'}")
         ok = ok and got1
         # (b) 删中间轮 + 复制另一轮（行数不变、最大轮不变）
@@ -137,6 +138,8 @@ def main() -> int:
         print(f"[self-test] rows-sha256 tamper caught: {got3} -> {'OK' if got3 else 'BAD'}")
         ok = ok and got3
         return 0 if ok else 1
+    if not args.expect_rows_sha256:
+        auth_bad = auth_bad + ["rows-sha256-required: 必须显式提供 --expect-rows-sha256（fail-closed）"]
     bad = completeness_failures(rows, text, completed, nxt, args.min_round, args.expect_rows_sha256, auth_bad)
     n = 0
     for lineno, line, row_dt in rows:
