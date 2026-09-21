@@ -4,18 +4,14 @@
   "journey_title": "两白板（原白板 → 检验白板）全旅程真实走查证据包 —— vault 准备 → /board-recap → search_notes → /start-exam-board → /quiz-answer(本地 mastery_* + fsrs_bridge) → 次日总览页 (CARD-G8-7)",
   "rc": "b15-g8-7",
   "provenance": {
-    "mode": "reconstructed",
-    "reconstructed_from": "_bmad-output/审查/evidence-g87-journey/ (骨架期车道侧产物: 01-skill-versions.md / 02-live-snapshot-before.txt / 00-README.md / 03-breakpoints.md / 05-g18-material.md); 本卡为 CARD-G8-7 的证据包, 授权侧六环节见 execution.commands",
-    "unproven_fields": [
-      "execution.* 六环节若未获用户当次授权: 全部 result=not_run, 无执行期记录。",
-      "candidate.dirty — 骨架期车道树含未跟踪证据目录, 按实测记 true (低于 E3 的回填件允许)。"
-    ],
-    "note": "本 manifest 借 docs/release-evidence/manifest.schema.json 的字段形态登记 CARD-G8-7 的证据面, 按卡文 §〇/§一(c)④ 落在 _bmad-output/审查/evidence-g87-journey/。它不是 docs/release-evidence/<rc>/journeys/<Jxx>/ 下的正式 RC 证据 (P10 唯一写者), 而是 G1-8 的备料件。"
+    "mode": "live",
+    "note": "CARD-G8-7 授权走查 (2026-09-20)。执行 = 用户在 pi 的 vault 内会话; 车道 (DeepSeek) 只读采证 + 独立检查 (GLM-5.3 四轮)。本件为 G1-8 备料, 不进 docs/release-evidence/。 ③/⑥ 的未达成事实不列于 provenance (S10: live 不得有推定字段), 改记于对应 assertion notes 与 known_limitations; candidate.dirty=false 的时序说明见 04-journey-log.md T-1.x/T-3.x 与卡文 §一(o)。",
+    "unproven_fields": []
   },
   "candidate": {
-    "sha": "9d4f7bf0bfa245cd9a36d60177ed8ff528a255cb",
+    "sha": "d9d64ea1e2fc7d0d8b64ee276e9374ba1bcd2cc0",
     "branch": "card/p3-deploy",
-    "dirty": true,
+    "dirty": false,
     "worktree": ".claude/worktrees/card-p3-deploy"
   },
   "environment": {
@@ -32,9 +28,9 @@
     }
   },
   "execution": {
-    "started_at": "2026-09-19T16:57:47-07:00",
-    "finished_at": "2026-09-19T21:22:59-07:00",
-    "operator": "P3-C 车道 session (Claude)",
+    "started_at": "2026-09-20T13:13:00-07:00",
+    "finished_at": "2026-09-20T18:06:19-07:00",
+    "operator": "用户在 pi 的 vault 内会话执行六环节 (opencode-go/deepseek-v4.1-flash); P3-C 车道只读采证",
     "commands": [
       {
         "cmd": "ls _bmad-output/审查 | grep -c 'evidence-g87-journey'",
@@ -92,14 +88,50 @@
         "exit_code": 1,
         "expected_failure": true,
         "note": "既有红基线 32⊆33, diff 只 < (unit-open/close-*.txt)"
+      },
+      {
+        "cmd": "pi: /board-recap -> 环节② 三件 + Step5.5 VERIFY PASS",
+        "cwd": "canvas-vault (pi 会话)",
+        "exit_code": 0,
+        "note": "产物 sha 见 artifacts-sha-authorized-*.txt"
+      },
+      {
+        "cmd": "pi: /start-exam-board from CS 61B -> 检验白板 + exam_created",
+        "cwd": "canvas-vault (pi 会话)",
+        "exit_code": 0,
+        "note": "Context 档 FAIL 已登记"
+      },
+      {
+        "cmd": "pi: /quiz-answer -> mastery 0.01->0.02 + fsrs_* + answer_scored",
+        "cwd": "canvas-vault (pi 会话)",
+        "exit_code": 0,
+        "note": "另发现 decay_beta 单调性缺陷 (HIGH, 另卡)"
+      },
+      {
+        "cmd": "pi: search_notes G8-7 走查批注 -> total_count 0 (marker 在盘且在索引)",
+        "cwd": "canvas-vault (pi 会话)",
+        "exit_code": 0,
+        "note": "环节③ 判据未达成; 根因=fast 路径召回缺口 (T-3.3)"
+      },
+      {
+        "cmd": "curl -s http://127.0.0.1:8011/api/v1/review/overview/page (只读 GET)",
+        "cwd": "车道",
+        "exit_code": 0,
+        "note": "http=200; overview-page/curl 在案"
+      },
+      {
+        "cmd": "零静默改写门 (授权窗口 before/after, 空格安全路径)",
+        "cwd": "车道",
+        "exit_code": 0,
+        "note": "changed=11 outside=2 (2x 思维导图导出快照, 已知写者, 触发者待确认)"
       }
     ],
     "skips_or_mocks": {
       "declared": true,
       "items": [
         {
-          "what": "授权侧六环节 (vault 准备 / board-recap / search_notes / start-exam-board / quiz-answer / 次日总览页)",
-          "why": "真实旅程写 live vault 需用户当次授权并在 vault 内会话执行 (readonly guard R2 拦车道 session); 未授权即 not_run + SKIP 登记, 不用 fixture 或旧存档顶替。"
+          "what": "六环节在用户侧 (pi) vault 内会话执行",
+          "why": "readonly guard R2 拦车道 session 写 live vault; 车道只读采证 (卡文 §一(d))。"
         }
       ]
     }
@@ -107,45 +139,45 @@
   "assertions": [
     {
       "id": "G8-7-1",
-      "statement": "环节① vault 准备: 现 vault 新增 1 个节点 md 或 1 条批注, 且在跑前快照之外",
-      "method": "用户在 vault 内会话新增材料; 车道只读比对 02-live-snapshot-before/after",
-      "result": "not_run",
-      "note": "待用户当次授权走查。"
+      "statement": "环节① vault 准备: 现 vault 新增 1 条批注, 且在跑前快照之外",
+      "method": "用户在 Obsidian 批注; 车道只读比对 + ledger",
+      "result": "pass",
+      "note": "节点/csm-tutoring-unit-credit.md 新增 question callout (%%cb-muad37hsmsm6%%, 理解度模糊) + 16:07:06 补 marker; ledger callout_ingested 22:02:08Z。"
     },
     {
       "id": "G8-7-2",
-      "statement": "环节② /board-recap: 新生成 outputs/回顾-<板>-<日期>.md, 报告头 FALLBACK 与否如实记",
-      "method": "用户在 vault 内会话执行 /board-recap <板>; 车道 shasum 产物",
-      "result": "not_run",
-      "note": "待授权。"
+      "statement": "环节② /board-recap: outputs/ 回顾三件新生成 (含 FALLBACK 如实记)",
+      "method": "pi 会话执行; 车道只读 sha",
+      "result": "pass",
+      "note": "回顾-CS 61B-2026-09-20.md + .recap-manifest/.recap-scan; Step5.5 VERIFY PASS; 报告头无 FALLBACK。"
     },
     {
       "id": "G8-7-3",
-      "statement": "环节③ search_notes: 返回体含环节①新材料",
-      "method": "Claudian 经 MCP 调 search_notes; 返回体条目须命中新材料的完整 vault 相对路径 + 内容 sha256 前 16 位 (不接受仅同名命中); 返回体存 search-<ts>.json + 截图",
-      "result": "not_run",
-      "note": "待授权。"
+      "statement": "环节③ search_notes: 返回体命中新材料 (完整路径 + 内容可核)",
+      "method": "pi 会话调 canvas-learning-mcp search_notes",
+      "result": "fail",
+      "note": "marker 串查询 0 命中 (all_filtered_below_threshold, top_score 0.0), 尽管 marker 已落盘且已被索引 (探针 我的理解 top1=该节点且正文逐字含 marker)。根因=fast 路径 dense 先滤+FTS 仅确认, 无稀有串召回通道 (T-3.3, G4 新缺陷)。带锚点查询可命中 (曾实测 top1 0.839 fts=true)。"
     },
     {
       "id": "G8-7-4",
-      "statement": "环节④ /start-exam-board: 新生成 检验白板/<板>-<ts>.md 且 type: exam_board",
-      "method": "用户在 vault 内会话执行; 车道核 frontmatter + shasum",
-      "result": "not_run",
-      "note": "待授权。"
+      "statement": "环节④ /start-exam-board: 检验白板新文件 + type: exam_board + 引用批注原话",
+      "method": "pi 会话执行; 车道只读 sha/题面",
+      "result": "fail",
+      "note": "两档拆分: Artifact 档 PASS (检验白板/CS 61B-2026-09-20-2235.md, pick_rank=1, 题面只引批注原话); Context 档 FAIL (同会话 ③ 诊断先读过节点正文, HARD-ISO 前提不成立)。按整段判 fail; 严格隔离复跑需新会话。"
     },
     {
       "id": "G8-7-5",
-      "statement": "环节⑤ /quiz-answer: 被答节点 frontmatter mastery_score/mastery_a/mastery_b 出现或变化",
-      "method": "用户手答后执行 /quiz-answer; 车道前后 grep -n -e mastery_ -e fsrs_ <节点> 落档; 若仅 mastery_* 变化则登记为『本地掌握度更新, 不证明 fsrs_bridge』",
-      "result": "not_run",
-      "note": "待授权。"
+      "statement": "环节⑤ /quiz-answer: 被答节点掌握度/FSRS 更新 + 事件落账",
+      "method": "pi 会话执行; 车道只读前后值",
+      "result": "pass",
+      "note": "mastery 0.01->0.02; mastery_a/b=0.05/3.2196; attempt_count 1->2; fsrs_* 六件; calibration_log 追加; ledger answer_scored; 原白板 ## Concepts 同步 n=2。同轮发现 decay_beta 缺陷 (HIGH, 见 known_limitations)。 〔整改轮补正 (M-5)〕本判据类型 = **更新发生证明**，非完整状态迁移审计：`mastery_a`/`mastery_b` 前值、`last_examined` 前值、`calibration_log[-1].event_id` 未逐项登记前值（字段散见 glm53-pi-review-20260920T154846.md 字段清单；如需完整迁移审计须另开复跑）。"
     },
     {
       "id": "G8-7-6",
-      "statement": "环节⑥ 次日总览页: GET /api/v1/review/overview/page 返回 200",
-      "method": "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8011/api/v1/review/overview/page (只读 GET)",
-      "result": "not_run",
-      "note": "待授权 (只读打开, 不手动触发 daily_review_run.py)。"
+      "statement": "环节⑥ 次日总览页: 只读打开 200 + 截图",
+      "method": "车道只读 GET + 用户浏览器截图",
+      "result": "fail",
+      "note": "车道侧 PASS (http=200, 30,138B, overview-page/curl 在案, canvas-vault 段正常); 用户侧浏览器截图 **2026-09-20 19:09 已登记入包** (screenshots/user-06-refresh-503-1544*.png ×2, 内容 = /overview/refresh → 刷新失败·test-vault / HTTP 503 pick_failed) —— 即用户实见的是失败页, 成功页截图与体验段仍缺 ⇒ 整段维持 fail (待服务在线补成功页后可改判)。"
     }
   ],
   "rollback": {
@@ -177,15 +209,15 @@
     },
     {
       "path": "03-breakpoints.md",
-      "sha256": "02694008d40a8f367265138d9e377a489268fd116a64a64a5e76f369f7e46053",
-      "bytes": 3946,
+      "sha256": "70a7799d3f744ebf20f1c4d86b2bcb0357443f99d13ae6e6471f2b4d8f91c40a",
+      "bytes": 9351,
       "redacted": false,
       "description": "断点归属表 (已知前置 + 本卡发现 + SKIP 登记)"
     },
     {
       "path": "05-g18-material.md",
-      "sha256": "9f004103415ac9b9abbd0cc4fd593232867be59be884de4885a7700b6a5832e7",
-      "bytes": 2933,
+      "sha256": "833e2224241cc8db2f7c9c62cc0d768e517b1a6d2b0705d0fee78aa51741b515",
+      "bytes": 3806,
       "redacted": false,
       "description": "G1-8 备料 (截图清单 + 素材要点)"
     },
@@ -286,6 +318,286 @@
       "bytes": 4306,
       "redacted": false,
       "description": "负控强化电池可复跑脚本"
+    },
+    {
+      "path": "02-live-snapshot-before-authorized.txt",
+      "sha256": "a2cf63e6cdd0b186c9238d46e65334ae9166fd16d7fa93424b2851aad5f6250d",
+      "bytes": 5503,
+      "redacted": false,
+      "description": "授权窗口跑前快照 (四目录+state; wc -l 50 行 = 头注 1 + 条目 49)"
+    },
+    {
+      "path": "04-live-snapshot-after-authorized.txt",
+      "sha256": "6046f61ec662ee6e83cd7c87702ee3ac3d585328e592c54511946b62c636558a",
+      "bytes": 5719,
+      "redacted": false,
+      "description": "授权窗口跑后快照 (wc -l 52 行 = 头注 1 + 条目 51)"
+    },
+    {
+      "path": "silent-rewrite-gate-authorized-20260920T180031.txt",
+      "sha256": "f291a6b065d40711ef340469a060495771eb4ee7abb21387bc5346cdb7988136",
+      "bytes": 615,
+      "redacted": false,
+      "description": "零静默改写门 (changed=11 outside=2, 空格安全)"
+    },
+    {
+      "path": "artifacts-sha-authorized-20260920T180728.txt",
+      "sha256": "ecbd585fea34032dd056c3084445ddac2173a4cdc628c60bb815e9552e080056",
+      "bytes": 4802,
+      "redacted": false,
+      "description": "授权窗口产物 sha256 台账 (33 行)"
+    },
+    {
+      "path": "overview-page-20260920T180619.html",
+      "sha256": "52adabc3288da48ae7d71c3777d0c791fdd1480d050cff5828e9fa693b847513",
+      "bytes": 30138,
+      "redacted": false,
+      "description": "环节⑥ 总览页只读 GET 存档"
+    },
+    {
+      "path": "overview-curl-20260920T180619.txt",
+      "sha256": "43e9317c05a3097befbce00c193eac15311ee7570408d16e012f970dad47335c",
+      "bytes": 228,
+      "redacted": false,
+      "description": "环节⑥ GET 记录 (http=200 + sha)"
+    },
+    {
+      "path": "glm53-check-annotation-20260920T141358.md",
+      "sha256": "412d9e6705099a43b55a8f2880f1f9d93ac472ff241ad2d2a39701e020548827",
+      "bytes": 19543,
+      "redacted": false,
+      "description": "GLM 独立检查①: 批注热键失效"
+    },
+    {
+      "path": "glm53-render-check-20260920T144631.md",
+      "sha256": "4ac80a8447b184f7d0ae7d2c1fdd77b91583bb3040d3f82a541658a0ad074084",
+      "bytes": 19498,
+      "redacted": false,
+      "description": "GLM 独立检查②: callout 渲染溯源 (Underwater x 1.13)"
+    },
+    {
+      "path": "glm53-pi-review-20260920T154846.md",
+      "sha256": "16b911256486dcedb6e89e623b96ac9ad69107288c3ba044a38caa215043104d",
+      "bytes": 16651,
+      "redacted": false,
+      "description": "GLM 独立检查③: pi 实机轮联合验收"
+    },
+    {
+      "path": "glm53-503-review-20260920T161652.md",
+      "sha256": "8764c1796d657d1492ab203f9a86a1aebbc67665463f6d794a8d5faecf7303d1",
+      "bytes": 27611,
+      "redacted": false,
+      "description": "GLM 独立检查④: 总览页 503/test-vault"
+    },
+    {
+      "path": "pi-round-session-digest-20260920.md",
+      "sha256": "a2793ce3d4949e42d050f78b8a4f892ec2cfad1258c8589878c2538373026087",
+      "bytes": 3122,
+      "redacted": false,
+      "description": "pi 会话摘录"
+    },
+    {
+      "path": "04-journey-log.md",
+      "sha256": "0d8ea5a0c541672b1a4845228df74808d6907a08ea2538c69c065c274c198ca3",
+      "bytes": 31977,
+      "redacted": false,
+      "description": "授权窗口旅程日志 (T-1.x..T-3.x)"
+    },
+    {
+      "path": "manifest-red-authorized-20260920T181535.txt",
+      "sha256": "6710b7c636cea542f78d9c67a8de3096e7853f6941132760ce573db724e5f071",
+      "bytes": 200,
+      "redacted": false,
+      "description": "manifest 先红 (S3)"
+    },
+    {
+      "path": "negctl1-authorized-20260920T181619.txt",
+      "sha256": "963054a9718e3afd371e6d2e11c7a0dc01c0b764b29a52270a5701587b726129",
+      "bytes": 52,
+      "redacted": false,
+      "description": "负控① 篡改 before 副本单行 (红在指定文件)"
+    },
+    {
+      "path": "negctl2-authorized-20260920T181522.txt",
+      "sha256": "5aa3de8354bc13d5a019a96ccec30d49c78654ff91835228a627a71af8cb844b",
+      "bytes": 194,
+      "redacted": false,
+      "description": "负控② signoff=approved 无 user/at (红)"
+    },
+    {
+      "path": "skill-versions-20260920T181606.txt",
+      "sha256": "acb965ef028c026756dc14bb201d9d5939b6ea4653f6fdc00fc12a27f864bd93",
+      "bytes": 1969,
+      "redacted": false,
+      "description": "skill dev↔live 双列 (本日第三跑, DIFF=8)"
+    },
+    {
+      "path": "manifest-red-remediate-20260920T183839.txt",
+      "sha256": "8604b17774788d29aeed32ee5d27b36655899b72d9989fc89d4a97a73ba1d08a",
+      "bytes": 208,
+      "redacted": false,
+      "description": "整改轮 manifest 先红 (J06 结构内副本 result->pass): rc=1 红在 S3 — 非 pass 断言 G8-7-3/4/6 (对照 r4 同判)"
+    },
+    {
+      "path": "negctl1-remediate-20260920T184917.txt",
+      "sha256": "209cd1efe9f9b9cc6d08c3fd503b9ab18427fab77a5c4cda0e704bbab4a1770e",
+      "bytes": 54,
+      "redacted": false,
+      "description": "整改轮 负控① (before 副本末位取反, 锚=原白板/CS.md): mutated_lines=1 / hits=1 / changed_total=12 / orig_same=1 (与授权窗口存档同值)"
+    },
+    {
+      "path": "negctl2-remediate-20260920T183839.txt",
+      "sha256": "2f780294120a7a38e502cd44b1efea2469cf631386600df276fb24e7643d3b1e",
+      "bytes": 276,
+      "redacted": false,
+      "description": "整改轮 负控② (signoff=approved 缺 user/at): rc=1 红在 signoff 必填; 附原件 sha"
+    },
+    {
+      "path": "silent-rewrite-gate-remediate-20260920T183858.txt",
+      "sha256": "f291a6b065d40711ef340469a060495771eb4ee7abb21387bc5346cdb7988136",
+      "bytes": 615,
+      "redacted": false,
+      "description": "整改轮 零静默改写门重算 (冻结快照): changed=11 / outside=2, 11 条逐条与授权窗口存档一致, 白名单未放宽"
+    },
+    {
+      "path": "skill-versions-remediate-20260920T183904.txt",
+      "sha256": "e654daa14b4d7ba8389e8243a247019d71057859a7b1f8c94f997aad63bbbd9e",
+      "bytes": 2017,
+      "redacted": false,
+      "description": "整改轮 skill dev↔live 逐文件复算: DIFF=8 (与前三跑一致)"
+    },
+    {
+      "path": "structural-remediate-20260920T183839.txt",
+      "sha256": "aa5d897fb1676b85fb42e60db4ca160ff48f7c087a07262dac18b60a837c39ee",
+      "bytes": 551,
+      "redacted": false,
+      "description": "整改轮 (f) 结构判据成对 首跑 —— ⚠️ 末行 '主表行数' grep 模式工具错误 (字面 N), 值 0 非结构异常; 注记已随文件追加, 正确口径见 -remediate2-"
+    },
+    {
+      "path": "structural-remediate2-20260920T183904.txt",
+      "sha256": "bfd1765ff3a845e77c6d60ef341dde96bdca40410579b8de570e4ca62503a8bb",
+      "bytes": 370,
+      "redacted": false,
+      "description": "整改轮 (f) 结构判据成对 二次 (口径更正): 主表行数=13 / dev skills 文件数=13 / 验伪锚=1"
+    },
+    {
+      "path": "ruff-remediate-20260920T183904.txt",
+      "sha256": "6044f508ab74262610f7f3cca13e0bc602b581f01ef80cdfdff015ac67f4d868",
+      "bytes": 330,
+      "redacted": false,
+      "description": "整改轮 ruff: d9d64ea1..HEAD 零 .py 改动 (files=0) + F821 验伪锚 rc=1 (临时文件跑后移出车道树)"
+    },
+    {
+      "path": "unit-remediate-20260920T183658.txt",
+      "sha256": "995babba1e0826bcb8a500b4bbee24a399c163c1a96c506c0714255e91225c24",
+      "bytes": 91735,
+      "redacted": false,
+      "description": "tests/unit 当前 HEAD 首跑 (**Codex 沙箱内**): 33 红 — 含 1 条沙箱假红 test_vault_install_manifest::test_digest_is_injective_over_adversarial_leaves (sock.bind PermissionError [Errno 1]); 该假红如实保留, 免沙箱确证见 unit-remediate-nosandbox-*"
+    },
+    {
+      "path": "unit-remediate-nosandbox-20260920T184338.txt",
+      "sha256": "5bda7e46b3157ecf39fab048846745bdac963b0c1a3370a1269b3c28e4b811d7",
+      "bytes": 91076,
+      "redacted": false,
+      "description": "tests/unit 当前 HEAD 免沙箱全量重跑 (**权威档**): 32 failed / 5845 passed; 与 33 基线逐 nodeid diff 仅 '<' 1 条 (已知 flaky 转绿), 零新红"
+    },
+    {
+      "path": "remediate.nodeids",
+      "sha256": "1c1f5ffac6cdee8bb4a42c19879b1b686632e30e268e40b21727c10e2db923e4",
+      "bytes": 3602,
+      "redacted": false,
+      "description": "沙箱内首跑 nodeid 集 (33, 含沙箱假红所在文件的另一条真红)"
+    },
+    {
+      "path": "remediate-nosandbox.nodeids",
+      "sha256": "828eb65693b2e37e490f8c85ca682c1ec8f658ffc16b9299a0740594a8e54b91",
+      "bytes": 3503,
+      "redacted": false,
+      "description": "免沙箱重跑 nodeid 集 (32, 权威)"
+    },
+    {
+      "path": "territory-postcommit-remediate-20260920T185009.txt",
+      "sha256": "86476653e5c6df4cef11c87a9299d018b5011889fac44b33ba132525f0685ce1",
+      "bytes": 458,
+      "redacted": false,
+      "description": "整改轮地盘门 (post-commit): d9d64ea1..cb4187c1 排除 _bmad-output 后 diff 为空 (rc=0); 验伪锚 core.quotepath=false 命中 evidence-g87-journey=5 ≥1; 全 diff 51 文件全在 _bmad-output/"
+    },
+    {
+      "path": "screenshots/user-01-callout-rendered-144005.png",
+      "sha256": "799550942b75cc6d2804846bb1e53bfae535ff6be0fd79c8bae7883fea88fff3",
+      "bytes": 1555011,
+      "redacted": false,
+      "description": "用户侧截图 (原名 截屏2026-09-20 下午2.40.05.png, 桌面) — Obsidian 节点 csm-tutoring-unit-credit 的渲染态 question callout; ① 批注失败现场（用户尝试在此拖选）"
+    },
+    {
+      "path": "screenshots/user-01-annotate-context-144003.png",
+      "sha256": "27a4c8de192f6b41d198523850103c6033289644563ca8f0794fa6a45e6be9c9",
+      "bytes": 1489715,
+      "redacted": false,
+      "description": "用户侧截图 (原名 截屏2026-09-20 下午2.40.03.png) — 同节点 + 'berkeley-cs-support-resources 未创建' 悬浮提示（批注/双链现场）"
+    },
+    {
+      "path": "screenshots/user-06-refresh-503-154449.png",
+      "sha256": "b62ff2730c8b6904b34b3223ca331a622b1c161077f3a2936ebadfa9e7318c28",
+      "bytes": 1303929,
+      "redacted": false,
+      "description": "用户侧截图 (原名 截屏2026-09-20 下午3.44.49.png; 主树 UAT §1⑥ 内嵌引用件) — Chrome /api/v1/review/overview/refresh → 刷新失败·test-vault / HTTP 503 pick_failed (⑥ 用户侧实见失败页)"
+    },
+    {
+      "path": "screenshots/user-06-refresh-503-154428.png",
+      "sha256": "79b546d217c8fc492ad58fffa537a5f9e94ce8d184c71df530452ec0391c28cf",
+      "bytes": 1304511,
+      "redacted": false,
+      "description": "用户侧截图 (同系列, 21 秒前) — 同一 503 页面第二次留影"
+    },
+    {
+      "path": "screenshots/lane-01-annotate-issue-1413.png",
+      "sha256": "307346bfd09ff8533ca68186a15bfc3a5273fac864f27d3b73d1ccc372b91000",
+      "bytes": 1593841,
+      "redacted": false,
+      "description": "车道侧截图 (源 /tmp/g87-annotate-issue.png) — 插件报「请先选中文本再批注」现场"
+    },
+    {
+      "path": "screenshots/lane-01-selection-read-empty-crop-1442.png",
+      "sha256": "468e3885a436c6f7508def6b1dc09e8804ba46065985cec921395dbb6a05a14a",
+      "bytes": 607692,
+      "redacted": false,
+      "description": "车道侧裁剪 (源 /tmp/g87-crop-callout.png) — 渲染态 callout 放大件 (GLM §B.1 判定用图)"
+    },
+    {
+      "path": "screenshots/lane-render-compare-crop-1444.png",
+      "sha256": "ebc64155e0445d69856b794fa8f9e2800afc8424658db0dca3af8af7c7918ae5",
+      "bytes": 992182,
+      "redacted": false,
+      "description": "车道侧对照裁剪 (源 /tmp/g87-compare-1410-vs-1440.png) — 14:10 vs 14:40 渲染对照"
+    },
+    {
+      "path": "screenshots/lane-06-503-testvault-1613.png",
+      "sha256": "343738dfa510478a5265ce7a37a7a29c9434bbe07ef8e2441806bfd58d715cd9",
+      "bytes": 1303689,
+      "redacted": false,
+      "description": "车道侧截图 (源 /tmp/g87-503-testvault.png) — 16:13 复现 test-vault 刷新 503 (GLM 503 报告用图)"
+    },
+    {
+      "path": "artifacts-sha-screenshots-20260920T190917.txt",
+      "sha256": "48d84762226b10991410d99a4aa22447881e6d04d01db6ee19b228503f4fa7d6",
+      "bytes": 2130,
+      "redacted": false,
+      "description": "截图登记台账 — 8 件截图 sha256 + 来源注记 (用户侧 4 / 车道侧 4)"
+    },
+    {
+      "path": "fsrs-decay-scope-20260920T193722.txt",
+      "sha256": "65de25acf1a18c4711fccb8470eafd73a5f2df74eb46c5668c6e4c904571b03f",
+      "bytes": 4117,
+      "redacted": false,
+      "description": "(m) 判据补跑：fsrs_bridge/decay_beta 出现面 —— 形态红（超范围命中=缺陷登记/索引说明/第三方报告，非写入命令）；意图绿（cp|mv|install / tee|cat|shutil.copy 形态 0 命中）；两文件 dev==live 2/2 SAME、本卡零 diff、live 现值在案"
+    },
+    {
+      "path": "minute0-reconstruct-20260920T193730.txt",
+      "sha256": "ecefc9e088d3f21143c2b91d13f7464ad86ab5c18fdb0fb20f8a7faa00e346fd",
+      "bytes": 3076,
+      "redacted": false,
+      "description": "§二.1 第 0 分钟判据重建（非当场落档）：HEAD=9d4f7bf0（源 00-prefix-red 头部）/ 分支 card/p3-deploy / BASE=33 现复核 / pyright 不适用 / 三条 sed 现复核 / docker ps 等价证据 T-1 —— 当时 status 与 §〇 sed 深核未落档，如实登记"
     }
   ],
   "slo": {
@@ -294,15 +606,22 @@
   },
   "signoff": {
     "status": "pending",
-    "note": "用户签字位: 验收单 4-B「旅程体验」勾选后才填 user/at + approved; 未勾保持 pending。"
+    "note": "用户签字位: UAT 4-B 旅程体验勾选后填 user/at + approved; 当前未勾。"
   },
-  "evidence_level": "E0",
+  "evidence_level": "E2",
   "result": "partial",
   "known_limitations": [
     "未证明旅程在 clean RC 上可复跑 (本卡跑在 live 双树缝合体 + live skill 副本, R-J*/R-RC 承接)。",
-    "未证明「经 backend 写 7691」在六环节中真的发生 (quiz-answer :74 自述不碰后端熟练度链; 本卡只登记实测写入面)。",
+    "未证明「经 backend 写 7691」在六环节中真的发生 (quiz-answer 自述不碰后端熟练度链; 本卡只登记实测写入面)。",
     "未证明次日清单真的包含本次答题的板 (跨日归 G6-13 J07; 本卡只读打开总览页)。",
-    "未证明 8 处 skill 版本差异对旅程结果的影响方向 (同一旅程在 HEAD 副本上未跑)。"
+    "未证明 8 处 skill 版本差异对旅程结果的影响方向 (同一旅程在 HEAD 副本上未跑)。",
+    "环节③ 判据未达成; 双结论 = 探针设计假阴性 + fast 路径无稀有串召回; 修订判据(带锚点)后可另行复验, 本件不装通。",
+    "环节④ Context 档 FAIL (同会话读正文后出题); 严格隔离复跑需新会话, 本件未复跑。",
+    "零静默改写门 outside=2 (两个思维导图导出快照, 写者=自研 Excalidraw v3 一次性导出器; 触发者待用户确认) — 不据此判定静默改写, 也不放宽白名单。",
+    "快照面不含 vault 根 learning_events.jsonl (假阴性覆盖缺口, 已登记) — 本门应读作「scoped gate」: 不覆盖 vault 根、`.obsidian/`、`.trash/` (find 带 `-not -path '*/.trash/*'`)。〔r4 专项段建议 2026-09-20 采纳: 统一口径, 见 04-journey-log.md 与 UAT 局限段〕",
+    "§二.1 第 0 分钟判据未单独落档（2026-09-20 重建：三条可重建、pyright 不适用、docker ps 有等价证据；当时 status 与 §〇 sed 深核两条不可重建）—— 覆盖缺口，交主 session 裁定是否补跑。",
+    "卡文 (g)② 三件齐：(g)② 要求每环节「产物+sha+截图」三件齐、缺一记 partial。②⑤ 无截图 ⇒ 环境级应为 partial（本件 assertions 保持语句级 pass，UAT 4-C 已改 🔶 partial 并写明；是否收紧 assertions 交主 session 裁定，schema 无 partial 枚举）。",
+    "r9 H1 errata：minute0 重建档第 4 条首跑为败录（引号转义），现复核 33 / sha256 726e998a…42cb4 已在档内 ERRATA v2 节实证；原文不改写。"
   ],
-  "notes": "本件为 CARD-G8-7 证据包的登记面（借 docs/release-evidence/manifest.schema.json 字段；⛔ 不进 docs/release-evidence/，P10 唯一写者）。自引用排除规则：validate_release_manifest.py 对 manifest 自身的输出（manifest-red/green/isolation-*.txt）不登记进 artifacts —— 其内容依赖本件内容，登记会形成 SHA 循环。这些输出与「最终副本对象」的绑定：见 sidecar `manifest-bindings.md`（含最终 J06 副本 SHA-256、重跑方法与排除原因）。"
+  "notes": "本件为 CARD-G8-7 授权走查证据包的登记面 (借 docs/release-evidence/manifest.schema.json 字段; 不进 docs/release-evidence/, P10 唯一写者)。授权段: ①pass ②pass ③fail(判据假阴性+召回缺陷) ④partial(artifact pass/context fail) ⑤pass ⑥partial(车道侧 pass)。 运行环境: live 容器 canvas-learning-system-backend (image feature-obsidian-hybrid-dev-backend, 127.0.0.1:8011->8001, healthy); pi harness = @earendil-works/pi-coding-agent 0.85.1 + pi-mcp-adapter。 〔时间口径补正 2026-09-20 (M-7)〕`execution.finished_at=18:06:19` 只覆盖**六环节旅程**（末步 = ⑥ 车道只读 GET）；四件承重裁判 18:15–18:16 的输出、以及整改轮（r4→r5）重跑的裁判属**证据包最终归档**，晚于该时间。 〔整改轮 2026-09-20 夜〕r4 = B1/H1/M6/L2 已逐条处置：UAT §2/§1/§4-C、03-breakpoints §B/§C、04-journey-log T1..T6、本件 notes/assertions/artifacts、artifacts-sha 台账注记；随后在新 HEAD 重跑承重裁判并由 r5 绑新 HEAD 复审。 〔截图登记补 2026-09-20 19:09〕证据包补入 8 件截图 (用户侧 4 / 车道侧 4) + 台账 artifacts-sha-screenshots-20260920T190917.txt; 同时修正 UAT §2 对 ②/④/⑤「用户侧有」的过度声明 (实测无文件 ⇒ 无图未留影)。用户侧截图含用户 Obsidian/浏览器画面, 原样收录未脱敏, 仅本地仓库不 push。 〔判据覆盖自审补 2026-09-20 19:37〕按卡文 §一/§二逐条自审发现两条判据未落档：(m) 出现面 grep（补跑：形态红/意图绿）与 §二.1 第 0 分钟（重建）。artifacts 57 → 59；两件均登记为覆盖缺口，非判定翻面。 〔r9 处置补 2026-09-20 19:5x〕r9 = B0/H1/M1/L3，全指向两份新存档内部准确性：H1 追加 ERRATA v2（BASE 33 / sha256 726e998a…）、M1 补注意图段自引用复现口径、L1/L2 时点差与分类宽贷注明、L3 伴随件入 UAT 台账；另按卡文 (g)② 登记 ②⑤ 环境级 partial（缺截图），交主 session 裁定是否收紧 assertions。"
 }

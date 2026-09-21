@@ -5,16 +5,21 @@
 
 ## 1. 截图清单（授权走查后由用户/主 session 存入本目录；车道只 `shasum` 登记）
 
-| 文件名 | 环节 | 拍摄对象 | 应显示 |
+| 登记名（`screenshots/`） | 环节 | 拍摄对象 | 实见 |
 |---|---|---|---|
-| `shot-1-<ts>.png` | ① vault 准备 | Obsidian 主窗口 | 选定板（默认 CS 61B）新增节点/批注 |
-| `shot-2-<ts>.png` | ② board-recap | Claudian 侧栏 + Obsidian | `/board-recap` 执行与 `outputs/回顾-*.md` 落地 |
-| `shot-3-<ts>.png` | ③ search_notes | Claudian 输出 | 检索返回含环节①新材料 |
-| `shot-4-<ts>.png` | ④ start-exam-board | Obsidian | 新检验白板 `type: exam_board` |
-| `shot-5-<ts>.png` | ⑤ quiz-answer | Obsidian 节点 | 节点顶部 `mastery_score` 变化 |
-| `shot-6-<ts>.png` | ⑥ 次日总览页 | 浏览器 | `http://127.0.0.1:8011/api/v1/review/overview/page` 渲染 |
+| `user-01-annotate-context-144003.png` | ① | Obsidian + 节点 | 悬浮提示「berkeley-cs-support-resources 未创建」（批注/双链现场） |
+| `user-01-callout-rendered-144005.png` | ① | Obsidian + 节点 | 渲染态 question callout（用户尝试拖选处） |
+| `lane-01-annotate-issue-1413.png` | ① | Obsidian | 插件 Notice「请先选中文本再批注」 |
+| `lane-01-selection-read-empty-crop-1442.png` | ① | 放大裁剪 | 渲染态 callout 细节（GLM §B.1 判定用图） |
+| `lane-render-compare-crop-1444.png` | ①（观感） | 对照裁剪 | 14:10 vs 14:40 渲染对照 |
+| `user-06-refresh-503-154428.png` / `user-06-refresh-503-154449.png` | ⑥ | Chrome | `/api/v1/review/overview/refresh` → 刷新失败·test-vault / HTTP 503 pick_failed |
+| `lane-06-503-testvault-1613.png` | ⑥ | Chrome | 同失败页（车道 16:13 复现） |
+| —（仍缺） | ② ③ ④ ⑤ ⑥成功页 | — | 无留影；②/④/⑤ 产物 sha 在案，③ 为 0 命中返回原文 |
 
 > 约束：png 逐文件 `git add`，单文件 ≤ 2 MB（超出改 jpg 质量 80）；截图由用户/主 session 存入，车道只登记 sha（见卡文 (o)）。
+> **已登记（2026-09-20 19:09）**：8 件（用户侧 4 / 车道侧 4），台账 `artifacts-sha-screenshots-20260920T190917.txt`；
+> 用户侧原件来源 = 桌面 `截屏2026-09-20 下午2.40.03 / 2.40.05 / 3.44.28.png` 与**主干树 `feature-obsidian-hybrid-dev` worktree** 的 `_bmad-output/截屏2026-09-20 下午3.44.49.png`（batch15 主干收尾树）。
+> 隐私口径：含用户 Obsidian/浏览器画面，原样收录未脱敏；G1-8 对外引用前须自行脱敏。
 
 ## 2. 审查任务书素材要点（供 G1-8 开卡时引用；不含结论）
 

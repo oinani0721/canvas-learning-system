@@ -1,0 +1,4 @@
+✅ PASS _bmad-output/审查/evidence-g87-journey/b15-g8-7/journeys/J06/manifest.json
+
+合计 1 份 manifest, 失败 0 份。
+rc=0

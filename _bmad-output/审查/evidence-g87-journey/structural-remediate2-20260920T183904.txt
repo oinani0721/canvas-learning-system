@@ -1,0 +1,7 @@
+=== (f) 结构判据成对 · 整改轮二次 20260920T183904 ===
+ls 审查 | grep -c evidence-g87-journey = 1
+ls $EV | grep -c -e '^0[0-5]-' -e '^manifest.json$' = 11
+grep -c live 01-skill-versions.md = 10
+主表行数 (^| [0-9]+ | 表行, 历史口径写 N 占位故口径更正) = 13
+dev skills 文件数 = 13
+验伪锚 ls 审查 | grep -c d5-evidence-2026-08-27 = 1

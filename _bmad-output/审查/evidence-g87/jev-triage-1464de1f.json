@@ -1,0 +1,18 @@
+{
+  "commit": "docs(audit): CARD-G8-7 r8 收口闭合（B0/H0/M0/L1）+ 归档 [BATCH-2026-09-18-第十五批 / CARD-G8-7]",
+  "ref": "1464de1f",
+  "sha": "1464de1fd41e4aa8ee6c735ed1cfde0eb24ef70c",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T19:33:49-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "commit": "docs(audit): CARD-G8-7 判据覆盖自审补（(m) 补跑 + §二.1 重建；artifacts 59）[BATCH-2026-09-18-第十五批 / CARD-G8-7]",
+  "ref": "49247d54",
+  "sha": "49247d547869221afdb7732442fb61d40fa1d502",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T19:55:43-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

@@ -1,0 +1,16 @@
+changed=11
+/Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+outputs/.recap-manifest-CS 61B.json
+outputs/.recap-scan-CS 61B.json
+outputs/今日复习.json
+outputs/今日复习.md
+outputs/回顾-CS 61B-2026-09-20.md
+outputs/思维导图-CS 61B.excalidraw.md
+outputs/思维导图-特征值与特征向量.excalidraw.md
+原白板/CS 61B.md
+检验白板/CS 61B-2026-09-20-2235.md
+节点/csm-tutoring-unit-credit.md
+--- 白名单（+即时实例化）外 ---
+outputs/思维导图-CS 61B.excalidraw.md
+outputs/思维导图-特征值与特征向量.excalidraw.md
+outside=2

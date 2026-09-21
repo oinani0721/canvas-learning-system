@@ -1,0 +1,7 @@
+❌ FAIL /private/tmp/g87-courts2/J06-m-signoff.json
+    [schema] signoff: 'user' is a required property
+    [schema] signoff: 'at' is a required property
+
+合计 1 份 manifest, 失败 1 份。
+v_rc=1
+orig_sha=08ca28462514fdf086eb7f946aec6fe21d12b8342b4afd9b292ebfbfff33bfe4

@@ -1,0 +1,18 @@
+{
+  "commit": "docs(p3-deploy): CARD-G8-7 授权走查终版证据包（pi 轮六环节+门+四裁判）[BATCH-2026-09-18-第十五批 / CARD-G8-7]",
+  "ref": "484ccba0",
+  "sha": "484ccba07b39cf8427b87992176898d1f66eae3b",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T18:20:35-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

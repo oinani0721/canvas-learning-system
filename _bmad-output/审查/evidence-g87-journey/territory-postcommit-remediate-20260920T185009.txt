@@ -1,0 +1,9 @@
+=== 地盘门 (post-commit, 整改轮 20260920T185009) ===
+$ git --no-pager diff --stat --no-color d9d64ea1 cb4187c1 -- . ':(exclude)_bmad-output'
+rc=0
+--- 验伪锚: 同一 diff 带 core.quotepath=false 数 evidence-g87-journey 命中 ---
+hit_count=5
+--- 全 diff 末 3 行 ---
+ ...275\246\351\201\223\345\233\236\345\244\215.md" |  53 ++
+ .../UAT-CARD-G8-7-2026-09-20.md"                   | 172 ++++
+ 51 files changed, 6227 insertions(+), 94 deletions(-)

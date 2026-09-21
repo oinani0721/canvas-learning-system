@@ -1,0 +1,41 @@
+=== (m) fsrs_bridge/decay_beta 出现面判据（CARD-G8-7） 2026-09-20T19:37:22-0700 ===
+⚠️ 首版（19:36）intent-grep 模式自匹配（含本文件自身 + Markdown 引用块行）⇒ 作废重跑，本件为更正版。
+
+--- A. 形态（卡文 (m) 原文命令） ---
+$ grep -rn -e fsrs_bridge -e decay_beta _bmad-output/审查/evidence-g87-journey/*.md  （命中行见下，已分类）
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/00-README.md:2
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/01-skill-versions.md:3
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/03-breakpoints.md:1
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/04-journey-log.md:3
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/05-g18-material.md:2
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/glm53-503-review-20260920T161652.md:12
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/glm53-pi-review-20260920T154846.md:2
+/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/pi-round-session-digest-20260920.md:1
+
+分类计数:
+  允许面 00-README.md + 01-skill-versions.md = 5 行
+  缺陷登记/索引说明 03/04/05 = 6 行
+  第三方报告 glm53-* + pi-round-digest = 15 行
+
+--- B. 意图（禁碰两文件：无 cp/mv/install/重定向写入形态命令行） ---
+$ (1) grep -rnE '(^|[;&|])[[:space:]]*(cp|mv|install)[[:space:]]' $EV --include='*.txt' --include='*.md' | grep -e fsrs_bridge -e decay_beta | grep -v 'fsrs-decay-scope-'
+  hits=1（rc=1 ⇒ 0 命中 = 绿）
+$ (2) grep -rnE '(tee|cat|shutil\.copy|write_text)[^|]*' \/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey | grep -e fsrs_bridge -e decay_beta | grep -v 'fsrs-decay-scope-'
+  hits=1（rc=1 ⇒ 0 命中 = 绿）
+
+--- C. 支撑事实 ---
+  两文件 dev==live（01-skill-versions.md:34-35）= 2/2 SAME
+  本卡全 diff 触碰两文件行数 = 0
+  live 两文件当前 sha256 = a766fbcc28e3 3bf4ed9402a4 
+
+--- D. 判定 ---
+  A = 红（形态判据超范围：命中为缺陷登记 + 索引说明 + 第三方报告，逐条非写入命令）；B = 绿（两段意图检查均 0 命中）；C = 两文件未被动过（dev==live、零 diff、live 现值在案）
+  ⇒ 卡文 (m) 禁令对象（禁碰 fsrs_bridge/decay_beta）**满足**；判据形态过宽（限定为 01/00 两文件过窄，未预料 defect 登记与评审报告）**已登记**，交主 session 裁定是否收窄表述。
+
+
+---
+
+## 〔补注 v2 · 2026-09-20 19:5x（r9 M1/L1/L2）〕
+- **M1（可复现性）**：B(2) 段（`tee|cat|shutil.copy` 形态）在**本档落盘后**独立重跑会出现 2 命中 —— 命中源 = `manifest.json` 的 artifacts `description` 文本（其同时含 `tee|cat|shutil.copy` 字样与两文件名），属**登记文本自引用**（门未覆盖的路径）；本档首跑在登记落盘前完成，故为 0 命中。**复现口径更正**：独立重跑须加排除（如 `grep -v '"description"'` 或排除 manifest 行）。实质判定不变（命中为描述散文，非写入命令）。
+- **L1（时点差）**：上文 A 段「03/04/05 = 6 行」为**本档落盘时点**值；T-3.7 入库后现为 **7** 行（`04-journey-log.md` 自身成为第 4 命中），红判定不变。
+- **L2（分类宽贷）**：上文 A 段「允许面 5 行」含 `01-skill-versions.md:37` 结论段 —— 严格按卡文字面「sha 表行」该行应计入**形态过宽面**；方向不变（本就判红、交主 session）。

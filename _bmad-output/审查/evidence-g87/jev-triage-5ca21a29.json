@@ -1,0 +1,18 @@
+{
+  "commit": "docs(audit): CARD-G8-7 r5 收口（计数 35→48 + 孤儿表头）+ r5 存档 [BATCH-2026-09-18-第十五批 / CARD-G8-7]",
+  "ref": "5ca21a29",
+  "sha": "5ca21a29c5ee255f1d6eaf3e9d31317d6f3c261a",
+  "model": "jev-latest",
+  "generated_at": "2026-09-20T19:02:31-0700",
+  "code_files": [],
+  "files": [],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "latency_ms": {
+    "min": 0,
+    "median": 0,
+    "max": 0
+  }
+}

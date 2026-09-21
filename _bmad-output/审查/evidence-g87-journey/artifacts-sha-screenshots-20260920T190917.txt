@@ -1,0 +1,11 @@
+# 截图登记台账（CARD-G8-7 授权走查） 2026-09-20T19:09:17-0700
+# 采集 = 车道（只读复制到证据目录；文件来源见各行注释）
+# 原名 / 来源路径 / 登记名 / sha256 / bytes
+307346bfd09ff8533ca68186a15bfc3a5273fac864f27d3b73d1ccc372b91000  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/lane-01-annotate-issue-1413.png
+468e3885a436c6f7508def6b1dc09e8804ba46065985cec921395dbb6a05a14a  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/lane-01-selection-read-empty-crop-1442.png
+343738dfa510478a5265ce7a37a7a29c9434bbe07ef8e2441806bfd58d715cd9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/lane-06-503-testvault-1613.png
+ebc64155e0445d69856b794fa8f9e2800afc8424658db0dca3af8af7c7918ae5  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/lane-render-compare-crop-1444.png
+27a4c8de192f6b41d198523850103c6033289644563ca8f0794fa6a45e6be9c9  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/user-01-annotate-context-144003.png
+799550942b75cc6d2804846bb1e53bfae535ff6be0fd79c8bae7883fea88fff3  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/user-01-callout-rendered-144005.png
+79b546d217c8fc492ad58fffa537a5f9e94ce8d184c71df530452ec0391c28cf  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/user-06-refresh-503-154428.png
+b62ff2730c8b6904b34b3223ca331a622b1c161077f3a2936ebadfa9e7318c28  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy/_bmad-output/审查/evidence-g87-journey/screenshots/user-06-refresh-503-154449.png

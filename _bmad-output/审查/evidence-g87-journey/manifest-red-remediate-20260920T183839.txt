@@ -1,0 +1,5 @@
+❌ FAIL /private/tmp/g87-courts2/red/b15-g8-7/journeys/J06/manifest.json
+    [S3] result=pass 与断言实况矛盾 — 非 pass 断言: G8-7-3, G8-7-4, G8-7-6
+
+合计 1 份 manifest, 失败 1 份。
+v_rc=1

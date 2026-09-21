@@ -1,0 +1,27 @@
+=== §二.1 第 0 分钟判据 —— 重建记录（非当时落档） 2026-09-20T19:37:30-0700 ===
+⛔ 事实：当时（2026-09-19 16:5x）的第 0 分钟判据未单独 tee 落档；本件为事后重建，逐项标来源与可信度，不冒充当场存档。
+
+1) HEAD = 9d4f7bf0 —— 来源：00-prefix-red-20260919T165753.txt:2（当场落档头部「HEAD=9d4f7bf0」）；现树复核 9c4e7e82..HEAD 首条 = 0d612f2d
+2) 分支 = card/p3-deploy —— 现树复核：card/p3-deploy
+3) 工作树干净 —— 现树 git status --porcelain | wc -l =        3（收工态）；当时值未落档
+grep: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15/unit-red-baseline-9c4e7e82.txt": No such file or directory
+shasum: "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15/unit-red-baseline-9c4e7e82.txt": No such file or directory
+4) base 文件行数（grep -vc '^#' $BASE）—— 现复核 = （卡文 §〇 预期 33；BASE 文件 sha256 = …；文件自 2026-09-18 未变）
+5) pyright 自证 —— 卡文 (h)：本卡不改 backend/app ⇒ 不适用（未见「意外触及」，见 11) ruff logs）
+6) §〇 五条 sed 核 —— 未单独落档；本次在当前树重跑 3 条:
+   board-recap SKILL :54-56 = 3/3 行命中关键字
+   quiz-answer SKILL :74 = 1. **不碰后端熟练度链**：allowed-tools **无** `mcp__canvas-learning-mc…
+   start-exam-board SKILL :78 = 4. **文件位置方案 A**：检验白板落 `检验白板/<board_stem>-<yyyy-mm-dd-hhmm>.m…
+7) docker ps —— 当时未落档；等价证据 = 04-journey-log.md T-1（2026-09-20 13:13 三容器 Up healthy，含 8011->8001）
+
+--- 结论 ---
+可重建且值符合预期：1 / 2 / 4（3 条）；等价证据：7（T-1 段）；不适用：5（pyright）；未落档：3（当时 status）/ 6（sed 五条中的深核）
+登记口径：本卡「第 0 分钟判据未单独落档」= 证据覆盖缺口（如实登记，不阻断判定——三条关键值可重建、等价证据在案）；主 session 可据此决定是否需补跑。
+
+
+---
+
+## 〔ERRATA v2 · 2026-09-20 19:5x（r9 H1 更正）〕
+- **更正对象**：上文第 4 条（base 文件复核）**首跑为败录** —— 生成脚本中 `\"$BASE\"` 的引号转义错误，使 grep/shasum 收到**带字面引号的路径**，双双 `No such file or directory`，故该行计数留空、sha256 留 `…`；上文末尾「4 属可重建且值符合预期」在首跑当时**对该条不成立**（其余 1/2/7 不受影响）。
+- **现复核（2026-09-20 19:5x，正确引号）**：`grep -vc '^#' "$BASE"` = **33**（卡文 §〇 预期一致）；`shasum -a 256 "$BASE"` = `726e998a7254871838cef77782830e6a719dcc26aefa93abe28fe3e945042cb4`；文件 mtime = 2026-09-17 10:41。
+- **更正后判定**：第 4 条 = **可重建且值符合预期**（现已实证）；上文首跑败录与结论的落差**以本 errata 为准**，原文不改写。

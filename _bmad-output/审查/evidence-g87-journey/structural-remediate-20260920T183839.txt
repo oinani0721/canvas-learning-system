@@ -1,0 +1,9 @@
+=== (f) 结构判据成对 整改轮 20260920T183839 ===
+ls 审查 | grep -c evidence-g87-journey = 1
+ls $EV | grep -c -e '^0[0-5]-' -e '^manifest.json$' = 11
+grep -c live 01-skill-versions.md = 10
+主表行数 (^\| N \|) = 0
+dev skills 文件数 = 13
+验伪锚 ls 审查 | grep -c d5-evidence-2026-08-27 = 1
+
+# 〔工具错误注记 2026-09-20〕本行 `主表行数` 的 grep 模式误写字面量 N（应为 [0-9]+），值 0 = 工具错误，非结构异常；正确口径见同目录 `structural-remediate2-*.txt` = 13。原值保留不改写。

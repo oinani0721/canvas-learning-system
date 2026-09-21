@@ -1,0 +1,15 @@
+=== ruff 判据（整改轮 20260920T183904）===
+from_d9d64ea1_files=0
+files=0
+files=0 ⇒ 本卡零 .py 改动，ruff 不适用
+--- F821 验伪锚 ---
+F821 Undefined name `undefined_name`
+ --> backend/_negctl_f821_tmp.py:2:12
+  |
+1 | def f():
+2 |     return undefined_name
+  |            ^^^^^^^^^^^^^^
+  |
+
+Found 1 error.
+rc=1

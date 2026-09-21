@@ -1,0 +1,35 @@
+# CARD-G8-7 授权窗口产物 sha256 台账 (2026-09-20T18:07:28-0700)
+cef0ab0e1617c0d59fa66d8fb094ed9db7a950c16f9f5c48caa0ade91b1b1f60  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/回顾-CS 61B-2026-09-20.md
+30df61da96a7a4a21d6d8f44b7dfe08ddf3ffdd181c78557f4ab28555b88d69b  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/.recap-manifest-CS 61B.json
+840f02d4686b4eed830f7213aa3d96437de4e5a8febdedeac1fd2f5535520d2c  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/.recap-scan-CS 61B.json
+c55ec46dad816c62cf864b841b1f3672aa2781eebf3e4cb2be278ac9cf9bb0b3  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/检验白板/CS 61B-2026-09-20-2235.md
+d41c4e8ba03aea2ffc19b348dd64c7325907ac40d72db30d3187ce3d12ba9ea0  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/节点/csm-tutoring-unit-credit.md
+2dfb759190dfe6d7ecf0dbb75df49b6eccb443338113349b0fc380902f299777  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/原白板/CS 61B.md
+214e43a18931f78fc98a5dde598f4a20168a59845e45d57e3ffa3bd01e671124  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/learning_events.jsonl
+37a4538416afe0642756265acbfe9736794e4344a0b4d2b7eb66e16638303255  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/思维导图-CS 61B.excalidraw.md
+56c51c84ab33b5a5777298d31e673111aa555bf382a097f6e04bd15246882f4c  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/思维导图-特征值与特征向量.excalidraw.md
+53dbeb479c7c6fb182f4936805c6848218cb1eb7e7fae67834a98bce1a5ad8d2  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.json
+bd7c446f8ea7dd7c447ae6f7b5f2c7e865ca004c3d40d5b5f239fd55f2c0992d  /Users/Heishing/Desktop/canvas/canvas-learning-system/canvas-vault/outputs/今日复习.md
+16fc17283bb3e82b97307ea9a9952956e68eb636e3c50fb7cfb65175c652f716  /Users/Heishing/Desktop/canvas/canvas-learning-system/backups/daily-review.canvas-vault.state.json
+# pi 会话
+ffc52251cdf56da17c07e74f02703cc29fe6bcd6e1b1747571b0a87e60dd3348  /Users/Heishing/.pi/agent/sessions/--Users-Heishing-Desktop-canvas-canvas-learning-system-canvas-vault--/2026-09-20T21-04-44-772Z_01a0c0a2-b8e3-7597-9be9-5acf3670dfb6.jsonl
+# 车道证据（本窗口新增）
+8764c1796d657d1492ab203f9a86a1aebbc67665463f6d794a8d5faecf7303d1  _bmad-output/审查/evidence-g87-journey/glm53-503-review-20260920T161652.md
+412d9e6705099a43b55a8f2880f1f9d93ac472ff241ad2d2a39701e020548827  _bmad-output/审查/evidence-g87-journey/glm53-check-annotation-20260920T141358.md
+16b911256486dcedb6e89e623b96ac9ad69107288c3ba044a38caa215043104d  _bmad-output/审查/evidence-g87-journey/glm53-pi-review-20260920T154846.md
+4ac80a8447b184f7d0ae7d2c1fdd77b91583bb3040d3f82a541658a0ad074084  _bmad-output/审查/evidence-g87-journey/glm53-render-check-20260920T144631.md
+a2793ce3d4949e42d050f78b8a4f892ec2cfad1258c8589878c2538373026087  _bmad-output/审查/evidence-g87-journey/pi-round-session-digest-20260920.md
+d167b00aec18a58e59c6af08be258f26da19a460a298096ddf652cb67a444fc3  _bmad-output/审查/evidence-g87-journey/04-journey-log.md
+2fb93723a24c6a5c979085e4b952751c35b41ed299f86150f2a91beecbc95b5a  _bmad-output/审查/evidence-g87-journey/03-breakpoints.md
+a2cf63e6cdd0b186c9238d46e65334ae9166fd16d7fa93424b2851aad5f6250d  _bmad-output/审查/evidence-g87-journey/02-live-snapshot-before-authorized.txt
+6046f61ec662ee6e83cd7c87702ee3ac3d585328e592c54511946b62c636558a  _bmad-output/审查/evidence-g87-journey/04-live-snapshot-after-authorized.txt
+52adabc3288da48ae7d71c3777d0c791fdd1480d050cff5828e9fa693b847513  _bmad-output/审查/evidence-g87-journey/overview-page-20260920T180619.html
+f291a6b065d40711ef340469a060495771eb4ee7abb21387bc5346cdb7988136  _bmad-output/审查/evidence-g87-journey/silent-rewrite-gate-authorized-20260920T180031.txt
+# 4 路社区调研
+b309341ce11242fc18d02e50b610df7bc86c43137f0cc57365bb162245a52385  _bmad-output/审查/evidence-conv/00-汇总.md
+c8ac29b448a8b84d0b187563d1f31ad393232fd0efcb209fb5d7d58f31dfbfec  _bmad-output/审查/evidence-conv-A/findings.md
+1cf8b1f886f334f268acf0cb9faca248ce5c4c205550ba869cdae3a1d1e15c3d  _bmad-output/审查/evidence-conv-B/findings.md
+063acd8d132c790c42a7c4ffc0c808077b62adb4400d8a595908cb27ec27cf86  _bmad-output/审查/evidence-conv-C/findings.md
+eabcad38ef98baba2fdc5bc873c42f643c9a45fe514ea3704079b5fbd3bee189  _bmad-output/审查/evidence-conv-D/findings.md
+
+# 〔整改轮注记 2026-09-20 (L-1)〕本台账为 **18:07 时点**快照；其中 `04-journey-log.md` / `03-breakpoints.md` 两行在其后（18:16 与整改轮）又被更新，**最终哈希以 manifest.json 终版 artifacts 条目为准**，本行不改写既有各行的时点值。
