@@ -1,0 +1,20 @@
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=a6dc1852
+## p1 tip=39144558 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p3 tip=1b5befd9 files=5
+## p4 tip=aa126e5b files=7
+## p5 tip=7af5306b files=32
+## p6 tip=6346facb files=11
+## p7 tip=eb798680 files=6
+## p8 tip=447eb50f files=15
+## p9 tip=430dcf25 files=16
+## p10 tip=d2db49af files=5
+
+checked=129 equiv=123 exceptions=6 undecided_diff=0
+verdict=PASS
