@@ -10,7 +10,7 @@
 ## 终局门（全部在 8a651d2a / P9 合入后 da825921 复跑，原始日志已入库）
 - openapi `DRIFT: none (paths=199 schemas=357)`；pyright `app` **0 errors**（绝对路径 + nvm node 自证；feature 树 venv 无 pyright）。
 - tests/unit：**只减**（32 vs 基线 33；0 引入 / 1 修）——**含 node 相关 33 条的两次跑**：homebrew node 崩（llhttp 9.3 缺）致 65 红的跑档亦入库并归因；nvm node v24.16.0 复跑 = 32。
-- 7692 四文件：**107 passed / 0 failed**（FINAL-107 原始日志）；contract 3 非 pact：2 既有红 / 75 passed（与基线逐字同）。
+- 7692 四文件：**107 passed / 0 failed**（FINAL-107 原始日志）；contract 3 非 pact：2 既有红 / 75 passed（红 nodeid 集合与计数与基线等价）。
 - tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
 - G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 verdict=PASS（129 文件：119 equiv + 10 声明例外）。
 - **schemathesis 89-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。

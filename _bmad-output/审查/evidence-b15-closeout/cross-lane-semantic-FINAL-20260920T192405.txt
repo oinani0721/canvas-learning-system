@@ -1,0 +1,12 @@
+<unknown>:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+<unknown>:6984: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=fe19b5bb
+  [EXCEPTION] p1 backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] p1 backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] p1 backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] p2 backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] p2 backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] p2 backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+
+checked=129 equiv=123 exceptions=6 undecided_diff=0
+verdict=PASS
