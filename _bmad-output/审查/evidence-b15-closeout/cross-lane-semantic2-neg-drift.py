@@ -33,7 +33,7 @@ EXCEPTIONS = {
 #     P3 lane 冻结后的 docs-only 前进属 B15 显式排除面（见 b15-freeze-exclusions.json），代码面不动即容忍；
 #  ③ 计数下限：每 lane files>0 且 checked>=100，否则红（防空枚举 vacuous PASS）；末尾以退出码传播 verdict。
 CODE_TIPS = {
-    "p1": "39144558", "p2": "ac52e3b8", "p3": "32a405a4", "p4": "aa126e5b", "p5": "7af5306b",
+    "p1": "39144558", "p2": "ac52e3b8", "p3": "9c4e7e82", "p4": "aa126e5b", "p5": "7af5306b",
     "p6": "6346facb", "p7": "eb798680", "p8": "447eb50f", "p9": "430dcf25", "p10": "d2db49af",
 }
 failures = []

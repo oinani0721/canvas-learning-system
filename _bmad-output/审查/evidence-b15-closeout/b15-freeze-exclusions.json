@@ -1,6 +1,6 @@
 {
   "freeze_local": "2026-09-20 21:12 -0700",
-  "b15_code_face": "feature-obsidian-hybrid-dev（主干；代码面自 1e907037 起除 r5-L1 注释勘误外零变更）",
+  "b15_code_face": "feature-obsidian-hybrid-dev（主干；代码面自 1e907037 起仅 r4-L1 + r5-L1 注释勘误〔89→90/93→94 GET、206/117→211/121〕，AST 全等、行为零变更）",
   "excluded_faces": [
     {
       "worktree": "card-p3-deploy",

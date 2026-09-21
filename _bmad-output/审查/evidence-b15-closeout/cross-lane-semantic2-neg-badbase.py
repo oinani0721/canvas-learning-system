@@ -13,7 +13,7 @@
 import ast, configparser, io, json, subprocess, sys, tempfile, os
 
 W = "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees"
-BASE = "9c4e7e82"
+BASE = "deadbeef"
 C = sys.argv[1] if len(sys.argv) > 1 else f"{W}/batch15-integ"
 LANES = {f"p{i}": d for i, d in enumerate(
     ["p1-storage","p2-outbox","p3-deploy","p4-fsrs","p5-review",

@@ -1,0 +1,21 @@
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=a6303136
+## p1 tip=39144558 pin=39144558 code_drift=0 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 pin=ac52e3b8 code_drift=0 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+  [DOCS-DRIFT-ALLOWED] p3 32a405a4..1726b695（登记排除面；代码面零漂移）
+## p3 tip=1726b695 pin=32a405a4 code_drift=0 files=5
+## p4 tip=aa126e5b pin=aa126e5b code_drift=0 files=7
+## p5 tip=7af5306b pin=7af5306b code_drift=0 files=32
+## p6 tip=6346facb pin=6346facb code_drift=0 files=11
+## p7 tip=eb798680 pin=eb798680 code_drift=0 files=6
+## p8 tip=447eb50f pin=447eb50f code_drift=0 files=15
+## p9 tip=430dcf25 pin=430dcf25 code_drift=0 files=16
+## p10 tip=d2db49af pin=d2db49af code_drift=0 files=5
+
+checked=129 equiv=123 exceptions=6 undecided_diff=0 missing=0 empty=0 lane_empty=0 failures=0
+verdict=PASS
