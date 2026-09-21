@@ -14,7 +14,7 @@ import ast, configparser, hashlib, io, json, subprocess, sys, tempfile, os
 from pathlib import Path
 
 W = "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees"
-BASE = "deadbeef"
+BASE = "9c4e7e82"
 C = sys.argv[1] if len(sys.argv) > 1 else f"{W}/batch15-integ"
 LANES = {f"p{i}": d for i, d in enumerate(
     ["p1-storage","p2-outbox","p3-deploy","p4-fsrs","p5-review",
@@ -50,7 +50,7 @@ def closeout_exception_ok(path, a, b):
         return False
     keys = set(ja) | set(jb)
     changed = [k for k in sorted(keys) if ja.get(k) != jb.get(k)]
-    return changed == ["notes"]
+    return False  # neg-j07pred-off：谓词关闭 ⇒ J07 变更必须落 DIFF
 
 CODE_TIPS = {  # r7-M1：40-hex 全 SHA（禁止 8 位前缀比较）
     "p1": "39144558946094707a5223e4cedbf599e73b2ba7",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""跨车道语义等价核验 v2.4（r6 链 + r7-M1：pin 改 40-hex 全 SHA 精确比较 + pin 格式 fail-closed）。
+"""跨车道语义等价核验 v2.5（v2.4 + r14-M2/M3/L1：J07 内容谓词例外 + shell 字节级比较 + 脚本哈希自证 + 版本标识）。
 
 按后缀选择比较口径（均双端同口径；无法结构化则字节比较）：
   .py     → ast.dump(ast.parse)  相等
@@ -10,7 +10,8 @@
   其它     → 字节相等
 输出：每 lane 先打印 tip SHA；末行 verdict=PASS/FAIL(n)。声明例外（多写者并集面）单列。
 """
-import ast, configparser, io, json, subprocess, sys, tempfile, os
+import ast, configparser, hashlib, io, json, subprocess, sys, tempfile, os
+from pathlib import Path
 
 W = "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees"
 BASE = "9c4e7e82"
@@ -25,6 +26,7 @@ EXCEPTIONS = {
     "backend/app/graphiti/canvas_episode.py": "多写者并集面",
     "backend/tests/unit/test_neo4j_client.py": "多写者并集面",
     "docs/release-evidence/README.md": "多写者并集面（P5/P10）",
+    # r14-M2：J07 manifest 不再走“路径级”通用例外——改由 closeout_exception_ok() 内容谓词限定（仅允许 notes 变更）
 }
 
 # r5-H1 修复（fail-closed 三件套）：
@@ -32,6 +34,24 @@ EXCEPTIONS = {
 #  ② 逐 lane code-face pin（r3 对比轮 tip）：pin..HEAD 的非 _bmad-output 面必须为空，否则 [CODE-DRIFT]；
 #     P3 lane 冻结后的 docs-only 前进属 B15 显式排除面（见 b15-freeze-exclusions.json），代码面不动即容忍；
 #  ③ 计数下限：每 lane files>0 且 checked>=100，否则红（防空枚举 vacuous PASS）；末尾以退出码传播 verdict。
+J07_MANIFEST = "docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json"
+
+def closeout_exception_ok(path, a, b):
+    """r14-M2：收口期修正例外的内容谓词——J07 manifest 仅允许 `notes` 键变更；
+    其它键/解析失败/非本路径 ⇒ False（fail-closed）。"""
+    if path != J07_MANIFEST:
+        return False
+    try:
+        ja = json.loads(a.decode("utf-8"))
+        jb = json.loads(b.decode("utf-8"))
+    except Exception:
+        return False
+    if not (isinstance(ja, dict) and isinstance(jb, dict)):
+        return False
+    keys = set(ja) | set(jb)
+    changed = [k for k in sorted(keys) if ja.get(k) != jb.get(k)]
+    return changed == ["notes"]
+
 CODE_TIPS = {  # r7-M1：40-hex 全 SHA（禁止 8 位前缀比较）
     "p1": "39144558946094707a5223e4cedbf599e73b2ba7",
     "p2": "ac52e3b8ad7ecaca540153722f7b6aa9d050462e",
@@ -81,19 +101,35 @@ def load_allowed_drift():
     return allowed
 
 def run_self_test():
-    """--self-test：空 blob 判定的表驱动自证（全部 case 必须产生 failure）。"""
+    """--self-test：表驱动自证（空 blob 判定 + shell 字节级口径 + J07 内容谓词）。"""
+    ok = True
     cases = [
         ("both-empty", b"", b"", True),
         ("one-empty", b"x", b"", True),
         ("both-nonempty-equal", b"x", b"x", False),
     ]
-    ok = True
     for name, a, b, must_fail in cases:
         got = empty_failure(f"self-test/{name}", a, b) is not None
-        stat = "OK" if got == must_fail else "BAD"
         if got != must_fail:
             ok = False
-        print(f"[self-test] {name}: must_fail={must_fail} got={got} -> {stat}")
+        print(f"[self-test] {name}: must_fail={must_fail} got={got} -> {'OK' if got == must_fail else 'BAD'}")
+    sh_same = b'cat <<PY\n    sys.exit(4)\nPY\n'
+    sh_dedent = b'cat <<PY\nsys.exit(4)\nPY\n'
+    sh_eq = equiv("self-test/x.sh", sh_same, sh_same) in ("SH", "BYTES")  # 相同字节先短路为 BYTES
+    sh_dedent_caught = equiv("self-test/x.sh", sh_same, sh_dedent) is None
+    print(f"[self-test] sh-bytes-equal: expect=True got={sh_eq} -> {'OK' if sh_eq else 'BAD'}")
+    print(f"[self-test] sh-heredoc-dedent: expect=not-equivalent got={sh_dedent_caught} -> {'OK' if sh_dedent_caught else 'BAD'}")
+    ok = ok and sh_eq and sh_dedent_caught
+    j_notes = json.dumps({"notes": "x"}, ensure_ascii=False).encode()
+    j_notes2 = json.dumps({"notes": "y"}, ensure_ascii=False).encode()
+    j_other = json.dumps({"notes": "x", "result": "partial"}, ensure_ascii=False).encode()
+    j_other2 = json.dumps({"notes": "x", "result": "pass"}, ensure_ascii=False).encode()
+    p1 = closeout_exception_ok(J07_MANIFEST, j_notes, j_notes2) is True
+    p2 = closeout_exception_ok(J07_MANIFEST, j_other, j_other2) is False
+    p3 = closeout_exception_ok("docs/other.json", j_notes, j_notes2) is False
+    for nm, got in [("j07-notes-only", p1), ("j07-other-key-rejected", p2), ("j07-path-scoped", p3)]:
+        print(f"[self-test] {nm}: got={got} -> {'OK' if got else 'BAD'}")
+    ok = ok and p1 and p2 and p3
     return ok
 
 def run(args, cwd):
@@ -109,6 +145,14 @@ def blob_checked(cwd, ref, path):
     if show.returncode != 0:
         return False, b""
     return True, show.stdout
+
+def sh_syntax_ok(x):
+    with tempfile.NamedTemporaryFile("wb", suffix=".sh", delete=False) as f:
+        f.write(x); p = f.name
+    try:
+        return subprocess.run(["bash", "-n", p], capture_output=True).returncode == 0
+    finally:
+        os.unlink(p)
 
 def _try(fn, b):
     try:
@@ -140,23 +184,10 @@ def equiv(path, a, b):
         na, nb = _try(_ini, a), _try(_ini, b)
         return "INI" if (na is not None and na == nb) else None
     if path.endswith(".sh"):
-        def _syntax(x):
-            with tempfile.NamedTemporaryFile("wb", suffix=".sh", delete=False) as f:
-                f.write(x); p = f.name
-            rc = subprocess.run(["bash", "-n", p], capture_output=True).returncode
-            os.unlink(p)
-            return rc == 0
-        if not (_syntax(a) and _syntax(b)):
+        # r14-M3：bash -n + **字节相等**（旧口径 strip 去缩进会放过 heredoc 内嵌 Python 的缩进破坏）
+        if not (sh_syntax_ok(a) and sh_syntax_ok(b)):
             return None
-        def _lines(x):
-            out = []
-            for ln in x.decode("utf-8", "replace").splitlines():
-                s = ln.strip()
-                if not s or s.startswith("#"):
-                    continue
-                out.append(s)
-            return out
-        return "SH" if _lines(a) == _lines(b) else None
+        return "SH" if a == b else None
     return None
 
 equiv_n = exc_n = diff_n = missing_n = empty_n = lane_empty_n = 0
@@ -166,6 +197,7 @@ if "--self-test" in sys.argv:
     print(f"self_test={'PASS' if ok else 'FAIL'}")
     raise SystemExit(0 if ok else 1)
 print(f"# candidate={C} head={run_checked(['rev-parse','--short=8','HEAD'],C).decode().strip()}")
+print(f"# script_sha256={hashlib.sha256(Path(__file__).read_bytes()).hexdigest()} version=v2.5")
 for lane, d in LANES.items():
     L = f"{W}/card-{d}"
     tip_full = run_checked(["rev-parse", "HEAD"], L).decode().strip()
@@ -207,6 +239,9 @@ for lane, d in LANES.items():
         how = equiv(f, a, b)
         if how:
             equiv_n += 1
+        elif closeout_exception_ok(f, a, b):
+            exc_n += 1
+            print(f"  [EXCEPTION] {f} —— B15 收口期修正（内容谓词：仅 notes；r14-M2）")
         elif f in EXCEPTIONS:
             exc_n += 1
             print(f"  [EXCEPTION] {f} —— {EXCEPTIONS[f]}")
