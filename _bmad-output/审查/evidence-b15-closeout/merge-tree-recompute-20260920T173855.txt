@@ -1,0 +1,11 @@
+# merge-tree 重算（feature HEAD 59e1f494 × 候选 tip ad076899）  2026-09-20 17:38:55 -0700
+== git merge-base --is-ancestor 59e1f494 HEAD ==
+ancestor=YES（ff-only 前提成立）
+== git merge-tree --write-tree 59e1f494 HEAD ==
+error: unable to create temporary file: Operation not permitted
+fatal: failure to merge
+rc=0
+== 反向（候选 × feature 工作树脏面）：仅列出 feature 侧 tracked-dirty 与本候选 diff 的交集 ==
+(pre-ff 交集见 cross-lane 同族 audit；协议文件 1 项需 restore)
+== 候选 tip tree ==
+546be5acdf1cd29b7b147f0f55bbf7341ba72357

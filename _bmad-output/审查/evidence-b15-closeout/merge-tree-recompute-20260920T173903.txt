@@ -1,0 +1,8 @@
+# merge-tree 重算（feature HEAD 59e1f494 × 候选 tip ad076899）  2026-09-20 17:39:03 -0700
+== git merge-base --is-ancestor 59e1f494 HEAD ==
+ancestor=YES（ff-only 前提成立）
+== git merge-tree --write-tree 59e1f494 HEAD ==
+546be5acdf1cd29b7b147f0f55bbf7341ba72357
+git_merge_tree_rc=0
+== 候选 tip tree ==
+546be5acdf1cd29b7b147f0f55bbf7341ba72357
