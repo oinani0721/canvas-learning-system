@@ -14,8 +14,8 @@
 - tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
 - G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 **v2.5.1** verdict=PASS（129 文件：122 equiv + **7** 声明例外〔J07 manifest 走内容谓词：仅 notes〕；missing=0/empty=0/lane_empty=0/failures=0；`script_sha256=7c01d736…` version=v2.5.1；shell=字节级 + `bash -n` 硬门；7 负控 + 9 case self-test 全文入库）——fail-closed（git rc + 退出码 + 空 blob 即红 + 计数下限 + **40-hex 全 SHA pin**〔8 位前缀不豁免〕+ P3-only docs-drift 白名单〔解析 `b15-freeze-exclusions.json`〕）；`--self-test` + **6 个 one-line 变异负控**（badbase/drift/tipdrift/missingkey/shortpin/prefixcollision）全文入库。
 - **schemathesis 90-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
-- G8-10 checker digest 档（r20-M1 起每轮刷新）：`g810-checker-final-digest-20260921T031238.txt`（绑生成时 tip=7f5b31fc；dirty_tracked=0/failures=0；**digest 含 HEAD ⇒ 随任一后续提交变化**，复算=占位探针读 actual 再回填；档内披露一拍滞后）。
-- 汇报时序/完整性机器门 **v5**：`check-report-chronology.py`——事件时间 ≤ 引入 commit（`git blame`）+ 期望值从 STATUS/台账推导（序列连续无缺无重、pending==max+1、台账最新行含同一 next、权威文件须已提交）+ **`--expect-rows-sha256` 必填** + 3 类自证；PASS/自证档含全量 stdout 与输出 sha。
+- G8-10 checker digest 档（r20-M1 起每轮刷新）：`g810-checker-final-digest-20260921T033459.txt`（exact argv 版；绑生成时 tip=703c45bd；dirty_tracked=0/failures=0；**digest 含 HEAD ⇒ 随任一后续提交变化**，复算=占位探针读 actual 再回填；档内披露一拍滞后）。
+- 汇报时序/完整性机器门 **v5.1**：`check-report-chronology.py`——事件时间 ≤ 引入 commit（`git blame`）+ 期望值从 STATUS/台账推导（序列连续无缺无重、pending==max+1、台账最新行含同一 next、权威文件须已提交）+ **`--expect-rows-sha256` 必填** + 3 类自证；PASS/自证档含全量 stdout 与输出 sha。
 - J07 开窗前置证据补档：`j07-window-open-preflight-recapture-20260920T2326.txt`（r12-L1 处置；5/5 部署一致 + docker StartedAt + :05 档 + 8011 GET 200；原 18:23 原始档缺失已登记）。
 - D40 `04eb9a9f`：format-only（480 `.py` + openapi 时间戳）；`LEFTHOOK_EXCLUDE=python-lint` 归因证据 = `d40-hook-exclusion-evidence-20260920T225429.txt`（协议 §2.3：hook 原始输出 2×F821 rc=1 + 父子 AST 全等/名次相同 + `ruff format --check` 复跑 rc=0）。
 - 推送：分支 local=origin=backup 逐 commit 对齐；`83a280db` 的 branch push 自证 = `branch-push-verify-20260920T203135.txt`（local/origin/backup 三列 + ls-remote 活态）；**35 tag 逐个三列 SHA 全 OK**（`push-and-tags-evidence-20260920T202239.txt` + `push-and-tags-evidence-20260920T203021.txt`）。
@@ -43,7 +43,8 @@
 - r18（绑 `aa8936fb`）：**B0/H0/M1/L2**（M1=删行+补行可绕过完备性门；L1=docstring 仍写 pickaxe；L2=审计档未逐段记录命令/HEAD/hash）→ 整改见 `D-15-r18-整改说明.md`（门 v3：轮次连续/无重复 + 行集合 sha256 + 待跑指针对账 + 3 类自证；docstring 修正；审计档逐段命令）；**r18 已确认简单删行/漏最新轮守卫有效**；**r18 复核存档已入库**。
 - r19（绑 `9a885ac7`）：**B0/H0/M1/L2**（M1=门期望值由 caller 常量提供、report 滞后两轮仍 PASS；L1=STATUS 摘要版本滞后；L2=审计档命令非字面复现）→ 整改见 `D-15-r19-整改说明.md`（门 **v4**：期望值从 STATUS/台账推导 + 报告补 r17/r18 行 + 摘要同步 + 字面绝对路径命令档）；**r19 已确认 v3 三类攻击负控有效**；**r19 复核存档已入库**。
 - r20（绑 `7f5b31fc`）：**B0/H0/M2/L4**（M1=digest 档旧 tip；M2=审计档常规段截断；L1=门 sha 可选/序列未查；L2=整改说明滞后一行；L3=docstring 残留；L4=总账破损 token）→ 整改见 `D-15-r20-整改说明.md`（digest 档刷新 + 门 v5 + 全量 stdout + 台账补 r5 行 + 文档修正）；**r20 已确认 v4 字面复算 PASS**；**r20 复核存档已入库**。
-- r21：绑定本整改档（GLM-5.3 max；prompt 审后随 r21 档入库）——待跑。
+- r21（绑 `703c45bd`）：**B0/H0/M0/L5**（L1=digest 档命令非字面；L2=版本标签不一；L3=23/24 行笔误；L4=审计档 runner HEAD 与脚本 hash 非同 blob；L5=台账序列守卫缺口）→ 整改见 `D-15-r21-整改说明.md`（exact argv/绝对路径/底物 hash；标签统一 v5.1；数字修正；审计档在提交态重跑〔runner HEAD == 脚本 blob〕；台账 r4 起始+物理序守卫）；**r21 已确认 r20 的 M1/M2 与 L1–L4 实质闭合及 W19b 勘误成立**；**r21 复核存档已入库**。
+- r22：绑定本整改档（GLM-5.3 max；prompt 审后随 r22 档入库）——待跑。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。

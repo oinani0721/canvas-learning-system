@@ -1,4 +1,4 @@
-"""汇报时序/完整性机器门 v5（v4 + r20-M2/L1/L3：sha 必填 + 权威序列连续/已提交 + 描述清理）。
+"""汇报时序/完整性机器门 v5.1（v5 + r21-L2/L5：版本标签同步 + 台账序列强制 r4 起始且物理升序）。
 
 判据（任一失败 rc=1）：
   ① 每 `| MM-DD HH:MM[:SS] |` 行事件时间 ≤ 其引入 commit committer 时间（`git blame --porcelain -L` 逐行）；
@@ -37,7 +37,7 @@ def rows_sha256(rows):
     return hashlib.sha256("\n".join(l for (_, l, _) in rows).encode("utf-8")).hexdigest()
 
 def authoritative_state(root):
-    """v4：从 STATUS/台账 推导 {completed,next}；不自洽 ⇒ 返回 (None,None,failures)。"""
+    """v5.1：从 STATUS/台账 推导 {completed,next}；不自洽 ⇒ 返回 (None,None,failures)。"""
     bad = []
     st = (root / STATUS).read_text(encoding="utf-8").splitlines()
     completed = sorted(int(m.group(1)) for m in (re.match(r"^- r(\d+)（绑 ", l) for l in st) if m)
@@ -62,6 +62,11 @@ def authoritative_state(root):
         bad.append(f"status-completed 非连续: {['r' + str(n) for n in completed]}")
     if l_rounds and l_rounds != list(range(min(l_rounds), max(l_rounds) + 1)):  # 台账 D-15 行自 r4 起
         bad.append(f"ledger-rounds 非连续: {['r' + str(n) for n in l_rounds]}")
+    if l_rounds and min(l_rounds) != 4:
+        bad.append(f"ledger-start: 台账 D-15 行必须自 r4 起（实测 min=r{min(l_rounds)}）")
+    raw_rounds = [int(m.group(1)) for m in (re.match(r"^\| \*\*B15 D-15 终审（r(\d+)）\*\*", l) for l in lg) if m]
+    if raw_rounds != sorted(raw_rounds):
+        bad.append(f"ledger-order: 台账 D-15 行物理乱序: {raw_rounds}")
     dirty = subprocess.run(["git", "status", "--porcelain", "--", STATUS, LEDGER], cwd=root, capture_output=True, text=True).stdout.strip()
     if dirty:
         bad.append(f"authority-dirty: STATUS/台账 工作区未提交变更: {dirty.splitlines()[:2]}")
