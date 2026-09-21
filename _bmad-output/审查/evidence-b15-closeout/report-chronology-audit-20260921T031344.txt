@@ -1,0 +1,45 @@
+# 汇报时序/完整性机器门 v5.1 实跑（全量 stdout；逐段命令+输出 sha；rc 直接取自脚本退出码） 20260921T031344
+# runner HEAD=28d020448462e9efa7c8a8fee4cef5cf7823e1e2
+# script(相对根)=_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py sha256=1784b48eda0f3df6b8b5b7d853f57283ec522b3369856180d40c35d9785d79d7
+# cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev
+# 勘误：W19b 档（report-chronology-audit-20260921T031308.txt）因捕获脚本 '|| true' 掩码把自证 rc=1 记成 0，且当时 checker 的 case-(a) 断言过窄；本档为修正后重跑。
+
+## 段 1：常规逐行检查（全量 stdout）
+$ cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev && python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev --min-round r4 --expect-rows-sha256 eb8b6c8d385ebaaed9cb8c09432aa3642dbe93793ed23104a28a350f8ea128dc
+[OK] :8 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :9 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :10 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :11 row=09-19 18:21 commit=09-20 17:52:12 -> row<=commit
+[OK] :12 row=09-19 20:59 commit=09-20 17:52:12 -> row<=commit
+[OK] :14 row=09-20 17:50 commit=09-20 22:55:23 -> row<=commit
+[OK] :15 row=09-20 20:30 commit=09-20 23:08:38 -> row<=commit
+[OK] :16 row=09-20 20:53 commit=09-20 20:54:06 -> row<=commit
+[OK] :17 row=09-20 21:12 commit=09-20 21:12:32 -> row<=commit
+[OK] :18 row=09-20 21:29 commit=09-20 22:37:22 -> row<=commit
+[OK] :19 row=09-20 21:51 commit=09-20 22:37:22 -> row<=commit
+[OK] :20 row=09-20 22:15 commit=09-20 22:36:34 -> row<=commit
+[OK] :21 row=09-20 22:36 commit=09-20 22:36:34 -> row<=commit
+[OK] :22 row=09-20 22:55 commit=09-20 22:55:23 -> row<=commit
+[OK] :23 row=09-20 23:05 commit=09-20 23:08:38 -> row<=commit
+[OK] :24 row=09-20 23:20 commit=09-20 23:27:40 -> row<=commit
+[OK] :25 row=09-20 23:40 commit=09-20 23:45:32 -> row<=commit
+[OK] :26 row=09-21 00:18 commit=09-21 01:43:25 -> row<=commit
+[OK] :27 row=09-21 01:19 commit=09-21 01:43:25 -> row<=commit
+[OK] :28 row=09-21 01:45 commit=09-21 02:09:36 -> row<=commit
+[OK] :29 row=09-21 02:05 commit=09-21 02:50:58 -> row<=commit
+[OK] :30 row=09-21 02:28 commit=09-21 02:50:58 -> row<=commit
+[OK] :31 row=09-21 02:49 commit=09-21 02:50:58 -> row<=commit
+[OK] :32 row=09-21 03:05 commit=09-21 03:13:07 -> row<=commit
+
+rows=24 rows_sha256=eb8b6c8d385ebaaed9cb8c09432aa3642dbe93793ed23104a28a350f8ea128dc min_round=r4 completed=r20 next=r21 violations=0
+verdict=PASS
+rc=0
+输出 sha256=024b8d2c8b1cde60119322033527b54abfa58d79ed4be026623d43d90fe0a7bf
+
+## 段 2：自证 --self-test（全量 stdout）
+$ cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev && python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev --min-round r4 --self-test
+[self-test] drop-last-row caught: True (["round-set mismatch: 报告=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19'] != 期望标注轮次=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20']（r1–r3 为叙事行）"]) -> OK
+[self-test] delete+duplicate bypass caught: True (['min-round mismatch: 期望 r4，实测 r5', "round-set mismatch: 报告=['r19', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20'] != 期望标注轮次=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20']（r1–r3 为叙事行）"]) -> OK
+[self-test] rows-sha256 tamper caught: True -> OK
+selftest_rc=0
+输出 sha256=e8191fb5b48ad983dd92bc3f0e33eed42fe7401879844244cdd0f6fcfeb15d7a
