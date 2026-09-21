@@ -1,7 +1,7 @@
 # J07 开窗前置证据补档（r12-L1 处置）  recapture @ 2026-09-20 23:26 PDT
 # 原始声称：台账 :157「J07 窗口 2026-09-20 18:23 开启（用户口令 + 前置四查：live 5/5 == 车道验证版 / 容器 StartedAt / :05 档 / 8011 GET）」；1e907037 message 同。
 # 契约要求：P5-C §一(c)「开窗前主 session 须已把 P5-A(R3)+P5-B 合入并部署 live、并核过一档 launchd（:05）已跑新代码（车道只读 log 与 docker ps 存档）」。
-# ⚠️ 登记（r12-L1 属实）：18:23 时点的四查**原始输出未落树**。本档为 23:26 的**复算/复捕获**（时点不同，不能替代原始档）；原始权威记录 = 1e907037 message + 台账 :157（不修改）。
+# ⚠️ 登记（r12-L1 属实）：18:23 时点的四查**原始输出未落树**。本档为 23:26 的**复算/复捕获**（时点不同，不能替代原始档）；原始权威记录 = 1e907037 message + 台账 :157（r12 仅追加证据指针，原正文保留）。
 
 ## 复算 1：live 5/5 部署一致性（2026-09-20 23:26 复跑）
 命令：`shasum -a 256` 逐文件对比 [live vault 副本] / [feature 主干树副本] / [card-p5-review 车道副本]（后两文件为 主干树 vs 车道）：
@@ -12,7 +12,7 @@
 - `scripts/daily_review_pick.py`  wt=9a6936a4…11df3a  lane=同  ⇒ **YES**
 结果：5/5 一致。
 
-## 复算 2：容器 StartedAt（2026-09-20 23:26:35 捕获）
+## 复算 2：容器创建时间/uptime（`docker ps`，23:26:35）与精确 State.StartedAt（`docker inspect`，23:44:59）
 # captured 2026-09-20 23:26:35 -0700
 $ docker ps --format '{{.Names}}	{{.Status}}	{{.CreatedAt}}'
 canvas-learning-system-backend	Up 9 hours (healthy)	2026-08-30 22:50:31 -0700 PDT
@@ -43,3 +43,13 @@ http_code=200；响应 4461 bytes，sha256=dabeb86e756e1a719be598073e3a52c51450d
 ## 结论与限制登记
 - 可恢复子集（23:26 复算）= 5/5 部署一致 + 容器 healthy/StartedAt 可读 + 开窗后 :05 档在场 + 8011 GET 200 ⇒ 与「18:23 窗口已开」相符。
 - **未闭合面**：18:23 时点四查的原始输出档缺失（本档已如实登记）；其权威记录为 1e907037 message + 台账 :157。后续如需原始级证据，应在下一次窗口开启时按 P5-C §一(c) 即时落档。
+
+补充（r13-L1 处置，23:44:59 捕获）：`docker ps` 的 `{{.CreatedAt}}`+`Up` 不是精确 StartedAt；下为 `docker inspect {{.State.StartedAt}}` 原始输出：
+# captured 2026-09-20 23:44:59 -0700
+$ docker inspect --format '{{.Name}} StartedAt={{.State.StartedAt}} FinishedAt={{.State.FinishedAt}}' <3 containers>
+/canvas-learning-system-backend StartedAt=2026-09-20T21:01:44.702960167Z FinishedAt=2026-09-20T21:01:43.922639375Z
+/canvas-learning-system-neo4j-test StartedAt=2026-09-20T21:01:44.7026575Z FinishedAt=2026-09-20T21:01:43.922649166Z
+/canvas-learning-system-neo4j StartedAt=2026-09-20T21:01:44.7038705Z FinishedAt=2026-09-20T21:01:43.922652416Z
+inspect_rc=0
+⇒ 三个容器 StartedAt 均为 2026-09-20T21:01:44Z（= 14:01 PDT，早于 18:23 开窗），与台账「Docker 14:02 起容器 healthy」一致。
+

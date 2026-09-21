@@ -25,6 +25,7 @@ EXCEPTIONS = {
     "backend/app/graphiti/canvas_episode.py": "多写者并集面",
     "backend/tests/unit/test_neo4j_client.py": "多写者并集面",
     "docs/release-evidence/README.md": "多写者并集面（P5/P10）",
+    "docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json": "B15 收口期修正（r12-M1：notes 补记开窗终态；P5 lane 为开窗前快照；r13-B1 登记）",
 }
 
 # r5-H1 修复（fail-closed 三件套）：
