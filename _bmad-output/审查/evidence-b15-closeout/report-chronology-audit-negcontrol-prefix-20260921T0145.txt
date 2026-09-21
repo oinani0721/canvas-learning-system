@@ -1,0 +1,24 @@
+# 负控（r16-L1 敏感性证明）：修复前的 `check-report-chronology.py` 实跑——恰捕捉 2 处负时序（:26/:27）
+# 命令：python3 check-report-chronology.py <树根>
+[OK] :8 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :9 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :10 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :11 row=09-19 18:21 commit=09-20 17:52:12 -> row<=commit
+[OK] :12 row=09-19 20:59 commit=09-20 17:52:12 -> row<=commit
+[OK] :14 row=09-20 17:50 commit=09-20 22:55:23 -> row<=commit
+[OK] :15 row=09-20 20:30 commit=09-20 23:08:38 -> row<=commit
+[OK] :16 row=09-20 20:53 commit=09-20 20:54:06 -> row<=commit
+[OK] :17 row=09-20 21:12 commit=09-20 21:12:32 -> row<=commit
+[OK] :18 row=09-20 21:29 commit=09-20 22:37:22 -> row<=commit
+[OK] :19 row=09-20 21:51 commit=09-20 22:37:22 -> row<=commit
+[OK] :20 row=09-20 22:15 commit=09-20 22:36:34 -> row<=commit
+[OK] :21 row=09-20 22:36 commit=09-20 22:36:34 -> row<=commit
+[OK] :22 row=09-20 22:55 commit=09-20 22:55:23 -> row<=commit
+[OK] :23 row=09-20 23:05 commit=09-20 23:08:38 -> row<=commit
+[OK] :24 row=09-20 23:20 commit=09-20 23:27:40 -> row<=commit
+[OK] :25 row=09-20 23:40 commit=09-20 23:45:32 -> row<=commit
+[FAIL] :26 row=09-21 00:20 commit=09-21 00:18:37 -> row>commit
+[FAIL] :27 row=09-21 01:22 commit=09-21 01:19:38 -> row>commit
+
+rows=19 violations=2
+verdict=FAIL
