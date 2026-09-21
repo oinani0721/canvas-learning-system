@@ -503,6 +503,4 @@ async def test_missing_timestamp_does_not_overwrite_newer_score(gate_client, aut
     )
     fw = second.json()["failed_writes"]
     assert fw.get("pending") == 1, f"缺时间戳条目应留待（fail-closed）: {fw!r}"
-    assert f"{_GATE_RID_PREFIX}t2" in fss.FAILED_WRITES_FILE.read_text(encoding="utf-8"), (
-        "缺时间戳条目必须留在文件里"
-    )
+    assert f"{_GATE_RID_PREFIX}t2" in fss.FAILED_WRITES_FILE.read_text(encoding="utf-8"), "缺时间戳条目必须留在文件里"

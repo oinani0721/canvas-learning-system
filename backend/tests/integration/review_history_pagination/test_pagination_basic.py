@@ -261,9 +261,7 @@ class TestReviewHistoryPaginationBehavior:
     def test_has_more_true_when_more_records(self, client):
         """Test has_more is True when more records exist beyond limit."""
         with patch(REVIEW_SERVICE_PATCH) as mock_get:
-            mock_get.return_value = make_mock_review_service(
-                {"records": [], "has_more": True, "streak_days": 0}
-            )
+            mock_get.return_value = make_mock_review_service({"records": [], "has_more": True, "streak_days": 0})
             response = client.get("/api/v1/review/history?limit=5")
 
             assert response.status_code == 200

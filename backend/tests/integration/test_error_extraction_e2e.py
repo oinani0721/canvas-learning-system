@@ -43,8 +43,7 @@ async def test_e2e_dialog_to_frontmatter_full_pipeline(tmp_path):
     # 创建临时节点 .md
     node_file = tmp_path / "admissibility.md"
     node_file.write_text(
-        "---\ntype: concept\nmastery_score: 0.45\n---\n\n"
-        "# Admissibility\n\nAdmissibility 是 ...\n",
+        "---\ntype: concept\nmastery_score: 0.45\n---\n\n# Admissibility\n\nAdmissibility 是 ...\n",
         encoding="utf-8",
     )
 
@@ -61,23 +60,23 @@ async def test_e2e_dialog_to_frontmatter_full_pipeline(tmp_path):
     )
 
     # Mock 分类阶段返回 KNOWLEDGE_GAP + 0.85 confidence
-    mock_classify = AsyncMock(
-        return_value=(ErrorType.KNOWLEDGE_GAP, 0.85)
-    )
+    mock_classify = AsyncMock(return_value=(ErrorType.KNOWLEDGE_GAP, 0.85))
 
     # Mock memory_service (Graphiti 写入不阻塞)
     mock_memory_svc = AsyncMock()
     mock_memory_svc.record_knowledge_entity = AsyncMock(return_value=None)
 
-    with patch.object(
-        extractor, "_llm_extract", new=mock_extract
-    ), patch.object(
-        extractor._classifier,
-        "_llm_classify_with_confidence",
-        new=mock_classify,
-    ), patch(
-        "app.services.memory_service.get_memory_service",
-        new=AsyncMock(return_value=mock_memory_svc),
+    with (
+        patch.object(extractor, "_llm_extract", new=mock_extract),
+        patch.object(
+            extractor._classifier,
+            "_llm_classify_with_confidence",
+            new=mock_classify,
+        ),
+        patch(
+            "app.services.memory_service.get_memory_service",
+            new=AsyncMock(return_value=mock_memory_svc),
+        ),
     ):
         messages = [
             DialogMessage(role="user", content="admissibility 就是 consistency 吧?"),
@@ -85,9 +84,7 @@ async def test_e2e_dialog_to_frontmatter_full_pipeline(tmp_path):
         ]
 
         # Step 1: 提取 + 分类
-        classified_list = await extractor.extract_and_classify(
-            messages, node_id="admissibility", session_id="sess1"
-        )
+        classified_list = await extractor.extract_and_classify(messages, node_id="admissibility", session_id="sess1")
 
         assert len(classified_list) == 1
         classified = classified_list[0]
@@ -141,9 +138,7 @@ async def test_e2e_dialog_no_errors_no_writes(tmp_path):
     extractor = ErrorExtractor()
 
     # Mock LLM 提取阶段返回空 list (对话无错误)
-    with patch.object(
-        extractor, "_llm_extract", new=AsyncMock(return_value=[])
-    ):
+    with patch.object(extractor, "_llm_extract", new=AsyncMock(return_value=[])):
         classified_list = await extractor.extract_and_classify(
             [
                 DialogMessage(role="user", content="什么是特征值?"),
@@ -189,9 +184,7 @@ async def test_e2e_record_error_mcp_tool_full_pipeline(tmp_path, monkeypatch):
     _ = monkeypatch  # 保留参数签名兼容 (虽然不再用 monkeypatch)
 
     # Mock LLM classify 返回 SUPERFICIAL + confidence 0.7
-    mock_classify = AsyncMock(
-        return_value=(ErrorType.SUPERFICIAL, 0.7)
-    )
+    mock_classify = AsyncMock(return_value=(ErrorType.SUPERFICIAL, 0.7))
 
     # Mock memory_service
     mock_memory_svc = AsyncMock()
@@ -207,19 +200,24 @@ async def test_e2e_record_error_mcp_tool_full_pipeline(tmp_path, monkeypatch):
 
     classifier = get_error_classifier()
 
-    with patch.object(
-        classifier,
-        "_llm_classify_with_confidence",
-        new=mock_classify,
-    ), patch(
-        "app.services.memory_service.get_memory_service",
-        new=AsyncMock(return_value=mock_memory_svc),
-    ), patch(
-        "app.mcp.tools.error_tools.get_audit_guardian",
-        return_value=mock_guardian,
-    ), patch(
-        "app.mcp.tools.error_tools._resolve_node_file_path",
-        return_value=str(node_file),
+    with (
+        patch.object(
+            classifier,
+            "_llm_classify_with_confidence",
+            new=mock_classify,
+        ),
+        patch(
+            "app.services.memory_service.get_memory_service",
+            new=AsyncMock(return_value=mock_memory_svc),
+        ),
+        patch(
+            "app.mcp.tools.error_tools.get_audit_guardian",
+            return_value=mock_guardian,
+        ),
+        patch(
+            "app.mcp.tools.error_tools._resolve_node_file_path",
+            return_value=str(node_file),
+        ),
     ):
         result = await record_error(
             node_id="节点/transfer-error",
@@ -254,9 +252,7 @@ async def test_e2e_record_error_mcp_tool_full_pipeline(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_e2e_record_error_low_confidence_marked_ambiguous(
-    tmp_path, monkeypatch
-):
+async def test_e2e_record_error_low_confidence_marked_ambiguous(tmp_path, monkeypatch):
     """confidence < 0.6 → is_ambiguous=True (PRD AC #2)."""
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
@@ -267,9 +263,7 @@ async def test_e2e_record_error_low_confidence_marked_ambiguous(
     # canvas_base_path 是 property, 用 patch _resolve_node_file_path 替代
     _ = monkeypatch  # 保留参数签名
 
-    mock_classify = AsyncMock(
-        return_value=(ErrorType.PROBLEM_FRAMING, 0.45)
-    )
+    mock_classify = AsyncMock(return_value=(ErrorType.PROBLEM_FRAMING, 0.45))
     mock_memory_svc = AsyncMock()
     mock_memory_svc.record_knowledge_entity = AsyncMock(return_value=None)
     mock_guardian = AsyncMock()
@@ -280,19 +274,24 @@ async def test_e2e_record_error_low_confidence_marked_ambiguous(
 
     classifier = get_error_classifier()
 
-    with patch.object(
-        classifier,
-        "_llm_classify_with_confidence",
-        new=mock_classify,
-    ), patch(
-        "app.services.memory_service.get_memory_service",
-        new=AsyncMock(return_value=mock_memory_svc),
-    ), patch(
-        "app.mcp.tools.error_tools.get_audit_guardian",
-        return_value=mock_guardian,
-    ), patch(
-        "app.mcp.tools.error_tools._resolve_node_file_path",
-        return_value=str(node_file),
+    with (
+        patch.object(
+            classifier,
+            "_llm_classify_with_confidence",
+            new=mock_classify,
+        ),
+        patch(
+            "app.services.memory_service.get_memory_service",
+            new=AsyncMock(return_value=mock_memory_svc),
+        ),
+        patch(
+            "app.mcp.tools.error_tools.get_audit_guardian",
+            return_value=mock_guardian,
+        ),
+        patch(
+            "app.mcp.tools.error_tools._resolve_node_file_path",
+            return_value=str(node_file),
+        ),
     ):
         result = await record_error(
             node_id="节点/low-conf",
@@ -307,9 +306,7 @@ async def test_e2e_record_error_low_confidence_marked_ambiguous(
 
 
 @pytest.mark.asyncio
-async def test_e2e_record_error_graphiti_failure_frontmatter_succeeds(
-    tmp_path, monkeypatch
-):
+async def test_e2e_record_error_graphiti_failure_frontmatter_succeeds(tmp_path, monkeypatch):
     """AC #6 — Graphiti 失败时 frontmatter 仍成功 (本地优先)."""
     vault_root = tmp_path / "vault"
     vault_root.mkdir()
@@ -320,9 +317,7 @@ async def test_e2e_record_error_graphiti_failure_frontmatter_succeeds(
     # canvas_base_path 是 property, 用 patch _resolve_node_file_path 替代
     _ = monkeypatch  # 保留参数签名
 
-    mock_classify = AsyncMock(
-        return_value=(ErrorType.REASONING_FALLACY, 0.8)
-    )
+    mock_classify = AsyncMock(return_value=(ErrorType.REASONING_FALLACY, 0.8))
     # memory_service 不可用 → ImportError
     mock_get_memory = AsyncMock(side_effect=ImportError("graphiti down"))
 
@@ -334,21 +329,25 @@ async def test_e2e_record_error_graphiti_failure_frontmatter_succeeds(
 
     classifier = get_error_classifier()
 
-    with patch.object(
-        classifier,
-        "_llm_classify_with_confidence",
-        new=mock_classify,
-    ), patch(
-        "app.services.memory_service.get_memory_service",
-        new=mock_get_memory,
-    ), patch(
-        "app.mcp.tools.error_tools.get_audit_guardian",
-        return_value=mock_guardian,
-    ), patch(
-        "app.services.error_writer.GRAPHITI_RETRY_INTERVAL_S", 0.001
-    ), patch(
-        "app.mcp.tools.error_tools._resolve_node_file_path",
-        return_value=str(node_file),
+    with (
+        patch.object(
+            classifier,
+            "_llm_classify_with_confidence",
+            new=mock_classify,
+        ),
+        patch(
+            "app.services.memory_service.get_memory_service",
+            new=mock_get_memory,
+        ),
+        patch(
+            "app.mcp.tools.error_tools.get_audit_guardian",
+            return_value=mock_guardian,
+        ),
+        patch("app.services.error_writer.GRAPHITI_RETRY_INTERVAL_S", 0.001),
+        patch(
+            "app.mcp.tools.error_tools._resolve_node_file_path",
+            return_value=str(node_file),
+        ),
     ):
         result = await record_error(
             node_id="节点/graphiti-fail",

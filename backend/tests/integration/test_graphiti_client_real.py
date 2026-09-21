@@ -130,8 +130,7 @@ class TestRealNeo4jEdgeClientMethods:
 
             # Seed a searchable node
             await client.run_query(
-                "CREATE (n:Node {id: $nodeId, name: $name, text: $text, "
-                "canvas_path: $canvas})",
+                "CREATE (n:Node {id: $nodeId, name: $name, text: $text, canvas_path: $canvas})",
                 nodeId=f"{prefix}search_node",
                 name=f"{prefix}graph_theory",
                 text="graph theory foundations",
@@ -141,9 +140,7 @@ class TestRealNeo4jEdgeClientMethods:
             graphiti = Neo4jEdgeClient(neo4j_client=client)
             await graphiti.initialize()
 
-            results = await graphiti.search_nodes(
-                "graph theory", canvas_path=f"{prefix}test.canvas"
-            )
+            results = await graphiti.search_nodes("graph theory", canvas_path=f"{prefix}test.canvas")
 
             assert len(results) >= 1
             assert any("graph theory" in r.get("content", "") for r in results)

@@ -111,16 +111,12 @@ class TestAgentCanvasParamValidation:
     # AC-3.1: Valid Canvas Names Accepted
     # ========================================
 
-    def test_decompose_basic_accepts_simple_filename(
-        self, integration_client: TestClient, temp_canvas_dir: Path
-    ):
+    def test_decompose_basic_accepts_simple_filename(self, integration_client: TestClient, temp_canvas_dir: Path):
         """AC-3.1: Simple filename like 'test.canvas' should be accepted."""
         with (
             patch("app.api.v1.endpoints.agents.CanvasServiceDep"),
             patch("app.api.v1.endpoints.agents.AgentServiceDep") as mock_agent_svc,
-            patch(
-                "app.api.v1.endpoints.agents.ContextEnrichmentServiceDep"
-            ) as mock_ctx_svc,
+            patch("app.api.v1.endpoints.agents.ContextEnrichmentServiceDep") as mock_ctx_svc,
         ):
             # Mock ContextEnrichmentService response
             mock_enriched = MagicMock()
@@ -130,9 +126,7 @@ class TestAgentCanvasParamValidation:
             mock_enriched.y = 0
             mock_enriched.width = 250
             mock_enriched.height = 60
-            mock_ctx_svc.enrich_with_adjacent_nodes = AsyncMock(
-                return_value=mock_enriched
-            )
+            mock_ctx_svc.enrich_with_adjacent_nodes = AsyncMock(return_value=mock_enriched)
 
             # Mock AgentService response
             mock_agent_svc.decompose_basic = AsyncMock(
@@ -151,9 +145,7 @@ class TestAgentCanvasParamValidation:
                 f"Unexpected status code for valid canvas name: {response.status_code}"
             )
 
-    def test_decompose_basic_accepts_subdirectory_path(
-        self, integration_client: TestClient
-    ):
+    def test_decompose_basic_accepts_subdirectory_path(self, integration_client: TestClient):
         """AC-3.1: Subdirectory path like '笔记库/子目录/test.canvas' should be accepted."""
         response = integration_client.post(
             "/api/v1/agents/decompose/basic",
@@ -194,9 +186,7 @@ class TestAgentCanvasParamValidation:
     # AC-3.2: Path Traversal Rejected
     # ========================================
 
-    def test_decompose_basic_rejects_path_traversal(
-        self, integration_client: TestClient
-    ):
+    def test_decompose_basic_rejects_path_traversal(self, integration_client: TestClient):
         """AC-3.2: Path traversal attempt '../../../etc/passwd' should be rejected."""
         response = integration_client.post(
             "/api/v1/agents/decompose/basic",
@@ -212,14 +202,11 @@ class TestAgentCanvasParamValidation:
         # Note: Error response uses "message" field (from CORSExceptionMiddleware)
         error_json = response.json()
         error_message = error_json.get("message", "") or error_json.get("detail", "")
-        assert any(
-            keyword in error_message.lower()
-            for keyword in ["path", "invalid", "traversal"]
-        ), f"Error should mention path validation: {error_message}"
+        assert any(keyword in error_message.lower() for keyword in ["path", "invalid", "traversal"]), (
+            f"Error should mention path validation: {error_message}"
+        )
 
-    def test_decompose_deep_rejects_embedded_traversal(
-        self, integration_client: TestClient
-    ):
+    def test_decompose_deep_rejects_embedded_traversal(self, integration_client: TestClient):
         """AC-3.2: Embedded traversal 'test/../secret' should be rejected."""
         response = integration_client.post(
             "/api/v1/agents/decompose/deep",
@@ -242,9 +229,7 @@ class TestAgentCanvasParamValidation:
             f"Null byte injection should be rejected, got status: {response.status_code}"
         )
 
-    def test_explain_clarification_rejects_backslash(
-        self, integration_client: TestClient
-    ):
+    def test_explain_clarification_rejects_backslash(self, integration_client: TestClient):
         """AC-3.2: Backslash path 'test\\\\file' should be rejected."""
         response = integration_client.post(
             "/api/v1/agents/explain/clarification",
@@ -255,9 +240,7 @@ class TestAgentCanvasParamValidation:
             f"Backslash path should be rejected, got status: {response.status_code}"
         )
 
-    def test_explain_comparison_rejects_double_slash(
-        self, integration_client: TestClient
-    ):
+    def test_explain_comparison_rejects_double_slash(self, integration_client: TestClient):
         """AC-3.2: Double slash 'test//file' should be rejected."""
         response = integration_client.post(
             "/api/v1/agents/explain/comparison",
@@ -283,9 +266,7 @@ class TestAgentCanvasParamValidation:
     # AC-3.3: Full Flow Tests
     # ========================================
 
-    def test_all_agent_endpoints_handle_canvas_name_consistently(
-        self, integration_client: TestClient
-    ):
+    def test_all_agent_endpoints_handle_canvas_name_consistently(self, integration_client: TestClient):
         """AC-3.3: All 9 agent endpoints should handle canvas_name consistently."""
         endpoints = [
             ("/api/v1/agents/decompose/basic", "DecomposeRequest"),
@@ -316,9 +297,7 @@ class TestAgentCanvasParamValidation:
                     f"Endpoint {endpoint} incorrectly rejected valid path: {error_detail}"
                 )
 
-    def test_all_agent_endpoints_reject_traversal_consistently(
-        self, integration_client: TestClient
-    ):
+    def test_all_agent_endpoints_reject_traversal_consistently(self, integration_client: TestClient):
         """AC-3.3: All 9 agent endpoints should reject path traversal consistently."""
         endpoints = [
             ("/api/v1/agents/decompose/basic", "DecomposeRequest"),
@@ -380,9 +359,7 @@ class TestAgentCanvasParamEdgeCases:
         )
 
         # Unicode should be accepted (404 for not found is OK)
-        assert response.status_code in [200, 404, 500], (
-            f"Unicode path should be accepted: {response.status_code}"
-        )
+        assert response.status_code in [200, 404, 500], f"Unicode path should be accepted: {response.status_code}"
 
         if response.status_code == 500:
             error_detail = response.json().get("detail", "")
@@ -409,6 +386,4 @@ class TestAgentCanvasParamEdgeCases:
         )
 
         # Special chars like - _ ( ) should be OK
-        assert response.status_code in [200, 404, 500], (
-            f"Special chars should be accepted: {response.status_code}"
-        )
+        assert response.status_code in [200, 404, 500], f"Special chars should be accepted: {response.status_code}"

@@ -58,9 +58,7 @@ def mock_neo4j_client_json_fallback():
 def mock_memory_client():
     """Create a mock LearningMemoryClient for fallback testing."""
     client = MagicMock()
-    client.search_memories = AsyncMock(
-        return_value=[{"concept": "fallback_concept", "score": 80}]
-    )
+    client.search_memories = AsyncMock(return_value=[{"concept": "fallback_concept", "score": 80}])
     client.format_for_context = MagicMock(return_value="## Fallback Memory Context")
     return client
 
@@ -146,15 +144,11 @@ class TestAC1Neo4jClientInjection:
         assert service._neo4j_client is None
 
     @pytest.mark.asyncio
-    async def test_neo4j_client_used_for_query(
-        self, agent_service_with_neo4j, mock_neo4j_client, sample_neo4j_results
-    ):
+    async def test_neo4j_client_used_for_query(self, agent_service_with_neo4j, mock_neo4j_client, sample_neo4j_results):
         """Test that Neo4jClient.run_query is called when available"""
         mock_neo4j_client.run_query.return_value = sample_neo4j_results
 
-        result = await agent_service_with_neo4j._get_learning_memories(
-            content="微积分", canvas_name="数学笔记"
-        )
+        result = await agent_service_with_neo4j._get_learning_memories(content="微积分", canvas_name="数学笔记")
 
         # Verify run_query was called
         mock_neo4j_client.run_query.assert_called_once()
@@ -177,15 +171,11 @@ class TestAC2Neo4jQuery:
     """
 
     @pytest.mark.asyncio
-    async def test_cypher_query_structure(
-        self, agent_service_with_neo4j, mock_neo4j_client
-    ):
+    async def test_cypher_query_structure(self, agent_service_with_neo4j, mock_neo4j_client):
         """Test that Cypher query contains correct clauses"""
         mock_neo4j_client.run_query.return_value = []
 
-        await agent_service_with_neo4j._query_neo4j_memories(
-            content="导数计算", canvas_name="高等数学"
-        )
+        await agent_service_with_neo4j._query_neo4j_memories(content="导数计算", canvas_name="高等数学")
 
         # Get the query that was passed
         call_args = mock_neo4j_client.run_query.call_args
@@ -204,15 +194,11 @@ class TestAC2Neo4jQuery:
         assert "LIMIT 5" in query
 
     @pytest.mark.asyncio
-    async def test_query_params_passed_correctly(
-        self, agent_service_with_neo4j, mock_neo4j_client
-    ):
+    async def test_query_params_passed_correctly(self, agent_service_with_neo4j, mock_neo4j_client):
         """Test that query parameters are correctly passed"""
         mock_neo4j_client.run_query.return_value = []
 
-        await agent_service_with_neo4j._query_neo4j_memories(
-            content="微积分基础概念", canvas_name="数学Canvas"
-        )
+        await agent_service_with_neo4j._query_neo4j_memories(content="微积分基础概念", canvas_name="数学Canvas")
 
         call_args = mock_neo4j_client.run_query.call_args
         kwargs = call_args[1]  # Keyword arguments
@@ -234,9 +220,7 @@ class TestAC3RelevanceSorting:
     """
 
     @pytest.mark.asyncio
-    async def test_cypher_query_has_order_by_relevance(
-        self, agent_service_with_neo4j, mock_neo4j_client
-    ):
+    async def test_cypher_query_has_order_by_relevance(self, agent_service_with_neo4j, mock_neo4j_client):
         """Test that query contains ORDER BY relevance DESC"""
         mock_neo4j_client.run_query.return_value = []
 
@@ -250,9 +234,7 @@ class TestAC3RelevanceSorting:
         assert "m.relevance" not in query
 
     @pytest.mark.asyncio
-    async def test_cypher_query_has_limit_5(
-        self, agent_service_with_neo4j, mock_neo4j_client
-    ):
+    async def test_cypher_query_has_limit_5(self, agent_service_with_neo4j, mock_neo4j_client):
         """Test that query contains LIMIT 5"""
         mock_neo4j_client.run_query.return_value = []
 
@@ -275,9 +257,7 @@ class TestAC4CacheMechanism:
     """
 
     @pytest.mark.asyncio
-    async def test_cache_hit_on_second_query(
-        self, agent_service_with_neo4j, mock_neo4j_client, sample_neo4j_results
-    ):
+    async def test_cache_hit_on_second_query(self, agent_service_with_neo4j, mock_neo4j_client, sample_neo4j_results):
         """Test that second identical query hits cache"""
         mock_neo4j_client.run_query.return_value = sample_neo4j_results
 
@@ -305,9 +285,7 @@ class TestAC4CacheMechanism:
         mock_neo4j_client.run_query.return_value = sample_neo4j_results
 
         # First query
-        await agent_service_with_neo4j._get_learning_memories(
-            content="微积分", canvas_name="数学"
-        )
+        await agent_service_with_neo4j._get_learning_memories(content="微积分", canvas_name="数学")
 
         # Simulate cache expiration (TTLCache handles TTL internally;
         # for testing, delete the key to simulate expiration)
@@ -316,9 +294,7 @@ class TestAC4CacheMechanism:
             del agent_service_with_neo4j._memory_cache[cache_key]
 
         # Second query - should call Neo4j again due to expired cache
-        await agent_service_with_neo4j._get_learning_memories(
-            content="微积分", canvas_name="数学"
-        )
+        await agent_service_with_neo4j._get_learning_memories(content="微积分", canvas_name="数学")
 
         # Neo4j should be called twice (cache expired)
         assert mock_neo4j_client.run_query.call_count == 2
@@ -337,9 +313,7 @@ class TestAC5TimeoutMechanism:
     """
 
     @pytest.mark.asyncio
-    async def test_timeout_returns_empty_string(
-        self, agent_service_with_neo4j, mock_neo4j_client
-    ):
+    async def test_timeout_returns_empty_string(self, agent_service_with_neo4j, mock_neo4j_client):
         """Test that timeout returns empty string (graceful degradation)"""
 
         # Make run_query take longer than 500ms
@@ -349,23 +323,17 @@ class TestAC5TimeoutMechanism:
 
         mock_neo4j_client.run_query = slow_query
 
-        result = await agent_service_with_neo4j._get_learning_memories(
-            content="slow query test"
-        )
+        result = await agent_service_with_neo4j._get_learning_memories(content="slow query test")
 
         # Should return empty string on timeout
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_fast_query_returns_results(
-        self, agent_service_with_neo4j, mock_neo4j_client, sample_neo4j_results
-    ):
+    async def test_fast_query_returns_results(self, agent_service_with_neo4j, mock_neo4j_client, sample_neo4j_results):
         """Test that fast query returns results normally"""
         mock_neo4j_client.run_query.return_value = sample_neo4j_results
 
-        result = await agent_service_with_neo4j._get_learning_memories(
-            content="fast query test"
-        )
+        result = await agent_service_with_neo4j._get_learning_memories(content="fast query test")
 
         # Should return formatted results
         assert "历史学习记忆" in result
@@ -384,13 +352,9 @@ class TestAC6FallbackMechanism:
     """
 
     @pytest.mark.asyncio
-    async def test_fallback_when_json_fallback_mode(
-        self, agent_service_with_fallback, mock_memory_client
-    ):
+    async def test_fallback_when_json_fallback_mode(self, agent_service_with_fallback, mock_memory_client):
         """Test fallback to memory_client when NEO4J_MOCK=true"""
-        result = await agent_service_with_fallback._get_learning_memories(
-            content="fallback test"
-        )
+        result = await agent_service_with_fallback._get_learning_memories(content="fallback test")
 
         # Verify memory_client was used
         mock_memory_client.search_memories.assert_called_once()
@@ -405,9 +369,7 @@ class TestAC6FallbackMechanism:
         """Test that Neo4j is used when available (no fallback)"""
         mock_neo4j_client.run_query.return_value = sample_neo4j_results
 
-        result = await agent_service_with_neo4j._get_learning_memories(
-            content="neo4j test"
-        )
+        result = await agent_service_with_neo4j._get_learning_memories(content="neo4j test")
 
         # Verify Neo4j was used
         mock_neo4j_client.run_query.assert_called_once()
@@ -476,13 +438,9 @@ class TestMemoryFormatting:
         #   两个空格）；understanding 空 ⇒ 冒号后是空串（故行尾有一个空格）。[CARD-RED-C2]
         assert result == "## 历史学习记忆\n- [N/A]  未评分概念: "
 
-    def test_format_multiple_memories(
-        self, agent_service_with_neo4j, sample_neo4j_results
-    ):
+    def test_format_multiple_memories(self, agent_service_with_neo4j, sample_neo4j_results):
         """Test formatting multiple memory items"""
-        result = agent_service_with_neo4j._format_learning_memories(
-            sample_neo4j_results
-        )
+        result = agent_service_with_neo4j._format_learning_memories(sample_neo4j_results)
 
         # Should contain all concepts
         assert "微积分基础" in result
@@ -512,32 +470,24 @@ class TestEdgeCases:
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_neo4j_query_error_returns_empty(
-        self, agent_service_with_neo4j, mock_neo4j_client
-    ):
+    async def test_neo4j_query_error_returns_empty(self, agent_service_with_neo4j, mock_neo4j_client):
         """Test that Neo4j query error returns empty string"""
         mock_neo4j_client.run_query.side_effect = Exception("Neo4j connection failed")
 
-        result = await agent_service_with_neo4j._get_learning_memories(
-            content="error test"
-        )
+        result = await agent_service_with_neo4j._get_learning_memories(content="error test")
 
         assert result == ""
 
     @pytest.mark.asyncio
     async def test_no_neo4j_no_memory_client_returns_empty(self):
         """Test that service with no clients returns empty"""
-        service = AgentService(
-            gemini_client=None, memory_client=None, neo4j_client=None
-        )
+        service = AgentService(gemini_client=None, memory_client=None, neo4j_client=None)
 
         result = await service._get_learning_memories(content="test")
         assert result == ""
 
     @pytest.mark.asyncio
-    async def test_long_content_truncated(
-        self, agent_service_with_neo4j, mock_neo4j_client
-    ):
+    async def test_long_content_truncated(self, agent_service_with_neo4j, mock_neo4j_client):
         """Test that long content is truncated to 100 chars for query"""
         mock_neo4j_client.run_query.return_value = []
 

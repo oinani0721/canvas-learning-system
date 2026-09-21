@@ -19,9 +19,7 @@ def make_mock_neo4j(*, episodes=None, health_ok=True, fail_write=False):
     mock.get_all_recent_episodes = AsyncMock(return_value=episodes or [])
     mock.get_learning_history = AsyncMock(return_value=[])
     if fail_write:
-        mock.record_episode_to_neo4j = AsyncMock(
-            side_effect=Exception("Neo4j connection refused")
-        )
+        mock.record_episode_to_neo4j = AsyncMock(side_effect=Exception("Neo4j connection refused"))
     else:
         mock.record_episode_to_neo4j = AsyncMock(return_value=True)
     return mock

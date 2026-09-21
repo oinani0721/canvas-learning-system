@@ -73,16 +73,10 @@ async def trigger_archive(
     vault_id: Optional[str] = Query(
         default=None,
         min_length=1,
-        description=(
-            "Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Archive trigger per-vault."
-        ),
+        description=("Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Archive trigger per-vault."),
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> Dict[str, Any]:
     """
     Manually trigger an archive check.
@@ -121,12 +115,8 @@ async def get_archive_status(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Archive status per-vault.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> Dict[str, Any]:
     """
     Get the archive status for a node.
@@ -170,8 +160,7 @@ async def get_archive_status(
     "/summary/{node_id}",
     response_model=ArchiveSummaryResponse,
     summary="Get Warm stage conversation summary",
-    description="Get the LLM-generated conversation summary for a node "
-    "that has been archived to Warm tier.",
+    description="Get the LLM-generated conversation summary for a node that has been archived to Warm tier.",
 )
 async def get_archive_summary(
     node_id: str,
@@ -180,12 +169,8 @@ async def get_archive_summary(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Archive summary per-vault.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> Dict[str, Any]:
     """
     Get the archive summary for a Warm-tier node.
@@ -196,9 +181,7 @@ async def get_archive_summary(
     Returns:
         ArchiveSummaryResponse with summary and extraction counts.
     """
-    resolved_group_id = resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     try:
         from app.services.memory_service import get_memory_service
 
@@ -221,10 +204,7 @@ async def get_archive_summary(
             for item in results:
                 if isinstance(item, dict):
                     metadata = item.get("metadata", {})
-                    if (
-                        isinstance(metadata, dict)
-                        and metadata.get("node_id") == node_id
-                    ):
+                    if isinstance(metadata, dict) and metadata.get("node_id") == node_id:
                         summary = item.get("content", item.get("fact", ""))
                         tip_count = metadata.get("tip_count", 0)
                         error_count = metadata.get("error_count", 0)

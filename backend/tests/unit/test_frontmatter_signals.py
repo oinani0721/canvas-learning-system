@@ -24,9 +24,7 @@ def vault(tmp_path, monkeypatch):
 
 def _write_node(vault, node_id: str, metadata: dict, body: str = "正文"):
     post = frontmatter.Post(body, **metadata)
-    (vault / "节点" / f"{node_id}.md").write_text(
-        frontmatter.dumps(post), encoding="utf-8"
-    )
+    (vault / "节点" / f"{node_id}.md").write_text(frontmatter.dumps(post), encoding="utf-8")
 
 
 def test_reads_tips_split_by_tag(vault):
@@ -86,9 +84,7 @@ def test_deleted_tip_not_returned_ghost_memory_fixed(vault):
     )
     assert len(fs.read_node_frontmatter_signals("n")["tips"]) == 2
     # 用户删掉 cb-b (frontmatter 完全覆盖语义)
-    _write_node(
-        vault, "n", {"tips": [{"id": "cb-a", "text": "保留的批注", "tag": "tips"}]}
-    )
+    _write_node(vault, "n", {"tips": [{"id": "cb-a", "text": "保留的批注", "tag": "tips"}]})
     sig = fs.read_node_frontmatter_signals("n")
     assert sig["tips"] == ["保留的批注"]  # 删掉的不再出现 = 幽灵记忆根治
 
@@ -99,9 +95,7 @@ def test_empty_text_skipped(vault):
 
 
 def test_no_frontmatter_returns_empty(vault):
-    (vault / "节点" / "plain.md").write_text(
-        "没有 frontmatter 的正文", encoding="utf-8"
-    )
+    (vault / "节点" / "plain.md").write_text("没有 frontmatter 的正文", encoding="utf-8")
     assert fs.read_node_frontmatter_signals("plain") == {
         "tips": [],
         "errors": [],

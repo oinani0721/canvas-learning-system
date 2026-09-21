@@ -56,14 +56,10 @@ try:
 
     if AGENTIC_RAG_AVAILABLE and canvas_agentic_rag is not None:
         LANGGRAPH_AVAILABLE = True
-        logger.info(
-            "RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True"
-        )
+        logger.info("RAGService: LangGraph/Agentic RAG available. LANGGRAPH_AVAILABLE=True")
     else:
         LANGGRAPH_AVAILABLE = False
-        _IMPORT_ERROR = (
-            get_import_error() or "agentic_rag module loaded but components are None"
-        )
+        _IMPORT_ERROR = get_import_error() or "agentic_rag module loaded but components are None"
         logger.warning(f"RAGService: Agentic RAG not fully loaded: {_IMPORT_ERROR}")
 
 except ImportError as e:
@@ -154,10 +150,7 @@ class RAGService:
         self._initialized = False
 
         if not LANGGRAPH_AVAILABLE:
-            logger.warning(
-                "RAGService initialized without LangGraph support. "
-                f"Reason: {_IMPORT_ERROR}"
-            )
+            logger.warning(f"RAGService initialized without LangGraph support. Reason: {_IMPORT_ERROR}")
 
     @property
     def is_available(self) -> bool:
@@ -279,10 +272,7 @@ class RAGService:
                 output=ServiceStatus.UNAVAILABLE.value,
                 reason=f"LangGraph not available: {_IMPORT_ERROR}",
             )
-            raise RAGUnavailableError(
-                f"LangGraph not available. Cannot execute RAG query. "
-                f"Error: {_IMPORT_ERROR}"
-            )
+            raise RAGUnavailableError(f"LangGraph not available. Cannot execute RAG query. Error: {_IMPORT_ERROR}")
 
         if not self._initialized:
             await self.initialize()
@@ -300,8 +290,7 @@ class RAGService:
             "subject": effective_subject,
             "cross_subject": cross_subject,
             "is_review_canvas": is_review_canvas,
-            "fusion_strategy": fusion_strategy
-            or ("weighted" if is_review_canvas else "rrf"),
+            "fusion_strategy": fusion_strategy or ("weighted" if is_review_canvas else "rrf"),
             "reranking_strategy": reranking_strategy or "hybrid_auto",
             "graphiti_results": [],
             "lancedb_results": [],
@@ -325,12 +314,8 @@ class RAGService:
 
             # ✅ Epic 12.K.2: None value protection - ainvoke may return None
             if result is None:
-                logger.warning(
-                    f"RAGService: ainvoke returned None for query: {query[:50]}..."
-                )
-                return self._get_fallback_result(
-                    fallback_reason="ainvoke_returned_none"
-                )
+                logger.warning(f"RAGService: ainvoke returned None for query: {query[:50]}...")
+                return self._get_fallback_result(fallback_reason="ainvoke_returned_none")
 
             return result
 
@@ -341,9 +326,7 @@ class RAGService:
             logger.error(f"RAGService query failed: {e}")
             raise RAGServiceError(f"RAG query execution failed: {e}") from e
 
-    async def get_weak_concepts_with_status(
-        self, canvas_file: str, limit: int = 10
-    ) -> "StatusedResult":
+    async def get_weak_concepts_with_status(self, canvas_file: str, limit: int = 10) -> "StatusedResult":
         """CARD-G4-2 (2026-08-28): get_weak_concepts 的四态版本。
 
         故障不再假装空结果: LangGraph 缺失/记忆客户端失败 → unavailable
@@ -356,12 +339,8 @@ class RAGService:
         from app.models.service_status import StatusedResult
 
         if not LANGGRAPH_AVAILABLE:
-            logger.warning(
-                "get_weak_concepts: LangGraph not available (unavailable, not empty)"
-            )
-            return StatusedResult.unavailable(
-                f"LangGraph not available: {_IMPORT_ERROR}"
-            )
+            logger.warning("get_weak_concepts: LangGraph not available (unavailable, not empty)")
+            return StatusedResult.unavailable(f"LangGraph not available: {_IMPORT_ERROR}")
 
         # Story 36 fix: Query LearningMemoryClient for low-score concepts
         try:
@@ -374,8 +353,7 @@ class RAGService:
             initialized = await memory_client.initialize()
             if initialized is False:
                 return StatusedResult.unavailable(
-                    "learning memory client initialize() returned False "
-                    "(数据不可读 — 空结果不可信)"
+                    "learning memory client initialize() returned False (数据不可读 — 空结果不可信)"
                 )
 
             history = await memory_client.get_learning_history(canvas_file, limit=100)
@@ -396,9 +374,7 @@ class RAGService:
                         "concept": concept,
                         "score": score,
                         "stability": entry.get("stability", 0.0),
-                        "last_review": entry.get(
-                            "timestamp", entry.get("created_at", "")
-                        ),
+                        "last_review": entry.get("timestamp", entry.get("created_at", "")),
                         "review_count": entry.get("review_count", 1),
                         "canvas_file": canvas_file,
                     }
@@ -411,9 +387,7 @@ class RAGService:
             logger.warning(f"get_weak_concepts: failed to query learning memory: {e}")
             return StatusedResult.unavailable(f"{type(e).__name__}: {e}")
 
-    async def get_weak_concepts(
-        self, canvas_file: str, limit: int = 10
-    ) -> list[Dict[str, Any]]:
+    async def get_weak_concepts(self, canvas_file: str, limit: int = 10) -> list[Dict[str, Any]]:
         """
         Get weak concepts from Temporal Memory for a canvas file.
 
@@ -451,9 +425,7 @@ class RAGService:
             "import_error": _IMPORT_ERROR,
         }
 
-    async def query_with_fallback(
-        self, query: str, canvas_file: Optional[str] = None, **kwargs
-    ) -> Dict[str, Any]:
+    async def query_with_fallback(self, query: str, canvas_file: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """
         Execute RAG query with graceful fallback.
 
@@ -470,9 +442,7 @@ class RAGService:
         # CARD-G4-2 (2026-08-28): fallback dict 加性带四态键 — 调用方可
         # 区分「空结果」和「RAG 挂了」(原 error 键保留, 状态键统一语义)。
         if not LANGGRAPH_AVAILABLE:
-            logger.warning(
-                f"RAG query fallback: LangGraph not available. Query: {query[:50]}..."
-            )
+            logger.warning(f"RAG query fallback: LangGraph not available. Query: {query[:50]}...")
             return {
                 "messages": [],
                 "results": [],

@@ -68,9 +68,7 @@ def edges_store(monkeypatch):
             out.append(remapped)
         return out
 
-    monkeypatch.setattr(
-        EntityEdge, "get_by_node_uuid", classmethod(fake_get_by_node_uuid)
-    )
+    monkeypatch.setattr(EntityEdge, "get_by_node_uuid", classmethod(fake_get_by_node_uuid))
     return store
 
 
@@ -83,9 +81,7 @@ async def test_read_tips_filters_source_and_active(edges_store):
     edges_store.extend(
         [
             _edge(fact="先想 base case", source="callout"),
-            _edge(
-                fact="旧版批注", source="callout", invalid_at=T2
-            ),  # superseded → 排除
+            _edge(fact="旧版批注", source="callout", invalid_at=T2),  # superseded → 排除
             _edge(fact="错误记录", source="error"),  # 非 callout → 排除
         ]
     )
@@ -104,9 +100,7 @@ async def test_read_tips_empty_when_node_unknown(edges_store):
 
 
 async def test_read_errors_shape(edges_store):
-    edges_store.append(
-        _edge(fact="忘了 base case", source="error", error_type="knowledge_gap")
-    )
+    edges_store.append(_edge(fact="忘了 base case", source="error", error_type="knowledge_gap"))
     errors = await r.read_node_errors(object(), NODE, group_id=GID)
     assert errors == [{"error_type": "knowledge_gap", "description": "忘了 base case"}]
 

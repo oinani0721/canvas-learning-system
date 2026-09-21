@@ -179,9 +179,7 @@ async def read_canvas(
             "Canvas 文件 per-vault, 注入 ContextVar 防跨 vault 读串库."
         ),
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
     group_id: Optional[str] = Query(
         default=None,
         deprecated=True,
@@ -232,12 +230,8 @@ async def create_node(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Canvas 写入 per-vault.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> NodeRead:
     """
     Create a new node in a Canvas.
@@ -278,12 +272,8 @@ async def update_node(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Canvas 更新 per-vault.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> NodeRead:
     """
     Update an existing node in a Canvas.
@@ -327,12 +317,8 @@ async def delete_node(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Canvas 删除 per-vault.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> Response:
     """
     Delete a node from a Canvas. Also removes all edges connected to this node.
@@ -376,12 +362,8 @@ async def create_edge(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Edge 写入 per-vault, 触发 Neo4j sync.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> EdgeRead:
     """
     Create a new edge in a Canvas. Also triggers Neo4j sync (fire-and-forget).
@@ -419,12 +401,8 @@ async def delete_edge(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Edge 删除 per-vault.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> Response:
     """
     Delete an edge from a Canvas. Also triggers Neo4j deletion sync (fire-and-forget).
@@ -473,12 +451,8 @@ async def sync_edges(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Sync all edges per-vault Neo4j sync.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> SyncEdgesSummaryResponse:
     """
     Sync all Canvas edges to Neo4j knowledge graph.
@@ -522,16 +496,11 @@ async def get_recommendations(
         default=None,
         min_length=1,
         description=(
-            "Wave-5 Stage B — 推荐必填. Plugin inferVaultId. "
-            "Recommendations 跑 bge-m3 + Neo4j 2-hop per-vault."
+            "Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Recommendations 跑 bge-m3 + Neo4j 2-hop per-vault."
         ),
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> RecommendationResponse:
     """
     Analyze a canvas and return concept-relation recommendations.

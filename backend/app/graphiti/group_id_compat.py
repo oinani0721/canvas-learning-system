@@ -87,9 +87,7 @@ def sanitize_group_id_for_graphiti(canvas_group_id: str) -> str:
     if not canvas_group_id:
         return canvas_group_id
     sep = ":" if ":" in canvas_group_id else _GRAPHITI_SEPARATOR
-    return _GRAPHITI_SEPARATOR.join(
-        _encode_segment(seg) for seg in canvas_group_id.split(sep)
-    )
+    return _GRAPHITI_SEPARATOR.join(_encode_segment(seg) for seg in canvas_group_id.split(sep))
 
 
 def desanitize_group_id_from_graphiti(graphiti_group_id: str) -> str:
@@ -106,9 +104,7 @@ def desanitize_group_id_from_graphiti(graphiti_group_id: str) -> str:
     """
     if not graphiti_group_id:
         return graphiti_group_id
-    return ":".join(
-        _decode_segment(seg) for seg in graphiti_group_id.split(_GRAPHITI_SEPARATOR)
-    )
+    return ":".join(_decode_segment(seg) for seg in graphiti_group_id.split(_GRAPHITI_SEPARATOR))
 
 
 #: M2 双图隔离 (2026-07-13, 路线图 v2 / R3-Q1 对抗审查): 语义影子图后缀。
@@ -134,9 +130,7 @@ def semantic_group_id(group_id: str) -> str:
     """
     if not group_id:
         return group_id
-    if group_id.endswith(f":{_SEMANTIC_SUFFIX}") or group_id.endswith(
-        f"{_GRAPHITI_SEPARATOR}{_SEMANTIC_SUFFIX}"
-    ):
+    if group_id.endswith(f":{_SEMANTIC_SUFFIX}") or group_id.endswith(f"{_GRAPHITI_SEPARATOR}{_SEMANTIC_SUFFIX}"):
         return group_id
     sep = ":" if ":" in group_id else _GRAPHITI_SEPARATOR
     return f"{group_id}{sep}{_SEMANTIC_SUFFIX}"

@@ -299,9 +299,7 @@ class TestProcessEpisodeForwarding:
         worker = GraphitiEpisodeWorker()
         worker._graphiti = None
 
-        task = EpisodeTask(
-            name="fail", episode_body="b", group_id="g", source_description="s"
-        )
+        task = EpisodeTask(name="fail", episode_body="b", group_id="g", source_description="s")
 
         with pytest.raises(RuntimeError, match="Graphiti client not initialized"):
             await worker._process_episode(task)
@@ -318,9 +316,7 @@ class TestDeterministicIDWidening:
     def test_episode_id_length(self):
         from app.services.memory_service import _generate_deterministic_episode_id
 
-        eid = _generate_deterministic_episode_id(
-            "user1", "/math/canvas.json", "node-1", "algebra"
-        )
+        eid = _generate_deterministic_episode_id("user1", "/math/canvas.json", "node-1", "algebra")
         # Format: "episode-" + 32 hex chars
         assert eid.startswith("episode-")
         hex_part = eid[len("episode-") :]
@@ -331,9 +327,7 @@ class TestDeterministicIDWidening:
     def test_batch_id_length(self):
         from app.services.memory_service import _generate_batch_episode_id
 
-        bid = _generate_batch_episode_id(
-            "/math/canvas.json", "node-1", "learning", "2025-01-01T00:00:00"
-        )
+        bid = _generate_batch_episode_id("/math/canvas.json", "node-1", "learning", "2025-01-01T00:00:00")
         assert bid.startswith("batch-")
         hex_part = bid[len("batch-") :]
         assert len(hex_part) == 32

@@ -68,10 +68,7 @@ def test_monitor_custom_thresholds(custom_monitor):
     assert custom_monitor.thresholds["cpu_warning"] == 50.0
     assert custom_monitor.thresholds["cpu_critical"] == 80.0
     # Memory thresholds should still be defaults
-    assert (
-        custom_monitor.thresholds["memory_warning"]
-        == DEFAULT_THRESHOLDS["memory_warning"]
-    )
+    assert custom_monitor.thresholds["memory_warning"] == DEFAULT_THRESHOLDS["memory_warning"]
 
 
 def test_monitor_default_disk_paths(monitor):
@@ -370,9 +367,7 @@ async def test_start_background_collection_already_running():
         monitor = ResourceMonitor()
 
         await monitor.start_background_collection(interval_seconds=0.1)
-        await monitor.start_background_collection(
-            interval_seconds=0.1
-        )  # Should log warning
+        await monitor.start_background_collection(interval_seconds=0.1)  # Should log warning
 
         await monitor.stop_background_collection()
 

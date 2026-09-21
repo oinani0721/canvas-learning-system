@@ -49,9 +49,7 @@ class TestWeightCalculator:
         result = await calculator.calculate_weakness_scores(concepts, history)
 
         assert len(result) == 1
-        assert result[0].weakness_score >= 0.6, (
-            f"Expected weakness_score >= 0.6, got {result[0].weakness_score}"
-        )
+        assert result[0].weakness_score >= 0.6, f"Expected weakness_score >= 0.6, got {result[0].weakness_score}"
         assert result[0].category == "weak"
         assert result[0].failure_count == 5  # All ratings <= 2
         assert result[0].avg_rating <= 1.5
@@ -69,9 +67,7 @@ class TestWeightCalculator:
         result = await calculator.calculate_weakness_scores(concepts, history)
 
         assert len(result) == 1
-        assert result[0].weakness_score < 0.4, (
-            f"Expected weakness_score < 0.4, got {result[0].weakness_score}"
-        )
+        assert result[0].weakness_score < 0.4, f"Expected weakness_score < 0.4, got {result[0].weakness_score}"
         assert result[0].category == "mastered"
         assert result[0].failure_count == 0
         assert result[0].avg_rating == pytest.approx(3.67, abs=0.1)
@@ -88,20 +84,12 @@ class TestWeightCalculator:
 
         # Create weight data directly with specific scores
         weak_concept = ConceptWeightData("c1", "Weak", 0.7, 4, 1.5, 5, 10, "weak")
-        borderline_concept = ConceptWeightData(
-            "c2", "Borderline", 0.5, 2, 2.5, 4, 5, "borderline"
-        )
-        mastered_concept = ConceptWeightData(
-            "c3", "Mastered", 0.3, 0, 3.8, 5, 2, "mastered"
-        )
+        borderline_concept = ConceptWeightData("c2", "Borderline", 0.5, 2, 2.5, 4, 5, "borderline")
+        mastered_concept = ConceptWeightData("c3", "Mastered", 0.3, 0, 3.8, 5, 2, "mastered")
 
         # Verify categories match thresholds
         assert weak_concept.weakness_score >= calculator.WEAK_THRESHOLD
-        assert (
-            calculator.MASTERED_THRESHOLD
-            <= borderline_concept.weakness_score
-            < calculator.WEAK_THRESHOLD
-        )
+        assert calculator.MASTERED_THRESHOLD <= borderline_concept.weakness_score < calculator.WEAK_THRESHOLD
         assert mastered_concept.weakness_score < calculator.MASTERED_THRESHOLD
 
     @pytest.mark.asyncio
@@ -163,9 +151,7 @@ class TestWeightCalculator:
 
         # Avg rating is 2.75, but trend should lower weakness score
         # Without trend, weakness would be higher
-        assert (
-            result[0].weakness_score < 0.6
-        )  # Improvement should prevent "weak" category
+        assert result[0].weakness_score < 0.6  # Improvement should prevent "weak" category
 
     @pytest.mark.asyncio
     async def test_multiple_concepts_different_scores(self, calculator):
@@ -205,20 +191,13 @@ class TestWeightCalculator:
         assert new_result.category == "borderline"
 
         # Verify scores are ordered
-        assert (
-            weak_result.weakness_score
-            > new_result.weakness_score
-            > mastered_result.weakness_score
-        )
+        assert weak_result.weakness_score > new_result.weakness_score > mastered_result.weakness_score
 
     @pytest.mark.asyncio
     async def test_score_component_weights_sum_to_one(self, calculator):
         """Verify score component weights sum to 1.0."""
         total_weight = (
-            calculator.RATING_WEIGHT
-            + calculator.FAILURE_WEIGHT
-            + calculator.RECENCY_WEIGHT
-            + calculator.TREND_WEIGHT
+            calculator.RATING_WEIGHT + calculator.FAILURE_WEIGHT + calculator.RECENCY_WEIGHT + calculator.TREND_WEIGHT
         )
         assert total_weight == pytest.approx(1.0, abs=0.001)
 

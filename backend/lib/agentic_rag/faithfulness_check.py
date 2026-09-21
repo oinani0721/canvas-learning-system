@@ -60,8 +60,7 @@ try:
     LITELLM_AVAILABLE = True
 except ImportError:
     logger.warning(
-        "litellm not installed. Faithfulness check will be disabled. "
-        "Install with: pip install litellm>=1.40.0"
+        "litellm not installed. Faithfulness check will be disabled. Install with: pip install litellm>=1.40.0"
     )
 
 
@@ -169,9 +168,7 @@ def _parse_json_response(text: str) -> dict:
 
 def _make_unsupported_verdicts(claims: List[str], reason: str) -> List[ClaimVerdict]:
     """Create NOT_SUPPORTED verdicts for all claims with a shared reason."""
-    return [
-        ClaimVerdict(claim=c, verdict="NOT_SUPPORTED", reason=reason) for c in claims
-    ]
+    return [ClaimVerdict(claim=c, verdict="NOT_SUPPORTED", reason=reason) for c in claims]
 
 
 async def extract_claims(answer: str) -> List[str]:
@@ -215,10 +212,7 @@ async def extract_claims(answer: str) -> List[str]:
         parsed = _parse_json_response(content)
         claims = parsed.get("claims", list(_EMPTY_CLAIMS))
 
-        logger.debug(
-            f"[faithfulness] Extracted {len(claims)} claims from answer "
-            f"({len(answer)} chars)"
-        )
+        logger.debug(f"[faithfulness] Extracted {len(claims)} claims from answer ({len(answer)} chars)")
         return claims
 
     except json.JSONDecodeError as e:
@@ -434,9 +428,7 @@ async def faithfulness_check(state: dict) -> dict:
             answer = last_msg.get("content", "")
         else:
             # LangChain BaseMessage uses .type (e.g. "ai"/"human"); fallback to .role
-            last_role = str(
-                getattr(last_msg, "type", "") or getattr(last_msg, "role", "")
-            ).lower()
+            last_role = str(getattr(last_msg, "type", "") or getattr(last_msg, "role", "")).lower()
             answer = getattr(last_msg, "content", "")
 
     # ── Vacuous-true fix #1: short-circuit when last message isn't an assistant turn ──
@@ -445,8 +437,7 @@ async def faithfulness_check(state: dict) -> dict:
     # and health_monitor's _faithfulness_stats stays clean.
     if last_role not in ("assistant", "ai"):
         logger.debug(
-            f"[faithfulness_check] last_role={last_role!r} is not assistant; "
-            f"returning not_applicable without LLM call"
+            f"[faithfulness_check] last_role={last_role!r} is not assistant; returning not_applicable without LLM call"
         )
         return {
             "faithfulness_score": None,
@@ -471,9 +462,7 @@ async def faithfulness_check(state: dict) -> dict:
     if compressed and compressed.strip():
         context = compressed
         context_parts = [compressed]
-        logger.debug(
-            f"[faithfulness_check] Using compressed_context ({len(compressed)} chars)"
-        )
+        logger.debug(f"[faithfulness_check] Using compressed_context ({len(compressed)} chars)")
     else:
         reranked = state.get("reranked_results", list())
         context_parts = []
@@ -492,8 +481,7 @@ async def faithfulness_check(state: dict) -> dict:
             supported_claims=0,
             degraded=True,
             degradation_reason=(
-                "No source material was retrieved to verify the answer. "
-                "The response may not be reliable."
+                "No source material was retrieved to verify the answer. The response may not be reliable."
             ),
             latency_ms=latency,
         )
@@ -505,10 +493,7 @@ async def faithfulness_check(state: dict) -> dict:
         }
 
     # ── Stage 1: Claim Extraction ──
-    logger.debug(
-        f"[faithfulness_check] Stage 1: Extracting claims from answer "
-        f"({len(answer)} chars)"
-    )
+    logger.debug(f"[faithfulness_check] Stage 1: Extracting claims from answer ({len(answer)} chars)")
     claims = await extract_claims(answer)
 
     if not claims:
@@ -530,8 +515,7 @@ async def faithfulness_check(state: dict) -> dict:
 
     # ── Stage 2: NLI Verification ──
     logger.debug(
-        f"[faithfulness_check] Stage 2: NLI verifying {len(claims)} claims "
-        f"against {len(context_parts)} context docs"
+        f"[faithfulness_check] Stage 2: NLI verifying {len(claims)} claims against {len(context_parts)} context docs"
     )
     verdicts = await verify_claims_nli(claims, context)
 

@@ -173,9 +173,7 @@ class TestBatchPartialFailure:
         return service
 
     @pytest.mark.asyncio
-    async def test_neo4j_failure_does_not_block_processing(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_neo4j_failure_does_not_block_processing(self, memory_service, mock_neo4j):
         """Neo4j write failures don't affect processed count (data is in memory)."""
         mock_neo4j.record_episode = AsyncMock(side_effect=Exception("Neo4j timeout"))
 
@@ -327,12 +325,8 @@ class TestBatchSemaphore:
             mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
             await memory_service.record_batch_learning_events(events)
 
-        assert max_concurrent <= 3, (
-            f"Max concurrent was {max_concurrent}, expected <= 3"
-        )
-        assert max_concurrent >= 2, (
-            f"Max concurrent was {max_concurrent}, expected >= 2 (parallel)"
-        )
+        assert max_concurrent <= 3, f"Max concurrent was {max_concurrent}, expected <= 3"
+        assert max_concurrent >= 2, f"Max concurrent was {max_concurrent}, expected >= 2 (parallel)"
 
 
 # ============================================================================
@@ -375,9 +369,7 @@ class TestBatchNeo4jDegradation:
         return service
 
     @pytest.mark.asyncio
-    async def test_neo4j_unavailable_still_processes_to_memory(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_neo4j_unavailable_still_processes_to_memory(self, memory_service, mock_neo4j):
         """When Neo4j is not initialized, events are still stored in _episodes."""
         events = [
             {
@@ -465,11 +457,7 @@ class TestBatchIdempotencyCompat:
         assert result1["episode_ids"] == result2["episode_ids"]
 
         # _episodes should have exactly 1 entry (dedup)
-        matching = [
-            ep
-            for ep in memory_service._episodes
-            if ep.get("episode_id") == result1["episode_ids"][0]
-        ]
+        matching = [ep for ep in memory_service._episodes if ep.get("episode_id") == result1["episode_ids"][0]]
         assert len(matching) == 1
 
     @pytest.mark.asyncio

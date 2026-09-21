@@ -243,9 +243,7 @@ class CrossCanvasService:
 
         return results
 
-    async def search(
-        self, query: str, canvas_file: str, num_results: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def search(self, query: str, canvas_file: str, num_results: int = 10) -> List[Dict[str, Any]]:
         """
         跨Canvas关联搜索
 
@@ -273,9 +271,7 @@ class CrossCanvasService:
             timeout_seconds = self.config.timeout_ms / 1000.0
 
             # 获取关联Canvas
-            related_canvases = await self._get_related_canvases_excluding_current(
-                canvas_file
-            )
+            related_canvases = await self._get_related_canvases_excluding_current(canvas_file)
 
             # 在关联Canvas中搜索
             results = await asyncio.wait_for(
@@ -311,17 +307,13 @@ class CrossCanvasService:
             # 检查性能
             if latency_ms > 500:
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"Cross-canvas search exceeded 500ms: {latency_ms:.2f}ms"
-                    )
+                    logger.warning(f"Cross-canvas search exceeded 500ms: {latency_ms:.2f}ms")
 
             return results
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
-                logger.warning(
-                    f"CrossCanvasService.search timeout ({self.config.timeout_ms}ms)"
-                )
+                logger.warning(f"CrossCanvasService.search timeout ({self.config.timeout_ms}ms)")
             return []
 
         except Exception as e:
@@ -329,9 +321,7 @@ class CrossCanvasService:
                 logger.error(f"CrossCanvasService.search error: {e}")
             return []
 
-    async def _get_related_canvases_excluding_current(
-        self, canvas_file: str
-    ) -> List[str]:
+    async def _get_related_canvases_excluding_current(self, canvas_file: str) -> List[str]:
         """
         获取关联Canvas，排除当前Canvas
 
@@ -377,9 +367,7 @@ async def _get_cross_canvas_service() -> CrossCanvasService:
             from agentic_rag.clients import LanceDBClient
             from agentic_rag.config import LANCEDB_CONFIG
 
-            lancedb_client = LanceDBClient(
-                db_path=LANCEDB_CONFIG["db_path"], timeout_ms=400, enable_fallback=True
-            )
+            lancedb_client = LanceDBClient(db_path=LANCEDB_CONFIG["db_path"], timeout_ms=400, enable_fallback=True)
             await lancedb_client.initialize()
 
             _cross_canvas_service = CrossCanvasService(lancedb_client)
@@ -393,9 +381,7 @@ async def _get_cross_canvas_service() -> CrossCanvasService:
     return _cross_canvas_service
 
 
-async def cross_canvas_retrieval_node(
-    state: Dict[str, Any], runtime: Optional[Any] = None
-) -> Dict[str, Any]:
+async def cross_canvas_retrieval_node(state: Dict[str, Any], runtime: Optional[Any] = None) -> Dict[str, Any]:
     """
     LangGraph跨Canvas检索节点
 
@@ -422,11 +408,7 @@ async def cross_canvas_retrieval_node(
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        query = (
-            last_msg.get("content", "")
-            if isinstance(last_msg, dict)
-            else getattr(last_msg, "content", "")
-        )
+        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
     else:
         query = ""
 
@@ -438,9 +420,7 @@ async def cross_canvas_retrieval_node(
 
     try:
         service = await _get_cross_canvas_service()
-        cross_canvas_results = await service.search(
-            query=query, canvas_file=canvas_file, num_results=batch_size
-        )
+        cross_canvas_results = await service.search(query=query, canvas_file=canvas_file, num_results=batch_size)
     except Exception as e:
         if LOGURU_ENABLED:
             logger.error(f"cross_canvas_retrieval_node error: {e}")

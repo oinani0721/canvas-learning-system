@@ -93,9 +93,7 @@ def test_fail_closed_when_no_scope_resolvable(monkeypatch):
     # 实证: 配置坏掉时 sanitizer 给出的不是空, 而是 "default"
     assert sanitize_vault_id("") == "default"
 
-    monkeypatch.setattr(
-        "app.config.get_current_vault_id", lambda: sanitize_vault_id("")
-    )
+    monkeypatch.setattr("app.config.get_current_vault_id", lambda: sanitize_vault_id(""))
     token = _current_subject_id.set("general")  # ContextVar 处于默认值
     try:
         with pytest.raises(VaultScopeUnresolved) as exc:
@@ -165,17 +163,14 @@ def test_scope_params_are_physical_with_separator_anchor(scope_a):
 
 
 def test_group_filter_fragment_shape():
-    assert read_group_filter("n") == (
-        "(n.group_id = $group_id OR n.group_id STARTS WITH $group_prefix)"
-    )
+    assert read_group_filter("n") == ("(n.group_id = $group_id OR n.group_id STARTS WITH $group_prefix)")
 
 
 def test_group_filter_null_tolerance_is_opt_in():
     """默认严格 (NULL 不可见); allow_null 必须显式开启."""
     assert "IS NULL" not in read_group_filter("n")
     assert read_group_filter("r", allow_null=True) == (
-        "(r.group_id IS NULL OR r.group_id = $group_id "
-        "OR r.group_id STARTS WITH $group_prefix)"
+        "(r.group_id IS NULL OR r.group_id = $group_id OR r.group_id STARTS WITH $group_prefix)"
     )
 
 

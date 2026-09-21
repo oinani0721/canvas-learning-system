@@ -96,9 +96,7 @@ class TestJSONPersistence:
 
         # Second instance: should load persisted data
         svc2 = MultimodalService(storage_base_path=tmp_storage)
-        assert content_id in svc2._content_store, (
-            "New service instance must load previously persisted content"
-        )
+        assert content_id in svc2._content_store, "New service instance must load previously persisted content"
         assert svc2._content_store[content_id]["related_concept_id"] == "node-persist"
 
     @pytest.mark.asyncio
@@ -120,9 +118,7 @@ class TestJSONPersistence:
 
         index_path = Path(tmp_storage) / "content_index.json"
         data = json.loads(index_path.read_text(encoding="utf-8"))
-        assert content_id not in data["items"], (
-            "Deleted content must be removed from index"
-        )
+        assert content_id not in data["items"], "Deleted content must be removed from index"
 
     @pytest.mark.asyncio
     async def test_update_persists(self, service, tmp_storage):
@@ -157,9 +153,9 @@ class TestJSONPersistence:
         with caplog.at_level(logging.WARNING):
             svc = MultimodalService(storage_base_path=tmp_storage)
 
-        assert any(
-            "MultimodalStore not available" in rec.message for rec in caplog.records
-        ), "Must warn when MultimodalStore is not provided"
+        assert any("MultimodalStore not available" in rec.message for rec in caplog.records), (
+            "Must warn when MultimodalStore is not provided"
+        )
 
 
 # =============================================================================
@@ -199,13 +195,9 @@ class TestThumbnailGeneration:
             canvas_path="test.canvas",
         )
 
-        assert result.thumbnail_generated is True, (
-            "thumbnail_generated must be True for image uploads"
-        )
+        assert result.thumbnail_generated is True, "thumbnail_generated must be True for image uploads"
         assert result.content.thumbnail_path is not None, "thumbnail_path must be set"
-        assert Path(result.content.thumbnail_path).exists(), (
-            "Thumbnail file must exist on disk"
-        )
+        assert Path(result.content.thumbnail_path).exists(), "Thumbnail file must exist on disk"
 
     @pytest.mark.asyncio
     async def test_thumbnail_not_generated_for_pdf(self, service, tmp_storage):
@@ -303,9 +295,7 @@ class TestSearchModeTransparency:
         result = await service.search(request)
 
         # Without embedding service, it must fallback to text
-        assert result.search_mode == "text", (
-            "search_mode must be 'text' when embedding is unavailable"
-        )
+        assert result.search_mode == "text", "search_mode must be 'text' when embedding is unavailable"
 
     @pytest.mark.asyncio
     async def test_text_fallback_logs_warning(self, service, tmp_storage, caplog):
@@ -434,9 +424,7 @@ class TestHealthDegradationTransparency:
 
         reset_multimodal_service()
         mock_store = MagicMock()
-        mock_store.health_check = AsyncMock(
-            return_value={"lancedb": True, "neo4j": True}
-        )
+        mock_store.health_check = AsyncMock(return_value={"lancedb": True, "neo4j": True})
 
         svc = MultimodalService(
             storage_base_path=tmp_storage,

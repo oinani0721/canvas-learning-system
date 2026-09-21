@@ -289,9 +289,7 @@ class TestMemoryServiceSingleton:
         with patch.object(mem_module, "MemoryService") as MockClass:
             mock_instance = AsyncMock()
             mock_instance._initialized = False
-            mock_instance.initialize = AsyncMock(
-                side_effect=lambda: setattr(mock_instance, "_initialized", True)
-            )
+            mock_instance.initialize = AsyncMock(side_effect=lambda: setattr(mock_instance, "_initialized", True))
             MockClass.return_value = mock_instance
 
             # When: Calling get_memory_service twice
@@ -324,9 +322,7 @@ class TestEndpointIntegration:
     async def test_decompose_basic_triggers_recording(self, mock_dependencies):
         """AC-1: decompose_basic endpoint triggers learning event recording."""
         # Given: Mock dependencies
-        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(
-            return_value=MockEnrichedContext()
-        )
+        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(return_value=MockEnrichedContext())
         mock_dependencies["agent_service"].decompose_basic = AsyncMock(
             return_value={"questions": [], "created_nodes": []}
         )
@@ -362,9 +358,7 @@ class TestEndpointIntegration:
     async def test_decompose_deep_triggers_recording(self, mock_dependencies):
         """AC-1: decompose_deep endpoint triggers learning event recording."""
         # Given: Mock dependencies
-        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(
-            return_value=MockEnrichedContext()
-        )
+        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(return_value=MockEnrichedContext())
         mock_dependencies["agent_service"].decompose_deep = AsyncMock(
             return_value={"questions": [], "created_nodes": []}
         )
@@ -447,9 +441,7 @@ class TestEndpointIntegration:
     async def test_explain_oral_triggers_recording(self, mock_dependencies):
         """AC-1: explain_oral endpoint triggers learning event recording."""
         # Given: Mock dependencies
-        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(
-            return_value=MockEnrichedContext()
-        )
+        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(return_value=MockEnrichedContext())
         mock_dependencies["agent_service"].generate_explanation = AsyncMock(
             return_value={"explanation": "口语化解释内容", "created_node_id": "new1"}
         )
@@ -479,16 +471,12 @@ class TestEndpointIntegration:
         assert args["agent_type"] == "explain_oral"
 
     @pytest.mark.asyncio
-    async def test_learning_event_failure_does_not_block_response(
-        self, mock_dependencies
-    ):
+    async def test_learning_event_failure_does_not_block_response(self, mock_dependencies):
         """AC-4: Learning event failure does not block Agent response."""
         # Given: A failing memory service
         failing_memory_service = MockMemoryService(should_fail=True)
 
-        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(
-            return_value=MockEnrichedContext()
-        )
+        mock_dependencies["context_service"].enrich_with_adjacent_nodes = AsyncMock(return_value=MockEnrichedContext())
         mock_dependencies["agent_service"].decompose_basic = AsyncMock(
             return_value={"questions": ["问题1"], "created_nodes": []}
         )
@@ -528,9 +516,7 @@ class TestAllExplainEndpointsRecording:
     def mock_deps(self):
         """Create mock dependencies for all explain endpoints."""
         context_service = AsyncMock()
-        context_service.enrich_with_adjacent_nodes = AsyncMock(
-            return_value=MockEnrichedContext()
-        )
+        context_service.enrich_with_adjacent_nodes = AsyncMock(return_value=MockEnrichedContext())
 
         agent_service = AsyncMock()
         agent_service.generate_explanation = AsyncMock(
@@ -555,18 +541,14 @@ class TestAllExplainEndpointsRecording:
             ("explain_example", "explain_example"),
         ],
     )
-    async def test_explain_endpoint_records_event(
-        self, mock_deps, endpoint_func, agent_type
-    ):
+    async def test_explain_endpoint_records_event(self, mock_deps, endpoint_func, agent_type):
         """AC-1: All explain endpoints trigger learning event recording."""
         from app.api.v1.endpoints import agents
         from app.models import ExplainRequest
 
         memory_service = MockMemoryService()
         background_tasks = BackgroundTasks()
-        request = ExplainRequest(
-            canvas_name="Math53.canvas", node_id=f"node_{endpoint_func}"
-        )
+        request = ExplainRequest(canvas_name="Math53.canvas", node_id=f"node_{endpoint_func}")
 
         # Get the endpoint function
         endpoint = getattr(agents, endpoint_func)

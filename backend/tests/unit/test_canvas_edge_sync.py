@@ -32,9 +32,7 @@ def mock_memory_client():
 @pytest.fixture
 def canvas_service_with_memory(mock_memory_client, tmp_path):
     """Create CanvasService with mock memory client."""
-    return CanvasService(
-        canvas_base_path=str(tmp_path), memory_client=mock_memory_client
-    )
+    return CanvasService(canvas_base_path=str(tmp_path), memory_client=mock_memory_client)
 
 
 @pytest.fixture
@@ -53,9 +51,7 @@ class TestSyncEdgeToNeo4j:
     """Tests for _sync_edge_to_neo4j method."""
 
     @pytest.mark.asyncio
-    async def test_sync_edge_calls_neo4j_client(
-        self, canvas_service_with_memory, mock_memory_client
-    ):
+    async def test_sync_edge_calls_neo4j_client(self, canvas_service_with_memory, mock_memory_client):
         """AC-5: Verify CONNECTS_TO relationship created in Neo4j."""
         # Act
         result = await canvas_service_with_memory._sync_edge_to_neo4j(
@@ -95,9 +91,7 @@ class TestSyncEdgeToNeo4j:
         """Verify graceful degradation when neo4j is None in memory_client."""
         memory_client = MagicMock()
         memory_client.neo4j = None
-        service = CanvasService(
-            canvas_base_path=str(tmp_path), memory_client=memory_client
-        )
+        service = CanvasService(canvas_base_path=str(tmp_path), memory_client=memory_client)
 
         result = await service._sync_edge_to_neo4j(
             canvas_path="test.canvas",
@@ -109,9 +103,7 @@ class TestSyncEdgeToNeo4j:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_sync_edge_with_optional_label(
-        self, canvas_service_with_memory, mock_memory_client
-    ):
+    async def test_sync_edge_with_optional_label(self, canvas_service_with_memory, mock_memory_client):
         """Verify edge sync works without label."""
         result = await canvas_service_with_memory._sync_edge_to_neo4j(
             canvas_path="test.canvas",
@@ -151,9 +143,7 @@ class TestAddEdgeWithNeo4jSync:
         canvas_path.write_text(json.dumps(sample_canvas_data))
 
         # Act
-        with patch.object(
-            canvas_service_with_memory, "_sync_edge_to_neo4j", new_callable=AsyncMock
-        ) as mock_sync:
+        with patch.object(canvas_service_with_memory, "_sync_edge_to_neo4j", new_callable=AsyncMock) as mock_sync:
             result = await canvas_service_with_memory.add_edge(
                 canvas_name="test",
                 edge_data={
@@ -204,9 +194,7 @@ class TestAddEdgeWithNeo4jSync:
         elapsed = time.monotonic() - start
 
         # Assert: Operation completed quickly (< 0.1s, not waiting for 200ms sync)
-        assert elapsed < 0.1, (
-            f"add_edge took {elapsed}s, should be < 0.1s (fire-and-forget)"
-        )
+        assert elapsed < 0.1, f"add_edge took {elapsed}s, should be < 0.1s (fire-and-forget)"
         assert result["fromNode"] == "node-1"
 
     @pytest.mark.asyncio
@@ -224,9 +212,7 @@ class TestAddEdgeWithNeo4jSync:
         canvas_path.write_text(json.dumps(sample_canvas_data))
 
         # Make Neo4j sync fail
-        mock_memory_client.neo4j.create_edge_relationship = AsyncMock(
-            side_effect=Exception("Neo4j connection failed")
-        )
+        mock_memory_client.neo4j.create_edge_relationship = AsyncMock(side_effect=Exception("Neo4j connection failed"))
 
         # Act: add_edge should succeed despite sync failure
         result = await canvas_service_with_memory.add_edge(
@@ -247,9 +233,7 @@ class TestRetryMechanism:
     """Tests for retry mechanism with tenacity."""
 
     @pytest.mark.asyncio
-    async def test_retry_on_neo4j_failure(
-        self, canvas_service_with_memory, mock_memory_client
-    ):
+    async def test_retry_on_neo4j_failure(self, canvas_service_with_memory, mock_memory_client):
         """AC-3: Verify 3 retry attempts on failure."""
         call_count = 0
 
@@ -275,9 +259,7 @@ class TestRetryMechanism:
         assert call_count == 3  # 2 failures + 1 success
 
     @pytest.mark.asyncio
-    async def test_silent_failure_after_max_retries(
-        self, canvas_service_with_memory, mock_memory_client
-    ):
+    async def test_silent_failure_after_max_retries(self, canvas_service_with_memory, mock_memory_client):
         """AC-3, AC-4: Verify silent failure after 3 attempts (reraise=False)."""
         call_count = 0
 

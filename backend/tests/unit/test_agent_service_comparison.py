@@ -59,9 +59,7 @@ class TestExtractComparisonConcepts:
         assert "TCP" in concepts
         assert "UDP" in concepts
 
-    def test_extract_comparison_concepts_from_table_with_dimension_column(
-        self, agent_service
-    ):
+    def test_extract_comparison_concepts_from_table_with_dimension_column(self, agent_service):
         """
         Test extraction skips '对比维度' column header.
 
@@ -275,16 +273,12 @@ class TestCallExplanationComparisonFormat:
         # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
         # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
         #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
-        async def mock_call_agent(
-            agent_type, prompt, context=None, canvas_name=None, node_id=None
-        ):
+        async def mock_call_agent(agent_type, prompt, context=None, canvas_name=None, node_id=None):
             captured_json["prompt"] = prompt
             captured_json["type"] = str(agent_type)
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(
-            mock_agent_service, "call_agent", side_effect=mock_call_agent
-        ):
+        with patch.object(mock_agent_service, "call_agent", side_effect=mock_call_agent):
             await mock_agent_service.call_explanation(
                 content=content,
                 explanation_type="comparison",
@@ -294,15 +288,11 @@ class TestCallExplanationComparisonFormat:
 
         # Verify JSON format
         json_prompt = json.loads(captured_json["prompt"])
-        assert "concepts" in json_prompt, (
-            "comparison-table should receive 'concepts' array"
-        )
+        assert "concepts" in json_prompt, "comparison-table should receive 'concepts' array"
         assert isinstance(json_prompt["concepts"], list), "concepts should be a list"
         assert len(json_prompt["concepts"]) >= 1
         # Should NOT have "concept" key
-        assert "concept" not in json_prompt, (
-            "comparison-table should NOT have 'concept' string"
-        )
+        assert "concept" not in json_prompt, "comparison-table should NOT have 'concept' string"
 
     @pytest.mark.asyncio
     async def test_oral_agent_receives_concept_string(self, mock_agent_service):
@@ -324,15 +314,11 @@ class TestCallExplanationComparisonFormat:
         # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
         # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
         #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
-        async def mock_call_agent(
-            agent_type, prompt, context=None, canvas_name=None, node_id=None
-        ):
+        async def mock_call_agent(agent_type, prompt, context=None, canvas_name=None, node_id=None):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(
-            mock_agent_service, "call_agent", side_effect=mock_call_agent
-        ):
+        with patch.object(mock_agent_service, "call_agent", side_effect=mock_call_agent):
             await mock_agent_service.call_explanation(
                 content=content,
                 explanation_type="oral",  # Not comparison
@@ -347,9 +333,7 @@ class TestCallExplanationComparisonFormat:
         assert "concepts" not in json_prompt
 
     @pytest.mark.asyncio
-    async def test_clarification_agent_receives_concept_string(
-        self, mock_agent_service
-    ):
+    async def test_clarification_agent_receives_concept_string(self, mock_agent_service):
         """
         Test clarification Agent backward compatibility.
 
@@ -364,18 +348,12 @@ class TestCallExplanationComparisonFormat:
         # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
         # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
         #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
-        async def mock_call_agent(
-            agent_type, prompt, context=None, canvas_name=None, node_id=None
-        ):
+        async def mock_call_agent(agent_type, prompt, context=None, canvas_name=None, node_id=None):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(
-            mock_agent_service, "call_agent", side_effect=mock_call_agent
-        ):
-            await mock_agent_service.call_explanation(
-                content=content, explanation_type="clarification", context=None
-            )
+        with patch.object(mock_agent_service, "call_agent", side_effect=mock_call_agent):
+            await mock_agent_service.call_explanation(content=content, explanation_type="clarification", context=None)
 
         json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt
@@ -397,18 +375,12 @@ class TestCallExplanationComparisonFormat:
         # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
         # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
         #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
-        async def mock_call_agent(
-            agent_type, prompt, context=None, canvas_name=None, node_id=None
-        ):
+        async def mock_call_agent(agent_type, prompt, context=None, canvas_name=None, node_id=None):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(
-            mock_agent_service, "call_agent", side_effect=mock_call_agent
-        ):
-            await mock_agent_service.call_explanation(
-                content=content, explanation_type="memory", context=None
-            )
+        with patch.object(mock_agent_service, "call_agent", side_effect=mock_call_agent):
+            await mock_agent_service.call_explanation(content=content, explanation_type="memory", context=None)
 
         json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt
@@ -430,18 +402,12 @@ class TestCallExplanationComparisonFormat:
         # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
         # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
         #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
-        async def mock_call_agent(
-            agent_type, prompt, context=None, canvas_name=None, node_id=None
-        ):
+        async def mock_call_agent(agent_type, prompt, context=None, canvas_name=None, node_id=None):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(
-            mock_agent_service, "call_agent", side_effect=mock_call_agent
-        ):
-            await mock_agent_service.call_explanation(
-                content=content, explanation_type="four_level", context=None
-            )
+        with patch.object(mock_agent_service, "call_agent", side_effect=mock_call_agent):
+            await mock_agent_service.call_explanation(content=content, explanation_type="four_level", context=None)
 
         json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt
@@ -463,18 +429,12 @@ class TestCallExplanationComparisonFormat:
         # 断言体一行都跑不到。此处只补形参对齐 arity，断言原文不动。
         # ⛔ 不用 **kwargs 兜底：那会把未来的签名漂移静默吞掉，
         #    显式默认参数才能在生产下次改签名时如实再红。[CARD-RED-C2]
-        async def mock_call_agent(
-            agent_type, prompt, context=None, canvas_name=None, node_id=None
-        ):
+        async def mock_call_agent(agent_type, prompt, context=None, canvas_name=None, node_id=None):
             captured_json["prompt"] = prompt
             return MagicMock(content="mock response", success=True)
 
-        with patch.object(
-            mock_agent_service, "call_agent", side_effect=mock_call_agent
-        ):
-            await mock_agent_service.call_explanation(
-                content=content, explanation_type="example", context=None
-            )
+        with patch.object(mock_agent_service, "call_agent", side_effect=mock_call_agent):
+            await mock_agent_service.call_explanation(content=content, explanation_type="example", context=None)
 
         json_prompt = json.loads(captured_json["prompt"])
         assert "concept" in json_prompt

@@ -99,12 +99,7 @@ def test_writer_misconception_record_in_sources():
 
 
 def _read_question_generator_source() -> str:
-    qg_path = (
-        Path(__file__).parent.parent.parent
-        / "app"
-        / "services"
-        / "question_generator.py"
-    )
+    qg_path = Path(__file__).parent.parent.parent / "app" / "services" / "question_generator.py"
     return qg_path.read_text(encoding="utf-8")
 
 

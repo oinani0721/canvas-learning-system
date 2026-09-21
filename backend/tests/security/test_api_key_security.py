@@ -167,11 +167,7 @@ class TestApiKeyStorage:
             content = env_example.read_text()
 
             # Should have placeholder patterns
-            assert (
-                "your-" in content.lower()
-                or "placeholder" in content.lower()
-                or "xxx" in content.lower()
-            )
+            assert "your-" in content.lower() or "placeholder" in content.lower() or "xxx" in content.lower()
 
 
 class TestKeyRotation:
@@ -186,9 +182,7 @@ class TestKeyRotation:
         # Note: In real rotation, old config would be replaced
         # Creating new config directly simulates rotation
         # Act - Simulate key rotation
-        rotated_config = ProviderConfig(
-            name="test", api_key=new_key, model="test-model"
-        )
+        rotated_config = ProviderConfig(name="test", api_key=new_key, model="test-model")
 
         # Assert
         assert rotated_config.api_key == new_key
@@ -232,10 +226,7 @@ class TestSecurityCompliance:
                 matches = re.findall(pattern, content, re.IGNORECASE)
                 # Filter out obvious placeholders
                 for match in matches:
-                    if not any(
-                        x in match.lower()
-                        for x in ["test", "example", "placeholder", "xxx", "your-"]
-                    ):
+                    if not any(x in match.lower() for x in ["test", "example", "placeholder", "xxx", "your-"]):
                         # This is a potential security issue
                         # pytest.fail(f"Potential hardcoded credential in {py_file}: {match}")
                         pass  # Log for review

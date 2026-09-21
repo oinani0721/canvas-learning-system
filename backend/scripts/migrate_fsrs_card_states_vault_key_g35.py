@@ -464,8 +464,7 @@ def run_apply(path: Path, raw: Dict[str, Any], vault_id: str, out: Optional[Path
         return 2
     except OSError as e:
         print(
-            f"ERROR: 无法新建时间戳备份 {stamped_backup} ({type(e).__name__}: {e}) — "
-            "源文件未改动, 已中止。",
+            f"ERROR: 无法新建时间戳备份 {stamped_backup} ({type(e).__name__}: {e}) — 源文件未改动, 已中止。",
             file=sys.stderr,
         )
         return 2

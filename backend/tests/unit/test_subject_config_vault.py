@@ -75,17 +75,11 @@ def test_build_vault_group_id_lowercase_normalization():
 
 def test_build_vault_group_id_with_subject_id():
     """vault_id + subject_id → vault:<vault>:<subject>."""
-    assert (
-        build_vault_group_id("cs_61b", subject_id="algorithms")
-        == "vault:cs_61b:algorithms"
-    )
+    assert build_vault_group_id("cs_61b", subject_id="algorithms") == "vault:cs_61b:algorithms"
 
 
 def test_build_vault_group_id_subject_id_chinese():
-    assert (
-        build_vault_group_id("cs_61b", subject_id="数据结构")
-        == "vault:cs_61b:数据结构"
-    )
+    assert build_vault_group_id("cs_61b", subject_id="数据结构") == "vault:cs_61b:数据结构"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -95,25 +89,16 @@ def test_build_vault_group_id_subject_id_chinese():
 
 def test_build_vault_group_id_with_canvas_path_extracts_stem():
     """canvas_path 完整路径 → 提取 stem."""
-    assert (
-        build_vault_group_id("cs_61b", canvas_path="节点/admissibility.md")
-        == "vault:cs_61b:admissibility"
-    )
+    assert build_vault_group_id("cs_61b", canvas_path="节点/admissibility.md") == "vault:cs_61b:admissibility"
 
 
 def test_build_vault_group_id_with_canvas_path_simple():
     """canvas_path 仅文件名."""
-    assert (
-        build_vault_group_id("cs_61b", canvas_path="admissibility")
-        == "vault:cs_61b:admissibility"
-    )
+    assert build_vault_group_id("cs_61b", canvas_path="admissibility") == "vault:cs_61b:admissibility"
 
 
 def test_build_vault_group_id_canvas_path_canvas_extension():
-    assert (
-        build_vault_group_id("数学", canvas_path="离散数学.canvas")
-        == "vault:数学:离散数学"
-    )
+    assert build_vault_group_id("数学", canvas_path="离散数学.canvas") == "vault:数学:离散数学"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -123,17 +108,13 @@ def test_build_vault_group_id_canvas_path_canvas_extension():
 
 def test_build_vault_group_id_subject_id_takes_priority_over_canvas_path():
     """同时传 subject_id 和 canvas_path → 仅 subject_id 生效."""
-    result = build_vault_group_id(
-        "cs_61b", subject_id="algorithms", canvas_path="admissibility.md"
-    )
+    result = build_vault_group_id("cs_61b", subject_id="algorithms", canvas_path="admissibility.md")
     assert result == "vault:cs_61b:algorithms"
 
 
 def test_build_vault_group_id_canvas_path_used_when_subject_id_none():
     """subject_id=None + canvas_path 给定 → canvas_name 生效."""
-    result = build_vault_group_id(
-        "cs_61b", subject_id=None, canvas_path="admissibility.md"
-    )
+    result = build_vault_group_id("cs_61b", subject_id=None, canvas_path="admissibility.md")
     assert result == "vault:cs_61b:admissibility"
 
 

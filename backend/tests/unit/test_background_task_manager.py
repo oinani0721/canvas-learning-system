@@ -61,8 +61,7 @@ class TestContextVarInheritance:
 
         # 主上下文已经 reset,但 background task 应保留它启动时的 snapshot
         assert captured.get("subject_id") == "vault_C_test", (
-            f"P0-2 violation: background task 没继承 ContextVar, "
-            f"实际 subject_id={captured.get('subject_id')}"
+            f"P0-2 violation: background task 没继承 ContextVar, 实际 subject_id={captured.get('subject_id')}"
         )
 
         # task 应正常完成
@@ -121,12 +120,8 @@ class TestContextVarInheritance:
         await asyncio.wait_for(done_a.wait(), timeout=2.0)
         await asyncio.wait_for(done_b.wait(), timeout=2.0)
 
-        assert results["a"] == "vault_A_iso", (
-            f"task_a 应保留 vault_A_iso, 实际={results['a']}"
-        )
-        assert results["b"] == "vault_B_iso", (
-            f"task_b 应保留 vault_B_iso, 实际={results['b']}"
-        )
+        assert results["a"] == "vault_A_iso", f"task_a 应保留 vault_A_iso, 实际={results['a']}"
+        assert results["b"] == "vault_B_iso", f"task_b 应保留 vault_B_iso, 实际={results['b']}"
 
     @pytest.mark.asyncio
     async def test_default_contextvar_propagates(self):

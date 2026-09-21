@@ -41,15 +41,9 @@ async def test_state_fusion_strategy_beats_runtime():
     state = create_initial_state(fusion_strategy="weighted")
     runtime = _make_runtime({"fusion_strategy": "rrf"})
 
-    with _mock.patch(
-        "agentic_rag._nodes_impl._fuse_weighted_multi_source", return_value=[]
-    ) as mock_weighted:
-        with _mock.patch(
-            "agentic_rag._nodes_impl._fuse_rrf_multi_source", return_value=[]
-        ) as mock_rrf:
-            with _mock.patch(
-                "agentic_rag._nodes_impl._fuse_layered_rrf", return_value=[]
-            ) as mock_layered:
+    with _mock.patch("agentic_rag._nodes_impl._fuse_weighted_multi_source", return_value=[]) as mock_weighted:
+        with _mock.patch("agentic_rag._nodes_impl._fuse_rrf_multi_source", return_value=[]) as mock_rrf:
+            with _mock.patch("agentic_rag._nodes_impl._fuse_layered_rrf", return_value=[]) as mock_layered:
                 with _mock.patch(
                     "agentic_rag._nodes_impl._fuse_cascade_multi_source",
                     return_value=[],
@@ -69,15 +63,9 @@ async def test_runtime_fusion_strategy_used_when_state_empty():
     state["fusion_strategy"] = None  # explicitly None
     runtime = _make_runtime({"fusion_strategy": "rrf"})
 
-    with _mock.patch(
-        "agentic_rag._nodes_impl._fuse_rrf_multi_source", return_value=[]
-    ) as mock_rrf:
-        with _mock.patch(
-            "agentic_rag._nodes_impl._fuse_layered_rrf", return_value=[]
-        ) as mock_layered:
-            with _mock.patch(
-                "agentic_rag._nodes_impl._fuse_weighted_multi_source", return_value=[]
-            ) as mock_weighted:
+    with _mock.patch("agentic_rag._nodes_impl._fuse_rrf_multi_source", return_value=[]) as mock_rrf:
+        with _mock.patch("agentic_rag._nodes_impl._fuse_layered_rrf", return_value=[]) as mock_layered:
+            with _mock.patch("agentic_rag._nodes_impl._fuse_weighted_multi_source", return_value=[]) as mock_weighted:
                 await fuse_results(state, runtime)
 
     assert mock_rrf.called, "runtime rrf fusion must run"
@@ -92,12 +80,8 @@ async def test_default_fusion_strategy_when_neither_set():
     state["fusion_strategy"] = None
     runtime = _make_runtime({})  # no fusion_strategy key
 
-    with _mock.patch(
-        "agentic_rag._nodes_impl._fuse_layered_rrf", return_value=[]
-    ) as mock_layered:
-        with _mock.patch(
-            "agentic_rag._nodes_impl._fuse_rrf_multi_source", return_value=[]
-        ) as mock_rrf:
+    with _mock.patch("agentic_rag._nodes_impl._fuse_layered_rrf", return_value=[]) as mock_layered:
+        with _mock.patch("agentic_rag._nodes_impl._fuse_rrf_multi_source", return_value=[]) as mock_rrf:
             await fuse_results(state, runtime)
 
     assert mock_layered.called, "default layered_rrf must run"
@@ -113,9 +97,7 @@ async def test_default_fusion_strategy_when_neither_set():
 async def test_state_reranking_strategy_beats_runtime():
     """When state has reranking_strategy='cohere', runtime 'local' must lose."""
     state = create_initial_state(reranking_strategy="cohere")
-    state["fused_results"] = [
-        {"doc_id": "d1", "content": "test", "score": 1.0, "metadata": {}}
-    ]
+    state["fused_results"] = [{"doc_id": "d1", "content": "test", "score": 1.0, "metadata": {}}]
     runtime = _make_runtime({"reranking_strategy": "local"})
 
     async def _fake_cohere(results, _state):
@@ -124,12 +106,8 @@ async def test_state_reranking_strategy_beats_runtime():
     async def _fake_local(results, _state, _runtime):
         return results
 
-    with _mock.patch(
-        "agentic_rag._nodes_impl._rerank_cohere", side_effect=_fake_cohere
-    ) as mock_cohere:
-        with _mock.patch(
-            "agentic_rag._nodes_impl._rerank_local", side_effect=_fake_local
-        ) as mock_local:
+    with _mock.patch("agentic_rag._nodes_impl._rerank_cohere", side_effect=_fake_cohere) as mock_cohere:
+        with _mock.patch("agentic_rag._nodes_impl._rerank_local", side_effect=_fake_local) as mock_local:
             await rerank_results(state, runtime)
 
     assert mock_cohere.called, "cohere rerank (state override) must run"
@@ -141,20 +119,14 @@ async def test_runtime_reranking_strategy_used_when_state_empty():
     """When state has reranking_strategy=None, runtime config wins."""
     state = create_initial_state()
     state["reranking_strategy"] = None
-    state["fused_results"] = [
-        {"doc_id": "d1", "content": "test", "score": 1.0, "metadata": {}}
-    ]
+    state["fused_results"] = [{"doc_id": "d1", "content": "test", "score": 1.0, "metadata": {}}]
     runtime = _make_runtime({"reranking_strategy": "local"})
 
     async def _fake_local(results, _state, _runtime):
         return results
 
-    with _mock.patch(
-        "agentic_rag._nodes_impl._rerank_local", side_effect=_fake_local
-    ) as mock_local:
-        with _mock.patch(
-            "agentic_rag._nodes_impl._rerank_cohere", side_effect=lambda r, s: r
-        ) as mock_cohere:
+    with _mock.patch("agentic_rag._nodes_impl._rerank_local", side_effect=_fake_local) as mock_local:
+        with _mock.patch("agentic_rag._nodes_impl._rerank_cohere", side_effect=lambda r, s: r) as mock_cohere:
             await rerank_results(state, runtime)
 
     assert mock_local.called

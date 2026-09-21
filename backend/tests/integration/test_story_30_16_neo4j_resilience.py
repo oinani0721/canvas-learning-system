@@ -55,9 +55,7 @@ def mock_neo4j_disconnected():
         "uri": "bolt://localhost:7687",
     }
     neo4j.record_episode = AsyncMock(side_effect=ConnectionError("Neo4j unavailable"))
-    neo4j.create_learning_relationship = AsyncMock(
-        side_effect=ConnectionError("Neo4j unavailable")
-    )
+    neo4j.create_learning_relationship = AsyncMock(side_effect=ConnectionError("Neo4j unavailable"))
     neo4j.cleanup = AsyncMock()
     return neo4j
 
@@ -110,9 +108,7 @@ class TestRealNeo4jIntegration:
 
         Requires: docker-compose up -d neo4j
         """
-        pytest.skip(
-            "Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration"
-        )
+        pytest.skip("Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -121,9 +117,7 @@ class TestRealNeo4jIntegration:
 
         Requires: docker-compose up -d neo4j
         """
-        pytest.skip(
-            "Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration"
-        )
+        pytest.skip("Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -132,9 +126,7 @@ class TestRealNeo4jIntegration:
 
         Requires: docker-compose up -d neo4j
         """
-        pytest.skip(
-            "Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration"
-        )
+        pytest.skip("Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration")
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -143,9 +135,7 @@ class TestRealNeo4jIntegration:
 
         Requires: docker-compose up -d neo4j
         """
-        pytest.skip(
-            "Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration"
-        )
+        pytest.skip("Requires Docker Neo4j - run with: docker-compose up -d neo4j && pytest -m integration")
 
 
 # ============================================================================
@@ -158,9 +148,7 @@ class TestNeo4jResilienceRecovery:
     """AC-30.16.2: Neo4j disconnection and recovery tests."""
 
     @pytest.mark.asyncio
-    async def test_connection_failure_fallback_to_memory(
-        self, mock_neo4j_disconnected, mock_learning_memory
-    ):
+    async def test_connection_failure_fallback_to_memory(self, mock_neo4j_disconnected, mock_learning_memory):
         """Neo4j disconnect: events still stored in memory."""
         from app.services.memory_service import MemoryService
 
@@ -193,9 +181,7 @@ class TestNeo4jResilienceRecovery:
         assert len(service._episodes) >= 1
 
     @pytest.mark.asyncio
-    async def test_health_status_healthy_when_connected(
-        self, mock_neo4j_connected, mock_learning_memory
-    ):
+    async def test_health_status_healthy_when_connected(self, mock_neo4j_connected, mock_learning_memory):
         """Health check returns 'healthy' when Neo4j is connected."""
         from app.services.memory_service import MemoryService
 
@@ -210,9 +196,7 @@ class TestNeo4jResilienceRecovery:
         assert health["layers"]["graphiti"]["status"] == "ok"
 
     @pytest.mark.asyncio
-    async def test_health_status_degraded_when_disconnected(
-        self, mock_neo4j_disconnected, mock_learning_memory
-    ):
+    async def test_health_status_degraded_when_disconnected(self, mock_neo4j_disconnected, mock_learning_memory):
         """Health check returns 'degraded' when Neo4j is disconnected."""
         from app.services.memory_service import MemoryService
 
@@ -227,9 +211,7 @@ class TestNeo4jResilienceRecovery:
         assert health["layers"]["graphiti"]["status"] == "error"
 
     @pytest.mark.asyncio
-    async def test_health_status_ok_in_json_fallback(
-        self, mock_neo4j_json_fallback, mock_learning_memory
-    ):
+    async def test_health_status_ok_in_json_fallback(self, mock_neo4j_json_fallback, mock_learning_memory):
         """Health check returns 'healthy' in JSON fallback mode (still operational)."""
         from app.services.memory_service import MemoryService
 
@@ -244,13 +226,9 @@ class TestNeo4jResilienceRecovery:
         assert health["layers"]["graphiti"]["backend"] == "json_fallback"
 
     @pytest.mark.asyncio
-    async def test_neo4j_write_failure_records_in_memory(
-        self, mock_neo4j_connected, mock_learning_memory
-    ):
+    async def test_neo4j_write_failure_records_in_memory(self, mock_neo4j_connected, mock_learning_memory):
         """When Neo4j write fails, event is still in memory (_episodes)."""
-        mock_neo4j_connected.record_episode = AsyncMock(
-            side_effect=Exception("Neo4j write timeout")
-        )
+        mock_neo4j_connected.record_episode = AsyncMock(side_effect=Exception("Neo4j write timeout"))
 
         from app.services.memory_service import MemoryService
 
@@ -280,9 +258,7 @@ class TestNeo4jResilienceRecovery:
         assert len(service._episodes) >= 1
 
     @pytest.mark.asyncio
-    async def test_batch_events_during_neo4j_disconnect(
-        self, mock_neo4j_disconnected, mock_learning_memory
-    ):
+    async def test_batch_events_during_neo4j_disconnect(self, mock_neo4j_disconnected, mock_learning_memory):
         """Multiple events during Neo4j disconnect all stored in memory."""
         from app.services.memory_service import MemoryService
 
@@ -372,14 +348,10 @@ class TestHealthCheckE2E:
         from app.main import app
         from app.services.memory_service import get_memory_service
 
-        app.dependency_overrides[get_memory_service] = lambda: (
-            mock_memory_service_healthy
-        )
+        app.dependency_overrides[get_memory_service] = lambda: mock_memory_service_healthy
 
         try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get("/api/v1/memory/health")
 
             assert response.status_code == 200
@@ -398,14 +370,10 @@ class TestHealthCheckE2E:
         from app.main import app
         from app.services.memory_service import get_memory_service
 
-        app.dependency_overrides[get_memory_service] = lambda: (
-            mock_memory_service_degraded
-        )
+        app.dependency_overrides[get_memory_service] = lambda: mock_memory_service_degraded
 
         try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get("/api/v1/memory/health")
 
             assert response.status_code == 200
@@ -420,9 +388,7 @@ class TestHealthCheckE2E:
         """GET /api/v1/health returns basic health status."""
         from app.main import app
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/health")
 
         assert response.status_code == 200
@@ -434,9 +400,7 @@ class TestHealthCheckE2E:
         """GET /api/v1/health/neo4j returns Neo4j connection status."""
         from app.main import app
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/v1/health/neo4j")
 
         assert response.status_code == 200
@@ -445,21 +409,15 @@ class TestHealthCheckE2E:
         assert "checks" in data
 
     @pytest.mark.asyncio
-    async def test_health_response_includes_timestamp(
-        self, mock_memory_service_healthy
-    ):
+    async def test_health_response_includes_timestamp(self, mock_memory_service_healthy):
         """Health response includes timestamp field."""
         from app.main import app
         from app.services.memory_service import get_memory_service
 
-        app.dependency_overrides[get_memory_service] = lambda: (
-            mock_memory_service_healthy
-        )
+        app.dependency_overrides[get_memory_service] = lambda: mock_memory_service_healthy
 
         try:
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 response = await client.get("/api/v1/memory/health")
 
             data = response.json()

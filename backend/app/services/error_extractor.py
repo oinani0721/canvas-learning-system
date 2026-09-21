@@ -42,11 +42,7 @@ def _safe_json_for_xml_envelope(obj: Any) -> str:
     合法 (LLM parse 后字符串值仍是原文), 又防止字面 closing tag 出现在 prompt 中.
     """
     s = json.dumps(obj, ensure_ascii=False)
-    return (
-        s.replace("&", "\\u0026")
-        .replace("<", "\\u003c")
-        .replace(">", "\\u003e")
-    )
+    return s.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -240,9 +236,7 @@ class ErrorExtractor:
             model = self._get_litellm_model(settings)
             # HIGH#3 + round-4 HIGH#1 fix: dialog_text → JSON envelope, 同时
             # _safe_json_for_xml_envelope escape `<>&` 防 `</dialog_json>` 越界注入.
-            dialog_json = _safe_json_for_xml_envelope(
-                {"dialog_lines": dialog_text.split("\n")}
-            )
+            dialog_json = _safe_json_for_xml_envelope({"dialog_lines": dialog_text.split("\n")})
             prompt = EXTRACTION_PROMPT.format(dialog_json=dialog_json)
 
             response = await litellm.acompletion(
@@ -261,9 +255,7 @@ class ErrorExtractor:
 
             parsed = json.loads(content)
             if not isinstance(parsed, list):
-                logger.warning(
-                    "error_extractor.llm_not_list", raw_preview=content[:200]
-                )
+                logger.warning("error_extractor.llm_not_list", raw_preview=content[:200])
                 return []
             return [e for e in parsed if isinstance(e, dict)]
         except json.JSONDecodeError as e:

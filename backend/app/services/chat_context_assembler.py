@@ -109,12 +109,7 @@ def _compute_reserve(budget: int) -> int:
 
 def _xml_attr_escape(value: str) -> str:
     """转义 XML 属性值（防 path 含 < > & " 破坏标签结构）。"""
-    return (
-        value.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
 def _xml_text_escape(value: str) -> str:
@@ -265,9 +260,7 @@ class ChatContextAssembler:
         if backlink_attr:
             lines.append("- 来源: 反向引用 (backlink — 该节点正文里有 [[seed]] 引用)")
         if via_attr:
-            lines.append(
-                f"- 路径: {' → '.join(_xml_text_escape(s) for s in path_trace)}"
-            )
+            lines.append(f"- 路径: {' → '.join(_xml_text_escape(s) for s in path_trace)}")
         fm = neighbor.frontmatter
         if isinstance(fm.get("type"), str):
             lines.append(f"- 类型: {_xml_text_escape(fm['type'])}")
@@ -294,9 +287,7 @@ class ChatContextAssembler:
         for c in callouts:
             kind = _xml_text_escape((c.get("kind") or "?").strip())
             title = _xml_text_escape((c.get("title") or "").strip())
-            content = _xml_text_escape(
-                (c.get("content") or "").strip().replace("\n", " ")
-            )
+            content = _xml_text_escape((c.get("content") or "").strip().replace("\n", " "))
             head = f"[{kind}]"
             if title:
                 head = f"{head} {title}"
@@ -309,9 +300,7 @@ class ChatContextAssembler:
         lines.append("</neighbor>")
         return "\n".join(lines)
 
-    def _format_neighbor_summary(
-        self, neighbor: WikilinkNeighborContext, max_chars: int = 200
-    ) -> str:
+    def _format_neighbor_summary(self, neighbor: WikilinkNeighborContext, max_chars: int = 200) -> str:
         """Phase 1.2 + 1.7+ — XML 标签包装的邻居内容摘要 (snippet escape 防注入)."""
         if not neighbor.content_summary:
             return ""
@@ -327,9 +316,7 @@ class ChatContextAssembler:
             f' kind="summary">\n{snippet}\n</neighbor>'
         )
 
-    def _format_historical_errors(
-        self, errors: list[dict[str, Any]], max_desc_chars: int = 240
-    ) -> str:
+    def _format_historical_errors(self, errors: list[dict[str, Any]], max_desc_chars: int = 240) -> str:
         """Story 2.3 — XML 标签包装的历史误解记录段.
 
         与 <neighbor> / <current_note> 风格统一,全字段 escape 防 prompt injection.
@@ -362,9 +349,7 @@ class ChatContextAssembler:
 
         # Story 2.3 Task 2.2 — 正面措辞模板. 使用统一 phrasing 避免 LLM 自由发挥
         # 生成负面描述 ("你犯了错误" / "你失败过") 触犯 AC #2 反面词禁止规则.
-        TEMPLATE = (
-            "学习者之前标记过：{description}。如果讨论涉及此话题，请自然地提醒区分。"
-        )
+        TEMPLATE = "学习者之前标记过：{description}。如果讨论涉及此话题，请自然地提醒区分。"
 
         for err in errors:
             err_type = _xml_attr_escape(str(err.get("error_type") or "error"))
@@ -376,9 +361,7 @@ class ChatContextAssembler:
             truncated = raw_desc[:max_desc_chars]
             phrased = TEMPLATE.format(description=truncated)
             body = _xml_text_escape(phrased)
-            lines.append(
-                f'<error type="{err_type}" corrected_at="{corrected_at}">{body}</error>'
-            )
+            lines.append(f'<error type="{err_type}" corrected_at="{corrected_at}">{body}</error>')
 
         lines.append("</historical_errors>")
         return "\n".join(lines)
@@ -424,11 +407,7 @@ class ChatContextAssembler:
             graph_version = _xml_text_escape(trace.graph_version)
             included_count = len(trace.included)
             omitted_count = len(trace.omitted)
-            degradations = (
-                ", ".join(_xml_text_escape(d) for d in trace.degradations)
-                if trace.degradations
-                else "none"
-            )
+            degradations = ", ".join(_xml_text_escape(d) for d in trace.degradations) if trace.degradations else "none"
         else:
             graph_version = "unknown"
             included_count = 0
@@ -472,15 +451,9 @@ class ChatContextAssembler:
         在 Priority 1.5 (current_note 之后,1-hop 邻居之前) 插入
         <historical_errors> 段; None 或空 list 时跳过此段 (AC #5).
         """
-        full_budget = (
-            _resolve_token_budget(token_budget)
-            if token_budget is not None
-            else self.budget
-        )
+        full_budget = _resolve_token_budget(token_budget) if token_budget is not None else self.budget
         reserve = _compute_reserve(full_budget)
-        assembler_budget = (
-            full_budget - reserve
-        )  # 阈值控制保证 >= 2696（4096-1400），小 budget 时 reserve=0
+        assembler_budget = full_budget - reserve  # 阈值控制保证 >= 2696（4096-1400），小 budget 时 reserve=0
         sections_included: list[str] = []
         truncated = False
 
@@ -500,9 +473,7 @@ class ChatContextAssembler:
         raw_body = current_note.content
         raw_body_tokens = self.count_tokens(raw_body)
         if raw_body_tokens + wrapper_overhead > assembler_budget:
-            raw_body = self.compress_content(
-                raw_body, max(1, assembler_budget - wrapper_overhead)
-            )
+            raw_body = self.compress_content(raw_body, max(1, assembler_budget - wrapper_overhead))
             truncated = True
         body = _xml_text_escape(raw_body)
         current_section = f"{wrapper_open}\n{body}\n{wrapper_close}"
@@ -539,9 +510,7 @@ class ChatContextAssembler:
 
         # Priority 3 — 1-hop 内容摘要
         if one_hop and used < assembler_budget:
-            summaries = [
-                self._format_neighbor_summary(n) for n in one_hop if n.content_summary
-            ]
+            summaries = [self._format_neighbor_summary(n) for n in one_hop if n.content_summary]
             if summaries:
                 block = "\n".join(summaries)
                 budget_left = assembler_budget - used
@@ -570,9 +539,7 @@ class ChatContextAssembler:
 
         # Priority 5 — 2-hop 内容摘要
         if two_hop and used < assembler_budget:
-            summaries = [
-                self._format_neighbor_summary(n) for n in two_hop if n.content_summary
-            ]
+            summaries = [self._format_neighbor_summary(n) for n in two_hop if n.content_summary]
             if summaries:
                 block = "\n".join(summaries)
                 budget_left = assembler_budget - used
@@ -597,9 +564,7 @@ class ChatContextAssembler:
         )
 
         # Story 2.1 P1.2 — boundary 包装
-        final_text = (
-            BOUNDARY_HEADER + "\n" + manifest + "\n\n" + inner_text + BOUNDARY_FOOTER
-        )
+        final_text = BOUNDARY_HEADER + "\n" + manifest + "\n\n" + inner_text + BOUNDARY_FOOTER
         final_tokens = self.count_tokens(final_text)
 
         return AssembledContext(

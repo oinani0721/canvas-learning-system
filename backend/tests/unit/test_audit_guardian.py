@@ -129,9 +129,7 @@ class TestSignalLossDetection:
         events = read_log()
         violations = [e for e in events if e["violation_type"] == "signal_loss"]
         assert len(violations) == 1
-        assert (
-            "no update_fsrs/update_bkt followed" in violations[0]["details"]["message"]
-        )
+        assert "no update_fsrs/update_bkt followed" in violations[0]["details"]["message"]
 
     async def test_signal_loss_cleans_expired_pipelines(self, guardian):
         await guardian.record_tool_call("generate_question", "sess1", "node1")

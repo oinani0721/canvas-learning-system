@@ -28,9 +28,7 @@ DEFAULT_SUBJECT_ID = "general"
 
 # ContextVar for per-request subject_id propagation
 # Set by API middleware/dependency, read by services that need the current subject.
-_current_subject_id: ContextVar[str] = ContextVar(
-    "current_subject_id", default=DEFAULT_SUBJECT_ID
-)
+_current_subject_id: ContextVar[str] = ContextVar("current_subject_id", default=DEFAULT_SUBJECT_ID)
 
 
 def get_database_for_subject(subject_id: str) -> str:
@@ -328,9 +326,7 @@ def canonical_group_id(value: str) -> str:
         - core 层不依赖 services 层 (避免循环依赖)
     """
     if not isinstance(value, str) or not value.strip():
-        _canon_logger.warning(
-            "canonical_group_id received empty/non-str input, defaulting to 'vault:default'"
-        )
+        _canon_logger.warning("canonical_group_id received empty/non-str input, defaulting to 'vault:default'")
         return "vault:default"
 
     if is_vault_group_id(value):

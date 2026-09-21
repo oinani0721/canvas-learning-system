@@ -76,9 +76,7 @@ class TestAgentMemoryIntegration:
         mock_memory_client.add_learning_episode.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_memory_write_persists_correct_data(
-        self, agent_service, mock_memory_client, wait_for_call
-    ):
+    async def test_memory_write_persists_correct_data(self, agent_service, mock_memory_client, wait_for_call):
         """Test memory write persists to MemoryService with correct data (Task 6.2)."""
         # Trigger memory write
         await agent_service._trigger_memory_write(
@@ -139,9 +137,7 @@ class TestAgentMemoryIntegration:
         assert mock_memory_client.add_learning_episode.call_count == 5
 
     @pytest.mark.asyncio
-    async def test_memory_client_unavailable_silent_degradation(
-        self, mock_gemini_client
-    ):
+    async def test_memory_client_unavailable_silent_degradation(self, mock_gemini_client):
         """Test silent degradation when memory client is unavailable."""
         # Create service without memory client
         service = AgentService(
@@ -165,9 +161,7 @@ class TestAgentMemoryIntegration:
         # No exception means silent degradation worked
 
     @pytest.mark.asyncio
-    async def test_memory_write_does_not_block_concurrent_operations(
-        self, agent_service, mock_memory_client
-    ):
+    async def test_memory_write_does_not_block_concurrent_operations(self, agent_service, mock_memory_client):
         """Test that memory writes don't block other operations."""
         import time
 
@@ -234,9 +228,7 @@ class TestAgentTypeMapping:
         # Check that all these agents have memory type mappings
         for agent_name in agent_type_names:
             memory_type = get_memory_type_for_agent(agent_name)
-            assert memory_type is not None, (
-                f"AgentType {agent_name} has no memory mapping"
-            )
+            assert memory_type is not None, f"AgentType {agent_name} has no memory mapping"
 
     def test_decomposition_agents_map_to_decomposition_type(self):
         """Test that decomposition agents map to decomposition_completed."""

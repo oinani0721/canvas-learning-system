@@ -63,9 +63,7 @@ class TestGetNodeContentFileNode:
         # Create test file
         test_file = tmp_path / "notes" / "oral-explanation.md"
         test_file.parent.mkdir(parents=True, exist_ok=True)
-        test_file.write_text(
-            "# Oral Explanation\n\nThis is the explanation content.", encoding="utf-8"
-        )
+        test_file.write_text("# Oral Explanation\n\nThis is the explanation content.", encoding="utf-8")
 
         node = {
             "id": "file123",
@@ -130,9 +128,7 @@ class TestGetNodeContentFileNode:
         }
 
         # Mock Path.read_text to raise PermissionError
-        with patch.object(
-            Path, "read_text", side_effect=PermissionError("Access denied")
-        ):
+        with patch.object(Path, "read_text", side_effect=PermissionError("Access denied")):
             result = get_node_content(node, str(tmp_path))
             assert result == ""
 

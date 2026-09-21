@@ -58,11 +58,7 @@ class TestReviewHistoryFilters:
             mock_service = make_mock_review_service()
             mock_get.return_value = mock_service
             response = client.get(
-                "/api/v1/review/history"
-                "?days=30"
-                "&canvas_path=离散数学.canvas"
-                "&concept_name=逆否命题"
-                "&limit=10"
+                "/api/v1/review/history?days=30&canvas_path=离散数学.canvas&concept_name=逆否命题&limit=10"
             )
 
             assert response.status_code == 200

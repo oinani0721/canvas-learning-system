@@ -54,9 +54,7 @@ class TestLRUDedup:
         assert dedup.contains("b") is False
 
 
-def _make_event(
-    event_type=LearningEventType.SCORE_SUBMITTED, event_id="", node_id="test_node"
-):
+def _make_event(event_type=LearningEventType.SCORE_SUBMITTED, event_id="", node_id="test_node"):
     kwargs = {
         "event_type": event_type,
         "payload": {"node_id": node_id, "session_id": "test_session"},
@@ -332,9 +330,7 @@ class TestEventBusContextVarInheritance:
         await asyncio.sleep(0.05)
 
         assert observed, "Tier 2 handler did not run"
-        assert observed[0] == "vault:cs_61b", (
-            f"ContextVar not inherited; got {observed[0]} expected 'vault:cs_61b'"
-        )
+        assert observed[0] == "vault:cs_61b", f"ContextVar not inherited; got {observed[0]} expected 'vault:cs_61b'"
 
     @pytest.mark.asyncio
     async def test_tier3_dispatch_inherits_contextvar(self):
@@ -357,6 +353,4 @@ class TestEventBusContextVarInheritance:
         await asyncio.sleep(0.05)
 
         assert observed, "Tier 3 handler did not run"
-        assert observed[0] == "vault:数学", (
-            f"ContextVar not inherited; got {observed[0]}"
-        )
+        assert observed[0] == "vault:数学", f"ContextVar not inherited; got {observed[0]}"

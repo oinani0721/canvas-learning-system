@@ -157,9 +157,7 @@ class TestBugTracker:
         log_path = tmp_path / "test_bug_log.jsonl"
         tracker = BugTracker(log_path=str(log_path))
 
-        bug_id = tracker.log_error(
-            endpoint="/api/v1/test", error=ValueError("Test"), request_params={}
-        )
+        bug_id = tracker.log_error(endpoint="/api/v1/test", error=ValueError("Test"), request_params={})
 
         assert log_path.exists()
         assert bug_id.startswith("BUG-")

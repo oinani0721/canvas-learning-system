@@ -206,9 +206,7 @@ def test_canvas_10_nodes(tmp_path: Path) -> Path:
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_10.canvas"
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
 
     return canvas_file
 
@@ -243,9 +241,7 @@ def test_canvas_20_nodes(tmp_path: Path) -> Path:
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_20.canvas"
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
 
     return canvas_file
 
@@ -284,9 +280,7 @@ def test_canvas_100_nodes(tmp_path: Path) -> Path:
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_100.canvas"
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
 
     return canvas_file
 
@@ -335,9 +329,7 @@ def test_canvas_with_failing_node(tmp_path: Path) -> Path:
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_failing.canvas"
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
 
     return canvas_file
 
@@ -408,9 +400,7 @@ def mock_agent_responses(mocker):
     [Source: docs/stories/33.8.story.md - Implementation Notes #1]
     """
 
-    async def mock_call_agent(
-        agent_type: str, node_id: str, node_text: str, *args, **kwargs
-    ):
+    async def mock_call_agent(agent_type: str, node_id: str, node_text: str, *args, **kwargs):
         """Mock agent response with minimal delay."""
         await simulate_async_delay(0.01)  # 10ms simulated processing
         return {
@@ -440,17 +430,13 @@ def mock_agent_with_failures(mocker):
     """
     call_count = {"value": 0}
 
-    async def mock_call_agent_with_failure(
-        agent_type: str, node_id: str, node_text: str, *args, **kwargs
-    ):
+    async def mock_call_agent_with_failure(agent_type: str, node_id: str, node_text: str, *args, **kwargs):
         """Mock agent that fails for empty text or node-999."""
         call_count["value"] += 1
         await simulate_async_delay(0.01)
 
         if node_id == "node-999" or not node_text.strip():
-            raise ValueError(
-                f"Agent processing failed for node {node_id}: empty content"
-            )
+            raise ValueError(f"Agent processing failed for node {node_id}: empty content")
 
         return {
             "success": True,
@@ -573,9 +559,7 @@ class PerformanceTimer:
         return {
             "total_duration_seconds": self.elapsed,
             "nodes_per_second": node_count / self.elapsed if self.elapsed > 0 else 0,
-            "average_per_node_ms": (self.elapsed / node_count * 1000)
-            if node_count > 0
-            else 0,
+            "average_per_node_ms": (self.elapsed / node_count * 1000) if node_count > 0 else 0,
         }
 
 
@@ -663,9 +647,7 @@ def mock_canvas_utils(monkeypatch):
             text_nodes = [n for n in nodes if n.get("type") == "text" and n.get("text")]
 
             if len(text_nodes) < min_cluster_size:
-                raise ValueError(
-                    f"节点数量不足: {len(text_nodes)} < {min_cluster_size}"
-                )
+                raise ValueError(f"节点数量不足: {len(text_nodes)} < {min_cluster_size}")
 
             # Split nodes into groups of ~5 for realistic clustering
             group_size = max(min_cluster_size, 5)
@@ -732,9 +714,7 @@ def _reset_e2e_singletons():
 # =============================================================================
 
 
-def mock_perform_clustering(
-    self, canvas_path, target_color, max_groups, min_nodes_per_group
-):
+def mock_perform_clustering(self, canvas_path, target_color, max_groups, min_nodes_per_group):
     """
     Shared mock replacement for IntelligentGroupingService._perform_clustering.
 
@@ -746,11 +726,7 @@ def mock_perform_clustering(
 
     nodes = canvas_data.get("nodes", [])
     text_nodes = [
-        n
-        for n in nodes
-        if n.get("type") == "text"
-        and n.get("color") == target_color
-        and n.get("text", "").strip()
+        n for n in nodes if n.get("type") == "text" and n.get("color") == target_color and n.get("text", "").strip()
     ]
 
     if len(text_nodes) < min_nodes_per_group:
@@ -808,9 +784,7 @@ def make_lightweight_ensure_deps(settings, agent_mock):
         from app.services.batch_orchestrator import BatchOrchestrator
         from app.services.canvas_service import CanvasService
 
-        canvas_base = (
-            str(settings.canvas_base_path) if settings.canvas_base_path else None
-        )
+        canvas_base = str(settings.canvas_base_path) if settings.canvas_base_path else None
         canvas_service = CanvasService(canvas_base_path=canvas_base)
 
         # Create AgentService with mocked gemini_client

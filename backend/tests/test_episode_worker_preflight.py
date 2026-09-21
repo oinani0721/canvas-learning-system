@@ -49,9 +49,7 @@ async def test_initialize_graphiti_preflight_fails(monkeypatch, tmp_path):
 
     import neo4j
 
-    monkeypatch.setattr(
-        neo4j.AsyncGraphDatabase, "driver", staticmethod(_fake_driver_factory)
-    )
+    monkeypatch.setattr(neo4j.AsyncGraphDatabase, "driver", staticmethod(_fake_driver_factory))
 
     instantiated = {"v": False}
     import app.services.episode_worker as ew
@@ -64,9 +62,7 @@ async def test_initialize_graphiti_preflight_fails(monkeypatch, tmp_path):
 
     monkeypatch.setattr(ew, "Graphiti", _spy_graphiti)
 
-    worker = GraphitiEpisodeWorker(
-        maxsize=1, dead_letter_path=str(tmp_path / "dlq.jsonl")
-    )
+    worker = GraphitiEpisodeWorker(maxsize=1, dead_letter_path=str(tmp_path / "dlq.jsonl"))
     ok = await worker.initialize_graphiti(
         neo4j_uri="bolt://localhost:1",
         neo4j_user="neo4j",
@@ -75,9 +71,7 @@ async def test_initialize_graphiti_preflight_fails(monkeypatch, tmp_path):
     )
     assert ok is False
     assert worker._graphiti is None
-    assert instantiated["v"] is False, (
-        "Graphiti must NOT be constructed when pre-flight fails"
-    )
+    assert instantiated["v"] is False, "Graphiti must NOT be constructed when pre-flight fails"
     assert fake_close_called["v"] is True, "temp_driver.close() must run in finally"
 
 
@@ -100,9 +94,7 @@ async def test_initialize_graphiti_preflight_timeout(monkeypatch, tmp_path):
         staticmethod(lambda uri, auth: _SlowDriver()),
     )
 
-    worker = GraphitiEpisodeWorker(
-        maxsize=1, dead_letter_path=str(tmp_path / "dlq2.jsonl")
-    )
+    worker = GraphitiEpisodeWorker(maxsize=1, dead_letter_path=str(tmp_path / "dlq2.jsonl"))
     ok = await worker.initialize_graphiti(
         neo4j_uri="bolt://localhost:1",
         neo4j_user="x",

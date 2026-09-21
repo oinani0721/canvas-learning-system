@@ -30,9 +30,7 @@ class AIConfigUpdate(BaseModel):
     )
     ai_model_name: Optional[str] = Field(default=None, description="AI model name")
     ai_api_key: Optional[str] = Field(default=None, description="AI API key")
-    ai_base_url: Optional[str] = Field(
-        default=None, description="AI API base URL (for custom providers)"
-    )
+    ai_base_url: Optional[str] = Field(default=None, description="AI API base URL (for custom providers)")
 
 
 class AIConfigResponse(BaseModel):

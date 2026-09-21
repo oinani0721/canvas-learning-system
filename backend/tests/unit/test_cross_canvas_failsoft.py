@@ -67,9 +67,7 @@ async def test_search_returns_empty_when_placeholder_active(mock_lancedb):
     service = CrossCanvasService(mock_lancedb, CrossCanvasRetrieverConfig())
     await service.initialize()
 
-    results = await service.search(
-        query="anything", canvas_file="physics.canvas", num_results=5
-    )
+    results = await service.search(query="anything", canvas_file="physics.canvas", num_results=5)
 
     assert results == []
     # The fallback whole-vault call must never happen.
@@ -91,9 +89,7 @@ async def test_warning_deduplicated_across_many_calls(mock_lancedb, caplog):
     """
     import logging
 
-    caplog.set_level(
-        logging.WARNING, logger="agentic_rag.retrievers.cross_canvas_retriever"
-    )
+    caplog.set_level(logging.WARNING, logger="agentic_rag.retrievers.cross_canvas_retriever")
 
     service = CrossCanvasService(mock_lancedb, CrossCanvasRetrieverConfig())
     await service.initialize()
@@ -106,9 +102,7 @@ async def test_warning_deduplicated_across_many_calls(mock_lancedb, caplog):
     assert ccr_mod._warned_unimplemented is True
 
     # If stdlib logging was captured, also verify dedup at log level.
-    warning_hits = [
-        rec for rec in caplog.records if "cross_canvas disabled" in rec.getMessage()
-    ]
+    warning_hits = [rec for rec in caplog.records if "cross_canvas disabled" in rec.getMessage()]
     # Either loguru swallowed them (len==0) or stdlib captured exactly 1.
     assert len(warning_hits) <= 1
 

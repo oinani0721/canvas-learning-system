@@ -42,12 +42,8 @@ suggestions_router = APIRouter()
 class RelationSuggestionRequest(BaseModel):
     """Request body for relation suggestion."""
 
-    source_content: str = Field(
-        ..., min_length=1, description="Content of the source (original) node"
-    )
-    new_content: str = Field(
-        ..., min_length=1, description="Content of the new (pulled-out) node"
-    )
+    source_content: str = Field(..., min_length=1, description="Content of the source (original) node")
+    new_content: str = Field(..., min_length=1, description="Content of the new (pulled-out) node")
     source_node_id: str = Field(default="", description="Source node ID for reference")
     # Wave-5 Stage B 续 — vault_id 注入. LLM 调用无 Neo4j 写入但需 ContextVar 给
     # 下游 logging / runtime model config (per-vault provider 可能不同).
@@ -56,24 +52,16 @@ class RelationSuggestionRequest(BaseModel):
         min_length=1,
         description="Wave-5 Stage B — 推荐必填 Plugin inferVaultId.",
     )
-    subject_id: Optional[str] = Field(
-        default=None, description="可选 vault 内学科二级 namespace."
-    )
-    group_id: Optional[str] = Field(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    )
+    subject_id: Optional[str] = Field(default=None, description="可选 vault 内学科二级 namespace.")
+    group_id: Optional[str] = Field(default=None, deprecated=True, description="Deprecated — 改用 vault_id.")
 
 
 class RelationSuggestionResponse(BaseModel):
     """Response with suggested relation type."""
 
     relation_type: str = Field(..., description="Suggested relation edge label")
-    relation_label: str = Field(
-        ..., description="Human-readable label for the relation"
-    )
-    confidence: float = Field(
-        ge=0.0, le=1.0, description="Confidence score of the suggestion"
-    )
+    relation_label: str = Field(..., description="Human-readable label for the relation")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score of the suggestion")
     reason: str = Field(default="", description="Brief reason for the suggestion")
 
 
@@ -155,9 +143,7 @@ async def suggest_relation(
         )
 
 
-async def _llm_suggest_relation(
-    source_content: str, new_content: str
-) -> RelationSuggestionResponse:
+async def _llm_suggest_relation(source_content: str, new_content: str) -> RelationSuggestionResponse:
     """
     Call LLM to suggest a relation type.
 

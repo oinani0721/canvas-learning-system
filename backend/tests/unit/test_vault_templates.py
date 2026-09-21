@@ -8,9 +8,7 @@ from pathlib import Path
 
 import pytest
 
-TEMPLATES_DIR = (
-    Path(__file__).resolve().parents[3] / "canvas-vault" / ".obsidian" / "templates"
-)
+TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "canvas-vault" / ".obsidian" / "templates"
 
 
 class TestConceptTemplate:
@@ -61,9 +59,7 @@ class TestExamBoardTemplate:
     """Task 2: exam-board.md template fields (AC #5)."""
 
     def test_template_exists(self):
-        assert (TEMPLATES_DIR / "exam-board.md").exists(), (
-            "exam-board.md template must exist"
-        )
+        assert (TEMPLATES_DIR / "exam-board.md").exists(), "exam-board.md template must exist"
 
     def test_has_type_field(self):
         content = (TEMPLATES_DIR / "exam-board.md").read_text()

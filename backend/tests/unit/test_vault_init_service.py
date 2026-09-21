@@ -132,6 +132,4 @@ class TestCheckRequiredPlugins:
         svc = VaultInitService()
         results = svc.check_required_plugins(str(vault_dir))
 
-        assert all(not r.installed for r in results), (
-            "All should be missing without .obsidian"
-        )
+        assert all(not r.installed for r in results), "All should be missing without .obsidian"

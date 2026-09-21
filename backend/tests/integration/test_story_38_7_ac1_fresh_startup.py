@@ -47,9 +47,7 @@ class TestAC1FreshEnvironmentStartup:
         Verify the Field definition default, bypassing .env overrides.
         """
         field_info = Settings.model_fields["ENABLE_GRAPHITI_JSON_DUAL_WRITE"]
-        assert field_info.default is True, (
-            f"Code default must be True (safe default), got {field_info.default}"
-        )
+        assert field_info.default is True, f"Code default must be True (safe default), got {field_info.default}"
 
     def test_fsrs_init_ok_when_library_available(self):
         """
@@ -111,9 +109,7 @@ class TestAC1FreshEnvironmentStartup:
         assert ms._episodes_recovered is True
         assert len(ms._episodes) == 1
         assert ms._episodes[0]["concept"] == "Python"
-        neo4j.get_all_recent_episodes.assert_awaited_once_with(
-            limit=1000, group_id=_recovery_scope()
-        )
+        neo4j.get_all_recent_episodes.assert_awaited_once_with(limit=1000, group_id=_recovery_scope())
 
     @pytest.mark.asyncio
     async def test_memory_service_degrades_when_neo4j_unavailable(self):
@@ -127,9 +123,7 @@ class TestAC1FreshEnvironmentStartup:
         # 用例过去是靠异常穿透而红/绿含混的。改成真实会发生的 ConnectionError,
         # AC-3 的优雅降级才第一次被真正验证。生产 except **不得**放宽成
         # Exception: 那会连 VaultScopeUnresolved 一起吞掉。
-        neo4j.get_all_recent_episodes = AsyncMock(
-            side_effect=ConnectionError("Connection refused")
-        )
+        neo4j.get_all_recent_episodes = AsyncMock(side_effect=ConnectionError("Connection refused"))
         learning_mem = make_mock_learning_memory()
 
         ms = MemoryService(neo4j_client=neo4j)

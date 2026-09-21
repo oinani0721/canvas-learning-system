@@ -63,8 +63,7 @@ def load_mastery_config() -> MasteryConfig:
     """Load mastery config from mastery_config.json with fallback paths."""
     # Try multiple candidate paths for config file
     candidates = [
-        Path(__file__).parent.parent.parent.parent
-        / "mastery_config.json",  # project root
+        Path(__file__).parent.parent.parent.parent / "mastery_config.json",  # project root
         Path(__file__).parent.parent.parent / "mastery_config.json",  # backend/
         Path(__file__).parent.parent / "mastery_config.json",  # backend/app/
     ]
@@ -77,15 +76,9 @@ def load_mastery_config() -> MasteryConfig:
                     override_lambda=data.get("override_lambda", 0.1),
                     self_assess_weight_cap=data.get("self_assess_weight_cap", 0.5),
                     override_weight_cap=data.get("override_weight_cap", 0.8),
-                    shaky_threshold=data.get("mastery_thresholds", {}).get(
-                        "shaky", 0.40
-                    ),
-                    developing_threshold=data.get("mastery_thresholds", {}).get(
-                        "developing", 0.70
-                    ),
-                    proficient_threshold=data.get("mastery_thresholds", {}).get(
-                        "proficient", 0.90
-                    ),
+                    shaky_threshold=data.get("mastery_thresholds", {}).get("shaky", 0.40),
+                    developing_threshold=data.get("mastery_thresholds", {}).get("developing", 0.70),
+                    proficient_threshold=data.get("mastery_thresholds", {}).get("proficient", 0.90),
                     mastered_fluent_min=data.get("mastered_fluent_min", 2),
                     default_group_id=data.get("default_group_id", "default"),
                 )
@@ -241,9 +234,7 @@ class MasteryEngine:
         Returns:
             Updated p_mastery value (clamped to [0.001, 0.999])
         """
-        params = DEFAULT_BKT_PARAMS.get(
-            concept.bkt_difficulty, DEFAULT_BKT_PARAMS["medium"]
-        )
+        params = DEFAULT_BKT_PARAMS.get(concept.bkt_difficulty, DEFAULT_BKT_PARAMS["medium"])
         p_prev = concept.p_mastery
         P_S = params["P_S"]
         P_G = params["P_G"]
@@ -324,16 +315,10 @@ class MasteryEngine:
         # None to the model's existing 0.0 default is safe here.
         stability_raw = _card_attr(card, "stability", None)
         difficulty_raw = _card_attr(card, "difficulty", None)
-        concept.fsrs_stability = (
-            float(stability_raw) if stability_raw is not None else 0.0
-        )
-        concept.fsrs_difficulty = (
-            float(difficulty_raw) if difficulty_raw is not None else 0.0
-        )
+        concept.fsrs_stability = float(stability_raw) if stability_raw is not None else 0.0
+        concept.fsrs_difficulty = float(difficulty_raw) if difficulty_raw is not None else 0.0
         state_raw = _card_attr(card, "state", 0)
-        concept.fsrs_state = int(
-            state_raw.value if hasattr(state_raw, "value") else state_raw
-        )
+        concept.fsrs_state = int(state_raw.value if hasattr(state_raw, "value") else state_raw)
         concept.fsrs_reps = int(_card_attr(card, "reps", 0))
         concept.fsrs_lapses = int(_card_attr(card, "lapses", 0))
         concept.fsrs_card_data = self.fsrs_manager.serialize_card(card)
@@ -356,9 +341,7 @@ class MasteryEngine:
             # No FSRS data yet -> use time-based decay estimate
             if concept.last_interaction_ts is None:
                 return 1.0  # Never reviewed, assume fresh
-            days_elapsed = (
-                datetime.now(timezone.utc) - concept.last_interaction_ts
-            ).total_seconds() / 86400
+            days_elapsed = (datetime.now(timezone.utc) - concept.last_interaction_ts).total_seconds() / 86400
             stability = max(concept.fsrs_stability, 1.0)
             return math.exp(-days_elapsed / stability)
 
@@ -390,9 +373,7 @@ class MasteryEngine:
         eff, _ = self.effective_proficiency_with_fallback_info(concept)
         return eff
 
-    def effective_proficiency_with_fallback_info(
-        self, concept: ConceptState
-    ) -> tuple[float, bool]:
+    def effective_proficiency_with_fallback_info(self, concept: ConceptState) -> tuple[float, bool]:
         """Compute effective proficiency and report whether fallback was used.
 
         A10 Phase 0 Hardening #2: this is the canonical method for callers that
@@ -426,9 +407,7 @@ class MasteryEngine:
             # Story 5.6: Auto-preload signal caches before fusion
             self._preload_signal_caches(concept)
             # Story 5.6: Use multi-signal fusion
-            fusion_result = self._fusion_engine.compute_fused_mastery(
-                concept.concept_id
-            )
+            fusion_result = self._fusion_engine.compute_fused_mastery(concept.concept_id)
             if fusion_result.active_signal_count > 0:
                 base = fusion_result.fused_mastery
                 # fusion_fallback stays False: fusion actually produced a value
@@ -461,9 +440,7 @@ class MasteryEngine:
         if concept.override_value is None or concept.override_ts is None:
             return base
 
-        days_since = (
-            datetime.now(timezone.utc) - concept.override_ts
-        ).total_seconds() / 86400
+        days_since = (datetime.now(timezone.utc) - concept.override_ts).total_seconds() / 86400
         weight = math.exp(-self.config.override_lambda * days_since)
         weight = min(weight, self.config.override_weight_cap)
 
@@ -474,9 +451,7 @@ class MasteryEngine:
         if concept.self_assess_value is None or concept.self_assess_ts is None:
             return current
 
-        days_since = (
-            datetime.now(timezone.utc) - concept.self_assess_ts
-        ).total_seconds() / 86400
+        days_since = (datetime.now(timezone.utc) - concept.self_assess_ts).total_seconds() / 86400
         # Self-assess decays faster (2x lambda) and has lower weight cap
         weight = math.exp(-self.config.override_lambda * 2 * days_since)
         weight = min(weight, self.config.self_assess_weight_cap)
@@ -495,11 +470,7 @@ class MasteryEngine:
           - effective_proficiency >= 0.90
           - fluent_count >= mastered_fluent_min (explanation-gated verification)
         """
-        if (
-            concept.interaction_count == 0
-            and concept.override_value is None
-            and concept.self_assess_value is None
-        ):
+        if concept.interaction_count == 0 and concept.override_value is None and concept.self_assess_value is None:
             return 0  # Not Assessed
 
         eff = self.effective_proficiency(concept)
@@ -553,11 +524,7 @@ class MasteryEngine:
           - Level 4 (Mastered): requires both `eff >= proficient_threshold` AND
             `fluent_count >= mastered_fluent_min` (explanation-gated verification)
         """
-        if (
-            concept.interaction_count == 0
-            and concept.override_value is None
-            and concept.self_assess_value is None
-        ):
+        if concept.interaction_count == 0 and concept.override_value is None and concept.self_assess_value is None:
             return 0  # Not Assessed
 
         if eff < self.config.shaky_threshold:
@@ -608,9 +575,7 @@ class MasteryEngine:
     # Override Management
     # ═══════════════════════════════════════════════════════════════════════════
 
-    def set_override(
-        self, concept: ConceptState, level: str, reason: str = ""
-    ) -> ConceptState:
+    def set_override(self, concept: ConceptState, level: str, reason: str = "") -> ConceptState:
         """Set explicit override from Sidebar (weight=0.8)."""
         value = OVERRIDE_LEVEL_MAP.get(level)
         if value is None:
@@ -658,13 +623,9 @@ class MasteryEngine:
         stale_factor = max(0, concept.p_mastery - R) if concept.p_mastery > 0.7 else 0.0
 
         # Factor 3: High mastery but low fluent count
-        unverified_factor = (
-            0.3 if concept.p_mastery > 0.85 and concept.fluent_count < 2 else 0.0
-        )
+        unverified_factor = 0.3 if concept.p_mastery > 0.85 and concept.fluent_count < 2 else 0.0
 
-        return min(
-            1.0, surprise_factor * 0.4 + stale_factor * 0.3 + unverified_factor * 0.3
-        )
+        return min(1.0, surprise_factor * 0.4 + stale_factor * 0.3 + unverified_factor * 0.3)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Concept Response Serialization (for API responses)
@@ -692,9 +653,7 @@ class MasteryEngine:
         # Story 5.6: Include fusion details if fusion engine is available
         fusion_details = None
         if self._fusion_engine is not None:
-            fusion_result = self._fusion_engine.compute_fused_mastery(
-                concept.concept_id
-            )
+            fusion_result = self._fusion_engine.compute_fused_mastery(concept.concept_id)
             fusion_details = {
                 "fused_mastery": fusion_result.fused_mastery,
                 "active_signal_count": fusion_result.active_signal_count,
@@ -728,9 +687,7 @@ class MasteryEngine:
             "interaction_count": concept.interaction_count,
             "fluent_count": concept.fluent_count,
             "p_mastery": round(concept.p_mastery, 3),
-            "last_interaction_ts": concept.last_interaction_ts.isoformat()
-            if concept.last_interaction_ts
-            else None,
+            "last_interaction_ts": concept.last_interaction_ts.isoformat() if concept.last_interaction_ts else None,
             "fusion_details": fusion_details,
         }
 

@@ -68,9 +68,7 @@ class TestStreakDaysCalculation:
         """streak_days=1 when only today has reviews."""
         today = _today()
         states = {
-            "math.canvas:concept_a": _card(
-                datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()
-            ),
+            "math.canvas:concept_a": _card(datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()),
         }
         svc = _make_service(card_states=states)
         result = await svc.get_history(days=7, limit=None)
@@ -114,9 +112,7 @@ class TestStreakDaysCalculation:
         # Review only 2 days ago
         d = today - timedelta(days=2)
         states = {
-            "math.canvas:a": _card(
-                datetime(d.year, d.month, d.day, 10, 0, 0).isoformat()
-            ),
+            "math.canvas:a": _card(datetime(d.year, d.month, d.day, 10, 0, 0).isoformat()),
         }
         svc = _make_service(card_states=states)
         result = await svc.get_history(days=7, limit=None)
@@ -128,17 +124,9 @@ class TestStreakDaysCalculation:
         today = _today()
         yesterday = today - timedelta(days=1)
         states = {
-            "math.canvas:a": _card(
-                datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()
-            ),
-            "math.canvas:b": _card(
-                datetime(today.year, today.month, today.day, 14, 0, 0).isoformat()
-            ),
-            "math.canvas:c": _card(
-                datetime(
-                    yesterday.year, yesterday.month, yesterday.day, 9, 0, 0
-                ).isoformat()
-            ),
+            "math.canvas:a": _card(datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()),
+            "math.canvas:b": _card(datetime(today.year, today.month, today.day, 14, 0, 0).isoformat()),
+            "math.canvas:c": _card(datetime(yesterday.year, yesterday.month, yesterday.day, 9, 0, 0).isoformat()),
         }
         svc = _make_service(card_states=states)
         result = await svc.get_history(days=7, limit=None)
@@ -171,12 +159,8 @@ class TestReviewCountAccuracy:
         today = _today()
         old = today - timedelta(days=30)
         states = {
-            "math.canvas:recent": _card(
-                datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()
-            ),
-            "math.canvas:old": _card(
-                datetime(old.year, old.month, old.day, 10, 0, 0).isoformat()
-            ),
+            "math.canvas:recent": _card(datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()),
+            "math.canvas:old": _card(datetime(old.year, old.month, old.day, 10, 0, 0).isoformat()),
         }
         svc = _make_service(card_states=states)
         result = await svc.get_history(days=7, limit=None)
@@ -194,9 +178,7 @@ class TestReviewCountAccuracy:
         """has_more=False when total records <= limit."""
         today = _today()
         states = {
-            f"math.canvas:c{i}": _card(
-                datetime(today.year, today.month, today.day, 10 + i, 0, 0).isoformat()
-            )
+            f"math.canvas:c{i}": _card(datetime(today.year, today.month, today.day, 10 + i, 0, 0).isoformat())
             for i in range(3)
         }
         svc = _make_service(card_states=states)
@@ -208,9 +190,7 @@ class TestReviewCountAccuracy:
         """has_more=True when total records > limit."""
         today = _today()
         states = {
-            f"math.canvas:c{i}": _card(
-                datetime(today.year, today.month, today.day, 10, i, 0).isoformat()
-            )
+            f"math.canvas:c{i}": _card(datetime(today.year, today.month, today.day, 10, i, 0).isoformat())
             for i in range(10)
         }
         svc = _make_service(card_states=states)
@@ -249,9 +229,7 @@ class TestCardStatesDataSource:
         """concept_id comes from the full key, concept_name from part after ':'."""
         today = _today()
         states = {
-            "calc.canvas:derivative_rules": _card(
-                datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()
-            ),
+            "calc.canvas:derivative_rules": _card(datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()),
         }
         svc = _make_service(card_states=states)
         result = await svc.get_history(days=7, limit=None)
@@ -319,9 +297,7 @@ class TestDateGrouping:
         today = _today()
         yesterday = today - timedelta(days=1)
         ts_today = datetime(today.year, today.month, today.day, 10, 0, 0).isoformat()
-        ts_yesterday = datetime(
-            yesterday.year, yesterday.month, yesterday.day, 10, 0, 0
-        ).isoformat()
+        ts_yesterday = datetime(yesterday.year, yesterday.month, yesterday.day, 10, 0, 0).isoformat()
         states = {
             "math.canvas:a": _card(ts_yesterday),
             "math.canvas:b": _card(ts_today),

@@ -46,9 +46,7 @@ try:
 
     _rollback_available = True
 except (ImportError, ModuleNotFoundError):
-    logging.getLogger(__name__).warning(
-        "src.rollback not available — rollback endpoints will return 503"
-    )
+    logging.getLogger(__name__).warning("src.rollback not available — rollback endpoints will return 503")
 
 from app.models.rollback import (
     CreateSnapshotRequest,
@@ -195,9 +193,7 @@ def _operation_to_response(op) -> OperationResponse:
 )
 async def get_operation_history(
     canvas_path: str,
-    limit: int = Query(
-        50, ge=1, le=100, description="Maximum number of records to return"
-    ),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of records to return"),
     offset: int = Query(0, ge=0, description="Number of records to skip"),
 ) -> OperationHistoryResponse:
     """
@@ -315,9 +311,7 @@ def _snapshot_entry_to_response(entry: dict) -> SnapshotResponse:
 )
 async def list_snapshots(
     canvas_path: str,
-    limit: int = Query(
-        20, ge=1, le=100, description="Maximum number of snapshots to return"
-    ),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of snapshots to return"),
     offset: int = Query(0, ge=0, description="Number of snapshots to skip"),
 ) -> SnapshotListResponse:
     """

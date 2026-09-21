@@ -46,9 +46,7 @@ logger = logging.getLogger(__name__)
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Allowed intents — must match _build_sends_for_intent in state_graph.py
-ALLOWED_INTENTS: frozenset[str] = frozenset(
-    {"file_locate", "learning_history", "knowledge_point", "comprehensive"}
-)
+ALLOWED_INTENTS: frozenset[str] = frozenset({"file_locate", "learning_history", "knowledge_point", "comprehensive"})
 
 # Default config — overridable via CanvasRAGConfig
 DEFAULT_LLM_ROUTER_MODEL = "gemini/gemini-2.0-flash"
@@ -100,15 +98,11 @@ LLM_ROUTER_USER_TEMPLATE = "查询：{query}"
 class LLMRouterResult:
     """Result of an LLM-based L1 routing call."""
 
-    intent: (
-        str  # Always one of ALLOWED_INTENTS, defaults to "comprehensive" on fallback
-    )
+    intent: str  # Always one of ALLOWED_INTENTS, defaults to "comprehensive" on fallback
     reason: str  # LLM-provided rationale, or empty on fallback
     latency_ms: float
     success: bool
-    error: Optional[str] = (
-        None  # short tag: "timeout" / "parse_error" / "import_error" / "unknown_intent" / etc.
-    )
+    error: Optional[str] = None  # short tag: "timeout" / "parse_error" / "import_error" / "unknown_intent" / etc.
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -200,9 +194,7 @@ async def llm_route(
         )
     except asyncio.TimeoutError:
         latency_ms = (time.perf_counter() - start) * 1000
-        logger.warning(
-            f"[l1_router] LLM timeout after {timeout_s}s for query: {query[:60]!r}"
-        )
+        logger.warning(f"[l1_router] LLM timeout after {timeout_s}s for query: {query[:60]!r}")
         return LLMRouterResult(
             intent="comprehensive",
             reason="",
@@ -240,9 +232,7 @@ async def llm_route(
     try:
         parsed = _parse_json_response(content)
     except json.JSONDecodeError as exc:
-        logger.warning(
-            f"[l1_router] JSON parse failed: {exc}, content: {content[:200]!r}"
-        )
+        logger.warning(f"[l1_router] JSON parse failed: {exc}, content: {content[:200]!r}")
         return LLMRouterResult(
             intent="comprehensive",
             reason="",
@@ -255,9 +245,7 @@ async def llm_route(
     reason = parsed.get("reason", "")
 
     if not isinstance(intent, str) or intent not in ALLOWED_INTENTS:
-        logger.warning(
-            f"[l1_router] LLM returned unknown intent: {intent!r}, content: {content[:200]!r}"
-        )
+        logger.warning(f"[l1_router] LLM returned unknown intent: {intent!r}, content: {content[:200]!r}")
         return LLMRouterResult(
             intent="comprehensive",
             reason=str(reason)[:200] if reason else "",
@@ -267,8 +255,7 @@ async def llm_route(
         )
 
     logger.info(
-        f"[l1_router] LLM routed: query={query[:50]!r} -> intent={intent} "
-        f"({latency_ms:.0f}ms) reason={reason[:60]!r}"
+        f"[l1_router] LLM routed: query={query[:50]!r} -> intent={intent} ({latency_ms:.0f}ms) reason={reason[:60]!r}"
     )
 
     return LLMRouterResult(

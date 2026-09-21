@@ -338,9 +338,7 @@ class TestHistoryTrendConsideration:
         """AC-31.3.4: Declining trend sets review_suggested=True."""
         client, mock_ms = client_with_mock
         # Scores declining: 50, 60, 70, 80, 90 (most recent first = 50)
-        mock_ms.get_learning_history.return_value = _make_history_items(
-            [50, 60, 70, 80, 90]
-        )
+        mock_ms.get_learning_history.return_value = _make_history_items([50, 60, 70, 80, 90])
         response = client.post(
             "/api/v1/agents/recommend-action",
             json={
@@ -357,9 +355,7 @@ class TestHistoryTrendConsideration:
         """AC-31.3.4: Improving trend does not suggest review."""
         client, mock_ms = client_with_mock
         # Scores improving: 90, 80, 70, 60, 50 (most recent first = 90)
-        mock_ms.get_learning_history.return_value = _make_history_items(
-            [90, 80, 70, 60, 50]
-        )
+        mock_ms.get_learning_history.return_value = _make_history_items([90, 80, 70, 60, 50])
         response = client.post(
             "/api/v1/agents/recommend-action",
             json={
@@ -426,9 +422,7 @@ class TestHistoryTrendConsideration:
     def test_consecutive_low_scores_alternative_agents(self, client_with_mock):
         """AC-31.3.4: 3+ consecutive low scores suggest alternative agents."""
         client, mock_ms = client_with_mock
-        mock_ms.get_learning_history.return_value = _make_history_items(
-            [40, 35, 30, 25, 50]
-        )
+        mock_ms.get_learning_history.return_value = _make_history_items([40, 35, 30, 25, 50])
         response = client.post(
             "/api/v1/agents/recommend-action",
             json={

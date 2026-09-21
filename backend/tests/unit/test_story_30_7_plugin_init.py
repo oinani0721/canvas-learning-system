@@ -27,9 +27,7 @@ from app.services.memory_service import MemoryService
 # ---------------------------------------------------------------------------
 
 
-def _make_mock_neo4j(
-    *, mode="JSON_FALLBACK", initialized=True, health_status=True, connected=False
-):
+def _make_mock_neo4j(*, mode="JSON_FALLBACK", initialized=True, health_status=True, connected=False):
     mock = MagicMock()
     mock.initialize = AsyncMock()
     mock.cleanup = AsyncMock()
@@ -64,9 +62,7 @@ def _reset_memory_singleton():
         mod._memory_service_instance = original
 
 
-def _make_service(
-    *, mode="JSON_FALLBACK", initialized_flag=True, health_status=True, connected=False
-):
+def _make_service(*, mode="JSON_FALLBACK", initialized_flag=True, health_status=True, connected=False):
     """Create a MemoryService with configurable mock Neo4j."""
     neo4j = _make_mock_neo4j(
         mode=mode,

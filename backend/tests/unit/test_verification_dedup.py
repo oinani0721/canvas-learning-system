@@ -24,14 +24,10 @@ class TestVerificationDedup:
     @pytest.fixture
     def service_with_graphiti(self, mock_graphiti_client, mock_agent_service):
         """Create VerificationService with mock Graphiti client"""
-        return VerificationService(
-            graphiti_client=mock_graphiti_client, agent_service=mock_agent_service
-        )
+        return VerificationService(graphiti_client=mock_graphiti_client, agent_service=mock_agent_service)
 
     @pytest.mark.asyncio
-    async def test_no_history_generates_standard_question(
-        self, service_with_graphiti, mock_graphiti_client
-    ):
+    async def test_no_history_generates_standard_question(self, service_with_graphiti, mock_graphiti_client):
         """
         AC-31.4.1: When no history exists, generate standard verification question.
 
@@ -41,9 +37,7 @@ class TestVerificationDedup:
         mock_graphiti_client.search_verification_questions.return_value = []
 
         # Act
-        question = await service_with_graphiti.generate_question_with_rag(
-            concept="逆否命题", canvas_name="离散数学"
-        )
+        question = await service_with_graphiti.generate_question_with_rag(concept="逆否命题", canvas_name="离散数学")
 
         # Assert: Graphiti was queried
         mock_graphiti_client.search_verification_questions.assert_called_once()
@@ -55,9 +49,7 @@ class TestVerificationDedup:
         assert len(question) > 0
 
     @pytest.mark.asyncio
-    async def test_with_history_generates_alternative_question(
-        self, service_with_graphiti, mock_graphiti_client
-    ):
+    async def test_with_history_generates_alternative_question(self, service_with_graphiti, mock_graphiti_client):
         """
         AC-31.4.2: When history exists, generate alternative angle question.
 
@@ -74,9 +66,7 @@ class TestVerificationDedup:
         ]
 
         # Act
-        question = await service_with_graphiti.generate_question_with_rag(
-            concept="逆否命题", canvas_name="离散数学"
-        )
+        question = await service_with_graphiti.generate_question_with_rag(concept="逆否命题", canvas_name="离散数学")
 
         # Assert: Graphiti was queried
         assert mock_graphiti_client.search_verification_questions.called
@@ -164,36 +154,28 @@ class TestAngleSpecificPrompts:
 
     def test_build_application_prompt(self, service):
         """Test application angle prompt contains expected content"""
-        prompt = service._build_angle_specific_prompt(
-            concept="逆否命题", angle="application", history_questions=[]
-        )
+        prompt = service._build_angle_specific_prompt(concept="逆否命题", angle="application", history_questions=[])
 
         assert "应用" in prompt or "application" in prompt.lower()
         assert "逆否命题" in prompt
 
     def test_build_comparison_prompt(self, service):
         """Test comparison angle prompt contains expected content"""
-        prompt = service._build_angle_specific_prompt(
-            concept="逆否命题", angle="comparison", history_questions=[]
-        )
+        prompt = service._build_angle_specific_prompt(concept="逆否命题", angle="comparison", history_questions=[])
 
         assert "比较" in prompt or "comparison" in prompt.lower()
         assert "逆否命题" in prompt
 
     def test_build_counterexample_prompt(self, service):
         """Test counterexample angle prompt contains expected content"""
-        prompt = service._build_angle_specific_prompt(
-            concept="逆否命题", angle="counterexample", history_questions=[]
-        )
+        prompt = service._build_angle_specific_prompt(concept="逆否命题", angle="counterexample", history_questions=[])
 
         assert "反例" in prompt or "counterexample" in prompt.lower()
         assert "逆否命题" in prompt
 
     def test_build_synthesis_prompt(self, service):
         """Test synthesis angle prompt contains expected content"""
-        prompt = service._build_angle_specific_prompt(
-            concept="逆否命题", angle="synthesis", history_questions=[]
-        )
+        prompt = service._build_angle_specific_prompt(concept="逆否命题", angle="synthesis", history_questions=[])
 
         assert "综合" in prompt or "synthesis" in prompt.lower()
         assert "逆否命题" in prompt
@@ -205,9 +187,7 @@ class TestAngleSpecificPrompts:
             {"question_text": "Previous question 2", "question_type": "application"},
         ]
 
-        prompt = service._build_angle_specific_prompt(
-            concept="逆否命题", angle="comparison", history_questions=history
-        )
+        prompt = service._build_angle_specific_prompt(concept="逆否命题", angle="comparison", history_questions=history)
 
         # Should mention avoiding repetition
         assert "避免" in prompt or "重复" in prompt or "已问" in prompt

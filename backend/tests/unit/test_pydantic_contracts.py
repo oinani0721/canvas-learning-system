@@ -50,9 +50,7 @@ class TestCalibrationRecordContracts:
 
     def test_performance_negative_rejected(self):
         with pytest.raises(ValidationError):
-            CalibrationRecord(
-                node_id="n", self_confidence=0.5, actual_performance=-0.01
-            )
+            CalibrationRecord(node_id="n", self_confidence=0.5, actual_performance=-0.01)
 
 
 class TestFusionResultContracts:

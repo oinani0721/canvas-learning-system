@@ -46,9 +46,7 @@ async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
         pass
 
 
-async def _poll_neo4j(
-    client: Neo4jClient, user_id: str, *, min_count: int = 1, timeout: float = 10.0
-):
+async def _poll_neo4j(client: Neo4jClient, user_id: str, *, min_count: int = 1, timeout: float = 10.0):
     """Poll Neo4j until at least min_count learning history records appear."""
     loop = asyncio.get_running_loop()
     start = loop.time()
@@ -57,9 +55,7 @@ async def _poll_neo4j(
         if results and len(results) >= min_count:
             return results
         await asyncio.sleep(0.3)
-    raise TimeoutError(
-        f"Neo4j did not return {min_count} records for {user_id} within {timeout}s"
-    )
+    raise TimeoutError(f"Neo4j did not return {min_count} records for {user_id} within {timeout}s")
 
 
 # ============================================================================
@@ -350,9 +346,7 @@ class TestRealFilteringAndPagination:
 
             page1_concepts = {item.get("concept", "") for item in page1["items"]}
             page2_concepts = {item.get("concept", "") for item in page2["items"]}
-            assert page1_concepts.isdisjoint(page2_concepts), (
-                f"Pages overlap: p1={page1_concepts}, p2={page2_concepts}"
-            )
+            assert page1_concepts.isdisjoint(page2_concepts), f"Pages overlap: p1={page1_concepts}, p2={page2_concepts}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()

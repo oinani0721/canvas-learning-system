@@ -20,9 +20,7 @@ class TestCostTracker:
         import aiosqlite
 
         async with aiosqlite.connect(tracker._db_path) as db:
-            cursor = await db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-            )
+            cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             tables = [row[0] for row in await cursor.fetchall()]
         assert "llm_call_logs" in tables
         assert "llm_call_logs_daily" in tables
@@ -92,13 +90,8 @@ class TestCostTracker:
 
     @pytest.mark.asyncio
     async def test_health_probe(self, tracker):
-        entries = [
-            LLMCallLog(request_id=f"h-{i}", status="success", latency_ms=100)
-            for i in range(10)
-        ]
-        entries.append(
-            LLMCallLog(request_id="h-fail", status="failure", latency_ms=500)
-        )
+        entries = [LLMCallLog(request_id=f"h-{i}", status="success", latency_ms=100) for i in range(10)]
+        entries.append(LLMCallLog(request_id="h-fail", status="failure", latency_ms=500))
         await tracker.insert_logs(entries)
         probe = await tracker.get_health_probe()
         assert probe["total_recent"] == 11

@@ -94,9 +94,7 @@ def build_card_states(count: int, canvas_prefix: str = "math") -> Dict[str, Any]
         review_date = base_date - timedelta(days=i % 5)
         key = f"{canvas_prefix}.canvas:concept_{i}"
         states[key] = {
-            "last_review": datetime(
-                review_date.year, review_date.month, review_date.day, 10, 0, 0
-            ).isoformat(),
+            "last_review": datetime(review_date.year, review_date.month, review_date.day, 10, 0, 0).isoformat(),
             "rating": (i % 4) + 1,
         }
     return states

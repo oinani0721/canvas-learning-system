@@ -381,9 +381,7 @@ class MemoryService:
             if self._episodes_recovered:
                 return
             try:
-                records = await self.neo4j.get_all_recent_episodes(
-                    limit=1000, group_id=recovery_scope
-                )
+                records = await self.neo4j.get_all_recent_episodes(limit=1000, group_id=recovery_scope)
                 added = 0
                 if records:
                     # Build set of existing episode keys to avoid duplicates
@@ -714,9 +712,7 @@ class MemoryService:
             # 因此封堵不缩召回。
             from app.core.vault_scope import require_read_group
 
-            group_id = require_read_group(
-                context="memory_service.get_learning_history"
-            )
+            group_id = require_read_group(context="memory_service.get_learning_history")
 
         # ✅ Story 31.A.2 AC-31.A.2.1: Query from Neo4j first (replaces memory-only read)
         episodes = []
@@ -764,9 +760,7 @@ class MemoryService:
         # 白板不可见。
         from app.core.vault_scope import group_in_read_scope
 
-        memory_episodes = [
-            e for e in memory_episodes if group_in_read_scope(e.get("group_id"), group_id)
-        ]
+        memory_episodes = [e for e in memory_episodes if group_in_read_scope(e.get("group_id"), group_id)]
 
         # Apply date filters to in-memory episodes
         # S34 Bug fix #3: Normalize both sides to str for consistent comparison
@@ -817,6 +811,7 @@ class MemoryService:
             if end_date:
                 e_str = str(end_date.isoformat()) if hasattr(end_date, "isoformat") else str(end_date)
                 failed_scores = [fs for fs in failed_scores if str(fs.get("timestamp", "")) <= e_str]
+
             # FR-KG-04 fix: Apply group_id filter to fallback failed_scores for
             # canvas-scoped isolation (Story 30.8 AC-30.8.1). Derive group_id from
             # canvas_name + inferred subject — failed_writes.jsonl historical entries
@@ -834,9 +829,7 @@ class MemoryService:
                 cn_only = extract_canvas_name(canvas_name_field)
                 return _vault_scoped_group_id(inferred_subj, canvas_name=cn_only)
 
-            failed_scores = [
-                fs for fs in failed_scores if group_in_read_scope(_derive_group_id(fs), group_id)
-            ]
+            failed_scores = [fs for fs in failed_scores if group_in_read_scope(_derive_group_id(fs), group_id)]
             # Deduplicate: only include fallback entries not already in episodes
             existing_keys = {(e.get("node_id", ""), e.get("timestamp", "")) for e in episodes}
             for fs in failed_scores:
@@ -951,9 +944,7 @@ class MemoryService:
 
         if retrieval_failure:
             # 后端不可信 → 空 timeline 不是「没学过」
-            status = (
-                ServiceStatus.DEGRADED.value if timeline else ServiceStatus.UNAVAILABLE.value
-            )
+            status = ServiceStatus.DEGRADED.value if timeline else ServiceStatus.UNAVAILABLE.value
         elif timeline:
             status = ServiceStatus.OK.value
         else:
@@ -1021,9 +1012,7 @@ class MemoryService:
         # 空列表而不抛异常 —— 必须先探测, 否则 unavailable 被误报成 empty。
         backend_failure = _neo4j_backend_failure(self.neo4j)
         if backend_failure:
-            logger.error(
-                f"Score history backend unusable for {concept_id}: {backend_failure}"
-            )
+            logger.error(f"Score history backend unusable for {concept_id}: {backend_failure}")
             return ScoreHistoryResponse(
                 concept_id=concept_id,
                 canvas_name=canvas_name,
@@ -1139,9 +1128,7 @@ class MemoryService:
             # 用户。改 fail-closed 解析 vault 根组 + 客户端前缀过滤。
             from app.core.vault_scope import require_read_group
 
-            group_id = require_read_group(
-                context="memory_service.get_review_suggestions_with_status"
-            )
+            group_id = require_read_group(context="memory_service.get_review_suggestions_with_status")
 
         # CARD-G4-2 Codex round-1 BLOCKER-4: 卡文点名的 suggestions 读路径 —
         # 后端降级/异常时此前静默返回空, 与「没有待复习概念」不可分辨。
@@ -1149,13 +1136,9 @@ class MemoryService:
 
         backend_failure = _neo4j_backend_failure(self.neo4j)
         if backend_failure:
-            return StatusedResult.unavailable(
-                f"review suggestions unusable — {backend_failure}"
-            )
+            return StatusedResult.unavailable(f"review suggestions unusable — {backend_failure}")
         try:
-            suggestions = await self.neo4j.get_review_suggestions(
-                user_id=user_id, limit=limit, group_id=group_id
-            )
+            suggestions = await self.neo4j.get_review_suggestions(user_id=user_id, limit=limit, group_id=group_id)
         except Exception as e:  # noqa: BLE001
             logger.error(f"Review suggestions query failed for {user_id}: {e}")
             return StatusedResult.unavailable(f"{type(e).__name__}: {e}")
@@ -1845,9 +1828,7 @@ class MemoryService:
 
         # If recipes are unavailable (import failed), fall back to old search()
         if config_obj is None:
-            return await self._search_graphiti_legacy(
-                query, group_id, limit, fail_sink=fail_sink
-            )
+            return await self._search_graphiti_legacy(query, group_id, limit, fail_sink=fail_sink)
 
         try:
             # Override the limit in config
@@ -1876,9 +1857,7 @@ class MemoryService:
             # 全部 `本组__*` 子组, 与 read_group_filter 的可见面等价。
             # CARD-G4-5: 组族收敛到单一 builder —— 手拼 [本组, 影子组] 的形态已由
             # tests/unit/test_group_family_builder.py 的 AST 门禁掉。
-            _search_groups = await self._read_group_family(
-                _gid_phys, fail_sink=coverage_sink
-            )
+            _search_groups = await self._read_group_family(_gid_phys, fail_sink=coverage_sink)
             search_kwargs: Dict[str, Any] = {
                 "query": query,
                 "config": config_with_limit,
@@ -1979,9 +1958,7 @@ class MemoryService:
             from app.core.vault_scope import require_read_group
 
             _gid_phys = sanitize_group_id_for_graphiti(
-                require_read_group(
-                    group_id, context="memory_service._search_graphiti_legacy"
-                )
+                require_read_group(group_id, context="memory_service._search_graphiti_legacy")
             )
             # CARD-G4-5: 与 Tier 1 走**同一个** builder（本卡范围仅此一项）。
             # ⛔ 这里**刻意不传 fail_sink**。本卡初版曾传 `fail_sink=fail_sink`, 自称
@@ -2032,9 +2009,7 @@ class MemoryService:
     #: 批次1'④: 白板级子组枚举缓存 {前缀: (过期时间戳, 组列表)}
     _subgroup_cache: Dict[str, Any] = {}
 
-    async def _read_group_family(
-        self, gid_phys: str, *, fail_sink: Optional[List[str]] = None
-    ) -> List[str]:
+    async def _read_group_family(self, gid_phys: str, *, fail_sink: Optional[List[str]] = None) -> List[str]:
         """读侧**完整**组族 = 静态半边 + 动态半边 (CARD-G4-5)。
 
         - 静态半边 `static_group_family(gid_phys)` = `[本组, 影子组]` —— 纯函数,
@@ -2057,9 +2032,7 @@ class MemoryService:
                 family.append(gid)
         return family
 
-    async def _expand_vault_subgroups(
-        self, gid_phys: str, fail_sink: Optional[List[str]] = None
-    ) -> List[str]:
+    async def _expand_vault_subgroups(self, gid_phys: str, fail_sink: Optional[List[str]] = None) -> List[str]:
         """枚举 vault 物理组前缀下的白板级子组 (批次1'④, MEM-FLYWHEEL)。
 
         中文白板名经 punycode 转码后落在 vault__x__xn--* 子组; 此前搜索只查
@@ -2285,9 +2258,7 @@ class MemoryService:
             # T1 统一 (2026-07-10): episode 节点物理存 `__` 格式 — 冒号格式
             # 直查恒空 (Tier 2 断了两个月, Tier 1 降级时整条 search 静默空)。
             # read_scope_params 内部即 to_physical_group_id, 物理化保持不变。
-            scope_params = read_scope_params(
-                group_id, context="memory_service._search_neo4j_fulltext"
-            )
+            scope_params = read_scope_params(group_id, context="memory_service._search_neo4j_fulltext")
 
             records = await self.neo4j.run_query(
                 cypher,
@@ -2384,9 +2355,7 @@ class MemoryService:
         # require_read_group (被直接调用时也 fail-closed), 解析幂等。
         from app.core.vault_scope import group_in_read_scope, require_read_group
 
-        group_id = require_read_group(
-            group_id, context="memory_service.search_memories_with_status"
-        )
+        group_id = require_read_group(group_id, context="memory_service.search_memories_with_status")
 
         effective_limit = limit if limit is not None else max_results
         seen_ids: set = set()
@@ -2396,7 +2365,7 @@ class MemoryService:
         # CARD-G4-2 Codex round-1 HIGH-5: 区分「整 Tier 不可用」与「覆盖面
         # 收窄」——subgroup 枚举失败只影响检索广度, 不该让两个主 Tier 都
         # 成功的查询被报成 unavailable。
-        tier_failures: List[str] = []      # 主检索 Tier 硬失败
+        tier_failures: List[str] = []  # 主检索 Tier 硬失败
         coverage_failures: List[str] = []  # 覆盖面收窄 (子组枚举等)
         graphiti_hits = await self._search_graphiti(
             query,
@@ -2416,9 +2385,7 @@ class MemoryService:
                 merged.append(ep)
 
         # Tier 2: Neo4j fulltext search
-        neo4j_hits = await self._search_neo4j_fulltext(
-            query, group_id, effective_limit, fail_sink=tier_failures
-        )
+        neo4j_hits = await self._search_neo4j_fulltext(query, group_id, effective_limit, fail_sink=tier_failures)
         for ep in neo4j_hits:
             ep_id = ep.get("episode_id", "")
             if ep_id and ep_id not in seen_ids:
@@ -2495,9 +2462,7 @@ class MemoryService:
                 return StatusedResult.degraded(final_items, reason)
             return StatusedResult.unavailable(reason)
         if coverage_failures:
-            return StatusedResult.degraded(
-                final_items, "; ".join(coverage_failures)
-            )
+            return StatusedResult.degraded(final_items, "; ".join(coverage_failures))
         return StatusedResult.from_items(final_items)
 
     async def search_memories(
@@ -2598,9 +2563,7 @@ class MemoryService:
 
         新代码应改用 ``search_error_memories_with_status()``。
         """
-        result = await self.search_error_memories_with_status(
-            node_id, group_id=group_id, limit=limit
-        )
+        result = await self.search_error_memories_with_status(node_id, group_id=group_id, limit=limit)
         return result.items
 
     async def record_temporal_event(

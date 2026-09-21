@@ -142,9 +142,7 @@ class TestRecordEvents:
 
     @pytest.mark.asyncio
     async def test_record_override(self, store, stub_neo4j):
-        await store.record_override_event(
-            "c1", level="proficient", reason="manual", group_id="test"
-        )
+        await store.record_override_event("c1", level="proficient", reason="manual", group_id="test")
         stub_neo4j.run_query.assert_called_once()
 
     @pytest.mark.asyncio

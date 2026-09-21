@@ -78,8 +78,7 @@ class CircuitBreaker:
         current = self.state
         if current == CircuitState.OPEN:
             logger.debug(
-                f"CircuitBreaker[{self.name}]: request blocked (OPEN, "
-                f"{self._failure_count} consecutive failures)"
+                f"CircuitBreaker[{self.name}]: request blocked (OPEN, {self._failure_count} consecutive failures)"
             )
             return False
         return True
@@ -88,9 +87,7 @@ class CircuitBreaker:
         """Record a successful call. Resets failure count and closes circuit."""
         with self._lock:
             if self._state == CircuitState.HALF_OPEN:
-                logger.info(
-                    f"CircuitBreaker[{self.name}]: HALF_OPEN -> CLOSED (probe succeeded)"
-                )
+                logger.info(f"CircuitBreaker[{self.name}]: HALF_OPEN -> CLOSED (probe succeeded)")
             self._failure_count = 0
             self._state = CircuitState.CLOSED
 
@@ -103,8 +100,7 @@ class CircuitBreaker:
             if self._state == CircuitState.HALF_OPEN:
                 self._state = CircuitState.OPEN
                 logger.warning(
-                    f"CircuitBreaker[{self.name}]: HALF_OPEN -> OPEN "
-                    f"(probe failed, waiting {self.recovery_timeout}s)"
+                    f"CircuitBreaker[{self.name}]: HALF_OPEN -> OPEN (probe failed, waiting {self.recovery_timeout}s)"
                 )
             elif self._failure_count >= self.failure_threshold:
                 self._state = CircuitState.OPEN

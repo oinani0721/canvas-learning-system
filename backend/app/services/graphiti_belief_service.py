@@ -61,15 +61,11 @@ class BeliefKeyResolver:
     @staticmethod
     def make_callout_belief_key(node_id: str, node_path: str, offset: int) -> str:
         """callout:{node_id}:{anchor}, anchor = sha256(node_path + offset)[:16]。"""
-        anchor = hashlib.sha256(f"{node_path}:{offset}".encode("utf-8")).hexdigest()[
-            :16
-        ]
+        anchor = hashlib.sha256(f"{node_path}:{offset}".encode("utf-8")).hexdigest()[:16]
         return f"callout:{node_id}:{anchor}"
 
     @staticmethod
-    def make_edge_belief_key(
-        source_node_id: str, relation_type: str, target_node_id: str
-    ) -> str:
+    def make_edge_belief_key(source_node_id: str, relation_type: str, target_node_id: str) -> str:
         """edge:{source_node_id}:{relation_type}:{target_node_id}。"""
         return f"edge:{source_node_id}:{relation_type}:{target_node_id}"
 
@@ -104,8 +100,7 @@ async def _ensure_belief_key_index(driver: Any) -> None:
     """best-effort 建 belief_key 关系属性索引 (IF NOT EXISTS 幂等, 失败非致命)。"""
     try:
         await driver.execute_query(
-            "CREATE INDEX canvas_belief_key IF NOT EXISTS "
-            "FOR ()-[e:RELATES_TO]-() ON (e.belief_key)"
+            "CREATE INDEX canvas_belief_key IF NOT EXISTS FOR ()-[e:RELATES_TO]-() ON (e.belief_key)"
         )
     except Exception as e:  # noqa: BLE001 — 索引是优化, 缺失不影响正确性
         logger.debug("belief_key index ensure skipped (non-fatal): %s", e)
@@ -127,28 +122,18 @@ async def _query_edges_by_belief_key(
         f"WHERE e.group_id = $group_id AND e.belief_key = $belief_key{status_clause} "
         f"RETURN {return_cols}"
     )
-    records, _, _ = await driver.execute_query(
-        query, group_id=group_id, belief_key=belief_key, routing_="r"
-    )
+    records, _, _ = await driver.execute_query(query, group_id=group_id, belief_key=belief_key, routing_="r")
     return [get_entity_edge_from_record(record, provider) for record in records]
 
 
-async def _find_active_edges_by_belief_key(
-    driver: Any, group_id: str, belief_key: str
-) -> list[EntityEdge]:
+async def _find_active_edges_by_belief_key(driver: Any, group_id: str, belief_key: str) -> list[EntityEdge]:
     """查同 belief_key 的当前 active 边 (单测接缝: 可换 FakeEdgeStore)。"""
-    return await _query_edges_by_belief_key(
-        driver, group_id, belief_key, active_only=True
-    )
+    return await _query_edges_by_belief_key(driver, group_id, belief_key, active_only=True)
 
 
-async def _find_all_edges_by_belief_key(
-    driver: Any, group_id: str, belief_key: str
-) -> list[EntityEdge]:
+async def _find_all_edges_by_belief_key(driver: Any, group_id: str, belief_key: str) -> list[EntityEdge]:
     """查同 belief_key 的全部版本 (含 superseded; 单测接缝)。"""
-    return await _query_edges_by_belief_key(
-        driver, group_id, belief_key, active_only=False
-    )
+    return await _query_edges_by_belief_key(driver, group_id, belief_key, active_only=False)
 
 
 async def _ensure_entity_node(graphiti: Any, node_name: str, group_id: str) -> str:
@@ -236,9 +221,7 @@ async def update_belief_version_chain(
     else:
         loop_node = node_id or source_node_id or target_node_id
         if not loop_node:
-            raise ValueError(
-                "update_belief_version_chain: 自环事件缺 node_id (callout/error/calib 必须有)"
-            )
+            raise ValueError("update_belief_version_chain: 自环事件缺 node_id (callout/error/calib 必须有)")
         src_uuid = tgt_uuid = await _ensure_entity_node(graphiti, loop_node, gid)
         name = edge_name or _self_loop_edge_name(belief_key)
 
@@ -302,11 +285,7 @@ async def get_belief_history(
 
     edges.sort(key=_vk)
 
-    active_edges = [
-        e
-        for e in edges
-        if (e.attributes or {}).get("status") == "active" and e.invalid_at is None
-    ]
+    active_edges = [e for e in edges if (e.attributes or {}).get("status") == "active" and e.invalid_at is None]
     current_uuid = max(active_edges, key=_vk).uuid if active_edges else None
 
     history: list[dict[str, Any]] = []
@@ -315,9 +294,7 @@ async def get_belief_history(
         invalid_at = _to_aware_utc(e.invalid_at)
         active_at_as_of = False
         if as_of is not None and valid_at is not None:
-            active_at_as_of = valid_at <= as_of and (
-                invalid_at is None or as_of < invalid_at
-            )
+            active_at_as_of = valid_at <= as_of and (invalid_at is None or as_of < invalid_at)
         history.append(
             {
                 "uuid": e.uuid,
@@ -340,9 +317,7 @@ async def get_belief_history(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-async def maybe_update_belief_from_task(
-    graphiti: Any, task: Any
-) -> Optional[EntityEdge]:
+async def maybe_update_belief_from_task(graphiti: Any, task: Any) -> Optional[EntityEdge]:
     """从 EpisodeTask.metadata 解 belief 字段并推进版本链 (供 Phase B hook 调)。
 
     metadata 无 belief_key → 直接 return None (非演化事件不进版本链)。

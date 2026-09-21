@@ -1201,8 +1201,7 @@ class TestG41bMisrouteFieldParity:
 
         missing = set(mirror[0]) - set(misroute[0])
         assert not missing, (
-            f"降级落点比镜像少了字段 {sorted(missing)} —— 中途降级恢复的 episode "
-            "会缺归属, 之后被每一次作用域读永久挡掉"
+            f"降级落点比镜像少了字段 {sorted(missing)} —— 中途降级恢复的 episode 会缺归属, 之后被每一次作用域读永久挡掉"
         )
 
     @pytest.mark.asyncio
@@ -1218,14 +1217,19 @@ class TestG41bMisrouteFieldParity:
         client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "vis.json")
         await client.initialize()
         client._data["relationships"] = [
-            {"user_id": "u", "concept_name": "mine", "concept_id": "c",
-             "timestamp": "2026-01-01T00:00:00", "last_score": 80,
-             "review_count": 1, "group_id": f"{gid}__board_x"}
+            {
+                "user_id": "u",
+                "concept_name": "mine",
+                "concept_id": "c",
+                "timestamp": "2026-01-01T00:00:00",
+                "last_score": 80,
+                "review_count": 1,
+                "group_id": f"{gid}__board_x",
+            }
         ]
 
         rows = await client._handle_query_history({"userId": "u", "group_id": gid})
         assert rows, "前置条件: 降级落点应当读得到本作用域的数据"
         assert group_in_read_scope(rows[0].get("group_id"), scope) is True, (
-            f"降级恢复的 episode 归属为 {rows[0].get('group_id')!r} —— "
-            "作用域判定为 False, 它会永久不可见"
+            f"降级恢复的 episode 归属为 {rows[0].get('group_id')!r} —— 作用域判定为 False, 它会永久不可见"
         )

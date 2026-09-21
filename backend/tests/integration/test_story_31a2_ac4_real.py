@@ -53,9 +53,7 @@ async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
         pass
 
 
-async def _poll_neo4j(
-    client: Neo4jClient, user_id: str, *, min_count: int = 1, timeout: float = 10.0
-):
+async def _poll_neo4j(client: Neo4jClient, user_id: str, *, min_count: int = 1, timeout: float = 10.0):
     """Poll Neo4j until at least min_count learning history records appear."""
     loop = asyncio.get_running_loop()
     start = loop.time()
@@ -64,9 +62,7 @@ async def _poll_neo4j(
         if results and len(results) >= min_count:
             return results
         await asyncio.sleep(0.3)
-    raise TimeoutError(
-        f"Neo4j did not return {min_count} records for {user_id} within {timeout}s"
-    )
+    raise TimeoutError(f"Neo4j did not return {min_count} records for {user_id} within {timeout}s")
 
 
 async def _insert_5_concepts(service: MemoryService, prefix: str, user_id: str):
@@ -436,9 +432,7 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 start_date=datetime(2020, 1, 1, tzinfo=timezone.utc),
             )
-            include_concepts = [
-                str(i.get("concept", "")) for i in result_include["items"]
-            ]
+            include_concepts = [str(i.get("concept", "")) for i in result_include["items"]]
             assert any("recent_concept" in c for c in include_concepts), (
                 f"Past start_date should include recent records, got: {include_concepts}"
             )
@@ -448,9 +442,7 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 start_date=datetime(2099, 1, 1, tzinfo=timezone.utc),
             )
-            exclude_concepts = [
-                str(i.get("concept", "")) for i in result_exclude["items"]
-            ]
+            exclude_concepts = [str(i.get("concept", "")) for i in result_exclude["items"]]
             assert not any("recent_concept" in c for c in exclude_concepts), (
                 f"Far-future start_date should exclude our record, got: {exclude_concepts}"
             )
@@ -460,9 +452,7 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 start_date=datetime(2099, 1, 1, tzinfo=timezone.utc),
             )
-            assert len(raw_exclude) == 0, (
-                "Neo4j should return 0 with far-future start_date"
-            )
+            assert len(raw_exclude) == 0, "Neo4j should return 0 with far-future start_date"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -498,9 +488,7 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 end_date=datetime(2099, 12, 31, tzinfo=timezone.utc),
             )
-            include_concepts = [
-                str(i.get("concept", "")) for i in result_include["items"]
-            ]
+            include_concepts = [str(i.get("concept", "")) for i in result_include["items"]]
             assert any("todays_concept" in c for c in include_concepts), (
                 f"Far-future end_date should include our record, got: {include_concepts}"
             )
@@ -510,9 +498,7 @@ class TestAC31A24_PaginationAndFiltering:
                 user_id=user_id,
                 end_date=datetime(2000, 1, 1, tzinfo=timezone.utc),
             )
-            exclude_concepts = [
-                str(i.get("concept", "")) for i in result_exclude["items"]
-            ]
+            exclude_concepts = [str(i.get("concept", "")) for i in result_exclude["items"]]
             assert not any("todays_concept" in c for c in exclude_concepts), (
                 f"Past end_date should exclude our record, got: {exclude_concepts}"
             )
@@ -566,9 +552,7 @@ class TestAC31A24_PaginationAndFiltering:
             # Verify timestamps are in descending order
             timestamps = [str(i.get("timestamp", "")) for i in items]
             for j in range(len(timestamps) - 1):
-                assert timestamps[j] >= timestamps[j + 1], (
-                    f"Results not sorted newest-first: {timestamps}"
-                )
+                assert timestamps[j] >= timestamps[j + 1], f"Results not sorted newest-first: {timestamps}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -616,18 +600,10 @@ class TestAC31A24_PaginationAndFiltering:
             u1_concepts = [str(i.get("concept", "")) for i in result_u1["items"]]
             u2_concepts = [str(i.get("concept", "")) for i in result_u2["items"]]
 
-            assert any("my_concept" in c for c in u1_concepts), (
-                "user1 should see my_concept"
-            )
-            assert not any("their_concept" in c for c in u1_concepts), (
-                "user1 should NOT see user2's data"
-            )
-            assert any("their_concept" in c for c in u2_concepts), (
-                "user2 should see their_concept"
-            )
-            assert not any("my_concept" in c for c in u2_concepts), (
-                "user2 should NOT see user1's data"
-            )
+            assert any("my_concept" in c for c in u1_concepts), "user1 should see my_concept"
+            assert not any("their_concept" in c for c in u1_concepts), "user1 should NOT see user2's data"
+            assert any("their_concept" in c for c in u2_concepts), "user2 should see their_concept"
+            assert not any("my_concept" in c for c in u2_concepts), "user2 should NOT see user1's data"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()

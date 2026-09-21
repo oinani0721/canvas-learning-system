@@ -104,9 +104,7 @@ class TestHistoryAPIEndpoint:
         response = client.get("/api/v1/review/history")
 
         # Story 34.9 AC4: Only accept 200 — HTTP 500 is never a valid response
-        assert response.status_code == 200, (
-            f"Endpoint should return 200 with default limit, got {response.status_code}"
-        )
+        assert response.status_code == 200, f"Endpoint should return 200 with default limit, got {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_endpoint_combined_parameters(self):
@@ -117,13 +115,7 @@ class TestHistoryAPIEndpoint:
         client = TestClient(app)
 
         # Request with all parameters
-        response = client.get(
-            "/api/v1/review/history"
-            "?days=7"
-            "&canvas_path=test.canvas"
-            "&limit=10"
-            "&show_all=false"
-        )
+        response = client.get("/api/v1/review/history?days=7&canvas_path=test.canvas&limit=10&show_all=false")
 
         # Should not return 422 (validation error)
         assert response.status_code != 422, "Endpoint should accept all parameters"
@@ -252,9 +244,7 @@ class TestSortingRequirement:
 
         # Verify sorted order
         for i in range(len(sorted_records) - 1):
-            assert (
-                sorted_records[i]["review_time"] >= sorted_records[i + 1]["review_time"]
-            )
+            assert sorted_records[i]["review_time"] >= sorted_records[i + 1]["review_time"]
 
     def test_limit_applies_after_sorting(self):
         """Limit should apply after sorting (get newest N records)."""

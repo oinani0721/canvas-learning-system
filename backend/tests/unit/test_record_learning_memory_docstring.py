@@ -38,9 +38,7 @@ def docstring() -> str:
     from app.services.react_agent import record_learning_memory
 
     # Prefer .description (what LiteLLM reads) over .__doc__.
-    desc = getattr(record_learning_memory, "description", None) or getattr(
-        record_learning_memory, "__doc__", ""
-    )
+    desc = getattr(record_learning_memory, "description", None) or getattr(record_learning_memory, "__doc__", "")
     assert desc, (
         "record_learning_memory exposes neither .description nor .__doc__ — "
         "LiteLLM will send an empty tool description to the model, which defeats "

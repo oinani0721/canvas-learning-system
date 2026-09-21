@@ -103,13 +103,7 @@ def test_legacy_state_zero_frontmatter_defensive_mapping():
 def test_cli_legacy_state_zero_full_frontmatter_via_stdin():
     """CARD-C3: stdin CLI 形态下 legacy state:0 + 哨兵伴生字段全链走通
     (quiz-answer 实际调用路径, 含 re-exec)。"""
-    fm = (
-        "fsrs_due: 2026-08-24T00:00:00Z\n"
-        "fsrs_state: 0\n"
-        "fsrs_step: null\n"
-        "fsrs_stability: 0.0\n"
-        "fsrs_difficulty: null"
-    )
+    fm = "fsrs_due: 2026-08-24T00:00:00Z\nfsrs_state: 0\nfsrs_step: null\nfsrs_stability: 0.0\nfsrs_difficulty: null"
     payload = json.dumps({"fm": fm, "grade_norm": 2.0 / 3, "abandoned": False, "ts": NOW})
     r = subprocess.run(["python3", str(BRIDGE)], input=payload, capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr[-500:]

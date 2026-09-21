@@ -137,10 +137,6 @@ def test_no_default_group_id_fallback_in_write_paths():
     for mod in (memory_ep, memory_tools, conversation_tools):
         src = inspect.getsource(mod)
         offending = [
-            ln.strip()
-            for ln in src.splitlines()
-            if "= DEFAULT_GROUP_ID" in ln and not ln.strip().startswith("#")
+            ln.strip() for ln in src.splitlines() if "= DEFAULT_GROUP_ID" in ln and not ln.strip().startswith("#")
         ]
-        assert offending == [], (
-            f"{mod.__name__} 仍有 DEFAULT_GROUP_ID 回落: {offending}"
-        )
+        assert offending == [], f"{mod.__name__} 仍有 DEFAULT_GROUP_ID 回落: {offending}"

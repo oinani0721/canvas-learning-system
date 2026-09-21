@@ -162,16 +162,10 @@ class TestDynamicIntervalCalculation:
     @pytest.mark.asyncio
     async def test_schedule_review_returns_fsrs_data(self, review_service):
         """schedule_review should return FSRS card data when available."""
-        result = await review_service.schedule_review(
-            canvas_name="test_canvas", concept_id="node_fsrs"
-        )
+        result = await review_service.schedule_review(canvas_name="test_canvas", concept_id="node_fsrs")
         assert result is not None
         # Check for various field names (API may use different naming)
-        assert (
-            "scheduled_date" in result
-            or "next_review_date" in result
-            or "next_review" in result
-        )
+        assert "scheduled_date" in result or "next_review_date" in result or "next_review" in result
         assert "interval_days" in result or "interval" in result
         # FSRS-specific fields (may be None if FSRS unavailable)
         assert "card_data" in result or "fsrs_state" in result or "algorithm" in result
@@ -244,9 +238,7 @@ class TestCardStatePersistence:
         concept_id = "node_load_test"
 
         # Record a review to save state
-        result = await review_service.record_review_result(
-            canvas_name="test_canvas", concept_id=concept_id, rating=3
-        )
+        result = await review_service.record_review_result(canvas_name="test_canvas", concept_id=concept_id, rating=3)
         card_data = result.get("card_data")
 
         if card_data:
@@ -266,9 +258,7 @@ class TestFSRSStateResponse:
     @pytest.mark.asyncio
     async def test_fsrs_state_fields(self, review_service):
         """Response should include FSRS state fields when available."""
-        result = await review_service.record_review_result(
-            canvas_name="test_canvas", concept_id="node_state", rating=3
-        )
+        result = await review_service.record_review_result(canvas_name="test_canvas", concept_id="node_state", rating=3)
 
         fsrs_state = result.get("fsrs_state")
         if fsrs_state:
@@ -318,9 +308,7 @@ class TestAlgorithmField:
     @pytest.mark.asyncio
     async def test_algorithm_field_present(self, review_service):
         """Response should include algorithm field."""
-        result = await review_service.record_review_result(
-            canvas_name="test_canvas", concept_id="node_algo", rating=3
-        )
+        result = await review_service.record_review_result(canvas_name="test_canvas", concept_id="node_algo", rating=3)
         assert "algorithm" in result
         # Should be fsrs-4.5 or ebbinghaus-fallback
         assert result["algorithm"] in ["fsrs-4.5", "ebbinghaus-fallback"]
@@ -342,9 +330,7 @@ class TestEbbinghausFallbackNextReview:
         from datetime import datetime, timezone
 
         before = datetime.now(timezone.utc)
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c1", score=20
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c1", score=20)
         assert result["algorithm"] == "ebbinghaus-fallback"
         assert result["interval_days"] == 1
         next_review = datetime.fromisoformat(result["next_review"])
@@ -356,9 +342,7 @@ class TestEbbinghausFallbackNextReview:
         from datetime import datetime, timezone
 
         before = datetime.now(timezone.utc)
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c2", score=50
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c2", score=50)
         assert result["interval_days"] == 3
         next_review = datetime.fromisoformat(result["next_review"])
         assert (next_review - before).days >= 2
@@ -369,9 +353,7 @@ class TestEbbinghausFallbackNextReview:
         from datetime import datetime, timezone
 
         before = datetime.now(timezone.utc)
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c3", score=70
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c3", score=70)
         assert result["interval_days"] == 7
         next_review = datetime.fromisoformat(result["next_review"])
         assert (next_review - before).days >= 6
@@ -382,9 +364,7 @@ class TestEbbinghausFallbackNextReview:
         from datetime import datetime, timezone
 
         before = datetime.now(timezone.utc)
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c4", score=95
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c4", score=95)
         assert result["interval_days"] == 30
         next_review = datetime.fromisoformat(result["next_review"])
         assert (next_review - before).days >= 29
@@ -392,9 +372,7 @@ class TestEbbinghausFallbackNextReview:
     @pytest.mark.asyncio
     async def test_fallback_rating_only_no_score(self, fallback_service):
         """rating=1 without score → interval=1 day."""
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c5", rating=1
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c5", rating=1)
         assert result["algorithm"] == "ebbinghaus-fallback"
         assert result["interval_days"] == 1
 
@@ -403,9 +381,7 @@ class TestEbbinghausFallbackNextReview:
         """recorded_at must contain timezone info (UTC)."""
         from datetime import datetime
 
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c6", score=50
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c6", score=50)
         recorded_at = datetime.fromisoformat(result["recorded_at"])
         assert recorded_at.tzinfo is not None, "recorded_at must be timezone-aware"
 
@@ -414,9 +390,7 @@ class TestEbbinghausFallbackNextReview:
         """next_review must contain timezone info (UTC)."""
         from datetime import datetime
 
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c7", score=50
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c7", score=50)
         next_review = datetime.fromisoformat(result["next_review"])
         assert next_review.tzinfo is not None, "next_review must be timezone-aware"
 
@@ -435,9 +409,7 @@ class TestScheduleReviewFallback:
         from datetime import datetime, timezone
 
         before = datetime.now(timezone.utc)
-        result = await fallback_service.schedule_review(
-            canvas_name="test", concept_id="c1", trigger_point=1
-        )
+        result = await fallback_service.schedule_review(canvas_name="test", concept_id="c1", trigger_point=1)
         assert result["algorithm"] == "ebbinghaus-fallback"
         scheduled = datetime.fromisoformat(result["scheduled_date"])
         assert scheduled > before, "scheduled_date must be in the future"
@@ -452,9 +424,7 @@ class TestScheduleReviewFallback:
             (4, 90),
         ],
     )
-    async def test_schedule_fallback_interval_mapping(
-        self, fallback_service, trigger_point, expected_interval
-    ):
+    async def test_schedule_fallback_interval_mapping(self, fallback_service, trigger_point, expected_interval):
         """Each trigger_point maps to correct Ebbinghaus interval."""
         result = await fallback_service.schedule_review(
             canvas_name="test", concept_id="c1", trigger_point=trigger_point
@@ -473,55 +443,41 @@ class TestRecordReviewBoundaryConditions:
     @pytest.mark.asyncio
     async def test_score_zero_maps_to_again(self, review_service):
         """score=0 → rating=1 (Again), interval should be shortest."""
-        result = await review_service.record_review_result(
-            canvas_name="test", concept_id="c_zero", score=0
-        )
+        result = await review_service.record_review_result(canvas_name="test", concept_id="c_zero", score=0)
         assert result["rating"] == 1
 
     @pytest.mark.asyncio
     async def test_score_100_maps_to_easy(self, review_service):
         """score=100 → rating=4 (Easy)."""
-        result = await review_service.record_review_result(
-            canvas_name="test", concept_id="c_100", score=100
-        )
+        result = await review_service.record_review_result(canvas_name="test", concept_id="c_100", score=100)
         assert result["rating"] == 4
 
     @pytest.mark.asyncio
     async def test_no_score_no_rating_defaults_to_good(self, review_service):
         """Neither score nor rating → default rating=3 (Good)."""
-        result = await review_service.record_review_result(
-            canvas_name="test", concept_id="c_default"
-        )
+        result = await review_service.record_review_result(canvas_name="test", concept_id="c_default")
         assert result["rating"] == 3
 
     @pytest.mark.asyncio
     async def test_rating_takes_precedence_over_score(self, review_service):
         """When both provided, rating is used directly (not converted from score)."""
-        result = await review_service.record_review_result(
-            canvas_name="test", concept_id="c_both", score=95, rating=1
-        )
+        result = await review_service.record_review_result(canvas_name="test", concept_id="c_both", score=95, rating=1)
         # rating=1 should be used, not score=95→rating=4
         assert result["rating"] == 1
 
     @pytest.mark.asyncio
     async def test_invalid_rating_clamped_to_range(self, review_service):
         """rating=0 → clamped to 1; rating=5 → clamped to 4."""
-        result_low = await review_service.record_review_result(
-            canvas_name="test", concept_id="c_low", rating=0
-        )
+        result_low = await review_service.record_review_result(canvas_name="test", concept_id="c_low", rating=0)
         assert result_low["rating"] >= 1
 
-        result_high = await review_service.record_review_result(
-            canvas_name="test", concept_id="c_high", rating=5
-        )
+        result_high = await review_service.record_review_result(canvas_name="test", concept_id="c_high", rating=5)
         assert result_high["rating"] <= 4
 
     @pytest.mark.asyncio
     async def test_invalid_rating_string_defaults_to_good(self, review_service):
         """Non-numeric rating (e.g., 'abc') → default to 3."""
-        result = await review_service.record_review_result(
-            canvas_name="test", concept_id="c_str", rating="abc"
-        )
+        result = await review_service.record_review_result(canvas_name="test", concept_id="c_str", rating="abc")
         assert result["rating"] == 3
 
 
@@ -543,17 +499,13 @@ class TestAlgorithmSelectionPath:
         """When FSRS is available, algorithm should be 'fsrs-4.5'."""
         if fsrs_service._fsrs_manager is None:
             pytest.skip("FSRS not available in test environment")
-        result = await fsrs_service.record_review_result(
-            canvas_name="test", concept_id="c_fsrs", rating=3
-        )
+        result = await fsrs_service.record_review_result(canvas_name="test", concept_id="c_fsrs", rating=3)
         assert result["algorithm"] == "fsrs-4.5"
 
     @pytest.mark.asyncio
     async def test_fsrs_disabled_uses_ebbinghaus(self, fallback_service):
         """When FSRS is unavailable, algorithm should be 'ebbinghaus-fallback'."""
-        result = await fallback_service.record_review_result(
-            canvas_name="test", concept_id="c_ebb", rating=3
-        )
+        result = await fallback_service.record_review_result(canvas_name="test", concept_id="c_ebb", rating=3)
         assert result["algorithm"] == "ebbinghaus-fallback"
 
     @pytest.mark.asyncio
@@ -563,18 +515,14 @@ class TestAlgorithmSelectionPath:
             pytest.skip("FSRS not available in test environment")
         # FSRS schedule_review with existing card_state avoids new-card edge cases
         # First record a review to create a card, then schedule using the card_data
-        record = await fsrs_service.record_review_result(
-            canvas_name="test", concept_id="c_sched", rating=3
-        )
+        record = await fsrs_service.record_review_result(canvas_name="test", concept_id="c_sched", rating=3)
         fsrs_result = await fsrs_service.schedule_review(
             canvas_name="test",
             concept_id="c_sched",
             trigger_point=1,
             card_state=record.get("card_data"),
         )
-        fallback_result = await fallback_service.schedule_review(
-            canvas_name="test", concept_id="c1", trigger_point=1
-        )
+        fallback_result = await fallback_service.schedule_review(canvas_name="test", concept_id="c1", trigger_point=1)
         assert fsrs_result["algorithm"] == "fsrs-4.5"
         assert fallback_result["algorithm"] == "ebbinghaus-fallback"
 
@@ -595,8 +543,7 @@ class TestAutoPersistCounterRemoved:
     def test_phantom_failure_counter_is_gone(self, review_service_factory):
         svc = review_service_factory()
         assert not hasattr(svc, "_auto_persist_failures"), (
-            "幻影 Graphiti 镜像的失败计数器已随 CARD-C4 下线, 不应复活; "
-            "真接 Graphiti 须等 epic-5a C-1/C-2 契约"
+            "幻影 Graphiti 镜像的失败计数器已随 CARD-C4 下线, 不应复活; 真接 Graphiti 须等 epic-5a C-1/C-2 契约"
         )
 
     def test_retired_public_card_state_writer_is_gone(self, review_service_factory):
@@ -672,50 +619,36 @@ class TestCardStatePersistHonestyD3:
     API 200 无任何失败字段)。沿用 /dev/null 注入范式 (Codex HIGH-1 先例)。"""
 
     @pytest.mark.asyncio
-    async def test_record_review_reports_persist_success_and_failure(
-        self, review_service_factory, monkeypatch
-    ):
+    async def test_record_review_reports_persist_success_and_failure(self, review_service_factory, monkeypatch):
         """成功→card_state_persisted=True; 文件写失败→False + degraded_reason。"""
         from pathlib import Path
 
         import app.services.review_service as rs_module
 
         svc = review_service_factory()
-        ok = await svc.record_review_result(
-            canvas_name="d3.canvas", concept_id="d3-persist-ok", rating=3
-        )
+        ok = await svc.record_review_result(canvas_name="d3.canvas", concept_id="d3-persist-ok", rating=3)
         assert ok["status"] == "recorded"
         assert ok["card_state_persisted"] is True
         assert ok["degraded_reason"] is None
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json"))
         svc2 = review_service_factory()
-        bad = await svc2.record_review_result(
-            canvas_name="d3.canvas", concept_id="d3-persist-fail", rating=3
-        )
+        bad = await svc2.record_review_result(canvas_name="d3.canvas", concept_id="d3-persist-fail", rating=3)
         # 评分计算本身仍成功 (status=recorded), 但持久化结果必须如实标注
         assert bad["status"] == "recorded"
         assert bad["card_state_persisted"] is False
         assert bad["degraded_reason"] == "card_state_write_failed"
 
     @pytest.mark.asyncio
-    async def test_record_review_empty_concept_id_marks_not_persisted(
-        self, review_service
-    ):
+    async def test_record_review_empty_concept_id_marks_not_persisted(self, review_service):
         """empty concept_id 分支: 卡状态算了但没存, 不得沉默。"""
-        result = await review_service.record_review_result(
-            canvas_name="d3.canvas", concept_id="", rating=3
-        )
+        result = await review_service.record_review_result(canvas_name="d3.canvas", concept_id="", rating=3)
         assert result["status"] == "recorded"
         assert result["card_state_persisted"] is False
         assert result["degraded_reason"] == "empty_concept_id_not_persisted"
 
     @pytest.mark.asyncio
-    async def test_record_review_fallback_marks_not_applicable(
-        self, fallback_service
-    ):
+    async def test_record_review_fallback_marks_not_applicable(self, fallback_service):
         """Ebbinghaus fallback 无 FSRS 卡状态可持久化 → 标注不适用 (None)。"""
         result = await fallback_service.record_review_result(
             canvas_name="d3.canvas", concept_id="d3-fallback", rating=3
@@ -725,43 +658,31 @@ class TestCardStatePersistHonestyD3:
         assert result["degraded_reason"] is None
 
     @pytest.mark.asyncio
-    async def test_record_review_unicode_write_failure_stays_fsrs_and_honest(
-        self, review_service_factory
-    ):
+    async def test_record_review_unicode_write_failure_stays_fsrs_and_honest(self, review_service_factory):
         """Codex HIGH-3: lone surrogate concept_id 使 UTF-8 写盘抛
         UnicodeEncodeError (ValueError 族) — 必须在持久化边界归一为
         False, 不得冒泡成 Ebbinghaus fallback 谎报"不适用"。"""
         svc = review_service_factory()
-        result = await svc.record_review_result(
-            canvas_name="d3.canvas", concept_id="\ud800", rating=3
-        )
+        result = await svc.record_review_result(canvas_name="d3.canvas", concept_id="\ud800", rating=3)
         assert result["algorithm"] == "fsrs-4.5"
         assert result["card_state_persisted"] is False
         assert result["degraded_reason"] == "card_state_write_failed"
 
     @pytest.mark.asyncio
-    async def test_surrogate_key_does_not_poison_subsequent_saves(
-        self, review_service_factory
-    ):
+    async def test_surrogate_key_does_not_poison_subsequent_saves(self, review_service_factory):
         """Codex 二轮残留 HIGH: 序列化类失败 (毒 key) 必须回滚隔离, 不得
         永久留在全量快照里拖垮后续正常 concept 的持久化 (二轮实测
         normal-after-surrogate 也失败)。磁盘失败 (OSError) 则保留内存。"""
         svc = review_service_factory()
-        bad = await svc.record_review_result(
-            canvas_name="d3.canvas", concept_id="\ud800", rating=3
-        )
+        bad = await svc.record_review_result(canvas_name="d3.canvas", concept_id="\ud800", rating=3)
         assert bad["card_state_persisted"] is False
         assert "\ud800" not in svc._card_states, "毒 key 必须被回滚隔离"
-        good = await svc.record_review_result(
-            canvas_name="d3.canvas", concept_id="normal-after-surrogate", rating=3
-        )
+        good = await svc.record_review_result(canvas_name="d3.canvas", concept_id="normal-after-surrogate", rating=3)
         assert good["card_state_persisted"] is True
         assert good["degraded_reason"] is None
 
     @pytest.mark.asyncio
-    async def test_save_card_states_pending_mutation_inside_lock(
-        self, review_service_factory, monkeypatch
-    ):
+    async def test_save_card_states_pending_mutation_inside_lock(self, review_service_factory, monkeypatch):
         """Codex HIGH-2: mutation 随 pending 参数移入锁内 — 成功快照必含
         本次状态 (bool 与本响应的 card_data 绑定), 失败时 concept 进
         dirty 集合供查询侧诚实上报。"""
@@ -784,17 +705,13 @@ class TestCardStatePersistHonestyD3:
         # 身份, 又不把测试钉死在某个具体 vault 名上 (它随 active vault 配置变)。
         current_vault = svc._dirty_key("d3-bind")[0]
         assert current_vault is not None, "作用域应能解析出来, 否则前面的写不会成功"
-        assert isinstance(on_disk.get(current_vault), dict), (
-            f"落盘顶层应是 vault 桶 (dict), 实得 {on_disk!r}"
-        )
+        assert isinstance(on_disk.get(current_vault), dict), f"落盘顶层应是 vault 桶 (dict), 实得 {on_disk!r}"
         assert on_disk[current_vault]["d3-bind"] == '{"state": 1}', (
             f"本次 pending 状态未进**本 vault** 的落盘桶: {on_disk!r}"
         )
         assert not svc._is_unpersisted("d3-bind")
 
-        monkeypatch.setattr(
-            rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json")
-        )
+        monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", Path("/dev/null/card-states.json"))
         bad = await svc._save_card_states(pending=("d3-bind-fail", "{}"))
         assert bad is False
         # CARD-G3-5: dirty 集的身份是 (vault, concept), 见 _dirty_key 的

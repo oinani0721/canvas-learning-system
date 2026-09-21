@@ -140,9 +140,7 @@ class TestBatchOrchestratorInit:
         assert orchestrator.max_concurrent == 5
         assert orchestrator.semaphore._value == 5
 
-    def test_init_with_progress_callback(
-        self, mock_session_manager, mock_agent_service
-    ):
+    def test_init_with_progress_callback(self, mock_session_manager, mock_agent_service):
         """Test initialization with progress callback."""
         callback = MagicMock()
         orchestrator = BatchOrchestrator(
@@ -162,9 +160,7 @@ class TestSessionValidation:
     """Test session validation (AC:1)."""
 
     @pytest.mark.asyncio
-    async def test_validate_session_success(
-        self, orchestrator, mock_session_manager, mock_session_info
-    ):
+    async def test_validate_session_success(self, orchestrator, mock_session_manager, mock_session_info):
         """Test successful session validation."""
         mock_session_manager.get_session.return_value = mock_session_info
 
@@ -183,9 +179,7 @@ class TestSessionValidation:
             await orchestrator._validate_session("not-found")
 
     @pytest.mark.asyncio
-    async def test_validate_session_wrong_state(
-        self, orchestrator, mock_session_manager, mock_session_info
-    ):
+    async def test_validate_session_wrong_state(self, orchestrator, mock_session_manager, mock_session_info):
         """Test validation fails when session is not pending."""
         mock_session_info.status = SessionStatus.RUNNING
         mock_session_manager.get_session.return_value = mock_session_info
@@ -203,9 +197,7 @@ class TestSemaphoreConcurrency:
     """Test Semaphore(12) concurrency control (AC:2)."""
 
     @pytest.mark.asyncio
-    async def test_semaphore_limits_concurrent_executions(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_semaphore_limits_concurrent_executions(self, mock_session_manager, mock_agent_service):
         """Test that semaphore limits concurrent executions to max_concurrent."""
         # Create orchestrator with max_concurrent=3
         orchestrator = BatchOrchestrator(
@@ -255,14 +247,10 @@ class TestSemaphoreConcurrency:
         await asyncio.gather(*tasks)
 
         # Should never exceed max_concurrent
-        assert max_concurrent_seen <= 3, (
-            f"Max concurrent was {max_concurrent_seen}, expected <= 3"
-        )
+        assert max_concurrent_seen <= 3, f"Max concurrent was {max_concurrent_seen}, expected <= 3"
 
     @pytest.mark.asyncio
-    async def test_peak_concurrent_tracking(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_peak_concurrent_tracking(self, mock_session_manager, mock_agent_service):
         """Test that peak concurrent is tracked correctly."""
         orchestrator = BatchOrchestrator(
             session_manager=mock_session_manager,
@@ -304,9 +292,7 @@ class TestProgressBroadcasting:
     """Test progress broadcasting (AC:3)."""
 
     @pytest.mark.asyncio
-    async def test_broadcast_calls_sync_callback(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_broadcast_calls_sync_callback(self, mock_session_manager, mock_agent_service):
         """Test that sync callback is called."""
         callback = MagicMock()
         orchestrator = BatchOrchestrator(
@@ -326,9 +312,7 @@ class TestProgressBroadcasting:
         assert event.data["progress_percent"] == 50
 
     @pytest.mark.asyncio
-    async def test_broadcast_calls_async_callback(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_broadcast_calls_async_callback(self, mock_session_manager, mock_agent_service):
         """Test that async callback is awaited."""
         callback = AsyncMock()
         orchestrator = BatchOrchestrator(
@@ -344,9 +328,7 @@ class TestProgressBroadcasting:
         callback.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_broadcast_handles_callback_error(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_broadcast_handles_callback_error(self, mock_session_manager, mock_agent_service):
         """Test that callback errors don't break execution."""
         callback = MagicMock(side_effect=Exception("Callback error"))
         orchestrator = BatchOrchestrator(
@@ -356,9 +338,7 @@ class TestProgressBroadcasting:
         )
 
         # Should not raise
-        await orchestrator._broadcast_progress(
-            ProgressEventType.ERROR, "test-session", {"error": "test"}
-        )
+        await orchestrator._broadcast_progress(ProgressEventType.ERROR, "test-session", {"error": "test"})
 
     @pytest.mark.asyncio
     async def test_broadcast_without_callback(self, orchestrator):
@@ -366,9 +346,7 @@ class TestProgressBroadcasting:
         orchestrator.progress_callback = None
 
         # Should not raise
-        await orchestrator._broadcast_progress(
-            ProgressEventType.PROGRESS_UPDATE, "test-session", {}
-        )
+        await orchestrator._broadcast_progress(ProgressEventType.PROGRESS_UPDATE, "test-session", {})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -422,9 +400,7 @@ class TestPartialFailureHandling:
     @pytest.mark.asyncio
     async def test_all_failed_status(self, mock_session_manager, mock_agent_service):
         """Test that all failures result in 'failed' status."""
-        mock_agent_service.call_agent = AsyncMock(
-            return_value=MockAgentResult(success=False, error="Failed")
-        )
+        mock_agent_service.call_agent = AsyncMock(return_value=MockAgentResult(success=False, error="Failed"))
 
         orchestrator = BatchOrchestrator(
             session_manager=mock_session_manager,
@@ -450,9 +426,7 @@ class TestPartialFailureHandling:
     @pytest.mark.asyncio
     async def test_all_success_status(self, mock_session_manager, mock_agent_service):
         """Test that all successes result in 'completed' status."""
-        mock_agent_service.call_agent = AsyncMock(
-            return_value=MockAgentResult(success=True)
-        )
+        mock_agent_service.call_agent = AsyncMock(return_value=MockAgentResult(success=True))
 
         orchestrator = BatchOrchestrator(
             session_manager=mock_session_manager,
@@ -485,9 +459,7 @@ class TestCancellationSupport:
     """Test cancellation support (AC:4)."""
 
     @pytest.mark.asyncio
-    async def test_cancel_session_success(
-        self, orchestrator, mock_session_manager, mock_session_info
-    ):
+    async def test_cancel_session_success(self, orchestrator, mock_session_manager, mock_session_info):
         """Test successful cancellation request."""
         mock_session_info.status = SessionStatus.RUNNING
         mock_session_info.completed_nodes = 5
@@ -510,9 +482,7 @@ class TestCancellationSupport:
         assert "not found" in result["message"]
 
     @pytest.mark.asyncio
-    async def test_cancel_session_already_terminal(
-        self, orchestrator, mock_session_manager, mock_session_info
-    ):
+    async def test_cancel_session_already_terminal(self, orchestrator, mock_session_manager, mock_session_info):
         """Test cancellation when session already completed."""
         mock_session_info.status = SessionStatus.COMPLETED
         mock_session_info.completed_nodes = 10
@@ -525,9 +495,7 @@ class TestCancellationSupport:
         assert result["completed_count"] == 10
 
     @pytest.mark.asyncio
-    async def test_cancelled_nodes_return_early(
-        self, orchestrator, mock_session_manager, mock_agent_service
-    ):
+    async def test_cancelled_nodes_return_early(self, orchestrator, mock_session_manager, mock_agent_service):
         """Test that nodes return early when cancelled."""
         orchestrator._cancel_requested["test-session"] = True
 
@@ -553,9 +521,7 @@ class TestResultAggregation:
     """Test result aggregation (AC:5)."""
 
     @pytest.mark.asyncio
-    async def test_aggregate_results_basic(
-        self, orchestrator, mock_session_manager, mock_session_info
-    ):
+    async def test_aggregate_results_basic(self, orchestrator, mock_session_manager, mock_session_info):
         """Test basic result aggregation."""
         mock_session_info.status = SessionStatus.COMPLETED
         mock_session_manager.get_session.return_value = mock_session_info
@@ -573,12 +539,8 @@ class TestResultAggregation:
                 agent_type="test",
                 status="completed",
                 node_results=[
-                    NodeExecutionResult(
-                        node_id="n1", success=True, execution_time_ms=100
-                    ),
-                    NodeExecutionResult(
-                        node_id="n2", success=True, execution_time_ms=150
-                    ),
+                    NodeExecutionResult(node_id="n1", success=True, execution_time_ms=100),
+                    NodeExecutionResult(node_id="n2", success=True, execution_time_ms=150),
                 ],
                 completed_count=2,
                 failed_count=0,
@@ -603,9 +565,7 @@ class TestResultAggregation:
         assert result["performance_metrics"]["peak_concurrent"] >= 0
 
     @pytest.mark.asyncio
-    async def test_aggregate_results_with_failures(
-        self, orchestrator, mock_session_manager, mock_session_info
-    ):
+    async def test_aggregate_results_with_failures(self, orchestrator, mock_session_manager, mock_session_info):
         """Test aggregation with mixed results."""
         mock_session_info.status = SessionStatus.PARTIAL_FAILURE
         mock_session_manager.get_session.return_value = mock_session_info
@@ -623,15 +583,9 @@ class TestResultAggregation:
                 agent_type="test",
                 status="partial_failure",
                 node_results=[
-                    NodeExecutionResult(
-                        node_id="n1", success=True, execution_time_ms=100
-                    ),
-                    NodeExecutionResult(
-                        node_id="n2", success=False, error_message="Error"
-                    ),
-                    NodeExecutionResult(
-                        node_id="n3", success=True, execution_time_ms=150
-                    ),
+                    NodeExecutionResult(node_id="n1", success=True, execution_time_ms=100),
+                    NodeExecutionResult(node_id="n2", success=False, error_message="Error"),
+                    NodeExecutionResult(node_id="n3", success=True, execution_time_ms=150),
                 ],
                 completed_count=2,
                 failed_count=1,
@@ -662,9 +616,7 @@ class TestMemoryIntegration:
     """Test fire-and-forget memory integration (AC:6)."""
 
     @pytest.mark.asyncio
-    async def test_memory_write_triggered_on_success(
-        self, orchestrator, mock_agent_service
-    ):
+    async def test_memory_write_triggered_on_success(self, orchestrator, mock_agent_service):
         """Test that memory write is triggered for successful agents."""
         result = MockAgentResult(success=True, content="Test content")
 
@@ -682,9 +634,7 @@ class TestMemoryIntegration:
         assert call_kwargs["node_id"] == "node-001"
 
     @pytest.mark.asyncio
-    async def test_memory_write_extracts_canvas_name(
-        self, orchestrator, mock_agent_service
-    ):
+    async def test_memory_write_extracts_canvas_name(self, orchestrator, mock_agent_service):
         """Test that canvas name is correctly extracted."""
         result = MockAgentResult(success=True)
 
@@ -700,9 +650,7 @@ class TestMemoryIntegration:
         assert call_kwargs["canvas_name"] == "my-canvas"
 
     @pytest.mark.asyncio
-    async def test_memory_write_failure_does_not_raise(
-        self, orchestrator, mock_agent_service
-    ):
+    async def test_memory_write_failure_does_not_raise(self, orchestrator, mock_agent_service):
         """Test that memory write failures don't raise exceptions."""
         mock_agent_service._trigger_memory_write.side_effect = Exception("Memory error")
 
@@ -867,9 +815,7 @@ class TestExceptionHandling:
     """Test exception handling scenarios."""
 
     @pytest.mark.asyncio
-    async def test_group_execution_handles_exceptions(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_group_execution_handles_exceptions(self, mock_session_manager, mock_agent_service):
         """Test that group execution converts exceptions to failed results."""
         mock_agent_service.call_agent = AsyncMock(side_effect=Exception("Agent error"))
 
@@ -897,9 +843,7 @@ class TestExceptionHandling:
             assert "Agent error" in nr.error_message
 
     @pytest.mark.asyncio
-    async def test_execute_all_groups_handles_group_exception(
-        self, mock_session_manager, mock_agent_service
-    ):
+    async def test_execute_all_groups_handles_group_exception(self, mock_session_manager, mock_agent_service):
         """Test that execute_all_groups handles group-level exceptions."""
         orchestrator = BatchOrchestrator(
             session_manager=mock_session_manager,

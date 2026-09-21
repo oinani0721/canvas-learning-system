@@ -156,9 +156,7 @@ async def test_accept_candidate_not_found_returns_404(tmp_path):
     f = _md_with_pending_candidate(tmp_path, candidate_id="real-id")
 
     with pytest.raises(HTTPException) as exc_info:
-        await accept_candidate(
-            file_path=f, candidate_id="fake-id", session_id="s-1"
-        )
+        await accept_candidate(file_path=f, candidate_id="fake-id", session_id="s-1")
 
     assert exc_info.value.status_code == 404
     assert "not found" in exc_info.value.detail
@@ -368,9 +366,7 @@ async def test_dispute_candidate_whitespace_reason_returns_422(tmp_path):
     """全空白 dispute_reason → 422."""
     f = _md_with_pending_candidate(tmp_path)
     with pytest.raises(HTTPException) as exc_info:
-        await dispute_candidate(
-            file_path=f, candidate_id="cand-uuid-1", dispute_reason="   "
-        )
+        await dispute_candidate(file_path=f, candidate_id="cand-uuid-1", dispute_reason="   ")
     assert exc_info.value.status_code == 422
 
 
@@ -378,7 +374,5 @@ async def test_dispute_candidate_whitespace_reason_returns_422(tmp_path):
 async def test_dispute_candidate_not_found_returns_404(tmp_path):
     f = _md_with_pending_candidate(tmp_path)
     with pytest.raises(HTTPException) as exc_info:
-        await dispute_candidate(
-            file_path=f, candidate_id="fake-id", dispute_reason="test"
-        )
+        await dispute_candidate(file_path=f, candidate_id="fake-id", dispute_reason="test")
     assert exc_info.value.status_code == 404

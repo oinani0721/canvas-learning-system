@@ -45,9 +45,7 @@ class AgentPromptTemplate:
     output_format: Optional[str] = None
 
 
-def _get_thinking_config(
-    model_name: str, budget: Optional[int]
-) -> Optional[Dict[str, Any]]:
+def _get_thinking_config(model_name: str, budget: Optional[int]) -> Optional[Dict[str, Any]]:
     """Return the correct thinking config params based on Gemini model version.
 
     - Gemini 2.5: uses thinking_budget (int)
@@ -105,11 +103,7 @@ class GeminiClient:
         This ensures POST /config/ai changes take effect immediately without restart.
         """
         # Get API key from parameter, config, or environment
-        self.api_key = (
-            api_key
-            or getattr(settings, "GOOGLE_API_KEY", None)
-            or os.environ.get("GOOGLE_API_KEY", "")
-        )
+        self.api_key = api_key or getattr(settings, "GOOGLE_API_KEY", None) or os.environ.get("GOOGLE_API_KEY", "")
         self.base_url = base_url  # For custom OpenAI-compatible providers
 
         if not self.api_key:
@@ -140,9 +134,7 @@ class GeminiClient:
     def model(self) -> str:
         """Always read model from Settings dynamically. Never cached at creation time."""
         s = get_settings()
-        return getattr(s, "AI_MODEL_NAME", None) or getattr(
-            s, "GEMINI_MODEL", "gemini-3.1-flash-lite-preview"
-        )
+        return getattr(s, "AI_MODEL_NAME", None) or getattr(s, "GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
     def _parse_prompt_template(self, content: str) -> AgentPromptTemplate:
         """
@@ -184,15 +176,11 @@ class GeminiClient:
         input_format = None
         output_format = None
 
-        input_match = re.search(
-            r"## Input Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL
-        )
+        input_match = re.search(r"## Input Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
         if input_match:
             input_format = input_match.group(1).strip()
 
-        output_match = re.search(
-            r"## Output Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL
-        )
+        output_match = re.search(r"## Output Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
         if output_match:
             output_format = output_match.group(1).strip()
 
@@ -290,28 +278,19 @@ class GeminiClient:
             try:
                 logger.info(
                     f"Calling OpenAI-compatible API at {url}, model={self.model}"
-                    + (
-                        f" (attempt {attempt + 1}/{max_retries + 1})"
-                        if attempt > 0
-                        else ""
-                    )
+                    + (f" (attempt {attempt + 1}/{max_retries + 1})" if attempt > 0 else "")
                 )
 
-                response = await self._http_client.post(
-                    url, json=payload, headers=headers
-                )
+                response = await self._http_client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
 
                 data = response.json()
 
-                response_text = (
-                    data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                )
+                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                 usage = data.get("usage", {})
 
                 logger.info(
-                    "OpenAI-compatible API call successful"
-                    + (f" after {attempt + 1} attempts" if attempt > 0 else "")
+                    "OpenAI-compatible API call successful" + (f" after {attempt + 1} attempts" if attempt > 0 else "")
                 )
 
                 return {
@@ -337,9 +316,7 @@ class GeminiClient:
                     await asyncio.sleep(delay)
                 else:
                     # Non-retryable error or max retries exhausted
-                    logger.error(
-                        f"OpenAI-compatible API error: {status_code} after {attempt + 1} attempts. URL: {url}"
-                    )
+                    logger.error(f"OpenAI-compatible API error: {status_code} after {attempt + 1} attempts. URL: {url}")
                     raise
 
             except (httpx.ConnectError, httpx.TimeoutException) as e:
@@ -502,9 +479,7 @@ class GeminiClient:
                 config_params = _get_thinking_config(self.model, thinking_budget)
                 if config_params:
                     try:
-                        gen_config.thinking_config = genai.types.ThinkingConfig(
-                            **config_params
-                        )
+                        gen_config.thinking_config = genai.types.ThinkingConfig(**config_params)
                     except (AttributeError, TypeError):
                         pass
             response = await self.client.aio.models.generate_content(
@@ -533,9 +508,7 @@ class GeminiClient:
                     f"model={self.model}"
                 )
 
-            logger.info(
-                f"Gemini API call successful for agent={agent_type}, response_len={len(response_text)}"
-            )
+            logger.info(f"Gemini API call successful for agent={agent_type}, response_len={len(response_text)}")
 
             # Story 3.13 AC-4: Output safety check
             if response_text:
@@ -552,14 +525,10 @@ class GeminiClient:
                 "response": response_text,
                 "model": self.model,
                 "usage": {
-                    "input_tokens": getattr(
-                        response.usage_metadata, "prompt_token_count", 0
-                    )
+                    "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0)
                     if hasattr(response, "usage_metadata")
                     else 0,
-                    "output_tokens": getattr(
-                        response.usage_metadata, "candidates_token_count", 0
-                    )
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
                     if hasattr(response, "usage_metadata")
                     else 0,
                 },
@@ -673,14 +642,10 @@ class GeminiClient:
             "response": response_text,
             "model": self.model,
             "usage": {
-                "input_tokens": getattr(
-                    response.usage_metadata, "prompt_token_count", 0
-                )
+                "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0)
                 if hasattr(response, "usage_metadata")
                 else 0,
-                "output_tokens": getattr(
-                    response.usage_metadata, "candidates_token_count", 0
-                )
+                "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
                 if hasattr(response, "usage_metadata")
                 else 0,
             },
@@ -748,14 +713,10 @@ class GeminiClient:
             "response": response_text,
             "model": self.model,
             "usage": {
-                "input_tokens": getattr(
-                    response.usage_metadata, "prompt_token_count", 0
-                )
+                "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0)
                 if hasattr(response, "usage_metadata")
                 else 0,
-                "output_tokens": getattr(
-                    response.usage_metadata, "candidates_token_count", 0
-                )
+                "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
                 if hasattr(response, "usage_metadata")
                 else 0,
             },
@@ -874,9 +835,7 @@ class GeminiClient:
         response = None  # Initialize to satisfy type checker
 
         for iteration in range(max_iterations):
-            logger.info(
-                f"[Phase2] Tool calling iteration {iteration + 1}/{max_iterations} for agent={agent_type}"
-            )
+            logger.info(f"[Phase2] Tool calling iteration {iteration + 1}/{max_iterations} for agent={agent_type}")
 
             # Call Gemini with tools (optional thinking tokens for deep reasoning)
             gen_config = genai.types.GenerateContentConfig(
@@ -887,9 +846,7 @@ class GeminiClient:
                 config_params = _get_thinking_config(self.model, thinking_budget)
                 if config_params:
                     try:
-                        gen_config.thinking_config = genai.types.ThinkingConfig(
-                            **config_params
-                        )
+                        gen_config.thinking_config = genai.types.ThinkingConfig(**config_params)
                     except (AttributeError, TypeError) as e:
                         logger.debug(f"ThinkingConfig not available: {e}")
 
@@ -901,12 +858,8 @@ class GeminiClient:
 
             # Track usage
             if hasattr(response, "usage_metadata") and response.usage_metadata:
-                total_input_tokens += getattr(
-                    response.usage_metadata, "prompt_token_count", 0
-                )
-                total_output_tokens += getattr(
-                    response.usage_metadata, "candidates_token_count", 0
-                )
+                total_input_tokens += getattr(response.usage_metadata, "prompt_token_count", 0)
+                total_output_tokens += getattr(response.usage_metadata, "candidates_token_count", 0)
 
             # Check for function calls in response
             function_calls = response.function_calls
@@ -919,9 +872,7 @@ class GeminiClient:
 
                 # Story 3-13 FIX M1: Output safety check for tool-calling path
                 if response_text:
-                    out_result = check_output(
-                        response_text, system_prompt=system_prompt
-                    )
+                    out_result = check_output(response_text, system_prompt=system_prompt)
                     if not out_result.is_safe:
                         logger.warning(
                             "[Story 3.13] call_agent_with_tools output violation: agent=%s, violations=%s",

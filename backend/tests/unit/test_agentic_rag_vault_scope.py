@@ -77,12 +77,8 @@ class TestInnerChainReadsRequestScope:
         import app.config as app_config_mod
         import app.core.vault_scope as vault_scope_mod
 
-        monkeypatch.setattr(
-            vault_scope_mod, "current_vault_id", lambda: "req_vault", raising=True
-        )
-        monkeypatch.setattr(
-            app_config_mod, "get_current_vault_id", lambda: "proc_vault", raising=True
-        )
+        monkeypatch.setattr(vault_scope_mod, "current_vault_id", lambda: "req_vault", raising=True)
+        monkeypatch.setattr(app_config_mod, "get_current_vault_id", lambda: "proc_vault", raising=True)
 
         captured: dict = {}
 
@@ -92,9 +88,7 @@ class TestInnerChainReadsRequestScope:
 
         # graphiti 客户端给活体 MagicMock; lancedb/temporal 客户端一律失败,
         # 让节点走各自的无害降级分支 (本测试只关心 Step 4 的 group_id)。
-        monkeypatch.setattr(
-            nodes, "_get_graphiti_client", AsyncMock(return_value=MagicMock())
-        )
+        monkeypatch.setattr(nodes, "_get_graphiti_client", AsyncMock(return_value=MagicMock()))
         monkeypatch.setattr(
             nodes,
             "_get_lancedb_client",
@@ -114,8 +108,7 @@ class TestInnerChainReadsRequestScope:
             asyncio.run(nodes.compress_context_node(state, None))
 
         assert captured.get("group_id") == "vault:req_vault", (
-            f"记忆注入用了 {captured.get('group_id')!r} — "
-            "内链仍在读进程级 active vault 而非请求级 VaultScope"
+            f"记忆注入用了 {captured.get('group_id')!r} — 内链仍在读进程级 active vault 而非请求级 VaultScope"
         )
 
     def test_falls_back_to_process_level_only_when_scope_absent(self, monkeypatch):
@@ -125,9 +118,7 @@ class TestInnerChainReadsRequestScope:
         import app.core.vault_scope as vault_scope_mod
         from app.core.subject_config import _current_subject_id
 
-        monkeypatch.setattr(
-            app_config_mod, "get_current_vault_id", lambda: "proc_vault", raising=True
-        )
+        monkeypatch.setattr(app_config_mod, "get_current_vault_id", lambda: "proc_vault", raising=True)
 
         token = _current_subject_id.set("general")  # 视作未注入
         try:
@@ -158,9 +149,7 @@ class TestCurrentVaultIdBehavior:
 
         token = _current_subject_id.set(DEFAULT_SUBJECT_ID)
         try:
-            monkeypatch.setattr(
-                app_config_mod, "get_current_vault_id", lambda: "proc_v", raising=True
-            )
+            monkeypatch.setattr(app_config_mod, "get_current_vault_id", lambda: "proc_v", raising=True)
             assert current_vault_id() == "proc_v"
         finally:
             _current_subject_id.reset(token)
@@ -179,8 +168,7 @@ class TestCurrentVaultIdBehavior:
                 assert current_vault_id() == "default"
             except VaultScopeUnresolved:
                 pytest.fail(
-                    "current_vault_id 抛了 VaultScopeUnresolved — 行为漂移, "
-                    "compress_context 的调用点契约需要重新评估"
+                    "current_vault_id 抛了 VaultScopeUnresolved — 行为漂移, compress_context 的调用点契约需要重新评估"
                 )
         finally:
             _reset_scope(token)
@@ -200,9 +188,7 @@ class TestAgentChainSubjectPassthrough:
 
         graphiti_stub = MagicMock()
         graphiti_stub.search_nodes = _capture_search
-        monkeypatch.setattr(
-            nodes, "_get_graphiti_client", AsyncMock(return_value=graphiti_stub)
-        )
+        monkeypatch.setattr(nodes, "_get_graphiti_client", AsyncMock(return_value=graphiti_stub))
 
         state = {
             "messages": [{"role": "user", "content": "q"}],
@@ -212,8 +198,7 @@ class TestAgentChainSubjectPassthrough:
         asyncio.run(nodes.retrieve_graphiti(state, None))
 
         assert captured.get("canvas_file") == "math:离散数学_canvas", (
-            f"Graphiti 检索收到的 scoped group = {captured.get('canvas_file')!r} — "
-            "state['subject'] 在 agent 链透传断裂"
+            f"Graphiti 检索收到的 scoped group = {captured.get('canvas_file')!r} — state['subject'] 在 agent 链透传断裂"
         )
 
 
@@ -229,9 +214,7 @@ class TestSubjectScopeSentinel:
         token = _set_scope("vault:v1:math")
         try:
             with caplog.at_level(logging.WARNING, logger=_SENTINEL_LOGGER):
-                nodes._warn_subject_scope_mismatch(
-                    {"subject": "physics"}, logger_ctx="test_node"
-                )
+                nodes._warn_subject_scope_mismatch({"subject": "physics"}, logger_ctx="test_node")
         finally:
             _reset_scope(token)
 
@@ -243,9 +226,7 @@ class TestSubjectScopeSentinel:
         token = _set_scope("vault:v1:math")
         try:
             with caplog.at_level(logging.WARNING, logger=_SENTINEL_LOGGER):
-                nodes._warn_subject_scope_mismatch(
-                    {"subject": "math"}, logger_ctx="test_node"
-                )
+                nodes._warn_subject_scope_mismatch({"subject": "math"}, logger_ctx="test_node")
         finally:
             _reset_scope(token)
 
@@ -413,9 +394,7 @@ def _run_retrieve_lancedb(monkeypatch, tmp_path, *, vault: str, query: str):
     「主检索带回」与「扩展带回」。
     """
     client = _make_client(tmp_path)
-    monkeypatch.setattr(
-        nodes, "_get_lancedb_client", AsyncMock(return_value=client), raising=True
-    )
+    monkeypatch.setattr(nodes, "_get_lancedb_client", AsyncMock(return_value=client), raising=True)
     monkeypatch.setattr(
         "agentic_rag.clients.lancedb_client.LanceDBClient.embed",
         AsyncMock(return_value=_vec(0.15)),
@@ -452,44 +431,30 @@ class TestDualVaultIsolationOnTmpLanceDB:
         self.tmp_path = tmp_path
 
     def test_vault_a_query_has_zero_results_from_b(self, monkeypatch):
-        pairs = _run_retrieve_lancedb(
-            monkeypatch, self.tmp_path, vault="vault_a", query="贝尔不等式"
-        )
+        pairs = _run_retrieve_lancedb(monkeypatch, self.tmp_path, vault="vault_a", query="贝尔不等式")
         ids = [d for d, _, _ in pairs]
         assert not any(d.endswith("b_unique") for d in ids), (
             f"vault A 的检索结果混入了 vault B 独有笔记: {pairs} — 跨 vault 泄漏"
         )
         contents = " | ".join(c for _, c, _ in pairs)
-        assert "贝尔不等式" not in contents, (
-            f"vault A 检索到 B 的内容 (按 doc_id 之外的内容复核): {contents}"
-        )
+        assert "贝尔不等式" not in contents, f"vault A 检索到 B 的内容 (按 doc_id 之外的内容复核): {contents}"
 
     def test_vault_a_positive_control_hits_a_unique(self, monkeypatch):
         """正向对照 — 隔离测试环境根本查不出数据时的假绿防线。"""
-        pairs = _run_retrieve_lancedb(
-            monkeypatch, self.tmp_path, vault="vault_a", query="红黑树"
-        )
+        pairs = _run_retrieve_lancedb(monkeypatch, self.tmp_path, vault="vault_a", query="红黑树")
         ids = [d for d, _, _ in pairs]
         assert any(d.endswith("a_unique") for d in ids), f"正向对照失败: vault A 没查到自己的笔记 {pairs}"
 
     def test_same_name_note_returns_only_vault_a_version(self, monkeypatch):
         """同名不同内容笔记 — 防「全同组 fixture 假绿」: 隔离破了时
         B 表的同名版本会混进结果, content 断言立刻变红。"""
-        pairs = _run_retrieve_lancedb(
-            monkeypatch, self.tmp_path, vault="vault_a", query="递归"
-        )
+        pairs = _run_retrieve_lancedb(monkeypatch, self.tmp_path, vault="vault_a", query="递归")
         contents = [c for _, c, _ in pairs]
-        assert any("基础定义" in c for c in contents), (
-            f"vault A 没查到自己的同名笔记 {pairs}"
-        )
-        assert not any("进阶定义" in c for c in contents), (
-            f"vault A 的同名笔记检索混入了 vault B 版本: {pairs}"
-        )
+        assert any("基础定义" in c for c in contents), f"vault A 没查到自己的同名笔记 {pairs}"
+        assert not any("进阶定义" in c for c in contents), f"vault A 的同名笔记检索混入了 vault B 版本: {pairs}"
 
     def test_reverse_direction_vault_b_symmetric(self, monkeypatch):
-        pairs = _run_retrieve_lancedb(
-            monkeypatch, self.tmp_path, vault="vault_b", query="红黑树"
-        )
+        pairs = _run_retrieve_lancedb(monkeypatch, self.tmp_path, vault="vault_b", query="红黑树")
         ids = [d for d, _, _ in pairs]
         assert not any(d.endswith("a_unique") for d in ids), f"反向泄漏: vault B 查到了 vault A 独有笔记 {pairs}"
 
@@ -511,27 +476,18 @@ class TestDualVaultIsolationOnTmpLanceDB:
         函数照样绿, Codex 实证)。只有扩展链活着才会产出 neighbor_
         expansion 标记, 该断言才能杀死「扩展静默失效」的假绿。
         """
-        pairs = _run_retrieve_lancedb(
-            monkeypatch, self.tmp_path, vault="vault_a", query="红黑树"
-        )
+        pairs = _run_retrieve_lancedb(monkeypatch, self.tmp_path, vault="vault_a", query="红黑树")
         contents = " | ".join(c for _, c, _ in pairs)
         ids = [d for d, _, _ in pairs]
         sources = [s for _, _, s in pairs]
 
         assert any(s == "neighbor_expansion" for s in sources), (
-            f"结果中没有任何 neighbor_expansion 标记行: {pairs} — "
-            "wiki-link 邻居扩展链没活, 本门的隔离断言因此无效"
+            f"结果中没有任何 neighbor_expansion 标记行: {pairs} — wiki-link 邻居扩展链没活, 本门的隔离断言因此无效"
         )
         expanded = [c for _, c, s in pairs if s == "neighbor_expansion"]
-        assert any("A 库版本" in c for c in expanded), (
-            f"扩展带回的邻居不是 A 库版本: {expanded}"
-        )
-        assert not any(d.endswith("b_secret") for d in ids), (
-            f"邻居扩展混入裸表 B 内容: {pairs} — 作用域旁路回来了"
-        )
-        assert "量子隐形传态" not in contents, (
-            f"裸表内容按 doc_id 之外的复核也命中: {contents}"
-        )
+        assert any("A 库版本" in c for c in expanded), f"扩展带回的邻居不是 A 库版本: {expanded}"
+        assert not any(d.endswith("b_secret") for d in ids), f"邻居扩展混入裸表 B 内容: {pairs} — 作用域旁路回来了"
+        assert "量子隐形传态" not in contents, f"裸表内容按 doc_id 之外的复核也命中: {contents}"
 
     def test_neighbor_expansion_respects_subject_boundary(self, monkeypatch):
         """同 vault 跨 subject: math 请求的邻居不得带 physics 板内容。
@@ -570,9 +526,7 @@ class TestDualVaultIsolationOnTmpLanceDB:
             pass
 
         # a_unique 加 [[物理板]] 链接 → 扩展会 LIKE 命中 physics 行
-        _ldb.connect(str(self.tmp_path)).open_table(
-            "vault_a_canvas_nodes"
-        ).delete('doc_id == "a_unique"')
+        _ldb.connect(str(self.tmp_path)).open_table("vault_a_canvas_nodes").delete('doc_id == "a_unique"')
         tbl.add(
             [
                 {
@@ -587,9 +541,7 @@ class TestDualVaultIsolationOnTmpLanceDB:
         )
 
         client = _make_client(self.tmp_path)
-        monkeypatch.setattr(
-            nodes, "_get_lancedb_client", AsyncMock(return_value=client), raising=True
-        )
+        monkeypatch.setattr(nodes, "_get_lancedb_client", AsyncMock(return_value=client), raising=True)
         monkeypatch.setattr(
             "agentic_rag.clients.lancedb_client.LanceDBClient.embed",
             AsyncMock(return_value=_vec(0.15)),
@@ -611,9 +563,7 @@ class TestDualVaultIsolationOnTmpLanceDB:
         finally:
             _reset_scope(token)
 
-        contents = " | ".join(
-            r.get("content", "") for r in update.get("lancedb_results", [])
-        )
+        contents = " | ".join(r.get("content", "") for r in update.get("lancedb_results", []))
         assert "PHYSICS_SECRET" not in contents, (
             "math 请求的邻居扩展带入了 physics 板内容 —— 同 vault 跨 subject "
             "泄漏回归了。收口点: lancedb_client.expand_neighbors 的 where 应含 "
@@ -693,17 +643,13 @@ class TestExpandNeighborsSubjectFilter:
         """
         contents = self._expand(None)
         assert "MATH_ONLY" in contents, f"扩展链没活: {contents}"
-        assert "PHYS_ONLY" in contents, (
-            f"subject=None 时行为应与本卡之前逐字一致(不过滤): {contents}"
-        )
+        assert "PHYS_ONLY" in contents, f"subject=None 时行为应与本卡之前逐字一致(不过滤): {contents}"
 
     def test_subject_math_drops_physics_neighbor(self):
         """语义 (卡文 (h)/D1): 不匹配的邻居**丢弃**, 不是保留不加分。"""
         contents = self._expand("math")
         assert "MATH_ONLY" in contents, f"同 subject 的邻居被误丢: {contents}"
-        assert "PHYS_ONLY" not in contents, (
-            f"跨 subject 邻居未被丢弃: {contents}"
-        )
+        assert "PHYS_ONLY" not in contents, f"跨 subject 邻居未被丢弃: {contents}"
 
     @pytest.mark.parametrize(
         "payload",

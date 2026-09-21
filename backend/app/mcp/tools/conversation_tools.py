@@ -69,9 +69,7 @@ class CreateExamNodeInput(BaseModel):
     """Input schema for create_exam_node tool."""
 
     canvas_id: str = Field(..., description="The canvas board identifier.")
-    source_node_id: str = Field(
-        ..., description="The source concept node to create an exam for."
-    )
+    source_node_id: str = Field(..., description="The source concept node to create an exam for.")
     exam_title: str = Field(..., description="Title for the exam node.")
     position_x: Optional[float] = Field(
         default=None, description="X position on canvas (auto-placed if not specified)."
@@ -86,9 +84,7 @@ class CreateExamNodeOutput(BaseModel):
 
     node_id: str = Field(..., description="The created exam node identifier")
     canvas_id: str
-    edge_id: Optional[str] = Field(
-        default=None, description="Edge connecting exam node to source node"
-    )
+    edge_id: Optional[str] = Field(default=None, description="Edge connecting exam node to source node")
     status: str = "ok"
     message: str = ""
 
@@ -125,9 +121,7 @@ async def archive_conversation(
         Dict with archive status.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(
-        guardian.record_tool_call("archive_conversation", session_id, node_id)
-    )
+    asyncio.create_task(guardian.record_tool_call("archive_conversation", session_id, node_id))
 
     if key_insights is None:
         key_insights = []
@@ -224,9 +218,7 @@ async def create_exam_node(
         Dict with created node and edge identifiers.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(
-        guardian.record_tool_call("create_exam_node", "", source_node_id)
-    )
+    asyncio.create_task(guardian.record_tool_call("create_exam_node", "", source_node_id))
 
     exam_node_id = str(uuid.uuid4())
 
@@ -294,9 +286,7 @@ async def create_exam_node(
                 group_id=_default_group(),
             )
         except (RuntimeError, AttributeError, asyncio.TimeoutError) as mem_err:
-            logger.debug(
-                f"[Story 3.2] create_exam_node: memory recording failed (non-fatal): {mem_err}"
-            )
+            logger.debug(f"[Story 3.2] create_exam_node: memory recording failed (non-fatal): {mem_err}")
 
         return CreateExamNodeOutput(
             node_id=exam_node_id,

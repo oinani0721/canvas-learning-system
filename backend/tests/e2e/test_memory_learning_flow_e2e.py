@@ -132,9 +132,7 @@ async def client(memory_service) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides.clear()
 
 
-def _batch_event(
-    *, event_type="color_changed", canvas_path="test/math.canvas", node_id=None
-):
+def _batch_event(*, event_type="color_changed", canvas_path="test/math.canvas", node_id=None):
     return {
         "event_type": event_type,
         "timestamp": datetime.now().isoformat(),

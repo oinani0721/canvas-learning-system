@@ -64,10 +64,7 @@ def validate_status_transition(current: str, target: str) -> None:
     if current not in ALLOWED_TRANSITIONS:
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"Unknown candidate status: '{current}'. "
-                f"Valid statuses: {sorted(ALLOWED_TRANSITIONS.keys())}"
-            ),
+            detail=(f"Unknown candidate status: '{current}'. Valid statuses: {sorted(ALLOWED_TRANSITIONS.keys())}"),
         )
 
     allowed = ALLOWED_TRANSITIONS[current]

@@ -53,9 +53,7 @@ router = APIRouter()
     },
 )
 async def get_recent_bugs(
-    limit: int = Query(
-        default=50, ge=1, le=200, description="返回的最大记录数（1-200）"
-    ),
+    limit: int = Query(default=50, ge=1, le=200, description="返回的最大记录数（1-200）"),
 ) -> List[Dict[str, Any]]:
     """
     获取最近的Bug日志记录。
@@ -187,11 +185,7 @@ async def get_bug_stats() -> Dict[str, Any]:
         },
         404: {
             "description": "Bug不存在",
-            "content": {
-                "application/json": {
-                    "example": {"code": 404, "message": "Bug 'BUG-A1B2C3D4' not found"}
-                }
-            },
+            "content": {"application/json": {"example": {"code": 404, "message": "Bug 'BUG-A1B2C3D4' not found"}}},
         },
     },
 )

@@ -61,9 +61,7 @@ class AcceptCandidateRequest(BaseModel):
         description="可选编辑 (覆盖 description/pedagogy_type/legacy_type), 提供则 status=edited 否则 accepted",
     )
     session_id: str = Field(default="", description="对话 session ID")
-    fire_and_forget_graphiti: bool = Field(
-        default=True, description="True 默认 → 后台 task; False 同步等待 Graphiti"
-    )
+    fire_and_forget_graphiti: bool = Field(default=True, description="True 默认 → 后台 task; False 同步等待 Graphiti")
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     # 用户错误记录 / Graphiti misconception 必须 vault 隔离,
     # 否则 5 vault 并存 时跨 vault Misconception 串库.
@@ -178,9 +176,7 @@ async def dismiss_candidate_endpoint(
     candidate.status pending → dismissed. 不入 errors[]. 不写 Graphiti.
     保留 candidate 供训练 prompt 改进.
     """
-    _resolve_vault_group_id(
-        req.vault_id, subject_id=req.subject_id, canvas_path=req.node_id
-    )
+    _resolve_vault_group_id(req.vault_id, subject_id=req.subject_id, canvas_path=req.node_id)
 
     file_path = _resolve_node_file_path(req.node_id)
     if not file_path:
@@ -201,9 +197,7 @@ async def dispute_candidate_endpoint(
     candidate.status pending → disputed + dispute_reason 写入.
     不入 errors[]. 不写 Graphiti.
     """
-    _resolve_vault_group_id(
-        req.vault_id, subject_id=req.subject_id, canvas_path=req.node_id
-    )
+    _resolve_vault_group_id(req.vault_id, subject_id=req.subject_id, canvas_path=req.node_id)
 
     file_path = _resolve_node_file_path(req.node_id)
     if not file_path:
@@ -262,9 +256,7 @@ async def rebuild_graphiti_endpoint(
     # 重建结果写进调用者指定的任何 group (跨 vault 污染)。
     # 「legacy 不做 409」只豁免一致性检查, 不豁免 canonicalize + inject:
     # 显式 vault_id 走 409 门, 旧 group_id 作 legacy 输入归一化。
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, legacy_group_id=group_id)
 
     vault_root_str = getattr(settings, "canvas_base_path", None)
     if not vault_root_str:
@@ -337,9 +329,7 @@ async def get_errors_by_node(node_id: str) -> NodeErrorsResponse:
 async def get_errors_by_type(
     misconception_type: str,
     only_uncorrected: bool = Query(default=True, description="True 仅未纠正错误"),
-    match_legacy_type: bool = Query(
-        default=True, description="True 同时匹配 legacy_type"
-    ),
+    match_legacy_type: bool = Query(default=True, description="True 同时匹配 legacy_type"),
     limit: int = Query(default=50, ge=1, le=500, description="结果上限"),
 ) -> TypeErrorsResponse:
     """按 misconception 类型查 vault 内全部历史错误 (Round-23 Story 7.4 核心需求).
@@ -386,9 +376,7 @@ async def get_errors_by_type(
 
 @errors_router.get("/list", response_model=TypeErrorsResponse)
 async def list_errors(
-    canvas_path: Optional[str] = Query(
-        default=None, description="可选 canvas/board 过滤"
-    ),
+    canvas_path: Optional[str] = Query(default=None, description="可选 canvas/board 过滤"),
     only_uncorrected: bool = Query(default=True),
     limit: int = Query(default=100, ge=1, le=500),
 ) -> TypeErrorsResponse:

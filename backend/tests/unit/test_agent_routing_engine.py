@@ -85,9 +85,7 @@ class TestPatternRouting:
             ("深入分析这个概念", "deep-decomposition"),
         ],
     )
-    def test_chinese_pattern_routes_correctly(
-        self, routing_engine, node_text, expected_agent
-    ):
+    def test_chinese_pattern_routes_correctly(self, routing_engine, node_text, expected_agent):
         """Test Chinese pattern text routes to the correct agent."""
         request = RoutingRequest(node_id="pattern-test", node_text=node_text)
         result = routing_engine.route_single_node(request)
@@ -110,9 +108,7 @@ class TestEnglishPatterns:
             ("How to understand logical equivalence?", "clarification-path"),
         ],
     )
-    def test_english_pattern_routes_correctly(
-        self, routing_engine, node_text, expected_agent
-    ):
+    def test_english_pattern_routes_correctly(self, routing_engine, node_text, expected_agent):
         """Test English pattern text routes to the correct agent."""
         request = RoutingRequest(node_id="en-test", node_text=node_text)
         result = routing_engine.route_single_node(request)
@@ -253,9 +249,7 @@ class TestManualOverride:
 
     def test_override_reason_is_manual_override(self, routing_engine):
         """Test override reason is 'manual_override'."""
-        request = RoutingRequest(
-            node_id="override-003", node_text="任意文本", agent_override="memory-anchor"
-        )
+        request = RoutingRequest(node_id="override-003", node_text="任意文本", agent_override="memory-anchor")
         result = routing_engine.route_single_node(request)
 
         assert result.reason == "manual_override"
@@ -298,9 +292,7 @@ class TestAgentMappingIntegration:
     def test_all_routing_targets_in_agent_mapping(self, routing_engine):
         """Test all routing targets are in AGENT_MEMORY_MAPPING."""
         for agent_name in CONTENT_PATTERN_MAP.keys():
-            assert agent_name in ALL_AGENT_NAMES, (
-                f"Agent '{agent_name}' not found in ALL_AGENT_NAMES"
-            )
+            assert agent_name in ALL_AGENT_NAMES, f"Agent '{agent_name}' not found in ALL_AGENT_NAMES"
 
     def test_default_fallback_in_agent_mapping(self):
         """Test default fallback agent is in mapping."""
@@ -313,9 +305,7 @@ class TestAgentMappingIntegration:
     def test_routed_agents_have_memory_types(self, routing_engine):
         """Test all routed agents have memory types defined."""
         for agent_name in CONTENT_PATTERN_MAP.keys():
-            assert agent_name in AGENT_MEMORY_MAPPING, (
-                f"Agent '{agent_name}' has no memory type mapping"
-            )
+            assert agent_name in AGENT_MEMORY_MAPPING, f"Agent '{agent_name}' has no memory type mapping"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -362,9 +352,7 @@ class TestBatchRouting:
 
         # Total should equal sum of confidence counts
         total_counted = (
-            response.high_confidence_count
-            + response.medium_confidence_count
-            + response.low_confidence_count
+            response.high_confidence_count + response.medium_confidence_count + response.low_confidence_count
         )
         assert total_counted == response.total_nodes
 
@@ -451,18 +439,14 @@ class TestEdgeCases:
 
     def test_special_characters(self, routing_engine):
         """Test routing handles special characters."""
-        request = RoutingRequest(
-            node_id="edge-004", node_text="什么是 [特殊字符] {braces} (parens)?"
-        )
+        request = RoutingRequest(node_id="edge-004", node_text="什么是 [特殊字符] {braces} (parens)?")
         result = routing_engine.route_single_node(request)
 
         assert result.recommended_agent == "oral-explanation"
 
     def test_mixed_language(self, routing_engine):
         """Test routing handles mixed Chinese/English."""
-        request = RoutingRequest(
-            node_id="edge-005", node_text="什么是 machine learning?"
-        )
+        request = RoutingRequest(node_id="edge-005", node_text="什么是 machine learning?")
         result = routing_engine.route_single_node(request)
 
         assert result.recommended_agent == "oral-explanation"
@@ -521,9 +505,7 @@ class TestContentAnalysis:
         """Test match quality for longer patterns."""
         # Longer pattern should get bonus
         quality_short = routing_engine._calculate_match_quality(".*区别.*", "区别")
-        quality_long = routing_engine._calculate_match_quality(
-            ".*和.*的?区别.*", "A和B的区别"
-        )
+        quality_long = routing_engine._calculate_match_quality(".*和.*的?区别.*", "A和B的区别")
 
         # Both should be valid quality scores
         assert 0.0 <= quality_short <= 1.0

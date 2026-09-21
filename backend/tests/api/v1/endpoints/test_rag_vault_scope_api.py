@@ -48,9 +48,7 @@ from app.services.rag_service import get_rag_service
 def _state() -> Dict[str, Any]:
     """rag_service.query() 返回的最小 state 形态 (四态字段无关本卡, 随手给)。"""
     return {
-        "reranked_results": [
-            {"doc_id": "node-1", "content": "逆否命题…", "score": 0.9, "metadata": {}}
-        ],
+        "reranked_results": [{"doc_id": "node-1", "content": "逆否命题…", "score": 0.9, "metadata": {}}],
         "multimodal_results": [],
         "quality_grade": "high",
         "graphiti_latency_ms": 12.0,
@@ -96,9 +94,7 @@ def proc_vault(monkeypatch) -> str:
     """
     import app.config as app_config_mod
 
-    monkeypatch.setattr(
-        app_config_mod, "get_current_vault_id", lambda: "v_active", raising=True
-    )
+    monkeypatch.setattr(app_config_mod, "get_current_vault_id", lambda: "v_active", raising=True)
     return "v_active"
 
 
@@ -117,33 +113,23 @@ class TestVaultIdRequired:
         assert mock_rag_service.query.await_count == 0, "422 不应触达服务层"
 
     def test_blank_vault_id_rejected_with_422(self, client):
-        response = client.post(
-            "/api/v1/rag/query", json={"query": "q", "vault_id": ""}
-        )
+        response = client.post("/api/v1/rag/query", json={"query": "q", "vault_id": ""})
         assert response.status_code == 422
 
     @pytest.mark.parametrize("blank", ["   ", "\t\n ", "　"])
-    def test_whitespace_only_vault_id_rejected_with_422(
-        self, client, mock_rag_service, blank
-    ):
+    def test_whitespace_only_vault_id_rejected_with_422(self, client, mock_rag_service, blank):
         """Codex round-1 HIGH-2: min_length=1 拦不住纯空白; resolve_vault_scope
         把空白当「缺失」走双缺失推导 → 空白请求曾以 active 作用域 200 通过。
         模型层 validator fail-closed 后, 任何空白形态必须 422 且服务不被触达。"""
-        response = client.post(
-            "/api/v1/rag/query", json={"query": "q", "vault_id": blank}
-        )
-        assert response.status_code == 422, (
-            f"空白 vault_id {blank!r} 未被 422 — 契约被绕过"
-        )
+        response = client.post("/api/v1/rag/query", json={"query": "q", "vault_id": blank})
+        assert response.status_code == 422, f"空白 vault_id {blank!r} 未被 422 — 契约被绕过"
         assert mock_rag_service.query.await_count == 0
 
     def test_request_schema_required_set_is_query_plus_vault_id_only(self):
         """required = {query, vault_id} — 旧必填键保留, 新必填只加 vault_id。"""
         required = set(RAGQueryRequest.model_json_schema().get("required", []))
 
-        assert required == {"query", "vault_id"}, (
-            f"必填集漂移: {required} — 加性契约破坏"
-        )
+        assert required == {"query", "vault_id"}, f"必填集漂移: {required} — 加性契约破坏"
 
     def test_legacy_request_keys_all_accepted(self, client, mock_rag_service, proc_vault):
         """旧请求的全部可选键照常被接受并透传 (带 vault_id 后 200)。"""
@@ -181,9 +167,7 @@ class TestVaultIdRequired:
 
 
 class TestVaultConflict:
-    def test_mismatched_vault_rejected_with_409(
-        self, client, mock_rag_service, proc_vault
-    ):
+    def test_mismatched_vault_rejected_with_409(self, client, mock_rag_service, proc_vault):
         response = client.post(
             "/api/v1/rag/query",
             json={"query": "q", "vault_id": "definitely_not_active_vault"},
@@ -196,9 +180,7 @@ class TestVaultConflict:
         assert "definitely_not_active_vault" in response.text
 
     def test_active_vault_by_stable_id_accepted(self, client, mock_rag_service, proc_vault):
-        response = client.post(
-            "/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault}
-        )
+        response = client.post("/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault})
         assert response.status_code == 200
         assert mock_rag_service.query.await_count == 1
 
@@ -228,9 +210,7 @@ class TestScopeInjectionAndContract:
         mock_rag_service.query = AsyncMock(side_effect=_spy)
         return seen
 
-    def test_subject_id_injects_group_form_not_bare_subject(
-        self, client, mock_rag_service, proc_vault
-    ):
+    def test_subject_id_injects_group_form_not_bare_subject(self, client, mock_rag_service, proc_vault):
         """「删缺省不注入旁路」的行为证明 — 旧代码注入裸 subject_id
         ("math"), 新代码注入 D16 group (vault:<vid>:math)。"""
         seen = self._capture_injected_scope(mock_rag_service)
@@ -242,20 +222,15 @@ class TestScopeInjectionAndContract:
 
         assert response.status_code == 200
         assert seen == [f"vault:{proc_vault}:math"], (
-            f"服务看到的 ContextVar = {seen!r} — 不是 group 形态, "
-            "「缺省不注入/裸注入」旁路可能回来了"
+            f"服务看到的 ContextVar = {seen!r} — 不是 group 形态, 「缺省不注入/裸注入」旁路可能回来了"
         )
 
-    def test_without_subject_injects_vault_base_group(
-        self, client, mock_rag_service, proc_vault
-    ):
+    def test_without_subject_injects_vault_base_group(self, client, mock_rag_service, proc_vault):
         """无 subject 也不再是「不注入」— 注入 vault 基组 (LanceDB 表
         命名空间由此而来, 缺省不注入 = 检索落表解析的 legacy 分支)。"""
         seen = self._capture_injected_scope(mock_rag_service)
 
-        response = client.post(
-            "/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault}
-        )
+        response = client.post("/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault})
 
         assert response.status_code == 200
         assert seen == [f"vault:{proc_vault}"]
@@ -297,24 +272,16 @@ class LegacyRAGQueryResponse(BaseModel):
 
 
 class TestResponseContractAdditive:
-    def test_legacy_response_schema_parses_new_response(
-        self, client, mock_rag_service, proc_vault
-    ):
-        response = client.post(
-            "/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault}
-        )
+    def test_legacy_response_schema_parses_new_response(self, client, mock_rag_service, proc_vault):
+        response = client.post("/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault})
         assert response.status_code == 200
 
         parsed = LegacyRAGQueryResponse.model_validate(response.json())
         assert parsed.quality_grade == "high"
         assert parsed.result_count == 1
 
-    def test_all_legacy_response_keys_present(
-        self, client, mock_rag_service, proc_vault
-    ):
-        body = client.post(
-            "/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault}
-        ).json()
+    def test_all_legacy_response_keys_present(self, client, mock_rag_service, proc_vault):
+        body = client.post("/api/v1/rag/query", json={"query": "q", "vault_id": proc_vault}).json()
 
         for key in (
             "results",
@@ -331,9 +298,7 @@ class TestResponseContractAdditive:
         from app.api.v1.endpoints.rag import RAGQueryResponse
 
         required = set(RAGQueryResponse.model_json_schema().get("required", []))
-        assert required == set(), (
-            f"RAGQueryResponse 冒出必填字段 {required} — 响应面不是加性"
-        )
+        assert required == set(), f"RAGQueryResponse 冒出必填字段 {required} — 响应面不是加性"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -373,9 +338,7 @@ class TestAgentScopeSourceHeader:
     def _pin_active_vault(self, monkeypatch):
         import app.config as app_config_mod
 
-        monkeypatch.setattr(
-            app_config_mod, "get_current_vault_id", lambda: "v_active", raising=True
-        )
+        monkeypatch.setattr(app_config_mod, "get_current_vault_id", lambda: "v_active", raising=True)
 
     @staticmethod
     def _post(monkeypatch, *, vault_id=None, group_id=None, node_id="n1"):

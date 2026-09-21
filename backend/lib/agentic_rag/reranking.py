@@ -82,9 +82,7 @@ class LocalReranker:
         torch_dtype: str = "float16",
     ):
         if not CROSS_ENCODER_AVAILABLE:
-            raise ImportError(
-                "sentence-transformers not installed. Install with: pip install sentence-transformers"
-            )
+            raise ImportError("sentence-transformers not installed. Install with: pip install sentence-transformers")
 
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -153,9 +151,7 @@ class LocalReranker:
         latency_ms = (time.perf_counter() - start_t) * 1000
 
         # Story 2.5 AC-5: Log reranking latency
-        logger.debug(
-            f"[LocalReranker] predict latency={latency_ms:.1f}ms for {len(documents)} docs"
-        )
+        logger.debug(f"[LocalReranker] predict latency={latency_ms:.1f}ms for {len(documents)} docs")
 
         scored_docs = [
             {

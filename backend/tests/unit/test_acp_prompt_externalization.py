@@ -54,9 +54,7 @@ class TestLayer3TemplateFile:
             "{optional_sections}",
         ]
         for placeholder in required_placeholders:
-            assert placeholder in content, (
-                f"Missing placeholder {placeholder} in layer3.md"
-            )
+            assert placeholder in content, f"Missing placeholder {placeholder} in layer3.md"
 
 
 # ---------------------------------------------------------------------------
@@ -160,9 +158,7 @@ class TestFormatAcpLayerRefactored:
         assert hasattr(gen, "_layer3_template"), (
             "_layer3_template attribute missing — _format_acp_layer is not loading from file"
         )
-        assert len(gen._layer3_template) > 0, (
-            "_layer3_template is empty — layer3.md not loaded"
-        )
+        assert len(gen._layer3_template) > 0, "_layer3_template is empty — layer3.md not loaded"
 
     def test_format_acp_layer_output_matches_original_format(self) -> None:
         """AC: Output format is identical to the original inline implementation.

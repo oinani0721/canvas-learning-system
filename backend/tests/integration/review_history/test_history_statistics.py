@@ -83,9 +83,7 @@ class TestReviewHistoryStatistics:
             }
         ]
 
-        with mock_review_history(
-            records=mock_records, retention_rate=0.85, streak_days=5
-        ):
+        with mock_review_history(records=mock_records, retention_rate=0.85, streak_days=5):
             response = client.get("/api/v1/review/history?days=7")
 
             assert response.status_code == 200
@@ -142,9 +140,7 @@ class TestReviewHistoryStatistics:
             assert "statistics" in data, "Response must contain statistics field"
             stats = data["statistics"]
             assert stats is not None, "statistics must not be None when reviews exist"
-            assert stats.get("average_rating") is not None, (
-                "average_rating must be computed when reviews exist"
-            )
+            assert stats.get("average_rating") is not None, "average_rating must be computed when reviews exist"
             assert stats["average_rating"] == 3.0
 
     def test_statistics_by_canvas_breakdown(self, client):
@@ -192,9 +188,7 @@ class TestReviewHistoryStatistics:
             assert "statistics" in data, "Response must contain statistics field"
             stats = data["statistics"]
             assert stats is not None, "statistics must not be None when reviews exist"
-            assert stats.get("by_canvas") is not None, (
-                "by_canvas must be computed when canvas-specific reviews exist"
-            )
+            assert stats.get("by_canvas") is not None, "by_canvas must be computed when canvas-specific reviews exist"
             by_canvas = stats["by_canvas"]
             assert by_canvas.get("离散数学.canvas") == 2
             assert by_canvas.get("线性代数.canvas") == 1

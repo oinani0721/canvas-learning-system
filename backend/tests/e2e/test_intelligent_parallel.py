@@ -54,9 +54,7 @@ def _make_fast_agent_mock():
     from app.services.agent_service import AgentResult, AgentType
 
     async def fast_agent(*args, **kwargs):
-        agent_type_str = kwargs.get(
-            "agent_type", args[0] if args else "basic-decomposition"
-        )
+        agent_type_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
         await simulate_async_delay(0.01)  # 10ms per node
         try:
             at = AgentType(agent_type_str)
@@ -122,9 +120,7 @@ class TestHappyPathAPIIntegration:
                 new=make_lightweight_ensure_deps(test_settings, fast_agent),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 # Get relative path for API
                 canvas_relative_path = str(test_canvas_10_nodes.relative_to(tmp_path))
 
@@ -137,9 +133,7 @@ class TestHappyPathAPIIntegration:
                     },
                 )
 
-                assert analyze_response.status_code == 200, (
-                    f"Analyze failed: {analyze_response.text}"
-                )
+                assert analyze_response.status_code == 200, f"Analyze failed: {analyze_response.text}"
                 analyze_data = analyze_response.json()
 
                 # Verify grouping preview response structure
@@ -177,9 +171,7 @@ class TestHappyPathAPIIntegration:
                     },
                 )
 
-                assert confirm_response.status_code == 202, (
-                    f"Confirm failed: {confirm_response.text}"
-                )
+                assert confirm_response.status_code == 202, f"Confirm failed: {confirm_response.text}"
                 confirm_data = confirm_response.json()
                 session_id = confirm_data["session_id"]
                 assert session_id is not None
@@ -191,9 +183,7 @@ class TestHappyPathAPIIntegration:
                 final_status = None
 
                 while poll_count < max_polls:
-                    progress_response = await client.get(
-                        f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                    )
+                    progress_response = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                     assert progress_response.status_code == 200
 
                     progress_data = progress_response.json()
@@ -207,9 +197,7 @@ class TestHappyPathAPIIntegration:
                     poll_count += 1
 
                 # Step 4: Verify completion
-                assert final_status is not None, (
-                    "Session did not complete within timeout"
-                )
+                assert final_status is not None, "Session did not complete within timeout"
                 assert final_status["status"] in ["completed", "partial_failure"], (
                     f"Expected completed/partial_failure, got {final_status['status']}"
                 )
@@ -237,9 +225,7 @@ class TestHappyPathAPIIntegration:
             ),
             patch("app.dependencies.get_settings", return_value=test_settings),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 canvas_relative_path = str(test_canvas_10_nodes.relative_to(tmp_path))
 
                 response = await client.post(
@@ -298,12 +284,8 @@ class TestCancellationAPIIntegration:
         # Slow agent to ensure enough time for cancellation
         # With 20 nodes, semaphore=12: first batch needs 2s, giving time to cancel
         async def slow_agent(*args, **kwargs):
-            agent_type_str = kwargs.get(
-                "agent_type", args[0] if args else "basic-decomposition"
-            )
-            await simulate_async_delay(
-                2.0
-            )  # 2s per node — ensures session is still running
+            agent_type_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
+            await simulate_async_delay(2.0)  # 2s per node — ensures session is still running
             try:
                 at = AgentType(agent_type_str)
             except ValueError:
@@ -329,9 +311,7 @@ class TestCancellationAPIIntegration:
                 new=make_lightweight_ensure_deps(test_settings, slow_agent),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 canvas_relative_path = str(test_canvas_20_nodes.relative_to(tmp_path))
 
                 # Step 1: Analyze and confirm
@@ -359,21 +339,15 @@ class TestCancellationAPIIntegration:
                 # Step 2: Wait briefly then cancel (session should still be running)
                 await simulate_async_delay(0.5)
 
-                cancel_response = await client.post(
-                    f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}"
-                )
+                cancel_response = await client.post(f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}")
 
                 # Step 3: Verify cancellation response
-                assert cancel_response.status_code == 200, (
-                    f"Cancel failed: {cancel_response.text}"
-                )
+                assert cancel_response.status_code == 200, f"Cancel failed: {cancel_response.text}"
                 cancel_data = cancel_response.json()
                 assert "completed_count" in cancel_data
 
                 # Step 4: Verify session status
-                progress_response = await client.get(
-                    f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                )
+                progress_response = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                 progress_data = progress_response.json()
                 assert progress_data["status"] == "cancelled"
 
@@ -409,9 +383,7 @@ class TestCancellationAPIIntegration:
                 new=make_lightweight_ensure_deps(test_settings, fast_agent),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 canvas_relative_path = str(test_canvas_10_nodes.relative_to(tmp_path))
 
                 # Complete a batch first
@@ -438,9 +410,7 @@ class TestCancellationAPIIntegration:
 
                 # Wait for completion
                 for _ in range(60):
-                    progress_response = await client.get(
-                        f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                    )
+                    progress_response = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                     if progress_response.json()["status"] in [
                         "completed",
                         "partial_failure",
@@ -449,9 +419,7 @@ class TestCancellationAPIIntegration:
                     await simulate_async_delay(0.1)
 
                 # Try to cancel completed session
-                cancel_response = await client.post(
-                    f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}"
-                )
+                cancel_response = await client.post(f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}")
                 # Accept both 200 (with warning/already-completed) or 409 (conflict)
                 assert cancel_response.status_code in [200, 409]
 
@@ -496,9 +464,7 @@ class TestRetryAPIIntegration:
 
         async def mock_agent_with_retry(*args, **kwargs):
             """Agent that fails first time for node-999, succeeds on retry."""
-            agent_type_str = kwargs.get(
-                "agent_type", args[0] if args else "basic-decomposition"
-            )
+            agent_type_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
             node_id = kwargs.get("node_id", args[1] if len(args) > 1 else "unknown")
             node_text = kwargs.get("node_text", args[2] if len(args) > 2 else "")
             await simulate_async_delay(0.01)
@@ -543,12 +509,8 @@ class TestRetryAPIIntegration:
                 new=make_lightweight_ensure_deps(test_settings, mock_agent_with_retry),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                canvas_relative_path = str(
-                    test_canvas_with_failing_node.relative_to(tmp_path)
-                )
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                canvas_relative_path = str(test_canvas_with_failing_node.relative_to(tmp_path))
 
                 # Run batch (expect partial failure)
                 analyze_response = await client.post(
@@ -575,9 +537,7 @@ class TestRetryAPIIntegration:
                 # Wait for completion (expect partial_failure)
                 final_data = None
                 for _ in range(60):
-                    progress_response = await client.get(
-                        f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                    )
+                    progress_response = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                     final_data = progress_response.json()
                     if final_data["status"] in [
                         "completed",
@@ -598,9 +558,7 @@ class TestRetryAPIIntegration:
                 )
 
                 # Step 4: Verify retry success
-                assert retry_response.status_code == 200, (
-                    f"Retry failed: {retry_response.text}"
-                )
+                assert retry_response.status_code == 200, f"Retry failed: {retry_response.text}"
                 retry_data = retry_response.json()
                 assert retry_data.get("success") is True or "file_path" in retry_data
 
@@ -641,9 +599,7 @@ class TestWebSocketAPIIntegration:
         session_id = "test-ws-session-001"
         events_received = []
 
-        with client.websocket_connect(
-            f"/ws/intelligent-parallel/{session_id}"
-        ) as websocket:
+        with client.websocket_connect(f"/ws/intelligent-parallel/{session_id}") as websocket:
             # Receive connected event
             data = websocket.receive_json()
             events_received.append(data)
@@ -679,9 +635,7 @@ class TestWebSocketAPIIntegration:
             assert data1["type"] == "connected"
 
             # Second client connects to same session
-            with client.websocket_connect(
-                f"/ws/intelligent-parallel/{session_id}"
-            ) as ws2:
+            with client.websocket_connect(f"/ws/intelligent-parallel/{session_id}") as ws2:
                 data2 = ws2.receive_json()
                 assert data2["type"] == "connected"
 
@@ -784,9 +738,7 @@ class TestPerformanceAPIIntegration:
                 new=make_lightweight_ensure_deps(test_settings, fast_agent),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 canvas_relative_path = str(test_canvas_100_nodes.relative_to(tmp_path))
 
                 # Analyze canvas
@@ -797,9 +749,7 @@ class TestPerformanceAPIIntegration:
                 analyze_data = analyze_response.json()
                 total_from_groups = sum(len(g["nodes"]) for g in analyze_data["groups"])
                 assert analyze_data["total_nodes"] == total_from_groups
-                assert analyze_data["total_nodes"] > 0, (
-                    "Should have at least some yellow nodes"
-                )
+                assert analyze_data["total_nodes"] > 0, "Should have at least some yellow nodes"
 
                 groups_config = [
                     {
@@ -824,9 +774,7 @@ class TestPerformanceAPIIntegration:
                     # Poll until completion
                     progress_data = None
                     for _ in range(600):  # 60 seconds with 100ms interval
-                        progress_response = await client.get(
-                            f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                        )
+                        progress_response = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                         progress_data = progress_response.json()
 
                         if progress_data["status"] in [
@@ -840,15 +788,11 @@ class TestPerformanceAPIIntegration:
 
                 # Verify performance (90s threshold for CI)
                 elapsed = performance_timer.elapsed
-                assert elapsed < 90, (
-                    f"Batch processing took {elapsed:.2f}s (limit: 90s)"
-                )
+                assert elapsed < 90, f"Batch processing took {elapsed:.2f}s (limit: 90s)"
 
                 # Log performance metrics
                 actual_nodes = analyze_data["total_nodes"]
-                metrics = performance_timer.get_metrics(
-                    actual_nodes if actual_nodes > 0 else 1
-                )
+                metrics = performance_timer.get_metrics(actual_nodes if actual_nodes > 0 else 1)
                 print(f"\n=== Performance Metrics ===")
                 print(f"Total duration: {metrics['total_duration_seconds']:.2f}s")
                 print(f"Nodes per second: {metrics['nodes_per_second']:.2f}")
@@ -880,15 +824,11 @@ class TestPerformanceAPIIntegration:
 
         async def tracking_mock(*args, **kwargs):
             """Track concurrent executions."""
-            agent_type_str = kwargs.get(
-                "agent_type", args[0] if args else "basic-decomposition"
-            )
+            agent_type_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
 
             async with lock:
                 concurrent_count["current"] += 1
-                concurrent_count["max"] = max(
-                    concurrent_count["max"], concurrent_count["current"]
-                )
+                concurrent_count["max"] = max(concurrent_count["max"], concurrent_count["current"])
 
             await simulate_async_delay(0.1)  # Simulate work
 
@@ -920,9 +860,7 @@ class TestPerformanceAPIIntegration:
                 new=make_lightweight_ensure_deps(test_settings, tracking_mock),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 canvas_relative_path = str(test_canvas_20_nodes.relative_to(tmp_path))
 
                 # Analyze and confirm
@@ -949,9 +887,7 @@ class TestPerformanceAPIIntegration:
 
                 # Wait for completion
                 for _ in range(100):
-                    progress_response = await client.get(
-                        f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                    )
+                    progress_response = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                     if progress_response.json()["status"] in [
                         "completed",
                         "partial_failure",
@@ -961,7 +897,5 @@ class TestPerformanceAPIIntegration:
                     await simulate_async_delay(0.1)
 
                 # Verify concurrency was limited
-                assert concurrent_count["max"] <= 12, (
-                    f"Max concurrent was {concurrent_count['max']}, expected <= 12"
-                )
+                assert concurrent_count["max"] <= 12, f"Max concurrent was {concurrent_count['max']}, expected <= 12"
                 print(f"\nMax concurrent executions: {concurrent_count['max']}")

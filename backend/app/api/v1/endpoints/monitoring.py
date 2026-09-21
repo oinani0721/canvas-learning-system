@@ -49,9 +49,7 @@ class AlertResponse(BaseModel):
     triggered_at: datetime = Field(..., description="When alert was triggered")
     value: Optional[float] = Field(default=None, description="Current metric value")
     threshold: Optional[float] = Field(default=None, description="Alert threshold")
-    labels: Dict[str, str] = Field(
-        default_factory=dict, description="Additional labels"
-    )
+    labels: Dict[str, str] = Field(default_factory=dict, description="Additional labels")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -114,9 +112,7 @@ class AgentMetricsSummary(BaseModel):
 
     invocations_total: int = Field(..., description="Total agent invocations")
     avg_execution_time_s: float = Field(..., description="Average execution time")
-    by_type: List[AgentTypeSummary] = Field(
-        default_factory=list, description="Breakdown by agent type"
-    )
+    by_type: List[AgentTypeSummary] = Field(default_factory=list, description="Breakdown by agent type")
 
 
 class MemoryLayerSummary(BaseModel):
@@ -404,10 +400,7 @@ def _get_api_metrics() -> Dict[str, Any]:
     for metric in REGISTRY.collect():
         if metric.name == "canvas_api_requests_total":
             for sample in metric.samples:
-                if (
-                    sample.name.endswith("_total")
-                    or sample.name == "canvas_api_requests_total"
-                ):
+                if sample.name.endswith("_total") or sample.name == "canvas_api_requests_total":
                     count = int(sample.value)
                     requests_total += count
                     status = sample.labels.get("status", "200")
@@ -481,9 +474,7 @@ def _get_agent_metrics() -> Dict[str, Any]:
         AgentTypeSummary(
             agent_type=agent_type,
             invocations=data["invocations"],
-            avg_execution_time_s=round(data["sum"] / data["count"], 2)
-            if data["count"] > 0
-            else 0,
+            avg_execution_time_s=round(data["sum"] / data["count"], 2) if data["count"] > 0 else 0,
         )
         for agent_type, data in by_type.items()
     ]
@@ -527,9 +518,7 @@ def _get_memory_metrics() -> Dict[str, Any]:
         "graphiti": MemoryLayerSummary(
             queries_total=memory_stats["graphiti"]["queries_total"],
             avg_latency_ms=round(
-                memory_stats["graphiti"]["latency_sum"]
-                / memory_stats["graphiti"]["latency_count"]
-                * 1000,
+                memory_stats["graphiti"]["latency_sum"] / memory_stats["graphiti"]["latency_count"] * 1000,
                 2,
             )
             if memory_stats["graphiti"]["latency_count"] > 0
@@ -538,9 +527,7 @@ def _get_memory_metrics() -> Dict[str, Any]:
         "temporal": MemoryLayerSummary(
             queries_total=memory_stats["temporal"]["queries_total"],
             avg_latency_ms=round(
-                memory_stats["temporal"]["latency_sum"]
-                / memory_stats["temporal"]["latency_count"]
-                * 1000,
+                memory_stats["temporal"]["latency_sum"] / memory_stats["temporal"]["latency_count"] * 1000,
                 2,
             )
             if memory_stats["temporal"]["latency_count"] > 0
@@ -549,9 +536,7 @@ def _get_memory_metrics() -> Dict[str, Any]:
         "semantic": MemoryLayerSummary(
             queries_total=memory_stats["semantic"]["queries_total"],
             avg_latency_ms=round(
-                memory_stats["semantic"]["latency_sum"]
-                / memory_stats["semantic"]["latency_count"]
-                * 1000,
+                memory_stats["semantic"]["latency_sum"] / memory_stats["semantic"]["latency_count"] * 1000,
                 2,
             )
             if memory_stats["semantic"]["latency_count"] > 0

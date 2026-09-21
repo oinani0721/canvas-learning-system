@@ -146,8 +146,7 @@ class TestAC3RestartSurvival:
         svc = LanceDBIndexService()
         pending_file = tmp_path / "lancedb_pending_index.jsonl"
         pending_file.write_text(
-            json.dumps({"canvas_name": "math-101", "timestamp": "2026-02-07T10:00:00"})
-            + "\n",
+            json.dumps({"canvas_name": "math-101", "timestamp": "2026-02-07T10:00:00"}) + "\n",
             encoding="utf-8",
         )
         svc._pending_file = pending_file

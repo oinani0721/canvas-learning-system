@@ -68,9 +68,7 @@ class TestAC2FullLearningFlow:
         canvas_file.write_text(
             json.dumps(
                 {
-                    "nodes": [
-                        {"id": "n1", "type": "text", "text": "Old", "x": 0, "y": 0}
-                    ],
+                    "nodes": [{"id": "n1", "type": "text", "text": "Old", "x": 0, "y": 0}],
                     "edges": [],
                 }
             ),
@@ -95,9 +93,7 @@ class TestAC2FullLearningFlow:
 
         svc = LanceDBIndexService()
 
-        with patch.object(
-            svc, "_debounced_index", new_callable=AsyncMock
-        ) as mock_debounce:
+        with patch.object(svc, "_debounced_index", new_callable=AsyncMock) as mock_debounce:
             svc.schedule_index("test-canvas", "/tmp/canvases")
             assert "test-canvas" in svc._pending_tasks
             # Cleanup: cancel the created task

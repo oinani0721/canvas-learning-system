@@ -103,9 +103,7 @@ class NodeResult:
             "result": self.result,
             "error": self.error,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "execution_time_ms": self.execution_time_ms,
         }
 
@@ -165,16 +163,11 @@ class SessionInfo:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "progress_percent": self.progress_percent,
             "completed_nodes": self.completed_nodes,
             "failed_nodes": self.failed_nodes,
-            "node_results": {
-                node_id: result.to_dict()
-                for node_id, result in self.node_results.items()
-            },
+            "node_results": {node_id: result.to_dict() for node_id, result in self.node_results.items()},
             "error_message": self.error_message,
             "metadata": self.metadata,
         }

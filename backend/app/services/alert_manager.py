@@ -289,9 +289,7 @@ class AlertManager:
                         existing_alert.state = AlertState.FIRING
                         existing_alert.triggered_at = now
                         existing_alert.value = value
-                        existing_alert.message = self._format_message(
-                            rule.description, value
-                        )
+                        existing_alert.message = self._format_message(rule.description, value)
                         await self._fire_alert(existing_alert)
 
                 elif existing_alert.state == AlertState.FIRING:
@@ -485,9 +483,7 @@ class AlertManager:
         Returns:
             List of firing alerts, sorted by triggered_at (newest first)
         """
-        alerts = [
-            a for a in self._active_alerts.values() if a.state == AlertState.FIRING
-        ]
+        alerts = [a for a in self._active_alerts.values() if a.state == AlertState.FIRING]
 
         if severity:
             alerts = [a for a in alerts if a.severity == severity]
@@ -505,12 +501,8 @@ class AlertManager:
         active = self.get_active_alerts()
         return {
             "active_count": len(active),
-            "critical_count": len(
-                [a for a in active if a.severity == AlertSeverity.CRITICAL]
-            ),
-            "warning_count": len(
-                [a for a in active if a.severity == AlertSeverity.WARNING]
-            ),
+            "critical_count": len([a for a in active if a.severity == AlertSeverity.CRITICAL]),
+            "warning_count": len([a for a in active if a.severity == AlertSeverity.WARNING]),
             "info_count": len([a for a in active if a.severity == AlertSeverity.INFO]),
         }
 

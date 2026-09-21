@@ -47,9 +47,7 @@ class TestReactAgentGroupIdContextVar:
         # set ContextVar vault:cs_61b (already canonical, lru_cache idempotent)
         token = _current_subject_id.set("vault:cs_61b")
         try:
-            await search_knowledge_graph.ainvoke(
-                {"query": "search test", "num_results": 5}
-            )
+            await search_knowledge_graph.ainvoke({"query": "search test", "num_results": 5})
         finally:
             _current_subject_id.reset(token)
 
@@ -63,9 +61,7 @@ class TestReactAgentGroupIdContextVar:
         )
 
     @pytest.mark.asyncio
-    async def test_react_agent_fallback_when_no_contextvar(
-        self, reset_react_module_state
-    ):
+    async def test_react_agent_fallback_when_no_contextvar(self, reset_react_module_state):
         """CARD-G2-2 断言翻新: ContextVar 未设置 (default) → 经
         vault_scope.current_group_id() 推导 active vault 组 —
         DEFAULT_GROUP_ID (vault:default 污染桶) 兜底退役, 原 warning 随之取消
@@ -81,9 +77,7 @@ class TestReactAgentGroupIdContextVar:
 
         # 不 set ContextVar — fixture 已 reset 到 DEFAULT_SUBJECT_ID ("general")
         with _patch("app.config.get_current_vault_id", return_value="active_vault"):
-            await search_knowledge_graph.ainvoke(
-                {"query": "fallback test", "num_results": 3}
-            )
+            await search_knowledge_graph.ainvoke({"query": "fallback test", "num_results": 3})
 
         # cypher 收到 active vault 组 (T1: 绑定前转物理 __ 格式)
         assert mock_neo4j.run_query.called
@@ -94,9 +88,7 @@ class TestReactAgentGroupIdContextVar:
         )
 
     @pytest.mark.asyncio
-    async def test_record_learning_memory_uses_contextvar_group_id(
-        self, reset_react_module_state
-    ):
+    async def test_record_learning_memory_uses_contextvar_group_id(self, reset_react_module_state):
         """写入路径同样必须用 ContextVar — record_learning_memory cypher
         参数 groupId 必须是 vault:数学 不是 default."""
         from app.core.subject_config import _current_subject_id
@@ -134,7 +126,6 @@ class TestReactAgentGroupIdContextVar:
 
         expected_physical = to_physical_group_id("vault:数学")
         assert call_kwargs.get("groupId") == expected_physical, (
-            f"P0 write violation: cypher groupId={call_kwargs.get('groupId')} "
-            f"(预期 T1 物理格式 {expected_physical})"
+            f"P0 write violation: cypher groupId={call_kwargs.get('groupId')} (预期 T1 物理格式 {expected_physical})"
         )
         assert call_kwargs.get("groupId") != "vault:数学", "逻辑冒号格式禁止直接绑定 Cypher"

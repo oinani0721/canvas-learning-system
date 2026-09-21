@@ -29,12 +29,8 @@ _edge_sync_failure_count: int = 0
 _dual_write_failure_count: int = 0
 
 # --- Dead-letter file paths ---
-EDGE_SYNC_DEAD_LETTER_PATH: Path = (
-    Path(__file__).parent.parent.parent / "data" / "failed_edge_syncs.jsonl"
-)
-DUAL_WRITE_DEAD_LETTER_PATH: Path = (
-    Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
-)
+EDGE_SYNC_DEAD_LETTER_PATH: Path = Path(__file__).parent.parent.parent / "data" / "failed_edge_syncs.jsonl"
+DUAL_WRITE_DEAD_LETTER_PATH: Path = Path(__file__).parent.parent.parent / "data" / "failed_dual_writes.jsonl"
 # CARD-DEADLETTER-PATH-ANCHOR: episode worker 的死信落点。写侧原先是
 # ``episode_worker.py`` 两个 ``__init__`` 的字面量默认值
 # ``"data/dead_letter_episodes.jsonl"`` —— **相对 cwd**，而生产单例

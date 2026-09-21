@@ -93,10 +93,7 @@ class ConnectionManager:
             self._last_activity[session_id] = datetime.now()
 
             connection_count = len(self._connections[session_id])
-            logger.info(
-                f"WebSocket connected: session={session_id}, "
-                f"total_connections={connection_count}"
-            )
+            logger.info(f"WebSocket connected: session={session_id}, total_connections={connection_count}")
 
         # Send connected event
         connected_event = create_ws_connected_event(session_id)
@@ -131,8 +128,7 @@ class ConnectionManager:
                 else:
                     connection_count = len(self._connections[session_id])
                     logger.info(
-                        f"WebSocket disconnected: session={session_id}, "
-                        f"remaining_connections={connection_count}"
+                        f"WebSocket disconnected: session={session_id}, remaining_connections={connection_count}"
                     )
 
     async def broadcast_to_session(
@@ -169,9 +165,7 @@ class ConnectionManager:
                 await self._send_message(websocket, message)
                 sent_count += 1
             except Exception as e:
-                logger.warning(
-                    f"Failed to send to WebSocket in session {session_id}: {e}"
-                )
+                logger.warning(f"Failed to send to WebSocket in session {session_id}: {e}")
                 failed_connections.append(websocket)
 
         # Clean up failed connections
@@ -181,10 +175,7 @@ class ConnectionManager:
                     for ws in failed_connections:
                         self._connections[session_id].discard(ws)
 
-        logger.debug(
-            f"Broadcast to session {session_id}: "
-            f"sent={sent_count}, failed={len(failed_connections)}"
-        )
+        logger.debug(f"Broadcast to session {session_id}: sent={sent_count}, failed={len(failed_connections)}")
         return sent_count
 
     async def send_heartbeat(self, session_id: str) -> int:
@@ -266,9 +257,7 @@ class ConnectionManager:
             except Exception as e:
                 logger.warning(f"Error closing WebSocket: {e}")
 
-        logger.info(
-            f"Closed all connections for session {session_id}: count={closed_count}"
-        )
+        logger.info(f"Closed all connections for session {session_id}: count={closed_count}")
         return closed_count
 
     def get_connection_count(self, session_id: str) -> int:
@@ -334,9 +323,7 @@ class ConnectionManager:
         """
         total_connections = sum(len(conns) for conns in self._connections.values())
 
-        connections_per_session = {
-            session_id: len(conns) for session_id, conns in self._connections.items()
-        }
+        connections_per_session = {session_id: len(conns) for session_id, conns in self._connections.items()}
 
         oldest_session = None
         newest_session = None
@@ -432,9 +419,7 @@ class ConnectionManager:
 
         # Close connections outside lock
         for session_id in sessions_to_cleanup:
-            await self.close_session_connections(
-                session_id, reason=f"Inactivity timeout ({timeout_minutes} minutes)"
-            )
+            await self.close_session_connections(session_id, reason=f"Inactivity timeout ({timeout_minutes} minutes)")
             cleaned_sessions.append(session_id)
 
         if cleaned_sessions:

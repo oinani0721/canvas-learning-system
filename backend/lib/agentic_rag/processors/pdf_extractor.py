@@ -238,10 +238,7 @@ class PDFExtractor:
             preserve_formatting: Whether to preserve text formatting
         """
         if fitz is None:
-            raise ImportError(
-                "PyMuPDF is required for PDF extraction. "
-                "Install with: pip install PyMuPDF"
-            )
+            raise ImportError("PyMuPDF is required for PDF extraction. Install with: pip install PyMuPDF")
 
         self.extract_images = extract_images
         self.max_image_size_mb = max_image_size_mb or self.MAX_IMAGE_SIZE_MB
@@ -360,9 +357,7 @@ class PDFExtractor:
             List of TOCEntry objects
         """
         toc_data = doc.get_toc()
-        return [
-            TOCEntry(title=item[1], page=item[2], level=item[0]) for item in toc_data
-        ]
+        return [TOCEntry(title=item[1], page=item[2], level=item[0]) for item in toc_data]
 
     def _extract_page_text(self, page: "fitz.Page") -> str:
         """
@@ -393,9 +388,7 @@ class PDFExtractor:
                     texts.append(block)
             return "\n".join(texts)
 
-    def _extract_page_images(
-        self, doc: "fitz.Document", page: "fitz.Page", page_num: int
-    ) -> list[PDFImage]:
+    def _extract_page_images(self, doc: "fitz.Document", page: "fitz.Page", page_num: int) -> list[PDFImage]:
         """
         Extract images from a single page.
 
@@ -455,9 +448,7 @@ class PDFExtractor:
 
         return images
 
-    def _find_heading(
-        self, toc: list[TOCEntry], page_num: int
-    ) -> tuple[Optional[str], int]:
+    def _find_heading(self, toc: list[TOCEntry], page_num: int) -> tuple[Optional[str], int]:
         """
         Find the current chapter heading for a page.
 
@@ -530,9 +521,7 @@ class PDFExtractor:
         finally:
             doc.close()
 
-    def _parse_page_range(
-        self, range_str: Optional[str], total_pages: int
-    ) -> list[int]:
+    def _parse_page_range(self, range_str: Optional[str], total_pages: int) -> list[int]:
         """Parse page range string into list of page numbers."""
         if not range_str:
             return list(range(1, total_pages + 1))
@@ -571,9 +560,7 @@ class PDFExtractor:
         finally:
             doc.close()
 
-    async def get_page_images(
-        self, pdf_path: str | Path, page_num: int
-    ) -> list[PDFImage]:
+    async def get_page_images(self, pdf_path: str | Path, page_num: int) -> list[PDFImage]:
         """
         Extract images from a specific page.
 

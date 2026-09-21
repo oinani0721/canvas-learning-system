@@ -309,8 +309,7 @@ class VideoProcessor:
 
         if not self.validate_format(video_path):
             raise VideoValidationError(
-                f"Unsupported format: {video_path.suffix}. "
-                f"Supported: {', '.join(self.SUPPORTED_FORMATS)}"
+                f"Unsupported format: {video_path.suffix}. Supported: {', '.join(self.SUPPORTED_FORMATS)}"
             )
 
         if not self.validate_size(video_path):

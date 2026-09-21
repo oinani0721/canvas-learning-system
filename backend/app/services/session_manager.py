@@ -99,9 +99,7 @@ class InvalidStateTransitionError(Exception):
     def __init__(self, from_status: SessionStatus, to_status: SessionStatus):
         self.from_status = from_status
         self.to_status = to_status
-        super().__init__(
-            f"Invalid state transition from {from_status.value} to {to_status.value}"
-        )
+        super().__init__(f"Invalid state transition from {from_status.value} to {to_status.value}")
 
 
 class SessionNotFoundError(Exception):
@@ -399,9 +397,7 @@ class SessionManager:
             # Calculate execution time
             execution_time_ms = None
             if started_at and completed_at:
-                execution_time_ms = int(
-                    (completed_at - started_at).total_seconds() * 1000
-                )
+                execution_time_ms = int((completed_at - started_at).total_seconds() * 1000)
 
             node_result = NodeResult(
                 node_id=node_id,
@@ -418,26 +414,18 @@ class SessionManager:
 
             # Update completed/failed counts
             if status == "success":
-                session.completed_nodes = sum(
-                    1 for r in session.node_results.values() if r.status == "success"
-                )
+                session.completed_nodes = sum(1 for r in session.node_results.values() if r.status == "success")
             elif status == "failed":
-                session.failed_nodes = sum(
-                    1 for r in session.node_results.values() if r.status == "failed"
-                )
+                session.failed_nodes = sum(1 for r in session.node_results.values() if r.status == "failed")
 
             # Auto-calculate progress based on node results
             total_processed = len(session.node_results)
             if session.node_count > 0:
-                session.progress_percent = (
-                    total_processed / session.node_count
-                ) * 100.0
+                session.progress_percent = (total_processed / session.node_count) * 100.0
 
             await self._storage.save_session(session)
 
-        logger.debug(
-            "node_result_added", session_id=session_id, node_id=node_id, status=status
-        )
+        logger.debug("node_result_added", session_id=session_id, node_id=node_id, status=status)
         return session
 
     async def cancel_session(self, session_id: str) -> SessionInfo:
@@ -492,9 +480,7 @@ class SessionManager:
                 if self.is_session_expired(session):
                     await self._storage.delete_session(session.session_id)
                     cleaned += 1
-                    logger.debug(
-                        "expired_session_cleaned", session_id=session.session_id
-                    )
+                    logger.debug("expired_session_cleaned", session_id=session.session_id)
 
         if cleaned > 0:
             logger.info("expired_sessions_cleanup_complete", cleaned_count=cleaned)
@@ -565,11 +551,7 @@ class SessionManager:
         """
         async with self._session_lock:
             sessions = await self._storage.list_sessions()
-        active = sum(
-            1
-            for s in sessions
-            if s.status in (SessionStatus.PENDING, SessionStatus.RUNNING)
-        )
+        active = sum(1 for s in sessions if s.status in (SessionStatus.PENDING, SessionStatus.RUNNING))
         return {"active_sessions": active, "total_sessions": len(sessions)}
 
     async def cleanup(self) -> None:

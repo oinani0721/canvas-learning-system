@@ -152,8 +152,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             # Fallback: store neo4j_client directly
             if neo4j_client is None:
                 raise ValueError(
-                    "neo4j_client cannot be None. "
-                    "Use dependency injection via get_graphiti_temporal_client()"
+                    "neo4j_client cannot be None. Use dependency injection via get_graphiti_temporal_client()"
                 )
             self._neo4j = neo4j_client
             self._initialized = False
@@ -176,9 +175,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 f"timeout={timeout_ms}ms"
             )
 
-    def _build_group_id(
-        self, canvas_path: Optional[str] = None, group_id: Optional[str] = None
-    ) -> Optional[str]:
+    def _build_group_id(self, canvas_path: Optional[str] = None, group_id: Optional[str] = None) -> Optional[str]:
         """
         构建group_id用于多学科隔离
 
@@ -222,9 +219,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             except ImportError:
                 # Fallback if backend module not available
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        "subject_config not available, using canvas_path as group_id"
-                    )
+                    logger.warning("subject_config not available, using canvas_path as group_id")
                 # Simple fallback: use first directory as subject
                 path = Path(canvas_path)
                 parts = list(path.parts)
@@ -257,10 +252,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         if not GRAPHITI_AVAILABLE:
             if LOGURU_ENABLED:
-                logger.warning(
-                    "graphiti-core not available. "
-                    "Install: pip install graphiti-core[neo4j]"
-                )
+                logger.warning("graphiti-core not available. Install: pip install graphiti-core[neo4j]")
             self._initialized = True
             return False
 
@@ -335,9 +327,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
             except Exception as llm_err:
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"LLM clients for Graphiti not configured: {llm_err}"
-                    )
+                    logger.warning(f"LLM clients for Graphiti not configured: {llm_err}")
 
             # Create Graphiti instance with keyword args (not positional driver)
             self._graphiti = Graphiti(
@@ -348,16 +338,13 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 embedder=embedder,
                 cross_encoder=cross_encoder,
             )
-            self._graphiti_driver = (
-                self._graphiti.driver if hasattr(self._graphiti, "driver") else None
-            )
+            self._graphiti_driver = self._graphiti.driver if hasattr(self._graphiti, "driver") else None
 
             self._initialized = True
 
             if LOGURU_ENABLED:
                 logger.info(
-                    f"GraphitiTemporalClient initialized: uri={neo4j_uri}, "
-                    f"llm={'configured' if llm_client else 'none'}"
+                    f"GraphitiTemporalClient initialized: uri={neo4j_uri}, llm={'configured' if llm_client else 'none'}"
                 )
 
             return True
@@ -395,8 +382,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             # Delegate to Neo4jClient for edge creation
             success = await self._neo4j.create_edge_relationship(
                 canvas_path=relationship.canvas_path,
-                edge_id=relationship.edge_id
-                or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
+                edge_id=relationship.edge_id or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
                 from_node_id=relationship.from_node_id,
                 to_node_id=relationship.to_node_id,
                 edge_label=relationship.edge_label,
@@ -435,9 +421,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             await self.initialize()
 
         # Build effective group_id
-        effective_group_id = self._build_group_id(
-            canvas_path=canvas_path, group_id=group_id
-        )
+        effective_group_id = self._build_group_id(canvas_path=canvas_path, group_id=group_id)
 
         results = []
 
@@ -451,20 +435,14 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 if effective_group_id:
                     search_kwargs["group_ids"] = [effective_group_id]
 
-                search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
-                )
+                search_results = await asyncio.wait_for(self._graphiti.search(**search_kwargs), timeout=timeout_seconds)
 
                 # Convert results
-                for item in (
-                    search_results.edges if hasattr(search_results, "edges") else []
-                ):
+                for item in search_results.edges if hasattr(search_results, "edges") else []:
                     results.append(
                         {
-                            "doc_id": getattr(item, "uuid", None)
-                            or getattr(item, "id", ""),
-                            "content": getattr(item, "fact", "")
-                            or getattr(item, "content", ""),
+                            "doc_id": getattr(item, "uuid", None) or getattr(item, "id", ""),
+                            "content": getattr(item, "fact", "") or getattr(item, "content", ""),
                             "score": getattr(item, "score", 1.0),
                             "metadata": {
                                 "canvas_path": canvas_path,
@@ -525,19 +503,13 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                     if effective_group_id:
                         search_kwargs["group_ids"] = [effective_group_id]
 
-                search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
-                )
+                search_results = await asyncio.wait_for(self._graphiti.search(**search_kwargs), timeout=timeout_seconds)
 
-                for item in (
-                    search_results.edges if hasattr(search_results, "edges") else []
-                ):
+                for item in search_results.edges if hasattr(search_results, "edges") else []:
                     results.append(
                         {
-                            "node_id": getattr(item, "uuid", "")
-                            or getattr(item, "id", ""),
-                            "content": getattr(item, "fact", "")
-                            or getattr(item, "content", ""),
+                            "node_id": getattr(item, "uuid", "") or getattr(item, "id", ""),
+                            "content": getattr(item, "fact", "") or getattr(item, "content", ""),
                             "relationship": "RELATED_TO",
                             "canvas_path": canvas_path,
                         }
@@ -545,9 +517,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
             except asyncio.TimeoutError:
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"get_related_memories timeout ({self.timeout_ms}ms)"
-                    )
+                    logger.warning(f"get_related_memories timeout ({self.timeout_ms}ms)")
                 if not self.enable_fallback:
                     raise
 
@@ -595,9 +565,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         # Build effective group_id (Story 30.8 Task 2.1)
         canvas_path = (metadata or {}).get("canvas_path")
-        effective_group_id = self._build_group_id(
-            canvas_path=canvas_path, group_id=group_id
-        )
+        effective_group_id = self._build_group_id(canvas_path=canvas_path, group_id=group_id)
 
         # 构建完整的episode内容(包含metadata)
         full_content = content
@@ -650,9 +618,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
             except asyncio.TimeoutError:
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"add_learning_episode timeout ({self.timeout_ms}ms)"
-                    )
+                    logger.warning(f"add_learning_episode timeout ({self.timeout_ms}ms)")
                 if self.enable_fallback:
                     return episode_name
                 raise
@@ -716,27 +682,18 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 if effective_group_id:
                     search_kwargs["group_ids"] = [effective_group_id]
 
-                search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
-                )
+                search_results = await asyncio.wait_for(self._graphiti.search(**search_kwargs), timeout=timeout_seconds)
 
-                for item in (
-                    search_results.edges if hasattr(search_results, "edges") else []
-                ):
+                for item in search_results.edges if hasattr(search_results, "edges") else []:
                     created_at = getattr(item, "created_at", None)
                     if created_at and start_time <= created_at <= end_time:
                         result_dict = self._to_dict(item)
-                        if (
-                            entity_type is None
-                            or result_dict.get("entity_type") == entity_type
-                        ):
+                        if entity_type is None or result_dict.get("entity_type") == entity_type:
                             results.append(result_dict)
 
             except asyncio.TimeoutError:
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"search_by_time_range timeout ({self.timeout_ms}ms)"
-                    )
+                    logger.warning(f"search_by_time_range timeout ({self.timeout_ms}ms)")
                 if not self.enable_fallback:
                     raise
 
@@ -796,9 +753,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             await self.initialize()
 
         # Build effective group_id
-        effective_group_id = self._build_group_id(
-            canvas_path=canvas_file, group_id=group_id
-        )
+        effective_group_id = self._build_group_id(canvas_path=canvas_file, group_id=group_id)
 
         results = []
 
@@ -815,23 +770,17 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 if effective_group_id:
                     search_kwargs["group_ids"] = [effective_group_id]
 
-                search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
-                )
+                search_results = await asyncio.wait_for(self._graphiti.search(**search_kwargs), timeout=timeout_seconds)
 
                 all_results = []
-                for item in (
-                    search_results.edges if hasattr(search_results, "edges") else []
-                ):
+                for item in search_results.edges if hasattr(search_results, "edges") else []:
                     all_results.append(self._to_dict(item))
 
                 results = all_results[offset : offset + limit]
 
             except asyncio.TimeoutError:
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"search_by_entity_type timeout ({self.timeout_ms}ms)"
-                    )
+                    logger.warning(f"search_by_entity_type timeout ({self.timeout_ms}ms)")
                 if not self.enable_fallback:
                     raise
 
@@ -907,9 +856,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             await self.initialize()
 
         # Build effective group_id (AC-30.8.3: multi-subject isolation)
-        effective_group_id = self._build_group_id(
-            canvas_path=canvas_name, group_id=group_id
-        )
+        effective_group_id = self._build_group_id(canvas_path=canvas_name, group_id=group_id)
 
         results = []
 
@@ -932,23 +879,15 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                     search_kwargs["group_ids"] = [effective_group_id]
 
                 # ✅ Verified from ADR-0003: Graphiti search() supports query + filters
-                search_results = await asyncio.wait_for(
-                    self._graphiti.search(**search_kwargs), timeout=timeout_seconds
-                )
+                search_results = await asyncio.wait_for(self._graphiti.search(**search_kwargs), timeout=timeout_seconds)
 
                 # Filter and format results
-                for item in (
-                    search_results.edges if hasattr(search_results, "edges") else []
-                ):
-                    result_dict = self._format_verification_question_result(
-                        item, concept
-                    )
+                for item in search_results.edges if hasattr(search_results, "edges") else []:
+                    result_dict = self._format_verification_question_result(item, concept)
 
                     # Apply time_range filter if specified
                     if time_range and result_dict.get("asked_at"):
-                        asked_at = datetime.fromisoformat(
-                            result_dict["asked_at"].replace("Z", "+00:00")
-                        )
+                        asked_at = datetime.fromisoformat(result_dict["asked_at"].replace("Z", "+00:00"))
                         start_time, end_time = time_range
                         if not (start_time <= asked_at <= end_time):
                             continue
@@ -966,16 +905,14 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
                 if LOGURU_ENABLED:
                     logger.info(
-                        f"search_verification_questions: concept={concept}, "
-                        f"found={len(results)}, limit={limit}"
+                        f"search_verification_questions: concept={concept}, found={len(results)}, limit={limit}"
                     )
 
             except asyncio.TimeoutError:
                 # AC-31.4 ADR-009: Graceful degradation on timeout
                 if LOGURU_ENABLED:
                     logger.warning(
-                        f"search_verification_questions timeout ({self.timeout_ms}ms) "
-                        f"for concept: {concept}"
+                        f"search_verification_questions timeout ({self.timeout_ms}ms) for concept: {concept}"
                     )
                 # Fall through to Neo4j direct / local cache
 
@@ -995,9 +932,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 limit=limit,
             )
             if results and LOGURU_ENABLED:
-                logger.info(
-                    f"Neo4j direct found {len(results)} questions for {concept}"
-                )
+                logger.info(f"Neo4j direct found {len(results)} questions for {concept}")
 
         # Fallback 2: search local episode cache (in-process only)
         if not results:
@@ -1043,9 +978,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         return results[:limit]
 
-    def _format_verification_question_result(
-        self, item: Any, concept: str
-    ) -> Dict[str, Any]:
+    def _format_verification_question_result(self, item: Any, concept: str) -> Dict[str, Any]:
         """
         Format a Graphiti search result as verification question dict.
 
@@ -1068,10 +1001,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         # Extract question text from content/fact
         content = (
-            getattr(item, "fact", None)
-            or getattr(item, "content", None)
-            or getattr(item, "episode_body", None)
-            or ""
+            getattr(item, "fact", None) or getattr(item, "content", None) or getattr(item, "episode_body", None) or ""
         )
 
         # Parse question text from episode format
@@ -1086,10 +1016,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
         return {
             "question_id": (
-                metadata.get("question_id")
-                or getattr(item, "uuid", None)
-                or getattr(item, "id", None)
-                or ""
+                metadata.get("question_id") or getattr(item, "uuid", None) or getattr(item, "id", None) or ""
             ),
             "question_text": question_text,
             "question_type": metadata.get("question_type", "standard"),
@@ -1230,9 +1157,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             question_id = f"vq-{uuid_module.uuid4().hex[:8]}"
 
         # Build effective group_id (Task 6.3)
-        effective_group_id = self._build_group_id(
-            canvas_path=canvas_name, group_id=group_id
-        )
+        effective_group_id = self._build_group_id(canvas_path=canvas_name, group_id=group_id)
 
         # Primary: Neo4j direct storage (no LLM needed, cross-process persistent)
         neo4j_stored = await self._store_question_neo4j_direct(
@@ -1245,12 +1170,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         )
 
         # Also store in local cache for in-process fast access
-        content = (
-            f"验证问题: {question_text} | "
-            f"概念: {concept} | "
-            f"Canvas: {canvas_name} | "
-            f"类型: {question_type}"
-        )
+        content = f"验证问题: {question_text} | 概念: {concept} | Canvas: {canvas_name} | 类型: {question_type}"
         metadata = {
             "type": "verification_question",
             "concept": concept,

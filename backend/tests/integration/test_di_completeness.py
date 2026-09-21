@@ -120,14 +120,9 @@ class TestAgentServiceMemoryClientInjection:
 
             # AC4: Should have logged WARNING about missing memory_client
             warning_calls = [str(call) for call in mock_logger.warning.call_args_list]
-            memory_warnings = [
-                w
-                for w in warning_calls
-                if "memory" in w.lower() or "LearningMemoryClient" in w
-            ]
+            memory_warnings = [w for w in warning_calls if "memory" in w.lower() or "LearningMemoryClient" in w]
             assert len(memory_warnings) > 0, (
-                "AgentService should log WARNING when memory_client=None. "
-                f"Actual warning calls: {warning_calls}"
+                f"AgentService should log WARNING when memory_client=None. Actual warning calls: {warning_calls}"
             )
 
     @pytest.mark.asyncio
@@ -143,9 +138,7 @@ class TestAgentServiceMemoryClientInjection:
         from app.services.agent_service import AgentService
 
         mock_memory = MagicMock()
-        mock_memory.search_memories = AsyncMock(
-            return_value=[{"concept": "test", "score": 0.8}]
-        )
+        mock_memory.search_memories = AsyncMock(return_value=[{"concept": "test", "score": 0.8}])
 
         # Create AgentService with neo4j_client=None but memory_client present
         service = AgentService(
@@ -156,9 +149,7 @@ class TestAgentServiceMemoryClientInjection:
         )
 
         # Verify memory_client is stored and available for fallback
-        assert service._memory_client is mock_memory, (
-            "memory_client should be stored even when neo4j_client is None"
-        )
+        assert service._memory_client is mock_memory, "memory_client should be stored even when neo4j_client is None"
         assert service._neo4j_client is None, "neo4j_client should be None"
 
 
@@ -275,8 +266,7 @@ class TestDICompletenessInspection:
         init_params = [
             name
             for name, param in sig.parameters.items()
-            if name != "self"
-            and param.default is not inspect.Parameter.empty  # Only optional params
+            if name != "self" and param.default is not inspect.Parameter.empty  # Only optional params
         ]
 
         # Verify all critical params are in the actual __init__ signature
@@ -345,16 +335,13 @@ class TestAgentServiceDICompleteness:
         try:
             config = SERVICES_DI_CONFIG["AgentService"]
             for attr_name in config["critical_attrs"]:
-                assert hasattr(service, attr_name), (
-                    f"AgentService missing attribute '{attr_name}'"
-                )
+                assert hasattr(service, attr_name), f"AgentService missing attribute '{attr_name}'"
                 # For GeminiClient, it depends on API key being valid
                 # For others, they should be non-None
                 if attr_name not in ("_gemini_client",):
                     val = getattr(service, attr_name)
                     assert val is not None, (
-                        f"AgentService.{attr_name} is None — "
-                        f"dependencies.py is not injecting this dependency"
+                        f"AgentService.{attr_name} is None — dependencies.py is not injecting this dependency"
                     )
         finally:
             try:
@@ -385,14 +372,12 @@ class TestCanvasServiceDICompleteness:
 
         try:
             # canvas_base_path should always be set
-            assert hasattr(service, "_canvas_base_path") or hasattr(
-                service, "canvas_base_path"
-            ), "CanvasService missing canvas_base_path attribute"
+            assert hasattr(service, "_canvas_base_path") or hasattr(service, "canvas_base_path"), (
+                "CanvasService missing canvas_base_path attribute"
+            )
             # memory_client may be None if MemoryService not available (graceful degradation)
             # But the injection attempt should have been made
-            assert hasattr(service, "_memory_client"), (
-                "CanvasService missing _memory_client attribute"
-            )
+            assert hasattr(service, "_memory_client"), "CanvasService missing _memory_client attribute"
         finally:
             try:
                 await gen.aclose()

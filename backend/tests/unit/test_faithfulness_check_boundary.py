@@ -40,9 +40,7 @@ async def test_returns_none_when_last_role_is_user():
             result = await faithfulness_check(state)
 
     assert result["faithfulness_score"] is None
-    assert (
-        result["faithfulness_details"]["status"] == "not_applicable_no_assistant_answer"
-    )
+    assert result["faithfulness_details"]["status"] == "not_applicable_no_assistant_answer"
     assert result["faithfulness_details"]["last_role"] == "user"
     assert result["faithfulness_degraded"] is False
 
@@ -172,9 +170,7 @@ async def test_returns_none_when_claims_empty():
     """Short numeric answer that yields no extractable claims."""
     state = {
         "messages": [{"role": "assistant", "content": "42"}],
-        "reranked_results": [
-            {"content": "The meaning of life", "doc_id": "d1", "score": 1.0}
-        ],
+        "reranked_results": [{"content": "The meaning of life", "doc_id": "d1", "score": 1.0}],
     }
     with _mock.patch("agentic_rag.faithfulness_check.LITELLM_AVAILABLE", True):
         with _mock.patch("agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True):
@@ -206,12 +202,8 @@ def test_logger_record_faithfulness_score_ignores_none():
 
     logger.record_faithfulness_score(None)
 
-    assert logger._faithfulness_stats["count"] == initial_count, (
-        "None score must not increment count"
-    )
-    assert logger._faithfulness_stats["total_score"] == initial_total, (
-        "None score must not increment total"
-    )
+    assert logger._faithfulness_stats["count"] == initial_count, "None score must not increment count"
+    assert logger._faithfulness_stats["total_score"] == initial_total, "None score must not increment total"
 
 
 def test_logger_record_faithfulness_score_accepts_valid_score():

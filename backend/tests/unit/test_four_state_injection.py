@@ -51,9 +51,7 @@ async def memory_service():
 
 class TestSearchMemoriesFourStates:
     @pytest.mark.asyncio
-    async def test_all_remote_tiers_dead_and_no_cache_is_unavailable(
-        self, memory_service
-    ):
+    async def test_all_remote_tiers_dead_and_no_cache_is_unavailable(self, memory_service):
         """Tier1 (Graphiti) 与 Tier2 (fulltext) 全灭 + Tier3 内存空
         → unavailable 带 reason (不再假装空结果)."""
         with (
@@ -61,18 +59,14 @@ class TestSearchMemoriesFourStates:
                 memory_service,
                 "_search_graphiti",
                 new=AsyncMock(
-                    side_effect=lambda *a, **kw: _sink_fail(
-                        kw.get("fail_sink"), "graphiti: connection refused"
-                    )
+                    side_effect=lambda *a, **kw: _sink_fail(kw.get("fail_sink"), "graphiti: connection refused")
                 ),
             ),
             patch.object(
                 memory_service,
                 "_search_neo4j_fulltext",
                 new=AsyncMock(
-                    side_effect=lambda *a, **kw: _sink_fail(
-                        kw.get("fail_sink"), "neo4j fulltext: connection refused"
-                    )
+                    side_effect=lambda *a, **kw: _sink_fail(kw.get("fail_sink"), "neo4j fulltext: connection refused")
                 ),
             ),
         ):
@@ -83,9 +77,7 @@ class TestSearchMemoriesFourStates:
         assert result.items == []
 
     @pytest.mark.asyncio
-    async def test_single_tier_dead_with_other_tier_alive_is_degraded(
-        self, memory_service
-    ):
+    async def test_single_tier_dead_with_other_tier_alive_is_degraded(self, memory_service):
         """Tier1 灭 + Tier2 有结果 → degraded 带 reason, 结果保留."""
         # Tier2 (Neo4j fulltext) 的分数键是 Lucene 原始 `score`
         # (_compute_unified_score tier=2 归一化为 score/10), 必须高于
@@ -100,11 +92,7 @@ class TestSearchMemoriesFourStates:
             patch.object(
                 memory_service,
                 "_search_graphiti",
-                new=AsyncMock(
-                    side_effect=lambda *a, **kw: _sink_fail(
-                        kw.get("fail_sink"), "graphiti: timeout"
-                    )
-                ),
+                new=AsyncMock(side_effect=lambda *a, **kw: _sink_fail(kw.get("fail_sink"), "graphiti: timeout")),
             ),
             patch.object(
                 memory_service,
@@ -122,9 +110,7 @@ class TestSearchMemoriesFourStates:
     async def test_true_empty_is_empty_without_reason(self, memory_service):
         """全 Tier 正常但真空 → empty, 无 reason (空是数据事实非故障)."""
         with (
-            patch.object(
-                memory_service, "_search_graphiti", new=AsyncMock(return_value=[])
-            ),
+            patch.object(memory_service, "_search_graphiti", new=AsyncMock(return_value=[])),
             patch.object(
                 memory_service,
                 "_search_neo4j_fulltext",
@@ -148,9 +134,7 @@ class TestSearchMemoriesFourStates:
             "relevance_score": 0.9,
         }
         with (
-            patch.object(
-                memory_service, "_search_graphiti", new=AsyncMock(return_value=[hit])
-            ),
+            patch.object(memory_service, "_search_graphiti", new=AsyncMock(return_value=[hit])),
             patch.object(
                 memory_service,
                 "_search_neo4j_fulltext",
@@ -163,9 +147,7 @@ class TestSearchMemoriesFourStates:
         assert result.reason is None
 
     @pytest.mark.asyncio
-    async def test_low_score_results_filtered_out_still_degraded_not_unavailable(
-        self, memory_service
-    ):
+    async def test_low_score_results_filtered_out_still_degraded_not_unavailable(self, memory_service):
         """Codex round-1 HIGH-5: 状态不得被质量过滤污染。
 
         T1 挂 + T2 命中低分 → 地板 (min_relevance) 把结果滤光。
@@ -182,11 +164,7 @@ class TestSearchMemoriesFourStates:
             patch.object(
                 memory_service,
                 "_search_graphiti",
-                new=AsyncMock(
-                    side_effect=lambda *a, **kw: _sink_fail(
-                        kw.get("fail_sink"), "graphiti: timeout"
-                    )
-                ),
+                new=AsyncMock(side_effect=lambda *a, **kw: _sink_fail(kw.get("fail_sink"), "graphiti: timeout")),
             ),
             patch.object(
                 memory_service,
@@ -202,9 +180,7 @@ class TestSearchMemoriesFourStates:
         assert result.items == []  # 载荷确实被滤空, 但状态诚实
 
     @pytest.mark.asyncio
-    async def test_coverage_failure_alone_is_degraded_not_unavailable(
-        self, memory_service
-    ):
+    async def test_coverage_failure_alone_is_degraded_not_unavailable(self, memory_service):
         """HIGH-5 另一半: 仅子组枚举失败 (覆盖面收窄) 时, 两个主 Tier
         都成功且真空 → degraded (结果可能不全), 而非 unavailable。"""
 
@@ -215,9 +191,7 @@ class TestSearchMemoriesFourStates:
             return []
 
         with (
-            patch.object(
-                memory_service, "_search_graphiti", new=_graphiti_with_coverage_gap
-            ),
+            patch.object(memory_service, "_search_graphiti", new=_graphiti_with_coverage_gap),
             patch.object(
                 memory_service,
                 "_search_neo4j_fulltext",
@@ -277,9 +251,7 @@ class TestSearchMemoriesFourStates:
     async def test_legacy_search_memories_still_returns_list(self, memory_service):
         """兼容铁律: 旧 search_memories() 保 list 契约 (委托新方法)."""
         with (
-            patch.object(
-                memory_service, "_search_graphiti", new=AsyncMock(return_value=[])
-            ),
+            patch.object(memory_service, "_search_graphiti", new=AsyncMock(return_value=[])),
             patch.object(
                 memory_service,
                 "_search_neo4j_fulltext",
@@ -295,9 +267,7 @@ class TestLearningHistoryStatusKey:
     @pytest.mark.asyncio
     async def test_neo4j_failure_marks_degraded(self, memory_service):
         """Neo4j 读失败 (内存兜底接管) → dict 加性键 retrieval_status=degraded."""
-        memory_service.neo4j.get_learning_history = AsyncMock(
-            side_effect=ConnectionError("bolt down")
-        )
+        memory_service.neo4j.get_learning_history = AsyncMock(side_effect=ConnectionError("bolt down"))
         result = await memory_service.get_learning_history(user_id="u1")
 
         assert result["retrieval_status"] == "degraded"
@@ -316,9 +286,7 @@ class TestLearningHistoryStatusKey:
 class TestScoreHistoryFourStates:
     @pytest.mark.asyncio
     async def test_neo4j_failure_is_unavailable_with_reason(self, memory_service):
-        memory_service.neo4j.get_concept_score_history = AsyncMock(
-            side_effect=ConnectionError("bolt down")
-        )
+        memory_service.neo4j.get_concept_score_history = AsyncMock(side_effect=ConnectionError("bolt down"))
         result = await memory_service.get_concept_score_history("c1", "canvas.canvas")
 
         assert result.status == "unavailable"
@@ -346,14 +314,10 @@ class TestScoreHistoryFourStates:
     @pytest.mark.asyncio
     async def test_failure_result_not_cached(self, memory_service):
         """故障结果不得进 30s 缓存 — 否则恢复后 30s 内仍假 unavailable."""
-        memory_service.neo4j.get_concept_score_history = AsyncMock(
-            side_effect=ConnectionError("bolt down")
-        )
+        memory_service.neo4j.get_concept_score_history = AsyncMock(side_effect=ConnectionError("bolt down"))
         await memory_service.get_concept_score_history("c1", "canvas.canvas")
 
-        memory_service.neo4j.get_concept_score_history = AsyncMock(
-            return_value=[{"score": 90, "timestamp": "t"}]
-        )
+        memory_service.neo4j.get_concept_score_history = AsyncMock(return_value=[{"score": 90, "timestamp": "t"}])
         result = await memory_service.get_concept_score_history("c1", "canvas.canvas")
         assert result.status == "ok"
         assert result.scores == [90]
@@ -383,13 +347,9 @@ class TestSilentBackendFailover:
         return svc
 
     @pytest.mark.asyncio
-    async def test_score_history_fallback_is_unavailable_not_empty(
-        self, fallback_service
-    ):
+    async def test_score_history_fallback_is_unavailable_not_empty(self, fallback_service):
         result = await fallback_service.get_concept_score_history("c1", "x.canvas")
-        assert result.status == "unavailable", (
-            "JSON_FALLBACK 返回的空历史不可信, 不得报 empty"
-        )
+        assert result.status == "unavailable", "JSON_FALLBACK 返回的空历史不可信, 不得报 empty"
         assert "JSON_FALLBACK" in result.status_reason
 
     @pytest.mark.asyncio
@@ -456,9 +416,7 @@ class TestMemoryDegradedChain:
         from app.models.service_status import StatusedResult
 
         svc = AsyncMock()
-        svc.search_memories_with_status = AsyncMock(
-            return_value=StatusedResult.unavailable("neo4j down")
-        )
+        svc.search_memories_with_status = AsyncMock(return_value=StatusedResult.unavailable("neo4j down"))
 
         with patch(
             "app.services.memory_service.get_memory_service",
@@ -575,9 +533,7 @@ class TestRagServiceFourStates:
         from app.services.rag_service import RAGService
 
         svc = RAGService()
-        with patch.object(
-            svc, "query", new=AsyncMock(side_effect=RuntimeError("boom"))
-        ):
+        with patch.object(svc, "query", new=AsyncMock(side_effect=RuntimeError("boom"))):
             with patch("app.services.rag_service.LANGGRAPH_AVAILABLE", True):
                 result = await svc.query_with_fallback("q")
 
@@ -685,15 +641,11 @@ class TestNodesChannelErrors:
         failing_client.initialize = AsyncMock(return_value=False)
 
         nodes_mod._graphiti_client = None
-        with patch.object(
-            nodes_mod, "GraphitiClient", return_value=failing_client
-        ):
+        with patch.object(nodes_mod, "GraphitiClient", return_value=failing_client):
             with pytest.raises(RuntimeError):
                 await nodes_mod._get_graphiti_client()
 
-        assert nodes_mod._graphiti_client is None, (
-            "初始化失败的实例不得留在 singleton (会导致永久假空且不重连)"
-        )
+        assert nodes_mod._graphiti_client is None, "初始化失败的实例不得留在 singleton (会导致永久假空且不重连)"
 
     @pytest.mark.asyncio
     async def test_init_false_surfaces_as_channel_error(self):
@@ -775,17 +727,13 @@ class TestFusionStatusFolding:
 
     @pytest.mark.asyncio
     async def test_all_primary_channels_failed_is_unavailable(self):
-        update = await self._fuse(
-            {"channel_errors": {"graphiti": "timeout", "lancedb": "conn refused"}}
-        )
+        update = await self._fuse({"channel_errors": {"graphiti": "timeout", "lancedb": "conn refused"}})
         assert update["retrieval_status"] == "unavailable"
 
     @pytest.mark.asyncio
     async def test_coverage_only_failure_is_degraded(self):
         """仅跨学科扩展失败 (覆盖面收窄) → degraded。"""
-        update = await self._fuse(
-            {"channel_errors": {"lancedb_cross_subject": "neo4j unavailable"}}
-        )
+        update = await self._fuse({"channel_errors": {"lancedb_cross_subject": "neo4j unavailable"}})
         assert update["retrieval_status"] == "degraded"
 
     @pytest.mark.asyncio

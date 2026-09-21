@@ -24,9 +24,7 @@ wikilink_router = APIRouter()
 
 
 class BuildRequest(BaseModel):
-    vault_path: Optional[str] = Field(
-        default=None, description="Vault path override (defaults to CANVAS_BASE_PATH)"
-    )
+    vault_path: Optional[str] = Field(default=None, description="Vault path override (defaults to CANVAS_BASE_PATH)")
     # Wave-5 Stage B 续 — vault_id 注入 ContextVar 防多 vault 串库
     vault_id: Optional[str] = Field(
         default=None,
@@ -36,9 +34,7 @@ class BuildRequest(BaseModel):
             "Wikilink 图是 per-vault state. 空时 fallback deprecated group_id."
         ),
     )
-    subject_id: Optional[str] = Field(
-        default=None, description="可选 vault 内学科二级 namespace."
-    )
+    subject_id: Optional[str] = Field(default=None, description="可选 vault 内学科二级 namespace.")
     group_id: Optional[str] = Field(
         default=None,
         deprecated=True,
@@ -47,17 +43,13 @@ class BuildRequest(BaseModel):
 
 
 class RefreshRequest(BaseModel):
-    changed_files: Optional[list[str]] = Field(
-        default=None, description="Files changed (None = full rebuild)"
-    )
+    changed_files: Optional[list[str]] = Field(default=None, description="Files changed (None = full rebuild)")
     vault_id: Optional[str] = Field(
         default=None,
         min_length=1,
         description="Wave-5 Stage B — 推荐必填 Plugin inferVaultId.",
     )
-    subject_id: Optional[str] = Field(
-        default=None, description="可选 vault 内学科二级 namespace."
-    )
+    subject_id: Optional[str] = Field(default=None, description="可选 vault 内学科二级 namespace.")
     group_id: Optional[str] = Field(
         default=None,
         deprecated=True,
@@ -86,14 +78,9 @@ async def get_neighbors(
     vault_id: Optional[str] = Query(
         default=None,
         min_length=1,
-        description=(
-            "Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin inferVaultId. "
-            "Wikilink 邻居图 per-vault."
-        ),
+        description=("Wave-5 Stage B (Multi-vault P0) — 推荐必填. Plugin inferVaultId. Wikilink 邻居图 per-vault."),
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
     group_id: Optional[str] = Query(
         default=None,
         deprecated=True,
@@ -134,9 +121,7 @@ async def graph_stats(
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Stats per-vault.",
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
     group_id: Optional[str] = Query(
         default=None,
         deprecated=True,

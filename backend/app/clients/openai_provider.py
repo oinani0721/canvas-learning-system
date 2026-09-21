@@ -92,8 +92,7 @@ class OpenAIProvider(BaseProvider):
             self._initialized = True
 
             logger.info(
-                f"OpenAI provider {self.name} initialized: "
-                f"model={self.config.model}, base_url={self._base_url}"
+                f"OpenAI provider {self.name} initialized: model={self.config.model}, base_url={self._base_url}"
             )
             return True
 
@@ -156,17 +155,12 @@ class OpenAIProvider(BaseProvider):
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
 
-            response_text = (
-                data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            )
+            response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             usage = data.get("usage", {})
 
             await self.update_health(success=True, latency_ms=latency_ms)
 
-            logger.info(
-                f"OpenAI completion successful: model={self.config.model}, "
-                f"latency={latency_ms:.0f}ms"
-            )
+            logger.info(f"OpenAI completion successful: model={self.config.model}, latency={latency_ms:.0f}ms")
 
             return ProviderResponse(
                 text=response_text,
@@ -181,9 +175,7 @@ class OpenAIProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             latency_ms = (time.time() - start_time) * 1000
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
-            await self.update_health(
-                success=False, latency_ms=latency_ms, error=error_msg
-            )
+            await self.update_health(success=False, latency_ms=latency_ms, error=error_msg)
 
             logger.error(f"OpenAI API error: {error_msg}")
             raise ProviderError(
@@ -284,17 +276,12 @@ class OpenAIProvider(BaseProvider):
             data = response.json()
             latency_ms = (time.time() - start_time) * 1000
 
-            response_text = (
-                data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            )
+            response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
             usage = data.get("usage", {})
 
             await self.update_health(success=True, latency_ms=latency_ms)
 
-            logger.info(
-                f"OpenAI vision completion successful: "
-                f"images={len(images)}, latency={latency_ms:.0f}ms"
-            )
+            logger.info(f"OpenAI vision completion successful: images={len(images)}, latency={latency_ms:.0f}ms")
 
             return ProviderResponse(
                 text=response_text,
@@ -308,9 +295,7 @@ class OpenAIProvider(BaseProvider):
         except httpx.HTTPStatusError as e:
             latency_ms = (time.time() - start_time) * 1000
             error_msg = f"HTTP {e.response.status_code}: {e.response.text}"
-            await self.update_health(
-                success=False, latency_ms=latency_ms, error=error_msg
-            )
+            await self.update_health(success=False, latency_ms=latency_ms, error=error_msg)
 
             logger.error(f"OpenAI vision API error: {error_msg}")
             raise ProviderError(

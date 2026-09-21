@@ -96,24 +96,16 @@ class TestPromptFormatIntegration:
 
             for agent_type in test_agents:
                 asyncio.get_event_loop().run_until_complete(
-                    agent_service.call_explanation(
-                        content="测试内容", explanation_type=agent_type, context=None
-                    )
+                    agent_service.call_explanation(content="测试内容", explanation_type=agent_type, context=None)
                 )
 
         # Verify each agent received "concept" string, not "concepts" array
         for agent_key, prompt in captured_prompts.items():
             try:
                 json_data = json.loads(prompt)
-                assert "concept" in json_data, (
-                    f"{agent_key} should have 'concept' field"
-                )
-                assert isinstance(json_data["concept"], str), (
-                    f"{agent_key} 'concept' should be string"
-                )
-                assert "concepts" not in json_data, (
-                    f"{agent_key} should NOT have 'concepts' array"
-                )
+                assert "concept" in json_data, f"{agent_key} should have 'concept' field"
+                assert isinstance(json_data["concept"], str), f"{agent_key} 'concept' should be string"
+                assert "concepts" not in json_data, f"{agent_key} should NOT have 'concepts' array"
             except json.JSONDecodeError:
                 pass  # Some prompts might not be JSON
 
@@ -185,12 +177,8 @@ class TestUserUnderstandingDualChannel:
 
         # Verify JSON contains user_understanding
         json_prompt = json.loads(captured_json["prompt"])
-        assert "user_understanding" in json_prompt, (
-            "JSON should contain user_understanding field"
-        )
-        assert json_prompt["user_understanding"] == understanding, (
-            "user_understanding value should match input"
-        )
+        assert "user_understanding" in json_prompt, "JSON should contain user_understanding field"
+        assert json_prompt["user_understanding"] == understanding, "user_understanding value should match input"
 
     @pytest.mark.asyncio
     async def test_understanding_null_when_no_yellow_node(self, agent_service):
@@ -219,10 +207,9 @@ class TestUserUnderstandingDualChannel:
 
         # Should be None, not empty string
         if "user_understanding" in json_prompt:
-            assert (
-                json_prompt["user_understanding"] is None
-                or json_prompt.get("user_understanding") is None
-            ), "user_understanding should be null when no yellow node"
+            assert json_prompt["user_understanding"] is None or json_prompt.get("user_understanding") is None, (
+                "user_understanding should be null when no yellow node"
+            )
 
 
 # ============================================================================
@@ -278,9 +265,7 @@ class TestTwoHopTraversalIntegration:
         ]
 
         # Find adjacent nodes with 2-hop depth
-        adjacent = context_service._find_adjacent_nodes(
-            node_id="A", nodes=nodes, edges=edges, hop_depth=2
-        )
+        adjacent = context_service._find_adjacent_nodes(node_id="A", nodes=nodes, edges=edges, hop_depth=2)
 
         # Verify B and C are found
         node_ids = [adj.node["id"] for adj in adjacent]
@@ -314,9 +299,7 @@ class TestTwoHopTraversalIntegration:
             {"id": "e2", "fromNode": "B", "toNode": "A"},  # Circular
         ]
 
-        adjacent = context_service._find_adjacent_nodes(
-            node_id="A", nodes=nodes, edges=edges, hop_depth=2
-        )
+        adjacent = context_service._find_adjacent_nodes(node_id="A", nodes=nodes, edges=edges, hop_depth=2)
 
         # B should appear only once
         b_count = sum(1 for adj in adjacent if adj.node["id"] == "B")
@@ -329,26 +312,16 @@ class TestTwoHopTraversalIntegration:
         [Source: Story 12.E.6 - AC 6.3]
         """
         # Create 100-node linear graph - nodes must be a dict keyed by node ID
-        nodes = {
-            f"node_{i}": {"id": f"node_{i}", "type": "text", "text": f"内容{i}"}
-            for i in range(100)
-        }
-        edges = [
-            {"id": f"e_{i}", "fromNode": f"node_{i}", "toNode": f"node_{i + 1}"}
-            for i in range(99)
-        ]
+        nodes = {f"node_{i}": {"id": f"node_{i}", "type": "text", "text": f"内容{i}"} for i in range(100)}
+        edges = [{"id": f"e_{i}", "fromNode": f"node_{i}", "toNode": f"node_{i + 1}"} for i in range(99)]
 
         # Measure performance
         start = time.time()
-        _adjacent = context_service._find_adjacent_nodes(
-            node_id="node_50", nodes=nodes, edges=edges, hop_depth=2
-        )
+        _adjacent = context_service._find_adjacent_nodes(node_id="node_50", nodes=nodes, edges=edges, hop_depth=2)
         elapsed_ms = (time.time() - start) * 1000
 
         # Assert performance
-        assert elapsed_ms < 100, (
-            f"2-hop traversal took {elapsed_ms:.2f}ms, should be < 100ms"
-        )
+        assert elapsed_ms < 100, f"2-hop traversal took {elapsed_ms:.2f}ms, should be < 100ms"
 
 
 # ============================================================================
@@ -396,9 +369,7 @@ class TestMarkdownImageExtractionIntegration:
 
         # Verify format
         for ref in refs:
-            assert ref.format == "obsidian", (
-                f"Expected obsidian format, got {ref.format}"
-            )
+            assert ref.format == "obsidian", f"Expected obsidian format, got {ref.format}"
 
     def test_markdown_image_extraction(self, extractor):
         """
@@ -441,9 +412,7 @@ class TestMarkdownImageExtractionIntegration:
 
         # Verify no URLs
         for ref in refs:
-            assert not ref.path.startswith("http"), (
-                f"URL image should be filtered: {ref.path}"
-            )
+            assert not ref.path.startswith("http"), f"URL image should be filtered: {ref.path}"
 
 
 # ============================================================================
@@ -607,9 +576,7 @@ class TestRegressionAllAgentTypes:
                     context=None,
                 )
                 # If method exists and can be called, test passes
-                assert called or result is not None, (
-                    f"{explanation_type} agent should be callable"
-                )
+                assert called or result is not None, f"{explanation_type} agent should be callable"
             except NotImplementedError:
                 # Some agent types might not be implemented yet
                 pytest.skip(f"{explanation_type} not implemented")
@@ -695,9 +662,7 @@ class TestEndToEndIntegration:
         assert "tcp-udp-diagram.png" in [img.path for img in images]
 
     @pytest.mark.asyncio
-    async def test_context_enrichment_with_user_understanding(
-        self, agent_service, context_service
-    ):
+    async def test_context_enrichment_with_user_understanding(self, agent_service, context_service):
         """
         E2E: Context enrichment with user understanding.
 
@@ -723,9 +688,7 @@ class TestEndToEndIntegration:
         ]
 
         # Find adjacent nodes with 2-hop (Story 12.E.3)
-        adjacent = context_service._find_adjacent_nodes(
-            node_id="target", nodes=nodes, edges=edges, hop_depth=2
-        )
+        adjacent = context_service._find_adjacent_nodes(node_id="target", nodes=nodes, edges=edges, hop_depth=2)
 
         # Should find both context nodes
         node_ids = [adj.node["id"] for adj in adjacent]

@@ -118,9 +118,7 @@ def orchestrator(session_manager, mock_agent_service):
     )
 
 
-def make_groups(
-    num_groups: int = GROUPS, nodes_per_group: int = NODES_PER_GROUP
-) -> List[GroupConfig]:
+def make_groups(num_groups: int = GROUPS, nodes_per_group: int = NODES_PER_GROUP) -> List[GroupConfig]:
     """Generate test group configurations."""
     groups = []
     for g in range(num_groups):
@@ -243,9 +241,7 @@ async def test_100_node_batch_performance(orchestrator, session_manager):
     # ═══════════════════════════════════════════════════════════════════════
 
     # All nodes must complete
-    assert success_count == NODE_COUNT, (
-        f"Expected {NODE_COUNT} successful nodes, got {success_count}"
-    )
+    assert success_count == NODE_COUNT, f"Expected {NODE_COUNT} successful nodes, got {success_count}"
     assert failure_count == 0, f"Expected 0 failures, got {failure_count}"
 
     # p95 per-node latency < 2s
@@ -255,14 +251,12 @@ async def test_100_node_batch_performance(orchestrator, session_manager):
 
     # Peak concurrent should not exceed semaphore limit
     assert results.peak_concurrent <= MAX_CONCURRENT, (
-        f"Peak concurrent {results.peak_concurrent} exceeds "
-        f"semaphore limit {MAX_CONCURRENT}"
+        f"Peak concurrent {results.peak_concurrent} exceeds semaphore limit {MAX_CONCURRENT}"
     )
 
     # Memory usage should be reasonable
     assert results.peak_memory_mb < MEMORY_THRESHOLD_MB, (
-        f"Peak memory delta {results.peak_memory_mb:.2f}MB exceeds "
-        f"{MEMORY_THRESHOLD_MB}MB threshold"
+        f"Peak memory delta {results.peak_memory_mb:.2f}MB exceeds {MEMORY_THRESHOLD_MB}MB threshold"
     )
 
     # Verify session state
@@ -332,9 +326,7 @@ async def test_100_node_batch_with_partial_failures(session_manager):
     success = result.get("completed_nodes", 0)
     failed = result.get("failed_nodes", 0)
 
-    print(
-        f"\n  Partial Failure Test: {success} success, {failed} failed in {duration:.2f}s"
-    )
+    print(f"\n  Partial Failure Test: {success} success, {failed} failed in {duration:.2f}s")
 
     # At least 80% should succeed (10% failure rate → ~90 success)
     assert success >= 80, f"Too many failures: only {success}/{NODE_COUNT} succeeded"
@@ -342,9 +334,7 @@ async def test_100_node_batch_with_partial_failures(session_manager):
 
     # Session should be PARTIAL_FAILURE
     session = await session_manager.get_session(session_id)
-    assert session.status == SessionStatus.PARTIAL_FAILURE, (
-        f"Expected PARTIAL_FAILURE, got {session.status}"
-    )
+    assert session.status == SessionStatus.PARTIAL_FAILURE, f"Expected PARTIAL_FAILURE, got {session.status}"
 
 
 @pytest.mark.asyncio
@@ -543,9 +533,7 @@ async def test_100_node_realistic_ai_latency(session_manager):
     # ═══════════════════════════════════════════════════════════════════════
 
     # All nodes must complete
-    assert success_count == NODE_COUNT, (
-        f"Expected {NODE_COUNT} successful nodes, got {success_count}"
-    )
+    assert success_count == NODE_COUNT, f"Expected {NODE_COUNT} successful nodes, got {success_count}"
     assert failure_count == 0, f"Expected 0 failures, got {failure_count}"
 
     # p95 per-node latency < 10s (realistic threshold for 3s AI calls + queue wait)
@@ -555,21 +543,18 @@ async def test_100_node_realistic_ai_latency(session_manager):
 
     # Peak concurrent should not exceed semaphore limit
     assert results.peak_concurrent <= MAX_CONCURRENT, (
-        f"Peak concurrent {results.peak_concurrent} exceeds "
-        f"semaphore limit {MAX_CONCURRENT}"
+        f"Peak concurrent {results.peak_concurrent} exceeds semaphore limit {MAX_CONCURRENT}"
     )
 
     # Memory usage should be reasonable
     assert results.peak_memory_mb < MEMORY_THRESHOLD_MB, (
-        f"Peak memory delta {results.peak_memory_mb:.2f}MB exceeds "
-        f"{MEMORY_THRESHOLD_MB}MB threshold"
+        f"Peak memory delta {results.peak_memory_mb:.2f}MB exceeds {MEMORY_THRESHOLD_MB}MB threshold"
     )
 
     # Total duration should be somewhat close to theoretical minimum
     # (allow 3x overhead for scheduling, context switching)
     assert total_duration < theoretical_min_s * 3, (
-        f"Total duration {total_duration:.1f}s is more than 3x "
-        f"theoretical minimum {theoretical_min_s:.1f}s"
+        f"Total duration {total_duration:.1f}s is more than 3x theoretical minimum {theoretical_min_s:.1f}s"
     )
 
     # Verify session state

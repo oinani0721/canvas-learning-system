@@ -30,8 +30,7 @@ class TestAC1AutoTrigger:
 
         field_info = Settings.model_fields["ENABLE_LANCEDB_AUTO_INDEX"]
         assert field_info.default is True, (
-            f"Expected default=True, got {field_info.default}. "
-            f"Story 38.1 AC-1: Auto-index must be enabled by default."
+            f"Expected default=True, got {field_info.default}. Story 38.1 AC-1: Auto-index must be enabled by default."
         )
 
     def test_config_debounce_default_500ms(self):
@@ -173,9 +172,7 @@ class TestAC1AutoTrigger:
                     "height": 100,
                 }
                 result = await svc.add_node(canvas_name="test", node_data=node_data)
-                mock_index_svc.schedule_index.assert_called_once_with(
-                    "test", tmpdir, trigger_node_id=result["id"]
-                )
+                mock_index_svc.schedule_index.assert_called_once_with("test", tmpdir, trigger_node_id=result["id"])
 
     @pytest.mark.asyncio
     async def test_canvas_service_update_node_triggers_lancedb(self):
@@ -218,9 +215,7 @@ class TestAC1AutoTrigger:
                     node_id=node_id,
                     node_data={"text": "new"},
                 )
-                mock_index_svc.schedule_index.assert_called_once_with(
-                    "test", tmpdir, trigger_node_id=node_id
-                )
+                mock_index_svc.schedule_index.assert_called_once_with("test", tmpdir, trigger_node_id=node_id)
 
     def test_trigger_lancedb_index_catches_exceptions(self):
         """

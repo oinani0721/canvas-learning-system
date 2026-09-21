@@ -44,9 +44,7 @@ def capture(monkeypatch):
         raise EdgeNotFoundError(uuid)
 
     monkeypatch.setattr(EntityEdge, "save", fake_save)
-    monkeypatch.setattr(
-        IdentityRegistry, "ensure_entity_node", staticmethod(fake_ensure)
-    )
+    monkeypatch.setattr(IdentityRegistry, "ensure_entity_node", staticmethod(fake_ensure))
     monkeypatch.setattr(EntityEdge, "get_by_uuid", staticmethod(fake_get_by_uuid))
     return saved
 
@@ -199,9 +197,7 @@ async def test_write_belief_version_delegates(monkeypatch):
         received.update(kwargs)
         return "EDGE"
 
-    monkeypatch.setattr(
-        "app.services.graphiti_belief_service.update_belief_version_chain", fake_chain
-    )
+    monkeypatch.setattr("app.services.graphiti_belief_service.update_belief_version_chain", fake_chain)
     result = await w.write_belief_version(
         graphiti="G",
         belief_key="callout:n:abc",
@@ -500,9 +496,7 @@ async def test_invalidate_missing_callouts(monkeypatch):
     async def stub_active(driver, node_id, group_id):
         return "uuid", [keep, gone, legacy, rel]
 
-    monkeypatch.setattr(
-        "app.services.graphiti_memory_reader._node_uuid_and_active_edges", stub_active
-    )
+    monkeypatch.setattr("app.services.graphiti_memory_reader._node_uuid_and_active_edges", stub_active)
     n = await w.invalidate_missing_callouts(
         object(),
         None,

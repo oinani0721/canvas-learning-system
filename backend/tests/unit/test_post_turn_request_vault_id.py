@@ -111,9 +111,7 @@ def test_post_turn_request_existing_validators_still_work():
         )
 
     # 总字符超 48000 → 422 (existing v1.0 validator)
-    long_msg = PostTurnMessage(
-        role="user", content="a" * 8000, turn_index=0
-    )
+    long_msg = PostTurnMessage(role="user", content="a" * 8000, turn_index=0)
     with pytest.raises(ValidationError):
         PostTurnExtractRequest(
             node_id="节点/x.md",

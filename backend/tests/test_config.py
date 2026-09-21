@@ -44,9 +44,7 @@ class TestSettings:
 
     def test_settings_cors_origins_list(self):
         """Test that CORS origins are correctly parsed to list."""
-        settings = Settings(
-            CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000,app://obsidian.md"
-        )
+        settings = Settings(CORS_ORIGINS="http://localhost:3000,http://127.0.0.1:3000,app://obsidian.md")
 
         origins = settings.cors_origins_list
         assert isinstance(origins, list)
@@ -57,9 +55,7 @@ class TestSettings:
 
     def test_settings_cors_origins_with_whitespace(self):
         """Test that CORS origins handles whitespace correctly."""
-        settings = Settings(
-            CORS_ORIGINS="http://localhost:3000 , http://127.0.0.1:3000"
-        )
+        settings = Settings(CORS_ORIGINS="http://localhost:3000 , http://127.0.0.1:3000")
 
         origins = settings.cors_origins_list
         assert len(origins) == 2
@@ -68,9 +64,7 @@ class TestSettings:
 
     def test_settings_cors_origins_empty_values(self):
         """Test that empty CORS origin values are filtered out."""
-        settings = Settings(
-            CORS_ORIGINS="http://localhost:3000,,http://127.0.0.1:3000,"
-        )
+        settings = Settings(CORS_ORIGINS="http://localhost:3000,,http://127.0.0.1:3000,")
 
         origins = settings.cors_origins_list
         assert len(origins) == 2
@@ -98,9 +92,7 @@ class TestSettingsOverride:
 
     def test_settings_can_be_overridden(self):
         """Test that settings can be created with custom values."""
-        custom_settings = Settings(
-            PROJECT_NAME="Test App", VERSION="2.0.0", DEBUG=True, LOG_LEVEL="DEBUG"
-        )
+        custom_settings = Settings(PROJECT_NAME="Test App", VERSION="2.0.0", DEBUG=True, LOG_LEVEL="DEBUG")
 
         assert custom_settings.PROJECT_NAME == "Test App"
         assert custom_settings.VERSION == "2.0.0"
@@ -178,9 +170,7 @@ class TestAIModelNameValidator:
         Then: AI_MODEL_NAME 被清理为 "gemini-2.0-flash-exp"
         """
         monkeypatch.delenv("AI_PROVIDER", raising=False)
-        settings = Settings(
-            AI_MODEL_NAME="[K1]gemini-2.0-flash-exp", AI_PROVIDER="gemini"
-        )
+        settings = Settings(AI_MODEL_NAME="[K1]gemini-2.0-flash-exp", AI_PROVIDER="gemini")
         assert settings.AI_MODEL_NAME == "gemini-2.0-flash-exp"
 
     def test_model_name_with_k2_prefix(self, monkeypatch):
@@ -214,9 +204,7 @@ class TestAIModelNameValidator:
             "ENV_prefix_qwen",
         ],
     )
-    def test_model_name_various_prefixes(
-        self, monkeypatch, prefixed_name: str, expected_clean_name: str
-    ):
+    def test_model_name_various_prefixes(self, monkeypatch, prefixed_name: str, expected_clean_name: str):
         """
         各种方括号前缀都应被正确清理（非 custom provider）。
 
@@ -259,7 +247,5 @@ class TestAIModelNameValidator:
         Then: AI_MODEL_NAME 被清理为 "gemini-2.0-flash-exp"
         """
         monkeypatch.delenv("AI_PROVIDER", raising=False)
-        settings = Settings(
-            AI_MODEL_NAME="[]gemini-2.0-flash-exp", AI_PROVIDER="gemini"
-        )
+        settings = Settings(AI_MODEL_NAME="[]gemini-2.0-flash-exp", AI_PROVIDER="gemini")
         assert settings.AI_MODEL_NAME == "gemini-2.0-flash-exp"

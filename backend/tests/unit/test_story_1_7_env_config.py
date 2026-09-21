@@ -82,17 +82,11 @@ class TestDockerComposeVariableization:
         HARDCODED = re.compile(r"/Users/\w+/")
 
         # ── 轴一：内容（含注释行）────────────────────────────────────────────
-        offending_lines = [
-            line.strip() for line in content.splitlines() if HARDCODED.search(line)
-        ]
+        offending_lines = [line.strip() for line in content.splitlines() if HARDCODED.search(line)]
         wrong_content = [
-            line
-            for line in offending_lines
-            if line.lstrip("- ").strip() not in GRANDFATHERED_MOUNT_VALUES
+            line for line in offending_lines if line.lstrip("- ").strip() not in GRANDFATHERED_MOUNT_VALUES
         ]
-        assert not wrong_content, (
-            f"Hardcoded user paths outside the 8a80595f neo4j exemption: {wrong_content}"
-        )
+        assert not wrong_content, f"Hardcoded user paths outside the 8a80595f neo4j exemption: {wrong_content}"
 
         # 轴一.b（数量，也走原始文本）：每条豁免值在**全文**至多出现一次。
         # ⚠️ 数量判据必须在文本层做，不能只数 YAML 解析后的值（Codex round-3 MEDIUM）：
@@ -132,13 +126,9 @@ class TestDockerComposeVariableization:
         misplaced = [
             (path, value)
             for path, value in located
-            if len(path) != 4
-            or path[:3] != EXEMPT_VOLUMES_PATH
-            or value not in GRANDFATHERED_MOUNT_VALUES
+            if len(path) != 4 or path[:3] != EXEMPT_VOLUMES_PATH or value not in GRANDFATHERED_MOUNT_VALUES
         ]
-        assert not misplaced, (
-            f"Hardcoded user paths outside services.neo4j.volumes[<i>]: {misplaced}"
-        )
+        assert not misplaced, f"Hardcoded user paths outside services.neo4j.volumes[<i>]: {misplaced}"
 
         # ── 轴三：数量（文本轴与解析轴取**较大值**）────────────────────────
         # 两个方向各有盲区，必须都数（前者是 Codex round-3 MEDIUM，后者是 round-4 LOW）：
@@ -152,9 +142,7 @@ class TestDockerComposeVariableization:
             n_parsed = sum(1 for _p, v in located if v == value)
             if max(n_text, n_parsed) > 1:
                 duplicated.append((value, {"text": n_text, "parsed": n_parsed}))
-        assert not duplicated, (
-            f"Exempted mount values used more than once (text/parsed counts): {duplicated}"
-        )
+        assert not duplicated, f"Exempted mount values used more than once (text/parsed counts): {duplicated}"
 
     def test_neo4j_ports_use_variables(self):
         dc = PROJECT_ROOT / "docker-compose.yml"
@@ -167,9 +155,7 @@ class TestDockerComposeVariableization:
         dc = PROJECT_ROOT / "docker-compose.yml"
         content = dc.read_text()
         ro_vault_mounts = re.findall(r"vault.*:ro", content)
-        assert not ro_vault_mounts, (
-            f"Vault mounts should not be :ro by default: {ro_vault_mounts}"
-        )
+        assert not ro_vault_mounts, f"Vault mounts should not be :ro by default: {ro_vault_mounts}"
 
 
 class TestValidateEnvScript:

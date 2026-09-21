@@ -63,10 +63,10 @@ UNIT_CALLERS = "tests/unit/test_read_scope_callers_g41a.py"
 
 # ── 变异原料 ────────────────────────────────────────────────────────────────
 
-_FILTER_BODY = '''    clauses = [
+_FILTER_BODY = """    clauses = [
         f"{alias}.group_id = $group_id",
         f"{alias}.group_id STARTS WITH $group_prefix",
-    ]'''
+    ]"""
 
 _INSCOPE_BODY = """    return cand_phys == scope_phys or cand_phys.startswith(
         scope_phys + _PHYSICAL_SEPARATOR
@@ -77,9 +77,9 @@ def _alias_noop(alias: str) -> tuple[str, str]:
     """把**单个** alias 的过滤片段变成恒真, 其余 alias 不动。"""
     return (
         _FILTER_BODY,
-        f'''    if alias == {alias!r}:
+        f"""    if alias == {alias!r}:
         return "(true)"
-{_FILTER_BODY}''',
+{_FILTER_BODY}""",
     )
 
 
@@ -101,9 +101,9 @@ MUTATIONS: list[Mutation] = [
         edits=[
             (
                 _FILTER_BODY,
-                '''    clauses = [
+                """    clauses = [
         f"{alias}.group_id = $group_id",
-    ]''',
+    ]""",
             ),
             (_INSCOPE_BODY, "    return cand_phys == scope_phys"),
         ],
@@ -136,10 +136,10 @@ MUTATIONS: list[Mutation] = [
         edits=[
             (
                 "        raise VaultScopeUnresolved(\n"
-                "            f\"read scope unresolved [context: {context}]: derived scope is the \"",
+                '            f"read scope unresolved [context: {context}]: derived scope is the "',
                 "        return _DEFAULT_POLLUTION_GROUP  # MUTATED\n"
                 "        raise VaultScopeUnresolved(\n"
-                "            f\"read scope unresolved [context: {context}]: derived scope is the \"",
+                '            f"read scope unresolved [context: {context}]: derived scope is the "',
             )
         ],
         expect_red=[UNIT_SCOPE, GATE_FILE],
@@ -150,8 +150,7 @@ MUTATIONS: list[Mutation] = [
         edits=[
             (
                 '    value = group_id.strip()\n\n    if not value.startswith("vault:"):',
-                '    value = group_id.strip()\n    return value  # MUTATED\n\n'
-                '    if not value.startswith("vault:"):',
+                '    value = group_id.strip()\n    return value  # MUTATED\n\n    if not value.startswith("vault:"):',
             )
         ],
         expect_red=[UNIT_SCOPE],
@@ -184,11 +183,10 @@ MUTATIONS: list[Mutation] = [
         target=CLIENT,
         edits=[
             (
-                "            if not group_in_read_scope(rel.get(\"group_id\"), scope):\n"
+                '            if not group_in_read_scope(rel.get("group_id"), scope):\n'
                 "                continue\n\n"
                 "            # Check if due for review",
-                "            # MUTATED (filter removed)\n\n"
-                "            # Check if due for review",
+                "            # MUTATED (filter removed)\n\n            # Check if due for review",
             )
         ],
         expect_red=[UNIT_CALLERS],
@@ -199,9 +197,9 @@ MUTATIONS: list[Mutation] = [
         target=CLIENT,
         edits=[
             (
-                "                                if c[\"name\"] == rel[\"concept_name\"]\n"
-                "                                and group_in_read_scope(c.get(\"group_id\"), scope)",
-                "                                if c[\"name\"] == rel[\"concept_name\"]",
+                '                                if c["name"] == rel["concept_name"]\n'
+                '                                and group_in_read_scope(c.get("group_id"), scope)',
+                '                                if c["name"] == rel["concept_name"]',
             )
         ],
         expect_red=[UNIT_CALLERS],
@@ -227,7 +225,7 @@ MUTATIONS: list[Mutation] = [
         target=CLIENT,
         edits=[
             (
-                "                if not group_in_read_scope(record.get(\"group_id\"), scope):\n"
+                '                if not group_in_read_scope(record.get("group_id"), scope):\n'
                 "                    continue\n",
                 "                pass  # MUTATED (filter removed)\n",
             )

@@ -99,9 +99,7 @@ def e2e_canvas_data() -> Dict[str, Any]:
 @pytest.fixture
 def temp_canvas(e2e_canvas_data: Dict[str, Any]) -> str:
     """Create a temporary .canvas file."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False, encoding="utf-8") as f:
         json.dump(e2e_canvas_data, f)
         return f.name
 
@@ -208,13 +206,9 @@ class TestCompleteVerificationFlow:
     """
 
     @pytest.mark.asyncio
-    async def test_start_session_extracts_red_purple_nodes(
-        self, service: VerificationService, temp_canvas: str
-    ):
+    async def test_start_session_extracts_red_purple_nodes(self, service: VerificationService, temp_canvas: str):
         """Canvas reading extracts exactly 3 red/purple nodes, ignores green."""
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         assert session["status"] == "in_progress"
         assert session["session_id"] is not None
@@ -223,18 +217,13 @@ class TestCompleteVerificationFlow:
         assert len(session["first_question"]) > 0
 
     @pytest.mark.asyncio
-    async def test_answer_returns_score_in_0_100_range(
-        self, service: VerificationService, temp_canvas: str
-    ):
+    async def test_answer_returns_score_in_0_100_range(self, service: VerificationService, temp_canvas: str):
         """Score is returned in unified 0-100 scale."""
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         result = await service.process_answer(
             session_id=session["session_id"],
-            user_answer="这是一个详细的回答，包含对概念的深入分析和理解"
-            * 15,  # >200 chars → 85.0
+            user_answer="这是一个详细的回答，包含对概念的深入分析和理解" * 15,  # >200 chars → 85.0
         )
 
         assert 0 <= result["score"] <= 100
@@ -249,9 +238,7 @@ class TestCompleteVerificationFlow:
         mock_agent: MagicMock,
     ):
         """Complete all 3 concepts end-to-end and reach COMPLETED status."""
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
         total = session["total_concepts"]
         assert total == 3
@@ -292,9 +279,7 @@ class TestCompleteVerificationFlow:
         # Configure agent to return high score for first call
         mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(85.0))
 
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         # High score → next
         result = await service.process_answer(
@@ -338,9 +323,7 @@ class TestPauseResumeFlow:
         # Configure high score so first answer advances
         mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(85.0))
 
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
 
         # Answer first concept → advance to second
@@ -367,13 +350,9 @@ class TestPauseResumeFlow:
         assert restored_question == second_question
 
     @pytest.mark.asyncio
-    async def test_pause_invalid_state_raises(
-        self, service: VerificationService, temp_canvas: str
-    ):
+    async def test_pause_invalid_state_raises(self, service: VerificationService, temp_canvas: str):
         """Pausing an already-paused session raises ValueError."""
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
 
         await service.pause_session(session_id)
@@ -382,25 +361,17 @@ class TestPauseResumeFlow:
             await service.pause_session(session_id)
 
     @pytest.mark.asyncio
-    async def test_resume_invalid_state_raises(
-        self, service: VerificationService, temp_canvas: str
-    ):
+    async def test_resume_invalid_state_raises(self, service: VerificationService, temp_canvas: str):
         """Resuming an in_progress session raises ValueError."""
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         with pytest.raises(ValueError, match="Cannot resume"):
             await service.resume_session(session["session_id"])
 
     @pytest.mark.asyncio
-    async def test_pause_tracks_duration(
-        self, service: VerificationService, temp_canvas: str
-    ):
+    async def test_pause_tracks_duration(self, service: VerificationService, temp_canvas: str):
         """Pause/resume accumulates total_pause_duration."""
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
 
         await service.pause_session(session_id)
@@ -443,9 +414,7 @@ class TestConsecutiveLowRecommendation:
         # Always return low score
         mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(30.0))
 
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
 
         # First 3 low answers → hints
@@ -454,9 +423,7 @@ class TestConsecutiveLowRecommendation:
                 session_id=session_id,
                 user_answer="不确定",
             )
-            assert result["action"] == "hint", (
-                f"Attempt {i + 1}: expected 'hint', got '{result['action']}'"
-            )
+            assert result["action"] == "hint", f"Attempt {i + 1}: expected 'hint', got '{result['action']}'"
             assert result["hint"] is not None
             assert result["score"] == 30.0
             assert result["quality"] == "wrong"
@@ -466,9 +433,7 @@ class TestConsecutiveLowRecommendation:
             session_id=session_id,
             user_answer="还是不确定",
         )
-        assert result["action"] == "next", (
-            f"After 3 hints, expected 'next' but got '{result['action']}'"
-        )
+        assert result["action"] == "next", f"After 3 hints, expected 'next' but got '{result['action']}'"
 
     @pytest.mark.asyncio
     async def test_all_concepts_low_score_still_completes(
@@ -480,9 +445,7 @@ class TestConsecutiveLowRecommendation:
         """Even with all low scores, session eventually reaches COMPLETED."""
         mock_agent.call_scoring = AsyncMock(return_value=_make_scoring_result(25.0))
 
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
         total = session["total_concepts"]
 
@@ -526,9 +489,7 @@ class TestConsecutiveLowRecommendation:
         - score 60-79 → yellow
         - score < 60 → red
         """
-        session = await service.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await service.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
 
         # Concept 1: excellent (85)
@@ -589,9 +550,7 @@ class TestDegradationVisibility:
             canvas_base_path=tempfile.gettempdir(),
         )
 
-        session = await svc.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await svc.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         # Short answer → mock fallback → score=20.0 (wrong)
         result = await svc.process_answer(
@@ -613,9 +572,7 @@ class TestDegradationVisibility:
         """When scoring agent throws an exception, mock evaluation is used."""
         mock_agent = MagicMock()
         mock_agent.call_agent = AsyncMock(return_value=_make_question_result())
-        mock_agent.call_scoring = AsyncMock(
-            side_effect=RuntimeError("API quota exceeded")
-        )
+        mock_agent.call_scoring = AsyncMock(side_effect=RuntimeError("API quota exceeded"))
 
         svc = VerificationService(
             rag_service=mock_rag,
@@ -623,9 +580,7 @@ class TestDegradationVisibility:
             canvas_base_path=tempfile.gettempdir(),
         )
 
-        session = await svc.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await svc.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         # Long answer → mock fallback → score=90.0 (excellent)
         result = await svc.process_answer(
@@ -653,9 +608,7 @@ class TestDegradationVisibility:
             canvas_base_path=tempfile.gettempdir(),
         )
 
-        session = await svc.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await svc.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         # Even with timeout, first_question should be a fallback, not None
         assert session["first_question"] is not None
@@ -676,9 +629,7 @@ class TestDegradationVisibility:
             canvas_base_path=tempfile.gettempdir(),
         )
 
-        session = await svc.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await svc.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
 
         # Should still work with mock scoring
         result = await svc.process_answer(
@@ -698,9 +649,7 @@ class TestDegradationVisibility:
         """Full session completes even when all AI calls are degraded."""
         mock_agent = MagicMock()
         mock_agent.call_agent = AsyncMock(side_effect=asyncio.TimeoutError())
-        mock_agent.call_scoring = AsyncMock(
-            side_effect=RuntimeError("Service unavailable")
-        )
+        mock_agent.call_scoring = AsyncMock(side_effect=RuntimeError("Service unavailable"))
 
         svc = VerificationService(
             rag_service=mock_rag,
@@ -708,9 +657,7 @@ class TestDegradationVisibility:
             canvas_base_path=tempfile.gettempdir(),
         )
 
-        session = await svc.start_session(
-            canvas_name="e2e_test", canvas_path=temp_canvas
-        )
+        session = await svc.start_session(canvas_name="e2e_test", canvas_path=temp_canvas)
         session_id = session["session_id"]
         total = session["total_concepts"]
         assert total == 3

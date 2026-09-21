@@ -163,9 +163,7 @@ def test_narrative_empty_string_raises():
 
 def test_narrative_whitespace_only_raises():
     with pytest.raises(ValidationError):
-        CanvasGraphEpisodeV1(
-            **_base(event_type=EventType.CALLOUT_ADDED, narrative="   ")
-        )
+        CanvasGraphEpisodeV1(**_base(event_type=EventType.CALLOUT_ADDED, narrative="   "))
 
 
 def test_narrative_missing_raises():
@@ -205,9 +203,7 @@ def test_compute_event_id_pure_function():
 
 
 def test_explicit_event_id_preserved():
-    ep = CanvasGraphEpisodeV1(
-        **_base(event_type=EventType.CALLOUT_ADDED, event_id="my-fixed-id")
-    )
+    ep = CanvasGraphEpisodeV1(**_base(event_type=EventType.CALLOUT_ADDED, event_id="my-fixed-id"))
     assert ep.event_id == "my-fixed-id"
 
 
@@ -217,10 +213,7 @@ def test_explicit_event_id_preserved():
 
 
 def test_sanitize_group_id_colon_to_double_underscore():
-    assert (
-        sanitize_group_id_for_graphiti("vault:cs_61b:recursion")
-        == "vault__cs_61b__recursion"
-    )
+    assert sanitize_group_id_for_graphiti("vault:cs_61b:recursion") == "vault__cs_61b__recursion"
 
 
 def test_sanitize_group_id_single_level():

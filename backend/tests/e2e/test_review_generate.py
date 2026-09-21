@@ -57,9 +57,7 @@ def review_canvas_dir(tmp_path: Path) -> Path:
     }
 
     canvas_file = tmp_path / "test-algo.canvas"
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
     return tmp_path
 
 
@@ -71,17 +69,13 @@ class TestReviewGenerateE2E:
     [Source: docs/stories/31.A.10.story.md#AC-31.A.10.3]
     """
 
-    def test_generate_returns_201_with_valid_canvas(
-        self, client: TestClient, review_canvas_dir: Path
-    ):
+    def test_generate_returns_201_with_valid_canvas(self, client: TestClient, review_canvas_dir: Path):
         """Normal request with valid canvas returns 201 and verification data.
 
         [Source: docs/stories/31.A.10.story.md#AC-31.A.10.3 - test 1]
         """
         with patch("app.api.v1.endpoints.review._canvas_base_path", review_canvas_dir):
-            response = client.post(
-                "/api/v1/review/generate", json={"source_canvas": "test-algo"}
-            )
+            response = client.post("/api/v1/review/generate", json={"source_canvas": "test-algo"})
 
         assert response.status_code == 201
         data = response.json()
@@ -102,9 +96,7 @@ class TestReviewGenerateE2E:
         )
         assert response.status_code == 422
 
-    def test_generate_degrades_gracefully_without_agent(
-        self, client: TestClient, review_canvas_dir: Path
-    ):
+    def test_generate_degrades_gracefully_without_agent(self, client: TestClient, review_canvas_dir: Path):
         """Agent unavailable still returns 201 with template questions (degraded mode).
 
         [Source: docs/stories/31.A.10.story.md#AC-31.A.10.3 - test 3]
@@ -115,26 +107,20 @@ class TestReviewGenerateE2E:
             patch("app.api.v1.endpoints.review._services_available", False),
             patch("app.api.v1.endpoints.review._difficulty_available", False),
         ):
-            response = client.post(
-                "/api/v1/review/generate", json={"source_canvas": "test-algo"}
-            )
+            response = client.post("/api/v1/review/generate", json={"source_canvas": "test-algo"})
 
         assert response.status_code == 201
         data = response.json()
         assert data["node_count"] >= 1  # Template questions still generated
         assert "verification_canvas_name" in data
 
-    def test_generate_returns_zero_nodes_for_nonexistent_canvas(
-        self, client: TestClient, review_canvas_dir: Path
-    ):
+    def test_generate_returns_zero_nodes_for_nonexistent_canvas(self, client: TestClient, review_canvas_dir: Path):
         """Nonexistent canvas returns 201 with node_count=0 (graceful handling).
 
         [Source: docs/stories/31.A.10.story.md#AC-31.A.10.3 - test 4]
         """
         with patch("app.api.v1.endpoints.review._canvas_base_path", review_canvas_dir):
-            response = client.post(
-                "/api/v1/review/generate", json={"source_canvas": "nonexistent-canvas"}
-            )
+            response = client.post("/api/v1/review/generate", json={"source_canvas": "nonexistent-canvas"})
 
         assert response.status_code == 201
         data = response.json()

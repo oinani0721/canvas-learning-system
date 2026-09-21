@@ -206,9 +206,7 @@ class TestFullWorkflow:
         sample_groups,
     ):
         """Test workflow where all nodes fail."""
-        mock_agent_service.call_agent = AsyncMock(
-            return_value=MockAgentResult(success=False, error="All failed")
-        )
+        mock_agent_service.call_agent = AsyncMock(return_value=MockAgentResult(success=False, error="All failed"))
 
         session_id = await real_session_manager.create_session(
             canvas_path="test.canvas",
@@ -437,19 +435,11 @@ class TestProgressEventFlow:
         assert event_types[0] == ProgressEventType.PROGRESS_UPDATE
 
         # Should have task completed events
-        task_completed_count = sum(
-            1
-            for e in progress_events
-            if e.event_type == ProgressEventType.TASK_COMPLETED
-        )
+        task_completed_count = sum(1 for e in progress_events if e.event_type == ProgressEventType.TASK_COMPLETED)
         assert task_completed_count == 2  # 2 nodes
 
         # Should have group completed
-        group_completed = [
-            e
-            for e in progress_events
-            if e.event_type == ProgressEventType.GROUP_COMPLETED
-        ]
+        group_completed = [e for e in progress_events if e.event_type == ProgressEventType.GROUP_COMPLETED]
         assert len(group_completed) == 1
 
         # Should end with session completed
@@ -599,9 +589,7 @@ class TestMemoryIntegration:
         mock_agent_service,
     ):
         """Test that memory write is not triggered for failed nodes."""
-        mock_agent_service.call_agent = AsyncMock(
-            return_value=MockAgentResult(success=False, error="Failed")
-        )
+        mock_agent_service.call_agent = AsyncMock(return_value=MockAgentResult(success=False, error="Failed"))
 
         session_id = await real_session_manager.create_session(
             canvas_path="test.canvas",
@@ -661,9 +649,7 @@ class TestPerformanceMetrics:
         )
 
         groups = [
-            GroupConfig(
-                group_id="g1", agent_type="test", node_ids=["n1", "n2", "n3", "n4"]
-            ),
+            GroupConfig(group_id="g1", agent_type="test", node_ids=["n1", "n2", "n3", "n4"]),
         ]
 
         result = await orchestrator.start_batch_session(

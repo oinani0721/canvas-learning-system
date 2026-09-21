@@ -94,25 +94,19 @@ class TestRealReviewServiceHistory:
         fixed = date(2025, 6, 15)
         for i in range(3):
             states[f"math.canvas:concept_{i}"] = {
-                "last_review": datetime(
-                    fixed.year, fixed.month, fixed.day, 10, 0, 0
-                ).isoformat(),
+                "last_review": datetime(fixed.year, fixed.month, fixed.day, 10, 0, 0).isoformat(),
                 "rating": 3,
             }
         for i in range(2):
             states[f"physics.canvas:concept_{i}"] = {
-                "last_review": datetime(
-                    fixed.year, fixed.month, fixed.day, 11, 0, 0
-                ).isoformat(),
+                "last_review": datetime(fixed.year, fixed.month, fixed.day, 11, 0, 0).isoformat(),
                 "rating": 4,
             }
 
         service = make_real_review_service(states)
         from app.services.review_service import MAX_HISTORY_RECORDS
 
-        result = await service.get_history(
-            days=7, canvas_path="math", limit=MAX_HISTORY_RECORDS
-        )
+        result = await service.get_history(days=7, canvas_path="math", limit=MAX_HISTORY_RECORDS)
 
         total_reviews = sum(len(d["reviews"]) for d in result["records"])
         assert total_reviews == 3  # Only math records
@@ -122,24 +116,18 @@ class TestRealReviewServiceHistory:
         states = {}
         fixed = date(2025, 6, 15)
         states["math.canvas:逆否命题"] = {
-            "last_review": datetime(
-                fixed.year, fixed.month, fixed.day, 10, 0, 0
-            ).isoformat(),
+            "last_review": datetime(fixed.year, fixed.month, fixed.day, 10, 0, 0).isoformat(),
             "rating": 4,
         }
         states["math.canvas:充分条件"] = {
-            "last_review": datetime(
-                fixed.year, fixed.month, fixed.day, 11, 0, 0
-            ).isoformat(),
+            "last_review": datetime(fixed.year, fixed.month, fixed.day, 11, 0, 0).isoformat(),
             "rating": 3,
         }
 
         service = make_real_review_service(states)
         from app.services.review_service import MAX_HISTORY_RECORDS
 
-        result = await service.get_history(
-            days=7, concept_name="逆否命题", limit=MAX_HISTORY_RECORDS
-        )
+        result = await service.get_history(days=7, concept_name="逆否命题", limit=MAX_HISTORY_RECORDS)
 
         total_reviews = sum(len(d["reviews"]) for d in result["records"])
         assert total_reviews == 1
@@ -151,9 +139,7 @@ class TestRealReviewServiceHistory:
         for day_offset in [0, 1]:
             review_date = fixed - timedelta(days=day_offset)
             states[f"math.canvas:concept_{day_offset}"] = {
-                "last_review": datetime(
-                    review_date.year, review_date.month, review_date.day, 10, 0, 0
-                ).isoformat(),
+                "last_review": datetime(review_date.year, review_date.month, review_date.day, 10, 0, 0).isoformat(),
                 "rating": 3,
             }
 
@@ -186,14 +172,11 @@ class TestReviewServiceDICompleteness:
         next_func = source.find("\nasync def ", func_start + 10)
         if next_func == -1:
             next_func = source.find("\ndef ", func_start + 10)
-        func_body = (
-            source[func_start:next_func] if next_func != -1 else source[func_start:]
-        )
+        func_body = source[func_start:next_func] if next_func != -1 else source[func_start:]
 
-        assert (
-            "from .services.review_service import" in func_body
-            or "services.review_service" in func_body
-        ), "get_review_service() does not delegate to services.review_service"
+        assert "from .services.review_service import" in func_body or "services.review_service" in func_body, (
+            "get_review_service() does not delegate to services.review_service"
+        )
 
     def test_services_layer_singleton_passes_graphiti_client(self):
         """Story 38.9 AC5: services/review_service.py singleton factory handles graphiti_client."""
@@ -229,22 +212,13 @@ class TestShowAllHardCap:
         """AC3: show_all=True in endpoint must use MAX_HISTORY_RECORDS, not None."""
         from pathlib import Path
 
-        review_path = (
-            Path(__file__).resolve().parents[3]
-            / "app"
-            / "api"
-            / "v1"
-            / "endpoints"
-            / "review.py"
-        )
+        review_path = Path(__file__).resolve().parents[3] / "app" / "api" / "v1" / "endpoints" / "review.py"
         source = review_path.read_text(encoding="utf-8")
 
         assert "effective_limit = None if show_all" not in source, (
             "show_all=True still uses effective_limit=None — must use MAX_HISTORY_RECORDS"
         )
-        assert "MAX_HISTORY_RECORDS" in source, (
-            "review.py endpoint does not reference MAX_HISTORY_RECORDS"
-        )
+        assert "MAX_HISTORY_RECORDS" in source, "review.py endpoint does not reference MAX_HISTORY_RECORDS"
 
     @pytest.mark.asyncio
     async def test_show_all_truncates_above_cap(self):

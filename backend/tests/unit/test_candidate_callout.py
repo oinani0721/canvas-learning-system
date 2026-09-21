@@ -44,10 +44,7 @@ def test_split_empty():
 
 def test_field_fallback_chain():
     # 显式字段优先, 缺失回退 description 拆分
-    assert (
-        candidate_misconception({"misconception": "显式", "description": "a — b"})
-        == "显式"
-    )
+    assert candidate_misconception({"misconception": "显式", "description": "a — b"}) == "显式"
     assert candidate_misconception({"description": "a — b"}) == "a"
     assert candidate_correction({"description": "a — b"}) == "b"
 
@@ -89,9 +86,7 @@ def test_render_accepted():
 
 
 def test_render_disputed_with_reason_and_strikethrough():
-    out = render_candidate_callout(
-        _CAND, "disputed", dispute_reason="AI 过度推断", today="2026-07-20"
-    )
+    out = render_candidate_callout(_CAND, "disputed", dispute_reason="AI 过度推断", today="2026-07-20")
     assert "⚠️ 已异议（2026-07-20 复盘 · 理由：AI 过度推断）" in out
     assert "~~认为 det(A) > 0 即可推出矩阵正定~~" in out
     assert "不入 errors[]" in out
@@ -103,9 +98,7 @@ def test_render_disputed_with_reason_and_strikethrough():
 def test_upsert_append_when_missing():
     body = "# 正文\n\n一些内容\n"
     card = render_candidate_callout(_CAND, "pending")
-    new_body, changed = upsert_candidate_callout(
-        body, "cand-fund-001", card, append_if_missing=True
-    )
+    new_body, changed = upsert_candidate_callout(body, "cand-fund-001", card, append_if_missing=True)
     assert changed
     assert card in new_body
     assert new_body.startswith("# 正文")
@@ -114,13 +107,9 @@ def test_upsert_append_when_missing():
 def test_upsert_replace_in_place_state_transition():
     body = "# 正文\n\n"
     pending = render_candidate_callout(_CAND, "pending")
-    body1, _ = upsert_candidate_callout(
-        body, "cand-fund-001", pending, append_if_missing=True
-    )
+    body1, _ = upsert_candidate_callout(body, "cand-fund-001", pending, append_if_missing=True)
     accepted = render_candidate_callout(_CAND, "accepted", today="2026-07-20")
-    body2, changed = upsert_candidate_callout(
-        body1, "cand-fund-001", accepted, append_if_missing=False
-    )
+    body2, changed = upsert_candidate_callout(body1, "cand-fund-001", accepted, append_if_missing=False)
     assert changed
     assert "🔴 待复盘" not in body2
     assert "✅ 已确认误区" in body2
@@ -132,9 +121,7 @@ def test_upsert_skip_when_user_deleted_card():
     # 容错 (提案风险提示): 锚点缺失且不允许追加 → 原文返回
     body = "# 正文\n用户删掉了卡片\n"
     card = render_candidate_callout(_CAND, "accepted")
-    new_body, changed = upsert_candidate_callout(
-        body, "cand-fund-001", card, append_if_missing=False
-    )
+    new_body, changed = upsert_candidate_callout(body, "cand-fund-001", card, append_if_missing=False)
     assert not changed
     assert new_body == body
 

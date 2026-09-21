@@ -98,9 +98,7 @@ Output the strict JSON object only."""
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _safe_get_config(
-    runtime: Optional[Runtime[CanvasRAGConfig]], key: str, default: Any
-) -> Any:
+def _safe_get_config(runtime: Optional[Runtime[CanvasRAGConfig]], key: str, default: Any) -> Any:
     """Mirror of nodes.py _safe_get_config — avoid cross-module import cycle."""
     if runtime is None:
         return default
@@ -143,9 +141,7 @@ def _extract_original_query(state: CanvasRAGState) -> str:
     return str(getattr(last, "content", "")).strip()
 
 
-def _parse_deep_research_response(
-    raw_text: str, max_queries: int, fallback_query: str
-) -> List[str]:
+def _parse_deep_research_response(raw_text: str, max_queries: int, fallback_query: str) -> List[str]:
     """Parse the LLM JSON output. On ANY failure, return [fallback_query].
 
     Accepts and strips optional markdown fences in case the LLM ignored
@@ -158,17 +154,13 @@ def _parse_deep_research_response(
     text = raw_text.strip()
     # Strip common markdown fences defensively
     if text.startswith("```"):
-        lines = [
-            line for line in text.split("\n") if not line.strip().startswith("```")
-        ]
+        lines = [line for line in text.split("\n") if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
 
     try:
         parsed = json.loads(text)
     except (json.JSONDecodeError, ValueError) as e:
-        logger.warning(
-            f"[deep_research] JSON parse failed: {e}; falling back to original query"
-        )
+        logger.warning(f"[deep_research] JSON parse failed: {e}; falling back to original query")
         return [fallback_query]
 
     if not isinstance(parsed, dict):
@@ -195,9 +187,7 @@ def _parse_deep_research_response(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def deep_research_fallback(
-    state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
-) -> Dict[str, Any]:
+async def deep_research_fallback(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
     """CRAG one-shot deep research fallback.
 
     Returns a state update that:
@@ -233,9 +223,7 @@ async def deep_research_fallback(
 
     # Empty query edge case: skip the LLM call but still flip the guard
     if not original_query:
-        logger.warning(
-            "[deep_research_fallback] empty query; flipping guard without LLM call"
-        )
+        logger.warning("[deep_research_fallback] empty query; flipping guard without LLM call")
         return {
             "deep_research_used": True,
             "multi_queries": None,
@@ -243,9 +231,7 @@ async def deep_research_fallback(
         }
 
     system_prompt = _DEEP_RESEARCH_SYSTEM_PROMPT.format(max_queries=max_queries)
-    user_prompt = _DEEP_RESEARCH_USER_TEMPLATE.format(
-        query=original_query, rewrite_count=rewrite_count
-    )
+    user_prompt = _DEEP_RESEARCH_USER_TEMPLATE.format(query=original_query, rewrite_count=rewrite_count)
 
     fallback_queries = [original_query]
     queries: List[str] = fallback_queries
@@ -268,34 +254,24 @@ async def deep_research_fallback(
             return response.choices[0].message.content or ""
 
         raw = await asyncio.wait_for(_run_llm(), timeout=timeout_s)
-        queries = _parse_deep_research_response(
-            raw, max_queries=max_queries, fallback_query=original_query
-        )
+        queries = _parse_deep_research_response(raw, max_queries=max_queries, fallback_query=original_query)
         # Try to extract plan for observability
         try:
             parsed = json.loads(raw.strip().strip("`"))
             if isinstance(parsed, dict):
-                plan = (
-                    parsed.get("plan") if isinstance(parsed.get("plan"), str) else None
-                )
+                plan = parsed.get("plan") if isinstance(parsed.get("plan"), str) else None
         except (json.JSONDecodeError, ValueError):
             plan = None
 
     except asyncio.TimeoutError:
-        logger.warning(
-            f"[deep_research_fallback] LLM timeout after {timeout_s}s; "
-            f"falling back to original query"
-        )
+        logger.warning(f"[deep_research_fallback] LLM timeout after {timeout_s}s; falling back to original query")
     except ImportError:
         logger.warning("[deep_research_fallback] litellm not available; falling back")
     except Exception as e:
         logger.warning(f"[deep_research_fallback] LLM call failed: {e}; falling back")
 
     latency_ms = (time.perf_counter() - start_time) * 1000
-    logger.info(
-        f"[deep_research_fallback] END — queries={len(queries)}, "
-        f"plan={plan!r}, latency={latency_ms:.1f}ms"
-    )
+    logger.info(f"[deep_research_fallback] END — queries={len(queries)}, plan={plan!r}, latency={latency_ms:.1f}ms")
 
     return {
         "deep_research_used": True,

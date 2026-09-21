@@ -30,10 +30,7 @@ def test_sanitize_single_level_vault():
 
 
 def test_sanitize_two_level_vault_subject():
-    assert (
-        sanitize_group_id_for_graphiti("vault:cs_61b:algorithms")
-        == "vault__cs_61b__algorithms"
-    )
+    assert sanitize_group_id_for_graphiti("vault:cs_61b:algorithms") == "vault__cs_61b__algorithms"
 
 
 def test_sanitize_legacy_no_colon_unchanged():
@@ -46,18 +43,12 @@ def test_sanitize_empty_passthrough():
 
 def test_desanitize_roundtrip():
     original = "vault:canvas_vault"
-    assert (
-        desanitize_group_id_from_graphiti(sanitize_group_id_for_graphiti(original))
-        == original
-    )
+    assert desanitize_group_id_from_graphiti(sanitize_group_id_for_graphiti(original)) == original
 
 
 def test_desanitize_two_level_roundtrip():
     original = "vault:cs_61b:algorithms"
-    assert (
-        desanitize_group_id_from_graphiti(sanitize_group_id_for_graphiti(original))
-        == original
-    )
+    assert desanitize_group_id_from_graphiti(sanitize_group_id_for_graphiti(original)) == original
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -70,9 +61,7 @@ def test_physical_from_d16_colon():
 
 
 def test_physical_from_two_level_d16():
-    assert (
-        to_physical_group_id("vault:cs_61b:algorithms") == "vault__cs_61b__algorithms"
-    )
+    assert to_physical_group_id("vault:cs_61b:algorithms") == "vault__cs_61b__algorithms"
 
 
 def test_physical_idempotent_on_already_physical():
@@ -176,9 +165,7 @@ def test_sanitize_chinese_idempotent():
 def test_sanitize_physical_chinese_input_normalized():
     # 已物理化但含中文段 (结构化直写历史形态) → 同样收敛到 punycode 形态
     physical_cn = "vault__canvas_vault__特征值与特征向量"
-    assert sanitize_group_id_for_graphiti(
-        physical_cn
-    ) == sanitize_group_id_for_graphiti(_CN)
+    assert sanitize_group_id_for_graphiti(physical_cn) == sanitize_group_id_for_graphiti(_CN)
 
 
 def test_semantic_of_sanitized_chinese_is_validator_safe():

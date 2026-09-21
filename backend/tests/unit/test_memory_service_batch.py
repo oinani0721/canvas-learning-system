@@ -155,9 +155,7 @@ class TestRecordBatchLearningEventsConcept:
         assert call_args["concept"] == "已删除节点"
 
     @pytest.mark.asyncio
-    async def test_neo4j_disconnected_still_stores_in_memory(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_neo4j_disconnected_still_stores_in_memory(self, memory_service, mock_neo4j):
         """Story 30.9: Events stored in-memory even when Neo4j disconnected."""
         mock_neo4j.stats = {"initialized": False, "connected": False}
 

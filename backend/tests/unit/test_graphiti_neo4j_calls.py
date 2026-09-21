@@ -39,9 +39,7 @@ class TestMergeCypher:
     """AC-36.2.1: Verify MERGE Cypher semantics for edge relationships."""
 
     @pytest.mark.asyncio
-    async def test_add_edge_relationship_calls_neo4j_create(
-        self, graphiti_client, mock_neo4j
-    ):
+    async def test_add_edge_relationship_calls_neo4j_create(self, graphiti_client, mock_neo4j):
         """AC-36.2.1: add_edge_relationship delegates to neo4j.create_edge_relationship."""
         rel = EdgeRelationship(
             canvas_path="test.canvas",
@@ -63,9 +61,7 @@ class TestMergeCypher:
         )
 
     @pytest.mark.asyncio
-    async def test_add_edge_increments_sync_count_on_success(
-        self, graphiti_client, mock_neo4j
-    ):
+    async def test_add_edge_increments_sync_count_on_success(self, graphiti_client, mock_neo4j):
         """AC-36.2.1: Successful sync increments _sync_count."""
         initial_count = graphiti_client._sync_count
         rel = EdgeRelationship(
@@ -80,9 +76,7 @@ class TestMergeCypher:
         assert graphiti_client._sync_count == initial_count + 1
 
     @pytest.mark.asyncio
-    async def test_add_edge_increments_error_count_on_failure(
-        self, graphiti_client, mock_neo4j
-    ):
+    async def test_add_edge_increments_error_count_on_failure(self, graphiti_client, mock_neo4j):
         """AC-36.2.1: Failed sync increments _error_count."""
         mock_neo4j.create_edge_relationship = AsyncMock(return_value=False)
         initial_errors = graphiti_client._error_count
@@ -133,9 +127,7 @@ class TestSearchNodesReturnStructure:
         assert 0 <= result["score"] <= 1.0
 
     @pytest.mark.asyncio
-    async def test_search_nodes_sorted_by_score_descending(
-        self, graphiti_client, mock_neo4j
-    ):
+    async def test_search_nodes_sorted_by_score_descending(self, graphiti_client, mock_neo4j):
         """AC-36.2.4: Results sorted by score descending."""
         mock_neo4j.run_query = AsyncMock(
             return_value=[

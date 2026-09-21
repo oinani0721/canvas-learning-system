@@ -157,9 +157,7 @@ class OverallProgress(BaseModel):
         description="Overall progress rate (-1 to 1 scale)",
         json_schema_extra={"example": 0.25},
     )
-    trend_direction: TrendDirection = Field(
-        ..., description="Trend direction (up/stable/down)"
-    )
+    trend_direction: TrendDirection = Field(..., description="Trend direction (up/stable/down)")
 
 
 class TrendAnalysis(BaseModel):
@@ -169,15 +167,11 @@ class TrendAnalysis(BaseModel):
     [Source: specs/api/review-api.openapi.yml#L763-805]
     """
 
-    pass_rate_trend: List[PassRateTrend] = Field(
-        ..., description="Time-series data for pass rate visualization"
-    )
+    pass_rate_trend: List[PassRateTrend] = Field(..., description="Time-series data for pass rate visualization")
     weak_concepts_improvement: List[WeakConceptImprovement] = Field(
         default_factory=list, description="Weak concept improvement tracking"
     )
-    overall_progress: OverallProgress = Field(
-        ..., description="Overall progress metrics"
-    )
+    overall_progress: OverallProgress = Field(..., description="Overall progress metrics")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -203,12 +197,8 @@ class MultiReviewProgressResponse(BaseModel):
         description="Total number of review sessions",
         json_schema_extra={"example": 3},
     )
-    reviews: List[ReviewEntry] = Field(
-        ..., description="List of all review sessions (newest first)"
-    )
-    trends: Optional[TrendAnalysis] = Field(
-        default=None, description="Trend analysis data (null if <2 reviews)"
-    )
+    reviews: List[ReviewEntry] = Field(..., description="List of all review sessions (newest first)")
+    trends: Optional[TrendAnalysis] = Field(default=None, description="Trend analysis data (null if <2 reviews)")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -257,9 +247,7 @@ class VerificationHistoryItem(BaseModel):
         default=QuestionType.standard,
         description="Question angle type (standard, application, comparison, etc.)",
     )
-    user_answer: Optional[str] = Field(
-        default=None, description="User's answer to the question (if answered)"
-    )
+    user_answer: Optional[str] = Field(default=None, description="User's answer to the question (if answered)")
     score: Optional[int] = Field(
         default=None,
         ge=0,
@@ -267,9 +255,7 @@ class VerificationHistoryItem(BaseModel):
         description="Score for the answer (0-100, if evaluated)",
         json_schema_extra={"example": 75},
     )
-    canvas_name: str = Field(
-        ..., description="Source canvas name", json_schema_extra={"example": "离散数学"}
-    )
+    canvas_name: str = Field(..., description="Source canvas name", json_schema_extra={"example": "离散数学"})
     asked_at: datetime = Field(
         ...,
         description="Timestamp when the question was asked",
@@ -291,9 +277,7 @@ class PaginationInfo(BaseModel):
         description="Number of items per page",
         json_schema_extra={"example": 20},
     )
-    offset: int = Field(
-        ..., ge=0, description="Offset from the start", json_schema_extra={"example": 0}
-    )
+    offset: int = Field(..., ge=0, description="Offset from the start", json_schema_extra={"example": 0})
     has_more: bool = Field(
         ...,
         description="Whether there are more items available",
@@ -324,9 +308,7 @@ class VerificationHistoryResponse(BaseModel):
         description="Total number of history records",
         json_schema_extra={"example": 5},
     )
-    items: List[VerificationHistoryItem] = Field(
-        ..., description="List of verification history records"
-    )
+    items: List[VerificationHistoryItem] = Field(..., description="List of verification history records")
     pagination: Optional[PaginationInfo] = Field(
         default=None, description="Pagination metadata (included when paginated)"
     )
@@ -383,9 +365,7 @@ class HistoryDayRecord(BaseModel):
         description="Date (YYYY-MM-DD)",
         json_schema_extra={"example": "2025-01-18"},
     )
-    reviews: List[HistoryReviewRecord] = Field(
-        default_factory=list, description="Reviews completed on this date"
-    )
+    reviews: List[HistoryReviewRecord] = Field(default_factory=list, description="Reviews completed on this date")
 
 
 class HistoryStatistics(BaseModel):
@@ -429,18 +409,10 @@ class HistoryResponse(BaseModel):
     """
 
     period: HistoryPeriod = Field(..., description="Query time period")
-    total_reviews: int = Field(
-        ..., ge=0, description="Total review count", json_schema_extra={"example": 45}
-    )
-    records: List[HistoryDayRecord] = Field(
-        default_factory=list, description="Daily review records (newest first)"
-    )
-    statistics: Optional[HistoryStatistics] = Field(
-        default=None, description="Aggregate statistics"
-    )
-    pagination: Optional[PaginationInfo] = Field(
-        default=None, description="Pagination info (Story 34.4)"
-    )
+    total_reviews: int = Field(..., ge=0, description="Total review count", json_schema_extra={"example": 45})
+    records: List[HistoryDayRecord] = Field(default_factory=list, description="Daily review records (newest first)")
+    statistics: Optional[HistoryStatistics] = Field(default=None, description="Aggregate statistics")
+    pagination: Optional[PaginationInfo] = Field(default=None, description="Pagination info (Story 34.4)")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -482,9 +454,7 @@ class SessionProgressResponse(BaseModel):
         description="Unique session identifier",
         json_schema_extra={"example": "sess_abc123"},
     )
-    canvas_name: str = Field(
-        ..., description="Source canvas name", json_schema_extra={"example": "离散数学"}
-    )
+    canvas_name: str = Field(..., description="Source canvas name", json_schema_extra={"example": "离散数学"})
     total_concepts: int = Field(
         ...,
         ge=0,
@@ -508,19 +478,11 @@ class SessionProgressResponse(BaseModel):
         description="Index of current concept (0-based)",
         json_schema_extra={"example": 5},
     )
-    green_count: int = Field(
-        default=0, ge=0, description="Concepts marked as mastered (green)"
-    )
-    yellow_count: int = Field(
-        default=0, ge=0, description="Concepts partially understood (yellow)"
-    )
-    purple_count: int = Field(
-        default=0, ge=0, description="Concepts need decomposition (purple)"
-    )
+    green_count: int = Field(default=0, ge=0, description="Concepts marked as mastered (green)")
+    yellow_count: int = Field(default=0, ge=0, description="Concepts partially understood (yellow)")
+    purple_count: int = Field(default=0, ge=0, description="Concepts need decomposition (purple)")
     red_count: int = Field(default=0, ge=0, description="Concepts not understood (red)")
-    status: VerificationStatusEnum = Field(
-        default=VerificationStatusEnum.pending, description="Current session status"
-    )
+    status: VerificationStatusEnum = Field(default=VerificationStatusEnum.pending, description="Current session status")
     progress_percentage: float = Field(
         ...,
         ge=0.0,
@@ -535,12 +497,8 @@ class SessionProgressResponse(BaseModel):
         description="Mastery rate (green/completed * 100)",
         json_schema_extra={"example": 60.0},
     )
-    hints_given: int = Field(
-        default=0, ge=0, description="Hints given for current concept"
-    )
-    max_hints: int = Field(
-        default=3, ge=0, description="Maximum hints allowed per concept"
-    )
+    hints_given: int = Field(default=0, ge=0, description="Hints given for current concept")
+    max_hints: int = Field(default=3, ge=0, description="Maximum hints allowed per concept")
     started_at: datetime = Field(..., description="Session start timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 
@@ -559,9 +517,7 @@ class SessionPauseResumeResponse(BaseModel):
         description="Session identifier",
         json_schema_extra={"example": "sess_abc123"},
     )
-    status: VerificationStatusEnum = Field(
-        ..., description="New session status after operation"
-    )
+    status: VerificationStatusEnum = Field(..., description="New session status after operation")
     message: str = Field(
         ...,
         description="Operation result message",
@@ -587,12 +543,8 @@ class StartSessionRequest(BaseModel):
         description="Source canvas name (without .canvas extension)",
         json_schema_extra={"example": "离散数学"},
     )
-    node_ids: Optional[List[str]] = Field(
-        default=None, description="Optional list of specific node IDs to verify"
-    )
-    include_mastered: bool = Field(
-        default=True, description="Whether to include already-mastered concepts"
-    )
+    node_ids: Optional[List[str]] = Field(default=None, description="Optional list of specific node IDs to verify")
+    include_mastered: bool = Field(default=True, description="Whether to include already-mastered concepts")
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     vault_id: Optional[str] = Field(
         default=None,
@@ -646,9 +598,7 @@ class SubmitAnswerRequest(BaseModel):
         ...,
         min_length=1,
         description="User's answer text",
-        json_schema_extra={
-            "example": "逆否命题是将原命题的条件和结论同时取反再交换..."
-        },
+        json_schema_extra={"example": "逆否命题是将原命题的条件和结论同时取反再交换..."},
     )
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     vault_id: Optional[str] = Field(
@@ -701,14 +651,10 @@ class SubmitAnswerResponse(BaseModel):
         json_schema_extra={"example": "next"},
     )
     hint: Optional[str] = Field(default=None, description="Hint text if action is 'hint'")
-    next_question: Optional[str] = Field(
-        default=None, description="Next question text if action is 'next'"
-    )
+    next_question: Optional[str] = Field(default=None, description="Next question text if action is 'next'")
     current_concept: str = Field(
         ...,
         description="Current concept being verified",
         json_schema_extra={"example": "逆否命题"},
     )
-    progress: SessionProgressResponse = Field(
-        ..., description="Updated session progress after this answer"
-    )
+    progress: SessionProgressResponse = Field(..., description="Updated session progress after this answer")

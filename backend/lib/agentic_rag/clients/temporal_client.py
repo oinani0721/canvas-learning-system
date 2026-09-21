@@ -93,9 +93,7 @@ class TemporalClient:
         """
         if not TEMPORAL_MEMORY_AVAILABLE:
             if LOGURU_ENABLED:
-                logger.warning(
-                    "TemporalMemory not available. Check: pip install fsrs>=4.1.0"
-                )
+                logger.warning("TemporalMemory not available. Check: pip install fsrs>=4.1.0")
             self._initialized = True
             return False
 
@@ -192,17 +190,13 @@ class TemporalClient:
             # ✅ AC 4.5: 检查性能
             if latency_ms > 50:
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        f"get_weak_concepts exceeded 50ms: {latency_ms:.2f}ms"
-                    )
+                    logger.warning(f"get_weak_concepts exceeded 50ms: {latency_ms:.2f}ms")
 
             return results
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
-                logger.warning(
-                    f"TemporalClient.get_weak_concepts timeout ({self.timeout_ms}ms)"
-                )
+                logger.warning(f"TemporalClient.get_weak_concepts timeout ({self.timeout_ms}ms)")
 
             if self.enable_fallback:
                 return []
@@ -274,8 +268,7 @@ class TemporalClient:
 
             if LOGURU_ENABLED:
                 logger.info(
-                    f"Updated FSRS card: concept={concept}, "
-                    f"rating={rating}, stability={result.get('stability', 0):.2f}"
+                    f"Updated FSRS card: concept={concept}, rating={rating}, stability={result.get('stability', 0):.2f}"
                 )
 
             return result
@@ -334,9 +327,7 @@ class TemporalClient:
                 logger.error(f"TemporalClient.record_behavior error: {e}")
             return 0
 
-    async def get_review_due_concepts(
-        self, canvas_file: str, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    async def get_review_due_concepts(self, canvas_file: str, limit: int = 20) -> List[Dict[str, Any]]:
         """
         获取到期复习的概念
 
@@ -357,9 +348,7 @@ class TemporalClient:
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
                 self._executor,
-                lambda: self._temporal_memory.get_review_due_concepts(
-                    canvas_file=canvas_file, limit=limit
-                ),
+                lambda: self._temporal_memory.get_review_due_concepts(canvas_file=canvas_file, limit=limit),
             )
             return results
 

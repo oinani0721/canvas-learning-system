@@ -573,10 +573,7 @@ async def write_error_to_graphiti(
         "node_id": node_id,
         "session_id": session_id,
     }
-    content = (
-        f"Error ({error.pedagogy_type.value} / {error.legacy_type.value}): "
-        f"{error.description}"
-    )
+    content = f"Error ({error.pedagogy_type.value} / {error.legacy_type.value}): {error.description}"
 
     for attempt in range(1, GRAPHITI_MAX_RETRIES + 1):
         try:
@@ -734,9 +731,7 @@ async def write_error_dual(
             "error_id": error_id,
         }
 
-    graphiti_ok = await write_error_to_graphiti(
-        error, node_id, session_id, error_id=error_id
-    )
+    graphiti_ok = await write_error_to_graphiti(error, node_id, session_id, error_id=error_id)
     return {
         "mode": "write_confirmed",
         "frontmatter": True,

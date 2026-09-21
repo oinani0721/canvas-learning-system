@@ -173,9 +173,7 @@ class MultimodalContent:
         # Validate vector dimensions if present
         # Story 2.9 AC-3: Unified to bge-m3 1024d
         if self.vector is not None and len(self.vector) != 1024:
-            raise ValueError(
-                f"Vector must have 1024 dimensions (bge-m3), got {len(self.vector)}"
-            )
+            raise ValueError(f"Vector must have 1024 dimensions (bge-m3), got {len(self.vector)}")
 
     def to_dict(self) -> dict:
         """

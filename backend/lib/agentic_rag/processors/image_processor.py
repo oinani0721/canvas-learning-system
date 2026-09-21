@@ -206,10 +206,7 @@ class ImageProcessor:
             raise FileNotFoundError(f"Image not found: {image_path}")
 
         if not self.validate_format(image_path):
-            raise ValueError(
-                f"Unsupported format: {image_path.suffix}. "
-                f"Supported: {', '.join(self.SUPPORTED_FORMATS)}"
-            )
+            raise ValueError(f"Unsupported format: {image_path.suffix}. Supported: {', '.join(self.SUPPORTED_FORMATS)}")
 
         if not self.validate_size(image_path):
             max_mb = self.max_size_bytes / (1024 * 1024)
@@ -420,9 +417,7 @@ class ImageProcessor:
 
             # Save
             resized.save(out_path)
-            logger.info(
-                f"Resized image from {width}x{height} to {new_width}x{new_height}"
-            )
+            logger.info(f"Resized image from {width}x{height} to {new_width}x{new_height}")
 
             return out_path
 

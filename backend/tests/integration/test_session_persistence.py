@@ -62,9 +62,7 @@ def mock_canvas_data():
 @pytest.fixture
 def temp_canvas_file(mock_canvas_data):
     """Create a temporary Canvas file."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False, encoding="utf-8") as f:
         json.dump(mock_canvas_data, f)
         path = f.name
     yield path
@@ -122,59 +120,39 @@ class TestSessionStateTransitions:
     """
 
     @pytest.mark.asyncio
-    async def test_session_starts_in_progress(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_session_starts_in_progress(self, verification_service, temp_canvas_file):
         """New session starts in IN_PROGRESS state."""
-        result = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        result = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         assert result["status"] == "in_progress"
 
     @pytest.mark.asyncio
-    async def test_pause_sets_paused_state(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_pause_sets_paused_state(self, verification_service, temp_canvas_file):
         """Pausing session sets status to PAUSED."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         result = await verification_service.pause_session(session["session_id"])
         assert result["status"] == "paused"
 
     @pytest.mark.asyncio
-    async def test_resume_sets_in_progress(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_resume_sets_in_progress(self, verification_service, temp_canvas_file):
         """Resuming paused session sets status back to IN_PROGRESS."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         await verification_service.pause_session(session["session_id"])
         result = await verification_service.resume_session(session["session_id"])
         assert result["status"] == "in_progress"
 
     @pytest.mark.asyncio
-    async def test_cannot_pause_paused_session(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_cannot_pause_paused_session(self, verification_service, temp_canvas_file):
         """Pausing an already paused session raises ValueError."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         await verification_service.pause_session(session["session_id"])
 
         with pytest.raises(ValueError, match="Cannot pause"):
             await verification_service.pause_session(session["session_id"])
 
     @pytest.mark.asyncio
-    async def test_cannot_resume_in_progress_session(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_cannot_resume_in_progress_session(self, verification_service, temp_canvas_file):
         """Resuming a non-paused session raises ValueError."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         with pytest.raises(ValueError, match="Cannot resume"):
             await verification_service.resume_session(session["session_id"])
 
@@ -235,9 +213,7 @@ class TestProgressPersistence:
     @pytest.mark.asyncio
     async def test_progress_after_start(self, verification_service, temp_canvas_file):
         """Progress is available immediately after session start."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         progress = await verification_service.get_progress(session["session_id"])
         assert progress["total_concepts"] >= 1
         assert progress["completed_concepts"] == 0
@@ -246,9 +222,7 @@ class TestProgressPersistence:
     @pytest.mark.asyncio
     async def test_progress_after_answer(self, verification_service, temp_canvas_file):
         """Progress updates after answering a question."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         result = await verification_service.process_answer(
             session["session_id"],
             "这是一个详细的回答，包含对概念的深入理解和分析。" * 3,
@@ -257,13 +231,9 @@ class TestProgressPersistence:
         assert result["progress"]["completed_concepts"] >= 1
 
     @pytest.mark.asyncio
-    async def test_progress_survives_pause_resume(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_progress_survives_pause_resume(self, verification_service, temp_canvas_file):
         """Progress data survives pause/resume cycle."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         sid = session["session_id"]
 
         # Answer first question
@@ -283,12 +253,8 @@ class TestProgressPersistence:
     @pytest.mark.asyncio
     async def test_session_id_is_unique(self, verification_service, temp_canvas_file):
         """Each session gets a unique ID."""
-        s1 = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
-        s2 = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        s1 = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
+        s2 = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         assert s1["session_id"] != s2["session_id"]
 
 
@@ -304,13 +270,9 @@ class TestTimestampTracking:
     """
 
     @pytest.mark.asyncio
-    async def test_pause_records_timestamp(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_pause_records_timestamp(self, verification_service, temp_canvas_file):
         """Pausing records paused_at timestamp."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         sid = session["session_id"]
         await verification_service.pause_session(sid)
 
@@ -320,13 +282,9 @@ class TestTimestampTracking:
         assert isinstance(progress.paused_at, datetime)
 
     @pytest.mark.asyncio
-    async def test_resume_clears_paused_at(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_resume_clears_paused_at(self, verification_service, temp_canvas_file):
         """Resuming clears paused_at timestamp."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         sid = session["session_id"]
         await verification_service.pause_session(sid)
         await verification_service.resume_session(sid)
@@ -335,13 +293,9 @@ class TestTimestampTracking:
         assert progress.paused_at is None
 
     @pytest.mark.asyncio
-    async def test_resume_accumulates_pause_duration(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_resume_accumulates_pause_duration(self, verification_service, temp_canvas_file):
         """Resume accumulates pause duration."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         sid = session["session_id"]
 
         # Set a past paused_at to simulate time passing
@@ -370,36 +324,22 @@ class TestInMemoryStorage:
     """
 
     @pytest.mark.asyncio
-    async def test_session_stored_in_memory(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_session_stored_in_memory(self, verification_service, temp_canvas_file):
         """Session data stored in _sessions dict."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         assert session["session_id"] in verification_service._sessions
 
     @pytest.mark.asyncio
-    async def test_progress_stored_in_memory(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_progress_stored_in_memory(self, verification_service, temp_canvas_file):
         """Progress data stored in _progress dict."""
-        session = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         assert session["session_id"] in verification_service._progress
 
     @pytest.mark.asyncio
-    async def test_multiple_sessions_isolated(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_multiple_sessions_isolated(self, verification_service, temp_canvas_file):
         """Multiple sessions have isolated state."""
-        s1 = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
-        s2 = await verification_service.start_session(
-            canvas_name="test", canvas_path=temp_canvas_file
-        )
+        s1 = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
+        s2 = await verification_service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
         # Pause s1, s2 should remain in_progress
         await verification_service.pause_session(s1["session_id"])
 

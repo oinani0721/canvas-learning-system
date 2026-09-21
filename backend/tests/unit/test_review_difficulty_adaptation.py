@@ -66,9 +66,7 @@ class TestGetDifficultyEnhancedQuestionText:
             _get_difficulty_enhanced_question_text,
         )
 
-        return _get_difficulty_enhanced_question_text(
-            original_text, node_color, node_id, difficulty_map
-        )
+        return _get_difficulty_enhanced_question_text(original_text, node_color, node_id, difficulty_map)
 
     def test_easy_level_returns_breakthrough_question(self):
         diff = _DifficultyResult(
@@ -109,9 +107,7 @@ class TestGetDifficultyEnhancedQuestionText:
             average_score=60.0,
             sample_size=3,
             question_type="verification",
-            forgetting_status=_ForgettingStatus(
-                needs_review=True, decay_percentage=30.0
-            ),
+            forgetting_status=_ForgettingStatus(needs_review=True, decay_percentage=30.0),
         )
         result = self._call("统计", "3", "node4", {"node4": diff})
         assert "遗忘趋势" in result
@@ -122,9 +118,7 @@ class TestGetDifficultyEnhancedQuestionText:
             average_score=85.0,
             sample_size=5,
             question_type="breakthrough",
-            forgetting_status=_ForgettingStatus(
-                needs_review=False, decay_percentage=5.0
-            ),
+            forgetting_status=_ForgettingStatus(needs_review=False, decay_percentage=5.0),
         )
         result = self._call("集合论", "4", "node5", {"node5": diff})
         assert "遗忘趋势" not in result
@@ -186,9 +180,7 @@ class TestGetDifficultyData:
         ):
             from app.api.v1.endpoints.review import _get_difficulty_data
 
-            result = await _get_difficulty_data(
-                [{"id": "n1", "text": "test"}], "canvas"
-            )
+            result = await _get_difficulty_data([{"id": "n1", "text": "test"}], "canvas")
             assert result is None
 
     @pytest.mark.asyncio
@@ -207,9 +199,7 @@ class TestGetDifficultyData:
         ):
             from app.api.v1.endpoints.review import _get_difficulty_data
 
-            result = await _get_difficulty_data(
-                [{"id": "n1", "text": "test"}], "canvas"
-            )
+            result = await _get_difficulty_data([{"id": "n1", "text": "test"}], "canvas")
             assert result is None
 
     @pytest.mark.asyncio
@@ -284,14 +274,7 @@ class TestSkipMasteredFiltering:
         }
 
         # Simulate the filtering logic from review.py Step 3.6
-        filtered = [
-            n
-            for n in nodes
-            if not (
-                n.get("id") in difficulty_map
-                and difficulty_map[n.get("id")].is_mastered
-            )
-        ]
+        filtered = [n for n in nodes if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)]
 
         assert len(filtered) == 1
         assert filtered[0]["id"] == "n2"
@@ -320,14 +303,7 @@ class TestSkipMasteredFiltering:
             ),
         }
 
-        filtered = [
-            n
-            for n in nodes
-            if not (
-                n.get("id") in difficulty_map
-                and difficulty_map[n.get("id")].is_mastered
-            )
-        ]
+        filtered = [n for n in nodes if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)]
 
         assert len(filtered) == 2
 
@@ -349,14 +325,7 @@ class TestSkipMasteredFiltering:
             ),
         }
 
-        filtered = [
-            n
-            for n in nodes
-            if not (
-                n.get("id") in difficulty_map
-                and difficulty_map[n.get("id")].is_mastered
-            )
-        ]
+        filtered = [n for n in nodes if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)]
 
         assert len(filtered) == 1
         assert filtered[0]["id"] == "n2"

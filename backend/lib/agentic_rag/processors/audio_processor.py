@@ -208,10 +208,7 @@ class AudioProcessor:
             AudioCorruptError: If audio file cannot be read
         """
         if not PYDUB_AVAILABLE:
-            raise AudioCorruptError(
-                "pydub is required for metadata extraction. "
-                "Install with: pip install pydub"
-            )
+            raise AudioCorruptError("pydub is required for metadata extraction. Install with: pip install pydub")
 
         try:
             # ✅ Verified from pydub documentation: AudioSegment.from_file()
@@ -228,9 +225,7 @@ class AudioProcessor:
             )
 
         except Exception as e:
-            raise AudioCorruptError(
-                f"Failed to read audio file: {audio_path}. Error: {e}"
-            )
+            raise AudioCorruptError(f"Failed to read audio file: {audio_path}. Error: {e}")
 
     async def process(
         self,
@@ -275,9 +270,7 @@ class AudioProcessor:
         if not self.validate_size(audio_path):
             max_mb = self.max_size_bytes / (1024 * 1024)
             actual_mb = audio_path.stat().st_size / (1024 * 1024)
-            raise AudioSizeError(
-                f"Audio file size ({actual_mb:.1f}MB) exceeds limit of {max_mb:.1f}MB"
-            )
+            raise AudioSizeError(f"Audio file size ({actual_mb:.1f}MB) exceeds limit of {max_mb:.1f}MB")
 
         # Extract metadata (AC 35.6.1)
         metadata = self._extract_metadata(audio_path)
@@ -315,9 +308,7 @@ class AudioProcessor:
         )
 
         logger.info(
-            f"Processed audio: {audio_path.name}, "
-            f"duration={metadata.duration:.2f}s, "
-            f"size={metadata.file_size} bytes"
+            f"Processed audio: {audio_path.name}, duration={metadata.duration:.2f}s, size={metadata.file_size} bytes"
         )
 
         return content
@@ -379,9 +370,7 @@ class AudioProcessor:
 
             # Create figure
             fig, ax = plt.subplots(figsize=(size[0] / 50, size[1] / 50), dpi=50)
-            ax.fill_between(
-                range(len(samples)), samples, -samples, color="#4A90D9", alpha=0.7
-            )
+            ax.fill_between(range(len(samples)), samples, -samples, color="#4A90D9", alpha=0.7)
             ax.set_xlim(0, len(samples))
             ax.set_ylim(-1.1, 1.1)
             ax.axis("off")
@@ -404,8 +393,7 @@ class AudioProcessor:
 
         except ImportError:
             logger.warning(
-                "matplotlib and numpy required for waveform generation. "
-                "Install with: pip install matplotlib numpy"
+                "matplotlib and numpy required for waveform generation. Install with: pip install matplotlib numpy"
             )
             return None
         except Exception as e:
@@ -475,8 +463,7 @@ class AudioProcessor:
 
         except ImportError:
             logger.warning(
-                "google-generativeai required for transcription. "
-                "Install with: pip install google-generativeai"
+                "google-generativeai required for transcription. Install with: pip install google-generativeai"
             )
             return None
         except Exception as e:

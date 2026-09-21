@@ -63,12 +63,8 @@ class OperationResponse(BaseModel):
     canvas_path: str = Field(..., description="Canvas文件路径")
     timestamp: datetime = Field(..., description="操作时间戳 (UTC)")
     user_id: str = Field(..., description="执行操作的用户ID")
-    data: OperationDataResponse = Field(
-        default_factory=OperationDataResponse, description="操作数据"
-    )
-    metadata: OperationMetadataResponse = Field(
-        default_factory=OperationMetadataResponse, description="操作元数据"
-    )
+    data: OperationDataResponse = Field(default_factory=OperationDataResponse, description="操作数据")
+    metadata: OperationMetadataResponse = Field(default_factory=OperationMetadataResponse, description="操作元数据")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -104,9 +100,7 @@ class OperationHistoryResponse(BaseModel):
     total: int = Field(..., description="总操作数")
     limit: int = Field(..., description="返回的最大记录数")
     offset: int = Field(..., description="跳过的记录数")
-    operations: List[OperationResponse] = Field(
-        default_factory=list, description="操作历史列表 (按时间倒序)"
-    )
+    operations: List[OperationResponse] = Field(default_factory=list, description="操作历史列表 (按时间倒序)")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -219,12 +213,8 @@ class RollbackRequest(BaseModel):
 
     canvas_path: str = Field(..., description="Canvas文件路径")
     rollback_type: RollbackTypeEnum = Field(..., description="回滚类型")
-    target_id: Optional[str] = Field(
-        default=None, description="目标ID (operation_id 或 snapshot_id)"
-    )
-    target_time: Optional[datetime] = Field(
-        default=None, description="目标时间点 (仅 timepoint 类型)"
-    )
+    target_id: Optional[str] = Field(default=None, description="目标ID (operation_id 或 snapshot_id)")
+    target_time: Optional[datetime] = Field(default=None, description="目标时间点 (仅 timepoint 类型)")
     create_backup: bool = Field(default=True, description="是否在回滚前创建备份快照")
     preserve_graph: bool = Field(default=False, description="是否跳过知识图谱同步")
 
@@ -249,9 +239,7 @@ class RollbackResult(BaseModel):
     backup_snapshot_id: Optional[str] = Field(default=None, description="备份快照ID")
     restored_operation_id: Optional[str] = Field(default=None, description="恢复到的操作ID")
     restored_snapshot_id: Optional[str] = Field(default=None, description="恢复到的快照ID")
-    graph_sync_status: GraphSyncStatusEnum = Field(
-        default=GraphSyncStatusEnum.SKIPPED, description="图谱同步状态"
-    )
+    graph_sync_status: GraphSyncStatusEnum = Field(default=GraphSyncStatusEnum.SKIPPED, description="图谱同步状态")
     message: str = Field(default="", description="结果消息")
     error: Optional[str] = Field(default=None, description="错误信息")
 
@@ -298,6 +286,4 @@ class DiffResponse(BaseModel):
         default_factory=lambda: {"added": [], "removed": [], "modified": []},
         description="节点差异",
     )
-    edges_diff: Dict[str, Any] = Field(
-        default_factory=lambda: {"added": [], "removed": []}, description="边差异"
-    )
+    edges_diff: Dict[str, Any] = Field(default_factory=lambda: {"added": [], "removed": []}, description="边差异")

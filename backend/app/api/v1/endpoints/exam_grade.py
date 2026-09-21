@@ -61,9 +61,7 @@ class ExamGradeResponse(BaseModel):
 
     score: int = Field(..., ge=0, le=5, description="0-5 整数分")
     feedback: str = Field(..., description="60-100 字导师式反馈")
-    mastery_delta: int = Field(
-        ..., description="掌握度变化 (+1 / 0 / -1) — MVP-α 简化版"
-    )
+    mastery_delta: int = Field(..., description="掌握度变化 (+1 / 0 / -1) — MVP-α 简化版")
     graded_at: str = Field(..., description="评分时间 ISO 8601")
 
 
@@ -84,18 +82,11 @@ async def exam_grade(req: ExamGradeRequest) -> ExamGradeResponse:
         # MVP-α 用 in-memory store, 重启或 200 条上限淘汰后会 404
         raise HTTPException(
             status_code=404,
-            detail=(
-                f"question_id {req.question_id} not found "
-                "(可能 backend 重启或题目已被 ring buffer 淘汰)"
-            ),
+            detail=(f"question_id {req.question_id} not found (可能 backend 重启或题目已被 ring buffer 淘汰)"),
         )
 
     question_text = record["question_text"]
-    user_msg = (
-        f"## 题目\n{question_text}\n\n"
-        f"## 学生回答\n{req.user_answer}\n\n"
-        "## 你的评分 (JSON)"
-    )
+    user_msg = f"## 题目\n{question_text}\n\n## 学生回答\n{req.user_answer}\n\n## 你的评分 (JSON)"
 
     try:
         from litellm import acompletion
@@ -132,9 +123,7 @@ async def exam_grade(req: ExamGradeRequest) -> ExamGradeResponse:
             detail=f"grading service returned non-JSON response: {e}",
         ) from e
     except Exception as e:
-        logger.error(
-            f"[MVP-α-4] grade LLM call failed for qid={req.question_id[:8]}: {e}"
-        )
+        logger.error(f"[MVP-α-4] grade LLM call failed for qid={req.question_id[:8]}: {e}")
         raise HTTPException(
             status_code=502,
             detail=f"grading service unavailable: {e}",

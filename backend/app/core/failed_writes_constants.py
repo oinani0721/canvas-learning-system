@@ -18,9 +18,7 @@ from app.core.failure_counters import bound_from_env, count_lines, rotate_if_ove
 logger = logging.getLogger(__name__)
 
 # Fallback JSONL file for writes that failed after all retries.
-FAILED_WRITES_FILE: Path = (
-    Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
-)
+FAILED_WRITES_FILE: Path = Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
 
 # Lock shared across writer (agent_service) and reader (memory_service)
 # so that recovery/read never races with concurrent append writes.

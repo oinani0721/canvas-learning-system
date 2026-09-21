@@ -74,9 +74,7 @@ class TestSnapshotListEndpoint:
     [Source: docs/stories/18.2.story.md - AC 6]
     """
 
-    def test_list_snapshots_returns_200(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_list_snapshots_returns_200(self, client: TestClient, mock_snapshot_manager):
         """Test that list snapshots endpoint returns HTTP 200 OK."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -85,9 +83,7 @@ class TestSnapshotListEndpoint:
             response = client.get("/api/v1/rollback/snapshots/test.canvas")
             assert response.status_code == 200
 
-    def test_list_snapshots_response_structure(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_list_snapshots_response_structure(self, client: TestClient, mock_snapshot_manager):
         """
         Test that snapshot list response has correct structure.
 
@@ -105,38 +101,26 @@ class TestSnapshotListEndpoint:
             assert "total" in data
             assert "snapshots" in data
 
-    def test_list_snapshots_pagination_params(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_list_snapshots_pagination_params(self, client: TestClient, mock_snapshot_manager):
         """Test that pagination parameters are passed correctly."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_manager,
         ):
-            response = client.get(
-                "/api/v1/rollback/snapshots/test.canvas?limit=10&offset=5"
-            )
+            response = client.get("/api/v1/rollback/snapshots/test.canvas?limit=10&offset=5")
             assert response.status_code == 200
-            mock_snapshot_manager.list_snapshots.assert_called_with(
-                "test.canvas", limit=10, offset=5
-            )
+            mock_snapshot_manager.list_snapshots.assert_called_with("test.canvas", limit=10, offset=5)
 
-    def test_list_snapshots_default_pagination(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_list_snapshots_default_pagination(self, client: TestClient, mock_snapshot_manager):
         """Test default pagination values (limit=20, offset=0)."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_manager,
         ):
             _response = client.get("/api/v1/rollback/snapshots/test.canvas")  # noqa: F841
-            mock_snapshot_manager.list_snapshots.assert_called_with(
-                "test.canvas", limit=20, offset=0
-            )
+            mock_snapshot_manager.list_snapshots.assert_called_with("test.canvas", limit=20, offset=0)
 
-    def test_list_snapshots_snapshot_structure(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_list_snapshots_snapshot_structure(self, client: TestClient, mock_snapshot_manager):
         """Test that each snapshot in the list has correct structure."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -162,9 +146,7 @@ class TestCreateSnapshotEndpoint:
     [Source: docs/stories/18.2.story.md - AC 7]
     """
 
-    def test_create_snapshot_returns_201(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_create_snapshot_returns_201(self, client: TestClient, mock_snapshot_manager):
         """Test that create snapshot endpoint returns HTTP 201 Created."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -176,9 +158,7 @@ class TestCreateSnapshotEndpoint:
             )
             assert response.status_code == 201
 
-    def test_create_snapshot_response_structure(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_create_snapshot_response_structure(self, client: TestClient, mock_snapshot_manager):
         """Test that created snapshot response has correct structure."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -202,9 +182,7 @@ class TestCreateSnapshotEndpoint:
             assert data["type"] == "manual"
             assert "metadata" in data
 
-    def test_create_snapshot_with_description(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_create_snapshot_with_description(self, client: TestClient, mock_snapshot_manager):
         """Test creating snapshot with description."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -219,9 +197,7 @@ class TestCreateSnapshotEndpoint:
             )
             assert response.status_code == 201
 
-    def test_create_snapshot_missing_canvas_path(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_create_snapshot_missing_canvas_path(self, client: TestClient, mock_snapshot_manager):
         """Test that missing canvas_path returns 422 validation error."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -243,22 +219,16 @@ class TestGetSnapshotEndpoint:
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_manager,
         ):
-            response = client.get(
-                "/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas"
-            )
+            response = client.get("/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas")
             assert response.status_code == 200
 
-    def test_get_snapshot_response_structure(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_get_snapshot_response_structure(self, client: TestClient, mock_snapshot_manager):
         """Test that single snapshot response has correct structure."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_manager,
         ):
-            response = client.get(
-                "/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas"
-            )
+            response = client.get("/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas")
             data = response.json()
 
             # Verify all required fields
@@ -268,9 +238,7 @@ class TestGetSnapshotEndpoint:
             assert "type" in data
             assert "metadata" in data
 
-    def test_get_snapshot_not_found_returns_404(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_get_snapshot_not_found_returns_404(self, client: TestClient, mock_snapshot_manager):
         """Test that non-existent snapshot returns 404."""
         mock_snapshot_manager.get_snapshot = MagicMock(return_value=None)
         # Need to make it async
@@ -282,16 +250,12 @@ class TestGetSnapshotEndpoint:
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_manager,
         ):
-            response = client.get(
-                "/api/v1/rollback/snapshot/nonexistent?canvas_path=test.canvas"
-            )
+            response = client.get("/api/v1/rollback/snapshot/nonexistent?canvas_path=test.canvas")
             assert response.status_code == 404
             data = response.json()
             assert "detail" in data
 
-    def test_get_snapshot_requires_canvas_path(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_get_snapshot_requires_canvas_path(self, client: TestClient, mock_snapshot_manager):
         """Test that canvas_path query parameter is required."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
@@ -300,17 +264,13 @@ class TestGetSnapshotEndpoint:
             response = client.get("/api/v1/rollback/snapshot/snap-001")
             assert response.status_code == 422  # Missing required query param
 
-    def test_get_snapshot_metadata_structure(
-        self, client: TestClient, mock_snapshot_manager
-    ):
+    def test_get_snapshot_metadata_structure(self, client: TestClient, mock_snapshot_manager):
         """Test that snapshot metadata has correct structure."""
         with patch(
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_manager,
         ):
-            response = client.get(
-                "/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas"
-            )
+            response = client.get("/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas")
             data = response.json()
 
             metadata = data["metadata"]
@@ -333,9 +293,7 @@ class TestSnapshotEndpointsRegistration:
             paths = openapi.get("paths", {})
 
             # Check list snapshots endpoint
-            assert any("rollback/snapshots" in path for path in paths.keys()), (
-                "List snapshots endpoint not found"
-            )
+            assert any("rollback/snapshots" in path for path in paths.keys()), "List snapshots endpoint not found"
 
             # Check create snapshot endpoint
             assert any(path.endswith("/rollback/snapshot") for path in paths.keys()), (
@@ -353,9 +311,7 @@ class TestSnapshotEndpointsRegistration:
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_manager,
         ):
-            response = client.get(
-                "/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas"
-            )
+            response = client.get("/api/v1/rollback/snapshot/snap-001?canvas_path=test.canvas")
             data = response.json()
 
             valid_types = ["auto", "manual", "checkpoint"]

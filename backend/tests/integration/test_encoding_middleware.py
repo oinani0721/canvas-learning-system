@@ -77,9 +77,7 @@ class TestEncodingValidationMiddleware:
         )
 
         # Should return 400, not 500
-        assert response.status_code == 400, (
-            f"Expected 400 for invalid UTF-8, got {response.status_code}"
-        )
+        assert response.status_code == 400, f"Expected 400 for invalid UTF-8, got {response.status_code}"
 
         data = response.json()
         # Verify response structure matches error-response.schema.json
@@ -112,9 +110,7 @@ class TestEncodingValidationMiddleware:
 
         # AC3: error_type must be ENCODING_ERROR
         assert "error_type" in data, "Response must include 'error_type'"
-        assert data["error_type"] == "ENCODING_ERROR", (
-            f"Expected error_type=ENCODING_ERROR, got {data['error_type']}"
-        )
+        assert data["error_type"] == "ENCODING_ERROR", f"Expected error_type=ENCODING_ERROR, got {data['error_type']}"
 
         # Verify uses 'details' (plural) not 'detail' (singular)
         # [Source: specs/data/error-response.schema.json - uses 'details' plural]
@@ -146,9 +142,7 @@ class TestEncodingValidationMiddleware:
         # Other errors (404, 422, 500) are OK - they mean encoding passed
         if response.status_code == 400:
             data = response.json()
-            assert data.get("error_type") != "ENCODING_ERROR", (
-                "Valid UTF-8 should not trigger ENCODING_ERROR"
-            )
+            assert data.get("error_type") != "ENCODING_ERROR", "Valid UTF-8 should not trigger ENCODING_ERROR"
 
     @pytest.mark.asyncio
     async def test_get_request_skips_validation(self, client: AsyncClient):
@@ -163,8 +157,7 @@ class TestEncodingValidationMiddleware:
         # GET requests should work normally
         # Health endpoint should return 200
         assert response.status_code == 200, (
-            f"GET request should not be affected by encoding middleware, "
-            f"got {response.status_code}"
+            f"GET request should not be affected by encoding middleware, got {response.status_code}"
         )
 
     @pytest.mark.asyncio
@@ -185,10 +178,9 @@ class TestEncodingValidationMiddleware:
 
         # Should NOT return 400 encoding error
         # (may return 405 Method Not Allowed or other errors)
-        assert (
-            response.status_code != 400
-            or response.json().get("error_type") != "ENCODING_ERROR"
-        ), "Non-JSON content type should skip encoding validation"
+        assert response.status_code != 400 or response.json().get("error_type") != "ENCODING_ERROR", (
+            "Non-JSON content type should skip encoding validation"
+        )
 
     @pytest.mark.asyncio
     async def test_mixed_valid_invalid_utf8_in_json(self, client: AsyncClient):
@@ -226,10 +218,9 @@ class TestEncodingValidationMiddleware:
 
         # Should NOT be 400 encoding error (empty is valid UTF-8)
         # May be 422 validation error (missing required fields) or other
-        assert (
-            response.status_code != 400
-            or response.json().get("error_type") != "ENCODING_ERROR"
-        ), "Empty JSON body should pass encoding validation"
+        assert response.status_code != 400 or response.json().get("error_type") != "ENCODING_ERROR", (
+            "Empty JSON body should pass encoding validation"
+        )
 
     @pytest.mark.asyncio
     async def test_unicode_emoji_passes(self, client: AsyncClient):
@@ -246,7 +237,6 @@ class TestEncodingValidationMiddleware:
 
         # Should NOT be 400 encoding error
         # May fail for other reasons (404 canvas not found, etc.)
-        assert (
-            response.status_code != 400
-            or response.json().get("error_type") != "ENCODING_ERROR"
-        ), "Valid Unicode with emoji should pass encoding validation"
+        assert response.status_code != 400 or response.json().get("error_type") != "ENCODING_ERROR", (
+            "Valid Unicode with emoji should pass encoding validation"
+        )

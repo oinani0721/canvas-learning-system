@@ -69,24 +69,16 @@ class TestAC2FailureHandling:
             mock_settings.LANCEDB_INDEX_TIMEOUT = 5.0
 
             svc = LanceDBIndexService()
-            svc._do_index_with_retry = AsyncMock(
-                side_effect=Exception("connection refused")
-            )
+            svc._do_index_with_retry = AsyncMock(side_effect=Exception("connection refused"))
             # Mock _persist_pending to avoid file I/O
             svc._persist_pending = MagicMock()
 
             with caplog.at_level(logging.WARNING):
                 await svc._debounced_index("my_canvas", "/tmp/canvas")
 
-            warning_messages = [
-                r.message for r in caplog.records if r.levelno >= logging.WARNING
-            ]
-            assert any(
-                "LanceDB index update failed" in msg and "my_canvas" in msg
-                for msg in warning_messages
-            ), (
-                f"Expected WARNING with 'LanceDB index update failed for node my_canvas'. "
-                f"Got: {warning_messages}"
+            warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+            assert any("LanceDB index update failed" in msg and "my_canvas" in msg for msg in warning_messages), (
+                f"Expected WARNING with 'LanceDB index update failed for node my_canvas'. Got: {warning_messages}"
             )
 
     @pytest.mark.asyncio
@@ -109,9 +101,7 @@ class TestAC2FailureHandling:
 
                 svc._persist_pending("test_canvas", "connection error")
 
-                assert svc._pending_file.exists(), (
-                    "Pending JSONL file should be created"
-                )
+                assert svc._pending_file.exists(), "Pending JSONL file should be created"
 
                 content = svc._pending_file.read_text(encoding="utf-8").strip()
                 entry = json.loads(content)

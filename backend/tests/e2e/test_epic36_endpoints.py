@@ -79,9 +79,7 @@ def canvas_dir_with_edges(tmp_path: Path) -> Path:
         ],
     }
     canvas_file = canvas_dir / "test_sync.canvas"
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
     return canvas_dir
 
 
@@ -189,9 +187,7 @@ class TestSyncEdgesEndpointHTTP:
         data = response.json()
         assert data["total_edges"] == 2
 
-    def test_sync_edges_nonexistent_canvas_error(
-        self, e2e_client_with_canvas: TestClient
-    ):
+    def test_sync_edges_nonexistent_canvas_error(self, e2e_client_with_canvas: TestClient):
         """
         Given: No canvas named "nonexistent"
         When:  POST /api/v1/canvas/nonexistent/sync-edges
@@ -201,9 +197,7 @@ class TestSyncEdgesEndpointHTTP:
         # CanvasNotFoundException may not have a 404 handler — accept 404 or 500
         assert response.status_code in (404, 500)
 
-    def test_sync_edges_graceful_without_neo4j(
-        self, e2e_client_with_canvas: TestClient
-    ):
+    def test_sync_edges_graceful_without_neo4j(self, e2e_client_with_canvas: TestClient):
         """
         Given: Neo4j is not running (memory_client is None in test override)
         When:  POST /api/v1/canvas/test_sync/sync-edges
@@ -243,9 +237,7 @@ class TestHealthStorageEpic36:
     Story 36.10: Storage health must include edge_sync and dual_write failure counts.
     """
 
-    def test_health_storage_includes_latency_metrics(
-        self, e2e_client_health_only: TestClient
-    ):
+    def test_health_storage_includes_latency_metrics(self, e2e_client_health_only: TestClient):
         """
         Given: System is running
         When:  GET /api/v1/health/storage
@@ -256,9 +248,7 @@ class TestHealthStorageEpic36:
         data = response.json()
         assert "latency_metrics" in data
 
-    def test_health_storage_cached_field_present(
-        self, e2e_client_health_only: TestClient
-    ):
+    def test_health_storage_cached_field_present(self, e2e_client_health_only: TestClient):
         """
         Given: System is running
         When:  GET /api/v1/health/storage

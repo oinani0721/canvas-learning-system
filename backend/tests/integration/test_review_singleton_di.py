@@ -144,17 +144,13 @@ class TestReviewSingletonDICompleteness:
         mock_canvas = MagicMock()
         mock_task_mgr = MagicMock()
 
-        with patch(
-            "app.services.review_service.create_fsrs_manager", return_value=None
-        ):
+        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
             svc = ReviewService(
                 canvas_service=mock_canvas,
                 task_manager=mock_task_mgr,
             )
 
-        assert not hasattr(svc, "_auto_persist_failures"), (
-            "幻影 Graphiti 镜像的失败计数器已随 CARD-C4 下线, 不应复活"
-        )
+        assert not hasattr(svc, "_auto_persist_failures"), "幻影 Graphiti 镜像的失败计数器已随 CARD-C4 下线, 不应复活"
 
     def test_review_service_dep_not_used_in_review_endpoints(self):
         """AC-4: ReviewServiceDep should not appear in review.py endpoint signatures."""

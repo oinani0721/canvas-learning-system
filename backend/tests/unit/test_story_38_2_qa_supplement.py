@@ -129,9 +129,7 @@ class TestEpisodeRecoveryDataIntegrity:
     """Verify recovered episodes have correct structure and handle edge cases."""
 
     @pytest.mark.asyncio
-    async def test_recovered_episode_has_all_required_fields(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_recovered_episode_has_all_required_fields(self, memory_service, mock_neo4j_client):
         """Every recovered episode must have all required fields."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             return_value=[
@@ -172,9 +170,7 @@ class TestEpisodeRecoveryDataIntegrity:
         assert ep["review_count"] == 3
 
     @pytest.mark.asyncio
-    async def test_recovered_episode_handles_none_score(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_recovered_episode_handles_none_score(self, memory_service, mock_neo4j_client):
         """score=None should not crash recovery."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             return_value=[
@@ -199,9 +195,7 @@ class TestEpisodeRecoveryDataIntegrity:
         assert ep["review_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_recovered_episode_handles_none_concept_id(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_recovered_episode_handles_none_concept_id(self, memory_service, mock_neo4j_client):
         """concept_id=None: `or 'unknown'` fallback produces correct episode_id."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             return_value=[
@@ -223,9 +217,7 @@ class TestEpisodeRecoveryDataIntegrity:
         assert ep["episode_id"] == "recovered-0-u1-unknown"
 
     @pytest.mark.asyncio
-    async def test_recovered_episode_none_timestamp_becomes_empty(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_recovered_episode_none_timestamp_becomes_empty(self, memory_service, mock_neo4j_client):
         """timestamp=None: `or ""` produces empty string (not 'None')."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             return_value=[
@@ -254,9 +246,7 @@ class TestInitializeIdempotency:
     """Verify initialize() is idempotent — no double recovery."""
 
     @pytest.mark.asyncio
-    async def test_initialize_called_twice_no_double_recovery(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_initialize_called_twice_no_double_recovery(self, memory_service, mock_neo4j_client):
         """Calling initialize() twice should not duplicate episodes."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             return_value=[
@@ -382,22 +372,16 @@ class TestCodeReviewFixes:
     """Tests added during code review to verify H1/H2/M1/M2 fixes."""
 
     @pytest.mark.asyncio
-    async def test_recovery_limit_1000_passed_to_neo4j(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_recovery_limit_1000_passed_to_neo4j(self, memory_service, mock_neo4j_client):
         """L2 fix: AC-2 requires limit=1000 — verify it's passed correctly."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[])
 
         await memory_service.initialize()
 
-        mock_neo4j_client.get_all_recent_episodes.assert_called_once_with(
-            limit=1000, group_id=_recovery_scope()
-        )
+        mock_neo4j_client.get_all_recent_episodes.assert_called_once_with(limit=1000, group_id=_recovery_scope())
 
     @pytest.mark.asyncio
-    async def test_episode_id_uniqueness_across_users(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_episode_id_uniqueness_across_users(self, memory_service, mock_neo4j_client):
         """H1 fix: Different users learning same concept get unique episode_ids."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             return_value=[
@@ -424,9 +408,7 @@ class TestCodeReviewFixes:
         assert len(set(ids)) == 2, f"episode_ids not unique: {ids}"
 
     @pytest.mark.asyncio
-    async def test_lazy_recovery_skips_exact_duplicates(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_lazy_recovery_skips_exact_duplicates(self, memory_service, mock_neo4j_client):
         """Lazy recovery deduplicates on (user_id, concept, timestamp) — exact matches only."""
         # Startup fails
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
@@ -470,15 +452,11 @@ class TestCodeReviewFixes:
 
         # Should have 2: original algebra + new calculus (exact dup skipped)
         concepts = [e.get("concept") for e in memory_service._episodes]
-        assert concepts.count("algebra") == 1, (
-            f"Duplicate algebra! episodes: {concepts}"
-        )
+        assert concepts.count("algebra") == 1, f"Duplicate algebra! episodes: {concepts}"
         assert "calculus" in concepts
 
     @pytest.mark.asyncio
-    async def test_lazy_recovery_keeps_different_timestamps(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_lazy_recovery_keeps_different_timestamps(self, memory_service, mock_neo4j_client):
         """Same user+concept but different timestamps are kept (not deduped)."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             side_effect=ConnectionError("Connection refused")  # CARD-G4-1b
@@ -512,17 +490,11 @@ class TestCodeReviewFixes:
         await memory_service.get_learning_history(user_id="u1")
 
         # Both entries should be kept (different timestamps)
-        algebra_entries = [
-            e for e in memory_service._episodes if e.get("concept") == "algebra"
-        ]
-        assert len(algebra_entries) == 2, (
-            f"Expected 2 algebra entries, got {len(algebra_entries)}"
-        )
+        algebra_entries = [e for e in memory_service._episodes if e.get("concept") == "algebra"]
+        assert len(algebra_entries) == 2, f"Expected 2 algebra entries, got {len(algebra_entries)}"
 
     @pytest.mark.asyncio
-    async def test_episode_cache_capped_at_2000(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_episode_cache_capped_at_2000(self, memory_service, mock_neo4j_client):
         """M2 fix: self._episodes never exceeds 2000 entries."""
         # Pre-fill with 1500 episodes
         for i in range(1500):
@@ -556,9 +528,7 @@ class TestConcurrentRecoveryProtection:
     """H2 fix: Verify asyncio.Lock prevents concurrent recovery."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_lazy_recovery_runs_once(
-        self, mock_neo4j_client, mock_learning_memory_client
-    ):
+    async def test_concurrent_lazy_recovery_runs_once(self, mock_neo4j_client, mock_learning_memory_client):
         """Two concurrent get_learning_history() calls should only trigger one recovery."""
         import asyncio
 

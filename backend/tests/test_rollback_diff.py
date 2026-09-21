@@ -58,9 +58,7 @@ class TestDiffEndpoint:
     [Source: docs/stories/18.5.story.md - AC 1]
     """
 
-    def test_get_diff_returns_200(
-        self, client: TestClient, mock_snapshot_with_data, tmp_path
-    ):
+    def test_get_diff_returns_200(self, client: TestClient, mock_snapshot_with_data, tmp_path):
         """Test that diff endpoint returns HTTP 200 OK."""
         # Create a temporary canvas file
         canvas_file = tmp_path / "test.canvas"
@@ -76,14 +74,10 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}")
             assert response.status_code == 200
 
-    def test_get_diff_response_structure(
-        self, client: TestClient, mock_snapshot_with_data, tmp_path
-    ):
+    def test_get_diff_response_structure(self, client: TestClient, mock_snapshot_with_data, tmp_path):
         """
         Test that diff response has correct structure.
 
@@ -103,9 +97,7 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}")
             data = response.json()
 
             # Verify all required fields
@@ -115,9 +107,7 @@ class TestDiffEndpoint:
             assert "nodes_diff" in data
             assert "edges_diff" in data
 
-    def test_get_diff_nodes_diff_structure(
-        self, client: TestClient, mock_snapshot_with_data, tmp_path
-    ):
+    def test_get_diff_nodes_diff_structure(self, client: TestClient, mock_snapshot_with_data, tmp_path):
         """Test that nodes_diff has added, removed, modified arrays."""
         canvas_file = tmp_path / "test.canvas"
         canvas_file.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
@@ -132,9 +122,7 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}")
             data = response.json()
 
             nodes_diff = data["nodes_diff"]
@@ -142,9 +130,7 @@ class TestDiffEndpoint:
             assert "removed" in nodes_diff
             assert "modified" in nodes_diff
 
-    def test_get_diff_edges_diff_structure(
-        self, client: TestClient, mock_snapshot_with_data, tmp_path
-    ):
+    def test_get_diff_edges_diff_structure(self, client: TestClient, mock_snapshot_with_data, tmp_path):
         """Test that edges_diff has added, removed arrays."""
         canvas_file = tmp_path / "test.canvas"
         canvas_file.write_text('{"nodes": [], "edges": []}', encoding="utf-8")
@@ -159,18 +145,14 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}")
             data = response.json()
 
             edges_diff = data["edges_diff"]
             assert "added" in edges_diff
             assert "removed" in edges_diff
 
-    def test_get_diff_snapshot_not_found(
-        self, client: TestClient, mock_snapshot_with_data
-    ):
+    def test_get_diff_snapshot_not_found(self, client: TestClient, mock_snapshot_with_data):
         """Test that 404 is returned when snapshot is not found."""
         from unittest.mock import AsyncMock
 
@@ -181,9 +163,7 @@ class TestDiffEndpoint:
             "app.api.v1.endpoints.rollback.get_snapshot_manager",
             return_value=mock_snapshot_with_data,
         ):
-            response = client.get(
-                "/api/v1/rollback/diff/nonexistent-snap?canvas_path=test.canvas"
-            )
+            response = client.get("/api/v1/rollback/diff/nonexistent-snap?canvas_path=test.canvas")
             assert response.status_code == 404
 
     def test_get_diff_requires_canvas_path(self, client: TestClient):
@@ -191,9 +171,7 @@ class TestDiffEndpoint:
         response = client.get("/api/v1/rollback/diff/snap-001")
         assert response.status_code == 422  # Missing required query param
 
-    def test_get_diff_detects_removed_nodes(
-        self, client: TestClient, mock_snapshot_with_data, tmp_path
-    ):
+    def test_get_diff_detects_removed_nodes(self, client: TestClient, mock_snapshot_with_data, tmp_path):
         """Test that diff correctly detects removed nodes (in snapshot but not current)."""
         # Current canvas is empty - all snapshot nodes should be "removed"
         canvas_file = tmp_path / "test.canvas"
@@ -209,9 +187,7 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}")
             data = response.json()
 
             # Snapshot had 2 nodes, current has 0 -> 2 removed nodes
@@ -233,8 +209,7 @@ class TestDiffEndpoint:
         # Current canvas has 2 nodes
         canvas_file = tmp_path / "test.canvas"
         canvas_file.write_text(
-            '{"nodes": [{"id": "new-1", "text": "New Node 1"}, '
-            '{"id": "new-2", "text": "New Node 2"}], "edges": []}',
+            '{"nodes": [{"id": "new-1", "text": "New Node 1"}, {"id": "new-2", "text": "New Node 2"}], "edges": []}',
             encoding="utf-8",
         )
 
@@ -248,18 +223,14 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-empty?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-empty?canvas_path={str(canvas_file)}")
             data = response.json()
 
             # Snapshot had 0 nodes, current has 2 -> 2 added nodes
             assert len(data["nodes_diff"]["added"]) == 2
             assert len(data["nodes_diff"]["removed"]) == 0
 
-    def test_get_diff_detects_modified_nodes(
-        self, client: TestClient, mock_snapshot_with_data, tmp_path
-    ):
+    def test_get_diff_detects_modified_nodes(self, client: TestClient, mock_snapshot_with_data, tmp_path):
         """Test that diff correctly detects modified nodes (same id, different content)."""
         # Current canvas has same node ids but different text/color
         canvas_file = tmp_path / "test.canvas"
@@ -281,9 +252,7 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}")
             data = response.json()
 
             # node-1 has different text and color
@@ -295,9 +264,7 @@ class TestDiffEndpoint:
             assert node1_mod is not None
             assert "text" in node1_mod["before"] or "color" in node1_mod["before"]
 
-    def test_get_diff_detects_removed_edges(
-        self, client: TestClient, mock_snapshot_with_data, tmp_path
-    ):
+    def test_get_diff_detects_removed_edges(self, client: TestClient, mock_snapshot_with_data, tmp_path):
         """Test that diff correctly detects removed edges."""
         # Current canvas has no edges
         canvas_file = tmp_path / "test.canvas"
@@ -316,9 +283,7 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-001?canvas_path={str(canvas_file)}")
             data = response.json()
 
             # Snapshot had 1 edge, current has 0 -> 1 removed edge
@@ -356,9 +321,7 @@ class TestDiffEndpoint:
                 tmp_path,
             ),
         ):
-            response = client.get(
-                f"/api/v1/rollback/diff/snap-no-edges?canvas_path={str(canvas_file)}"
-            )
+            response = client.get(f"/api/v1/rollback/diff/snap-no-edges?canvas_path={str(canvas_file)}")
             data = response.json()
 
             # Snapshot had 0 edges, current has 1 -> 1 added edge
@@ -379,9 +342,7 @@ class TestDiffEndpointRegistration:
             paths = openapi.get("paths", {})
 
             # Check diff endpoint exists
-            assert any("/rollback/diff/" in path for path in paths.keys()), (
-                "Diff endpoint not found"
-            )
+            assert any("/rollback/diff/" in path for path in paths.keys()), "Diff endpoint not found"
 
     def test_diff_response_schema_documented(self, client: TestClient):
         """Test that DiffResponse schema is documented in OpenAPI."""

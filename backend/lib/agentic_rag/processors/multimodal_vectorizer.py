@@ -375,17 +375,13 @@ class MultimodalVectorizer:
 
         # Fuse vectors
         if fusion_method == "weighted_average":
-            fused_vector = self._weighted_average_fusion(
-                ocr_vector, desc_vector, self.ocr_weight, self.desc_weight
-            )
+            fused_vector = self._weighted_average_fusion(ocr_vector, desc_vector, self.ocr_weight, self.desc_weight)
         elif fusion_method == "concat":
             # Concatenate and reduce dimension
             fused_vector = self._concat_fusion(ocr_vector, desc_vector)
         else:
             # Default to weighted average
-            fused_vector = self._weighted_average_fusion(
-                ocr_vector, desc_vector, self.ocr_weight, self.desc_weight
-            )
+            fused_vector = self._weighted_average_fusion(ocr_vector, desc_vector, self.ocr_weight, self.desc_weight)
 
         processing_time = int((time.perf_counter() - start_time) * 1000)
 
@@ -518,9 +514,7 @@ class MultimodalVectorizer:
         # Encode all texts in batch
         try:
             loop = asyncio.get_event_loop()
-            if self._is_bge_m3 and not getattr(
-                self, "_use_sentence_transformers", False
-            ):
+            if self._is_bge_m3 and not getattr(self, "_use_sentence_transformers", False):
                 # bge-m3 via FlagEmbedding: encode returns dict with 'dense_vecs' key
                 vectors = await loop.run_in_executor(
                     None,
@@ -553,9 +547,7 @@ class MultimodalVectorizer:
         results = []
         for i, (text, vector) in enumerate(zip(texts, vectors)):
             content_id = self._generate_content_id(text)
-            metadata = (
-                metadata_list[i] if metadata_list and i < len(metadata_list) else {}
-            )
+            metadata = metadata_list[i] if metadata_list and i < len(metadata_list) else {}
 
             results.append(
                 VectorizedContent(
@@ -642,9 +634,7 @@ class MultimodalVectorizer:
 
         return fused
 
-    def _concat_fusion(
-        self, vector1: Optional[List[float]], vector2: Optional[List[float]]
-    ) -> List[float]:
+    def _concat_fusion(self, vector1: Optional[List[float]], vector2: Optional[List[float]]) -> List[float]:
         """
         Fuse vectors by concatenation (then reduce dimension).
 
@@ -679,9 +669,7 @@ class MultimodalVectorizer:
         """Update statistics."""
         self._stats["total_vectorizations"] += 1
         self._stats["total_time_ms"] += processing_time_ms
-        self._stats["avg_time_ms"] = (
-            self._stats["total_time_ms"] / self._stats["total_vectorizations"]
-        )
+        self._stats["avg_time_ms"] = self._stats["total_time_ms"] / self._stats["total_vectorizations"]
 
         if processing_time_ms > self.MAX_PROCESSING_TIME_MS:
             self._stats["exceeded_target_count"] += 1
@@ -749,9 +737,7 @@ class MultimodalVectorizer:
 
 
 # Convenience functions
-async def vectorize_image(
-    ocr_text: str, description: str, **kwargs
-) -> VectorizedContent:
+async def vectorize_image(ocr_text: str, description: str, **kwargs) -> VectorizedContent:
     """
     Vectorize image content.
 
@@ -765,14 +751,10 @@ async def vectorize_image(
     """
     vectorizer = MultimodalVectorizer()
     await vectorizer.initialize()
-    return await vectorizer.vectorize_image_content(
-        ocr_text=ocr_text, description=description, **kwargs
-    )
+    return await vectorizer.vectorize_image_content(ocr_text=ocr_text, description=description, **kwargs)
 
 
-async def vectorize_pdf_chunks(
-    chunks: List[Dict[str, Any]], pdf_path: Optional[str] = None
-) -> List[VectorizedContent]:
+async def vectorize_pdf_chunks(chunks: List[Dict[str, Any]], pdf_path: Optional[str] = None) -> List[VectorizedContent]:
     """
     Vectorize multiple PDF chunks.
 

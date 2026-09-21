@@ -54,15 +54,9 @@ def svc(monkeypatch):
     async def spy_conv(driver, embedder, **kw):
         written["conversation"] = {"driver": driver, "embedder": embedder, **kw}
 
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_callout", spy_callout
-    )
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_error", spy_error
-    )
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_conversation_summary", spy_conv
-    )
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_callout", spy_callout)
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_error", spy_error)
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_conversation_summary", spy_conv)
     return s, enqueued, written
 
 

@@ -137,9 +137,7 @@ class TestTriggerMemoryWriteParametrized:
         mock_memory_client.add_learning_episode.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_trigger_skips_unmapped_agent(
-        self, agent_service, mock_memory_client
-    ):
+    async def test_trigger_skips_unmapped_agent(self, agent_service, mock_memory_client):
         """_trigger_memory_write skips agents not in the mapping."""
         await agent_service._trigger_memory_write(
             agent_type="nonexistent-agent",
@@ -161,13 +159,9 @@ class TestAgentFailureDegradation:
     """AC-30.14.2: Degradation tests for agent/memory failures."""
 
     @pytest.mark.asyncio
-    async def test_memory_write_failure_non_blocking(
-        self, agent_service, mock_memory_client, wait_for_call
-    ):
+    async def test_memory_write_failure_non_blocking(self, agent_service, mock_memory_client, wait_for_call):
         """Memory write failure does not raise exceptions (fire-and-forget)."""
-        mock_memory_client.add_learning_episode = AsyncMock(
-            side_effect=Exception("Memory write timeout")
-        )
+        mock_memory_client.add_learning_episode = AsyncMock(side_effect=Exception("Memory write timeout"))
 
         # Should NOT raise
         await agent_service._trigger_memory_write(
@@ -202,9 +196,7 @@ class TestAgentFailureDegradation:
         )
 
     @pytest.mark.asyncio
-    async def test_memory_write_returns_false_non_blocking(
-        self, agent_service, mock_memory_client
-    ):
+    async def test_memory_write_returns_false_non_blocking(self, agent_service, mock_memory_client):
         """Memory write returning False does not raise or block."""
         mock_memory_client.add_learning_episode = AsyncMock(return_value=False)
 
@@ -217,9 +209,7 @@ class TestAgentFailureDegradation:
         )
 
     @pytest.mark.asyncio
-    async def test_trigger_with_all_optional_params(
-        self, agent_service, mock_memory_client, wait_for_call
-    ):
+    async def test_trigger_with_all_optional_params(self, agent_service, mock_memory_client, wait_for_call):
         """_trigger_memory_write accepts all optional parameters."""
         await agent_service._trigger_memory_write(
             agent_type="scoring-agent",
@@ -270,8 +260,7 @@ class TestMappingCompleteness:
         unexpected_missing = set(not_in_enum) - reserved_agents
 
         assert unexpected_missing == set(), (
-            f"Agents in AGENT_MEMORY_MAPPING but not in AgentType enum "
-            f"(and not reserved): {unexpected_missing}"
+            f"Agents in AGENT_MEMORY_MAPPING but not in AgentType enum (and not reserved): {unexpected_missing}"
         )
 
     def test_all_memory_types_used(self):
@@ -287,9 +276,7 @@ class TestMappingCompleteness:
         }
         unexpected_unused = unused - allowed_unused
 
-        assert unexpected_unused == set(), (
-            f"AgentMemoryType values not used in any mapping: {unexpected_unused}"
-        )
+        assert unexpected_unused == set(), f"AgentMemoryType values not used in any mapping: {unexpected_unused}"
 
     def test_trigger_call_sites_exist_in_codebase(self):
         """Verify that agents with call sites actually have _trigger_memory_write calls.
@@ -297,12 +284,7 @@ class TestMappingCompleteness:
         This is a static analysis test that scans the agent_service.py source code
         for _trigger_memory_write calls and extracts the agent_type arguments.
         """
-        agent_service_path = (
-            Path(__file__).parent.parent.parent
-            / "app"
-            / "services"
-            / "agent_service.py"
-        )
+        agent_service_path = Path(__file__).parent.parent.parent / "app" / "services" / "agent_service.py"
         source = agent_service_path.read_text(encoding="utf-8")
 
         # Find all _trigger_memory_write calls with explicit agent_type="..."
@@ -311,9 +293,7 @@ class TestMappingCompleteness:
 
         # Check that explicitly called agents are in the mapping
         for agent_name in found_agents:
-            assert (
-                agent_name in AGENT_MEMORY_MAPPING or agent_name == "hint-generation"
-            ), (
+            assert agent_name in AGENT_MEMORY_MAPPING or agent_name == "hint-generation", (
                 f"Agent '{agent_name}' has _trigger_memory_write call but is not in AGENT_MEMORY_MAPPING"
             )
 
@@ -326,12 +306,7 @@ class TestMappingCompleteness:
         - verification-question-agent
         - explanation agents via explanation_type_to_agent mapping
         """
-        agent_service_path = (
-            Path(__file__).parent.parent.parent
-            / "app"
-            / "services"
-            / "agent_service.py"
-        )
+        agent_service_path = Path(__file__).parent.parent.parent / "app" / "services" / "agent_service.py"
         source = agent_service_path.read_text(encoding="utf-8")
 
         # Agents that MUST have direct _trigger_memory_write calls
@@ -354,20 +329,13 @@ class TestMappingCompleteness:
 
     def test_explanation_type_mapping_covers_explanation_agents(self):
         """The explanation_type_to_agent mapping covers all explanation-type agents."""
-        agent_service_path = (
-            Path(__file__).parent.parent.parent
-            / "app"
-            / "services"
-            / "agent_service.py"
-        )
+        agent_service_path = Path(__file__).parent.parent.parent / "app" / "services" / "agent_service.py"
         source = agent_service_path.read_text(encoding="utf-8")
 
         # Extract explanation_type_to_agent dict from source
         pattern = r"explanation_type_to_agent\s*=\s*\{([^}]+)\}"
         match = re.search(pattern, source)
-        assert match is not None, (
-            "explanation_type_to_agent dict not found in agent_service.py"
-        )
+        assert match is not None, "explanation_type_to_agent dict not found in agent_service.py"
 
         dict_content = match.group(1)
         # Extract agent names from the dict values
@@ -393,19 +361,9 @@ class TestMappingCompleteness:
         """hint-generation is in AGENT_MEMORY_MAPPING (C1 fix) AND has a call site in verification_service.py."""
         # C1 fix: hint-generation is now properly in the mapping
         assert "hint-generation" in AGENT_MEMORY_MAPPING
-        assert (
-            AGENT_MEMORY_MAPPING["hint-generation"]
-            == AgentMemoryType.EXPLANATION_GENERATED
-        )
+        assert AGENT_MEMORY_MAPPING["hint-generation"] == AgentMemoryType.EXPLANATION_GENERATED
 
         # It also has a call site in verification_service.py
-        verification_path = (
-            Path(__file__).parent.parent.parent
-            / "app"
-            / "services"
-            / "verification_service.py"
-        )
+        verification_path = Path(__file__).parent.parent.parent / "app" / "services" / "verification_service.py"
         source = verification_path.read_text(encoding="utf-8")
-        assert "hint-generation" in source, (
-            "hint-generation should have a call site in verification_service.py"
-        )
+        assert "hint-generation" in source, "hint-generation should have a call site in verification_service.py"

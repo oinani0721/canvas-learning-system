@@ -46,9 +46,7 @@ class TestNeo4jHealthResponse:
         """Test degraded status response structure."""
         response = Neo4jHealthResponse(
             status="degraded",
-            checks=Neo4jHealthChecks(
-                neo4j_enabled=False, reason="Neo4j is disabled in configuration"
-            ),
+            checks=Neo4jHealthChecks(neo4j_enabled=False, reason="Neo4j is disabled in configuration"),
             cached=False,
             timestamp=datetime.now(timezone.utc),
         )
@@ -99,9 +97,7 @@ class TestNeo4jHealthEndpoint:
         mock_settings.neo4j_enabled = True
         mock_settings.neo4j_uri = "bolt://localhost:7687"
 
-        with patch(
-            "app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock
-        ) as mock_test:
+        with patch("app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock) as mock_test:
             mock_test.return_value = True
 
             response = await check_neo4j_health(settings=mock_settings)
@@ -120,9 +116,7 @@ class TestNeo4jHealthEndpoint:
         mock_settings = MagicMock()
         mock_settings.neo4j_enabled = True
 
-        with patch(
-            "app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock
-        ) as mock_test:
+        with patch("app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock) as mock_test:
             mock_test.side_effect = asyncio.TimeoutError()
 
             response = await check_neo4j_health(settings=mock_settings)
@@ -142,9 +136,7 @@ class TestNeo4jHealthEndpoint:
         mock_settings = MagicMock()
         mock_settings.neo4j_enabled = True
 
-        with patch(
-            "app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock
-        ) as mock_test:
+        with patch("app.api.v1.endpoints.health._test_neo4j_connection", new_callable=AsyncMock) as mock_test:
             mock_test.side_effect = Exception("Connection refused")
 
             response = await check_neo4j_health(settings=mock_settings)

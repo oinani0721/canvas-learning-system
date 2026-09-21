@@ -107,9 +107,7 @@ class TestEdgeCases:
         """Requesting page beyond available data returns empty items."""
         mock_neo4j = _make_neo4j_mock(
             get_learning_history=AsyncMock(
-                return_value=[
-                    {"concept": "A", "score": 90, "timestamp": "2026-02-05T10:00:00"}
-                ]
+                return_value=[{"concept": "A", "score": 90, "timestamp": "2026-02-05T10:00:00"}]
             )
         )
         service = _make_service(mock_neo4j)
@@ -124,12 +122,8 @@ class TestEdgeCases:
     async def test_concurrent_neo4j_and_memory_merge(self):
         """[Code Review C2]: Memory episodes are merged with Neo4j results
         for complete score history (enables consecutive_low tracking)."""
-        neo4j_data = [
-            {"concept": "FromDB", "score": 90, "timestamp": "2026-02-05T10:00:00"}
-        ]
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=neo4j_data)
-        )
+        neo4j_data = [{"concept": "FromDB", "score": 90, "timestamp": "2026-02-05T10:00:00"}]
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=neo4j_data))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
@@ -184,9 +178,7 @@ class TestEdgeCases:
                 "timestamp": "2026-02-05T10:00:00",
             }
         ]
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=neo4j_data)
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=neo4j_data))
         service = _make_service(mock_neo4j)
         await service.initialize()
 

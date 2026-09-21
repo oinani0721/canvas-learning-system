@@ -92,9 +92,7 @@ class TestGetRelatedMemoriesReturnStructure:
         assert result["canvas_path"] == "数学/线性代数.canvas"
 
     @pytest.mark.asyncio
-    async def test_empty_results_returns_empty_list(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_empty_results_returns_empty_list(self, graphiti_client, mock_neo4j_client):
         """Verify empty Neo4j results returns empty list."""
         mock_neo4j_client.run_query.return_value = []
 
@@ -105,9 +103,7 @@ class TestGetRelatedMemoriesReturnStructure:
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_nonexistent_node_returns_empty(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_nonexistent_node_returns_empty(self, graphiti_client, mock_neo4j_client):
         """Verify querying a non-existent node returns empty list."""
         mock_neo4j_client.run_query.return_value = []
 
@@ -120,9 +116,7 @@ class TestGetRelatedMemoriesReturnStructure:
         mock_neo4j_client.run_query.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_missing_fields_use_defaults(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_missing_fields_use_defaults(self, graphiti_client, mock_neo4j_client):
         """Verify missing fields in Neo4j response get default values."""
         mock_neo4j_client.run_query.return_value = [
             {
@@ -141,9 +135,7 @@ class TestGetRelatedMemoriesReturnStructure:
         assert result["canvas_path"] == "test.canvas"
 
     @pytest.mark.asyncio
-    async def test_query_exception_returns_empty(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_query_exception_returns_empty(self, graphiti_client, mock_neo4j_client):
         """Verify Neo4j query exception is caught and returns empty list."""
         mock_neo4j_client.run_query.side_effect = Exception("Connection lost")
 
@@ -163,9 +155,7 @@ class TestGetRelatedMemoriesReturnStructure:
         assert call_args[1].get("limit") == 3 or "3" in str(call_args)
 
     @pytest.mark.asyncio
-    async def test_canvas_path_filter_in_query(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_canvas_path_filter_in_query(self, graphiti_client, mock_neo4j_client):
         """Verify canvas_path parameter triggers path-filtered Cypher query."""
         mock_neo4j_client.run_query.return_value = []
 
@@ -180,9 +170,7 @@ class TestGetRelatedMemoriesReturnStructure:
         assert "canvasPath" in str(call_args) or "canvas_path" in query.lower()
 
     @pytest.mark.asyncio
-    async def test_no_canvas_path_uses_unfiltered_query(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_no_canvas_path_uses_unfiltered_query(self, graphiti_client, mock_neo4j_client):
         """Verify no canvas_path uses unfiltered Cypher query."""
         mock_neo4j_client.run_query.return_value = []
 

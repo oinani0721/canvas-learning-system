@@ -180,12 +180,8 @@ class TestWeightedSelection:
         # Expected ratio: 0.9 / (0.9 + 0.6) = 0.6 (60% for c1)
         c1_ratio = c1_count / iterations
 
-        assert c1_ratio > 0.5, (
-            f"VeryWeak concept selected {c1_ratio:.1%}, expected >50%"
-        )
-        assert c1_ratio < 0.7, (
-            f"VeryWeak concept selected {c1_ratio:.1%}, expected <70%"
-        )
+        assert c1_ratio > 0.5, f"VeryWeak concept selected {c1_ratio:.1%}, expected >50%"
+        assert c1_ratio < 0.7, f"VeryWeak concept selected {c1_ratio:.1%}, expected <70%"
 
     @pytest.mark.asyncio
     async def test_empty_concepts_list(self, review_service):

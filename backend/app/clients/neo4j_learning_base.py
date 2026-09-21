@@ -137,16 +137,14 @@ class Neo4jLearningBase(ABC):
         """
         if neo4j_client is None:
             raise ValueError(
-                "neo4j_client cannot be None. "
-                "Use dependency injection via get_neo4j_edge_client() in dependencies.py"
+                "neo4j_client cannot be None. Use dependency injection via get_neo4j_edge_client() in dependencies.py"
             )
 
         self._neo4j = neo4j_client
         self._initialized = False
 
         logger.debug(
-            f"{self.__class__.__name__} initialized with Neo4jClient: "
-            f"mode={self._neo4j.stats.get('mode', 'unknown')}"
+            f"{self.__class__.__name__} initialized with Neo4jClient: mode={self._neo4j.stats.get('mode', 'unknown')}"
         )
 
     @property
@@ -186,10 +184,7 @@ class Neo4jLearningBase(ABC):
         result = await self._neo4j.initialize()
         self._initialized = result
 
-        logger.info(
-            f"{self.__class__.__name__} initialized: "
-            f"neo4j_mode={self._neo4j.stats.get('mode', 'unknown')}"
-        )
+        logger.info(f"{self.__class__.__name__} initialized: neo4j_mode={self._neo4j.stats.get('mode', 'unknown')}")
 
         return result
 

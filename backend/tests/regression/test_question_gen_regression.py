@@ -161,11 +161,7 @@ class TestQuestionGenRegression:
             )
 
         compliance_rate = compliant_count / len(scenarios)
-        assert compliance_rate >= 0.90, (
-            "Format compliance {v:.4f} below 90 percent threshold".format(
-                v=compliance_rate
-            )
-        )
+        assert compliance_rate >= 0.90, "Format compliance {v:.4f} below 90 percent threshold".format(v=compliance_rate)
 
     def test_replay_difficulty_matching(
         self,
@@ -179,19 +175,13 @@ class TestQuestionGenRegression:
         for scenario in scenarios:
             response = scenario["replay_response"]
             mastery = scenario["input"]["mastery_level"]
-            expected_blooms = scenario["expected_output"].get(
-                "valid_bloom_levels", list()
-            )
+            expected_blooms = scenario["expected_output"].get("valid_bloom_levels", list())
             matched = _check_difficulty_match(response, mastery, expected_blooms)
             if matched:
                 match_count += 1
 
         match_rate = match_count / len(scenarios)
-        assert match_rate >= 0.70, (
-            "Difficulty match rate {v:.4f} below 70 percent threshold".format(
-                v=match_rate
-            )
-        )
+        assert match_rate >= 0.70, "Difficulty match rate {v:.4f} below 70 percent threshold".format(v=match_rate)
 
     def test_replay_addresses_weakness(
         self,
@@ -209,11 +199,9 @@ class TestQuestionGenRegression:
                 addresses_count += 1
 
         min_required = int(len(scenarios) * 0.70)
-        assert addresses_count >= min_required, (
-            "Too few questions address student weaknesses: {a}/{t}".format(
-                a=addresses_count,
-                t=len(scenarios),
-            )
+        assert addresses_count >= min_required, "Too few questions address student weaknesses: {a}/{t}".format(
+            a=addresses_count,
+            t=len(scenarios),
         )
 
     def test_generate_report(
@@ -233,9 +221,7 @@ class TestQuestionGenRegression:
             response = scenario["replay_response"]
             compliant = _check_format_compliance(response)
             mastery = scenario["input"]["mastery_level"]
-            expected_blooms = scenario["expected_output"].get(
-                "valid_bloom_levels", list()
-            )
+            expected_blooms = scenario["expected_output"].get("valid_bloom_levels", list())
             matched = _check_difficulty_match(response, mastery, expected_blooms)
 
             if compliant:

@@ -92,15 +92,10 @@ class TestHealthMonitorSurrogate:
 
         # Stats must reflect ONLY the 5 real scores, not 55 entries
         assert logger._faithfulness_stats["count"] == 5
-        assert logger._faithfulness_stats["total_score"] == pytest.approx(
-            sum(real_scores)
-        )
+        assert logger._faithfulness_stats["total_score"] == pytest.approx(sum(real_scores))
 
         # And the implied average is computed from real scores only
-        avg = (
-            logger._faithfulness_stats["total_score"]
-            / logger._faithfulness_stats["count"]
-        )
+        avg = logger._faithfulness_stats["total_score"] / logger._faithfulness_stats["count"]
         assert avg == pytest.approx(sum(real_scores) / 5)
         # Sanity: this is NOT the ~0.99 fake average that vacuous-true would
         # produce if None had been recorded as 1.0.
@@ -200,16 +195,12 @@ class TestRAGQualityObservabilitySurrogate:
             assert "support_sources" in r["metadata"], f"missing support_sources in {r}"
             assert "support_count" in r["metadata"], f"missing support_count in {r}"
             assert isinstance(r["metadata"]["support_sources"], list)
-            assert r["metadata"]["support_count"] == len(
-                r["metadata"]["support_sources"]
-            )
+            assert r["metadata"]["support_count"] == len(r["metadata"]["support_sources"])
 
         # Invariant 1d: at least one fused row has support_count >= 2
         # (proves multi-source consensus is detected by the dedup logic)
         max_support = max(r["metadata"]["support_count"] for r in fused_results)
-        assert max_support >= 2, (
-            f"expected dedup to merge same-content rows (got max support={max_support})"
-        )
+        assert max_support >= 2, f"expected dedup to merge same-content rows (got max support={max_support})"
 
         # ── Phase 2: merge fuse_update back into state and run rerank ────
         # In a real LangGraph run this merge happens via the reducer; here we

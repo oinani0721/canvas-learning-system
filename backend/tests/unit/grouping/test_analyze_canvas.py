@@ -29,9 +29,7 @@ class TestAnalyzeCanvas:
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas(
                     canvas_path="数学/离散数学.canvas",
                     target_color="3",
@@ -60,18 +58,14 @@ class TestSilhouetteScore:
     """Tests for Silhouette Score quality evaluation - AC-33.4.3."""
 
     @pytest.mark.asyncio
-    async def test_silhouette_score_returned(
-        self, service: IntelligentGroupingService, mock_clustering_result: Dict
-    ):
+    async def test_silhouette_score_returned(self, service: IntelligentGroupingService, mock_clustering_result: Dict):
         """Test that silhouette_score is correctly returned."""
         with patch.object(service, "_resolve_canvas_path") as mock_resolve:
             mock_path = MagicMock()
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas("test.canvas")
 
         assert result.silhouette_score == 0.72
@@ -90,33 +84,25 @@ class TestSilhouetteScore:
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas("test.canvas")
 
         assert result.silhouette_score == 0.2
-        assert any(
-            "Low clustering quality" in record.message for record in caplog.records
-        )
+        assert any("Low clustering quality" in record.message for record in caplog.records)
 
 
 class TestSubjectIsolation:
     """Tests for subject isolation with group_id - AC-33.4.5."""
 
     @pytest.mark.asyncio
-    async def test_group_id_extraction_chinese(
-        self, service: IntelligentGroupingService, mock_clustering_result: Dict
-    ):
+    async def test_group_id_extraction_chinese(self, service: IntelligentGroupingService, mock_clustering_result: Dict):
         """Test group_id extraction for Chinese paths."""
         with patch.object(service, "_resolve_canvas_path") as mock_resolve:
             mock_path = MagicMock()
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas("数学/离散数学.canvas")
 
         assert result.subject == "数学"
@@ -137,15 +123,12 @@ class TestSubjectIsolation:
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas("笔记库/物理/力学.canvas")
 
         assert result.subject == "物理"
         # 同上 4104020d：D16 格式 vault:<vault_id>:<subject_id>
         assert result.subject_group_id == "vault:default:物理"
-
 
     @pytest.mark.asyncio
     async def test_group_id_uses_vault_scoped_format_not_legacy(
@@ -167,9 +150,7 @@ class TestSubjectIsolation:
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas("数学/离散数学.canvas")
 
         gid = result.subject_group_id
@@ -179,18 +160,14 @@ class TestSubjectIsolation:
         assert gid.count(":") >= 2, f"group_id 缺少 vault 维度: {gid!r}"
 
     @pytest.mark.asyncio
-    async def test_group_id_single_file(
-        self, service: IntelligentGroupingService, mock_clustering_result: Dict
-    ):
+    async def test_group_id_single_file(self, service: IntelligentGroupingService, mock_clustering_result: Dict):
         """Test group_id extraction for single file (no directory)."""
         with patch.object(service, "_resolve_canvas_path") as mock_resolve:
             mock_path = MagicMock()
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas("离散数学.canvas")
 
         assert result.subject == "离散数学"

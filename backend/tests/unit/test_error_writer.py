@@ -196,14 +196,15 @@ async def test_graphiti_retries_3_times_then_returns_false():
     error = _make_error()
 
     mock_memory_svc = AsyncMock()
-    mock_memory_svc.record_knowledge_entity = AsyncMock(
-        side_effect=RuntimeError("Neo4j down")
-    )
+    mock_memory_svc.record_knowledge_entity = AsyncMock(side_effect=RuntimeError("Neo4j down"))
 
-    with patch(
-        "app.services.memory_service.get_memory_service",
-        new=AsyncMock(return_value=mock_memory_svc),
-    ), patch("app.services.error_writer.GRAPHITI_RETRY_INTERVAL_S", 0.001):
+    with (
+        patch(
+            "app.services.memory_service.get_memory_service",
+            new=AsyncMock(return_value=mock_memory_svc),
+        ),
+        patch("app.services.error_writer.GRAPHITI_RETRY_INTERVAL_S", 0.001),
+    ):
         ok = await write_error_to_graphiti(error, node_id="x")
 
     assert ok is False
@@ -226,10 +227,13 @@ async def test_graphiti_succeeds_after_retry():
     mock_memory_svc = AsyncMock()
     mock_memory_svc.record_knowledge_entity = AsyncMock(side_effect=_mock_call)
 
-    with patch(
-        "app.services.memory_service.get_memory_service",
-        new=AsyncMock(return_value=mock_memory_svc),
-    ), patch("app.services.error_writer.GRAPHITI_RETRY_INTERVAL_S", 0.001):
+    with (
+        patch(
+            "app.services.memory_service.get_memory_service",
+            new=AsyncMock(return_value=mock_memory_svc),
+        ),
+        patch("app.services.error_writer.GRAPHITI_RETRY_INTERVAL_S", 0.001),
+    ):
         ok = await write_error_to_graphiti(error, node_id="x")
 
     assert ok is True
@@ -255,7 +259,10 @@ async def test_dual_write_frontmatter_success_graphiti_scheduled(tmp_path):
         new=AsyncMock(return_value=mock_memory_svc),
     ):
         result = await write_error_dual(
-            f, _make_error(), node_id="x", session_id="s1",
+            f,
+            _make_error(),
+            node_id="x",
+            session_id="s1",
             mode="write_confirmed",
         )
 
@@ -277,7 +284,9 @@ async def test_dual_write_skips_graphiti_when_frontmatter_fails(tmp_path):
         new=AsyncMock(return_value=mock_memory_svc),
     ):
         result = await write_error_dual(
-            missing, _make_error(), node_id="x",
+            missing,
+            _make_error(),
+            node_id="x",
             mode="write_confirmed",
         )
 
@@ -332,10 +341,7 @@ async def test_concurrent_writes_no_data_loss(tmp_path):
     mock_memory_svc = AsyncMock()
     mock_memory_svc.record_knowledge_entity = AsyncMock(return_value=None)
 
-    errors = [
-        _make_error(description=f"错误 {i}", confidence=0.7 + i * 0.01)
-        for i in range(10)
-    ]
+    errors = [_make_error(description=f"错误 {i}", confidence=0.7 + i * 0.01) for i in range(10)]
 
     with patch(
         "app.services.memory_service.get_memory_service",
@@ -345,7 +351,10 @@ async def test_concurrent_writes_no_data_loss(tmp_path):
         results = await _asyncio.gather(
             *[
                 write_error_dual(
-                    f, err, node_id=f"node-{i}", session_id="s",
+                    f,
+                    err,
+                    node_id=f"node-{i}",
+                    session_id="s",
                     fire_and_forget_graphiti=True,
                     mode="write_confirmed",
                 )
@@ -361,9 +370,7 @@ async def test_concurrent_writes_no_data_loss(tmp_path):
 
     # frontmatter errors[] 应有 10 条
     fm_dict = yaml.safe_load(f.read_text().split("---")[1])
-    assert len(fm_dict["errors"]) == 10, (
-        f"并发写丢数据: 期望 10, 实际 {len(fm_dict['errors'])}"
-    )
+    assert len(fm_dict["errors"]) == 10, f"并发写丢数据: 期望 10, 实际 {len(fm_dict['errors'])}"
 
 
 def test_frontmatter_dedupe_same_error_updates_seen_count(tmp_path):

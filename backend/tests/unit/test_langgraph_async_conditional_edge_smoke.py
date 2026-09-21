@@ -72,9 +72,7 @@ async def test_langgraph_supports_async_conditional_edge():
 
     # If we got here, async conditional edge ROUTING works
     assert result is not None, "Graph returned None — async router likely failed"
-    assert result.get("counter") == 1, (
-        "State did not propagate through async router. Got: %s" % result
-    )
+    assert result.get("counter") == 1, "State did not propagate through async router. Got: %s" % result
 
 
 @pytest.mark.asyncio
@@ -102,6 +100,4 @@ async def test_langgraph_async_router_can_await_io():
     graph = builder.compile()
     result = await graph.ainvoke({"x": 42})
 
-    assert result.get("x") == 42, (
-        "Async router with awaited gather failed. Got: %s" % result
-    )
+    assert result.get("x") == 42, "Async router with awaited gather failed. Got: %s" % result

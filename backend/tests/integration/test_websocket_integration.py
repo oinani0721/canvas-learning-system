@@ -85,9 +85,7 @@ class TestWebSocketConnection:
 
     def test_websocket_connect_success(self, test_client):
         """Test WebSocket connection succeeds with valid session."""
-        with test_client.websocket_connect(
-            "/ws/intelligent-parallel/test-session-123"
-        ) as websocket:
+        with test_client.websocket_connect("/ws/intelligent-parallel/test-session-123") as websocket:
             # Should receive connected event
             data = websocket.receive_json()
             assert data["type"] == "connected"
@@ -95,9 +93,7 @@ class TestWebSocketConnection:
 
     def test_websocket_connect_receives_timestamp(self, test_client):
         """Test connected event includes timestamp."""
-        with test_client.websocket_connect(
-            "/ws/intelligent-parallel/test-session-456"
-        ) as websocket:
+        with test_client.websocket_connect("/ws/intelligent-parallel/test-session-456") as websocket:
             data = websocket.receive_json()
             assert "timestamp" in data
             # Timestamp should be a valid ISO format string
@@ -109,16 +105,12 @@ class TestWebSocketConnection:
         # This tests concurrent connections
         session_id = "shared-session"
 
-        with test_client.websocket_connect(
-            f"/ws/intelligent-parallel/{session_id}"
-        ) as ws1:
+        with test_client.websocket_connect(f"/ws/intelligent-parallel/{session_id}") as ws1:
             data1 = ws1.receive_json()
             assert data1["type"] == "connected"
 
             # Second connection to same session
-            with test_client.websocket_connect(
-                f"/ws/intelligent-parallel/{session_id}"
-            ) as ws2:
+            with test_client.websocket_connect(f"/ws/intelligent-parallel/{session_id}") as ws2:
                 data2 = ws2.receive_json()
                 assert data2["type"] == "connected"
 
@@ -221,11 +213,7 @@ class TestWebSocketBroadcasting:
 
         await service.start_batch_session(
             canvas_path="test.canvas",
-            groups=[
-                GroupExecuteConfig(
-                    group_id="g1", agent_type="comparison-table", node_ids=["n1", "n2"]
-                )
-            ],
+            groups=[GroupExecuteConfig(group_id="g1", agent_type="comparison-table", node_ids=["n1", "n2"])],
         )
 
         # Connect a mock WebSocket
@@ -266,11 +254,7 @@ class TestWebSocketServiceIntegration:
 
         response = await service.start_batch_session(
             canvas_path="test.canvas",
-            groups=[
-                GroupExecuteConfig(
-                    group_id="g1", agent_type="comparison-table", node_ids=["n1"]
-                )
-            ],
+            groups=[GroupExecuteConfig(group_id="g1", agent_type="comparison-table", node_ids=["n1"])],
         )
 
         # Now session should exist
@@ -344,9 +328,7 @@ class TestWebSocketServiceIntegration:
         assert call_args["data"]["recoverable"] is True
 
     @pytest.mark.asyncio
-    async def test_service_notify_session_complete_closes_connections(
-        self, service, connection_manager
-    ):
+    async def test_service_notify_session_complete_closes_connections(self, service, connection_manager):
         """Test service notify_session_complete closes WebSocket connections."""
         session_id = "test-session"
 
@@ -411,9 +393,7 @@ class TestPollingFallback:
         session_id = confirm_response.json()["session_id"]
 
         # Now poll for progress
-        progress_response = client.get(
-            f"/api/v1/canvas/intelligent-parallel/{session_id}"
-        )
+        progress_response = client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
 
         assert progress_response.status_code == 200
         progress_data = progress_response.json()
@@ -491,9 +471,7 @@ class TestConcurrentStress:
         websockets = [AsyncMock() for _ in range(num_connections)]
 
         # Connect all concurrently
-        connect_tasks = [
-            connection_manager.connect(session_id, ws) for ws in websockets
-        ]
+        connect_tasks = [connection_manager.connect(session_id, ws) for ws in websockets]
         results = await asyncio.gather(*connect_tasks)
 
         # All should succeed
@@ -506,9 +484,7 @@ class TestConcurrentStress:
         assert metrics["total_connections"] == num_connections
 
         # Disconnect all concurrently
-        disconnect_tasks = [
-            connection_manager.disconnect(session_id, ws) for ws in websockets
-        ]
+        disconnect_tasks = [connection_manager.disconnect(session_id, ws) for ws in websockets]
         await asyncio.gather(*disconnect_tasks)
 
         assert connection_manager.get_connection_count(session_id) == 0
@@ -524,9 +500,7 @@ class TestConcurrentStress:
         session_websockets = {}
         for i in range(num_sessions):
             session_id = f"session-{i}"
-            session_websockets[session_id] = [
-                AsyncMock() for _ in range(connections_per_session)
-            ]
+            session_websockets[session_id] = [AsyncMock() for _ in range(connections_per_session)]
 
         # Connect all concurrently
         connect_tasks = []
@@ -546,10 +520,7 @@ class TestConcurrentStress:
 
         # Verify each session has correct count
         for session_id in session_websockets:
-            assert (
-                connection_manager.get_connection_count(session_id)
-                == connections_per_session
-            )
+            assert connection_manager.get_connection_count(session_id) == connections_per_session
 
     @pytest.mark.asyncio
     async def test_concurrent_broadcast_under_load(self, connection_manager):
@@ -578,9 +549,7 @@ class TestConcurrentStress:
                 completed_nodes=i,
                 total_nodes=10,
             )
-            broadcast_tasks.append(
-                connection_manager.broadcast_to_session(session_id, event)
-            )
+            broadcast_tasks.append(connection_manager.broadcast_to_session(session_id, event))
 
         results = await asyncio.gather(*broadcast_tasks)
 
@@ -603,32 +572,21 @@ class TestConcurrentStress:
             batch_size = 5
             websockets = [AsyncMock() for _ in range(batch_size)]
 
-            connect_tasks = [
-                connection_manager.connect(session_id, ws) for ws in websockets
-            ]
+            connect_tasks = [connection_manager.connect(session_id, ws) for ws in websockets]
             await asyncio.gather(*connect_tasks)
 
             # Disconnect half
             half = batch_size // 2
-            disconnect_tasks = [
-                connection_manager.disconnect(session_id, ws)
-                for ws in websockets[:half]
-            ]
+            disconnect_tasks = [connection_manager.disconnect(session_id, ws) for ws in websockets[:half]]
             await asyncio.gather(*disconnect_tasks)
 
             # Verify remaining count
             expected_remaining = batch_size - half
             if i == 0:
-                assert (
-                    connection_manager.get_connection_count(session_id)
-                    == expected_remaining
-                )
+                assert connection_manager.get_connection_count(session_id) == expected_remaining
             else:
                 # Previous iterations may have left connections
-                assert (
-                    connection_manager.get_connection_count(session_id)
-                    >= expected_remaining
-                )
+                assert connection_manager.get_connection_count(session_id) >= expected_remaining
 
         # Cleanup all
         await connection_manager.close_session_connections(session_id)

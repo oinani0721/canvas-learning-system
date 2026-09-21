@@ -52,25 +52,15 @@ class QueryMasteryOutput(BaseModel):
     """
 
     node_id: str
-    p_mastery: Optional[float] = Field(
-        default=None, description="BKT mastery probability (0.0 - 1.0)"
-    )
-    fsrs_stability: Optional[float] = Field(
-        default=None, description="FSRS stability parameter"
-    )
-    fsrs_difficulty: Optional[float] = Field(
-        default=None, description="FSRS difficulty parameter"
-    )
-    fsrs_retrievability: Optional[float] = Field(
-        default=None, description="FSRS retrievability R (0.0 - 1.0)"
-    )
+    p_mastery: Optional[float] = Field(default=None, description="BKT mastery probability (0.0 - 1.0)")
+    fsrs_stability: Optional[float] = Field(default=None, description="FSRS stability parameter")
+    fsrs_difficulty: Optional[float] = Field(default=None, description="FSRS difficulty parameter")
+    fsrs_retrievability: Optional[float] = Field(default=None, description="FSRS retrievability R (0.0 - 1.0)")
     effective_proficiency: Optional[float] = Field(
         default=None, description="Combined effective proficiency (0.0 - 1.0)"
     )
     interaction_count: int = Field(default=0, description="Total interaction count")
-    last_interaction_ts: Optional[str] = Field(
-        default=None, description="Last interaction timestamp (ISO 8601)"
-    )
+    last_interaction_ts: Optional[str] = Field(default=None, description="Last interaction timestamp (ISO 8601)")
     status: str = Field(default="ok", description="Query status")
     mastery_degraded: Optional[str] = Field(
         default=None,
@@ -114,9 +104,7 @@ class UpdateBktInput(BaseModel):
     """Input schema for update_bkt tool."""
 
     node_id: str = Field(..., description="The canvas node identifier.")
-    is_correct: bool = Field(
-        ..., description="Whether the student's response was correct."
-    )
+    is_correct: bool = Field(..., description="Whether the student's response was correct.")
     session_id: str = Field(..., description="The dialogue session identifier.")
     pipeline_token: str = Field(
         ...,
@@ -175,11 +163,7 @@ async def query_mastery(node_id: str) -> Dict[str, Any]:
             node_id=node_id,
             p_mastery=concept.p_mastery,
             interaction_count=concept.interaction_count,
-            last_interaction_ts=(
-                concept.last_interaction_ts.isoformat()
-                if concept.last_interaction_ts
-                else None
-            ),
+            last_interaction_ts=(concept.last_interaction_ts.isoformat() if concept.last_interaction_ts else None),
             status="ok",
         )
 

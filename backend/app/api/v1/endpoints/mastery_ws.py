@@ -131,9 +131,7 @@ class MasteryConnectionManager:
         }
         count = await self.broadcast(message)
         if count > 0:
-            logger.debug(
-                f"Mastery WS push: node={message['node_id']} -> {count} client(s)"
-            )
+            logger.debug(f"Mastery WS push: node={message['node_id']} -> {count} client(s)")
 
 
 # Global singleton

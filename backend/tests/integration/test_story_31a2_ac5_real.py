@@ -144,9 +144,7 @@ class TestEdgeCasesReal:
             service = MemoryService(neo4j_client=client)
             await service.initialize()
 
-            result = await service.get_learning_history(
-                user_id=f"{prefix}nonexistent_user"
-            )
+            result = await service.get_learning_history(user_id=f"{prefix}nonexistent_user")
 
             assert result["total"] == 0
             assert len(result["items"]) == 0
@@ -172,9 +170,7 @@ class TestEdgeCasesReal:
                 agent_type="scoring",
             )
 
-            result = await service.get_learning_history(
-                user_id=f"{prefix}user1", page=99, page_size=50
-            )
+            result = await service.get_learning_history(user_id=f"{prefix}user1", page=99, page_size=50)
 
             # Total should reflect the seeded record(s), but page 99 should have zero items
             assert result["total"] >= 1
@@ -242,9 +238,7 @@ class TestEdgeCasesReal:
                 )
 
             # Request page 2 with page_size=10
-            result = await service.get_learning_history(
-                user_id=user_id, page=2, page_size=10
-            )
+            result = await service.get_learning_history(user_id=user_id, page=2, page_size=10)
 
             assert result["total"] >= 30
             assert result["page"] == 2

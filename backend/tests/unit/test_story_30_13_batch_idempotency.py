@@ -90,11 +90,7 @@ class TestBatchIdempotency:
 
         # Only 1 unique episode in memory
         unique_ids = set(ep.get("episode_id") for ep in memory_service._episodes)
-        matching = [
-            ep
-            for ep in memory_service._episodes
-            if ep.get("episode_id") == r1["episode_ids"][0]
-        ]
+        matching = [ep for ep in memory_service._episodes if ep.get("episode_id") == r1["episode_ids"][0]]
         assert len(matching) == 1
 
     @pytest.mark.asyncio
@@ -110,20 +106,13 @@ class TestBatchIdempotency:
             for _ in range(3):
                 await memory_service.record_batch_learning_events([event])
 
-        matching = [
-            ep
-            for ep in memory_service._episodes
-            if ep.get("canvas_path") == "test/a.canvas"
-        ]
+        matching = [ep for ep in memory_service._episodes if ep.get("canvas_path") == "test/a.canvas"]
         assert len(matching) == 1
 
     @pytest.mark.asyncio
     async def test_large_batch_idempotency(self, memory_service):
         """100 unique events + 100 duplicates = still 100 unique."""
-        events = [
-            _make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T{i:02d}:00:00")
-            for i in range(100)
-        ]
+        events = [_make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T{i:02d}:00:00") for i in range(100)]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10
@@ -136,11 +125,7 @@ class TestBatchIdempotency:
         assert r2["processed"] == 100
 
         # Count unique episode_ids in _episodes
-        all_ids = [
-            ep.get("episode_id")
-            for ep in memory_service._episodes
-            if ep.get("canvas_path") == "test/a.canvas"
-        ]
+        all_ids = [ep.get("episode_id") for ep in memory_service._episodes if ep.get("canvas_path") == "test/a.canvas"]
         assert len(all_ids) == len(set(all_ids))  # No dups
         assert len(all_ids) == 100
 
@@ -172,10 +157,7 @@ class TestBatchPerformance:
     @pytest.mark.asyncio
     async def test_batch_50_events_under_500ms(self, memory_service, mock_neo4j):
         """50 events processed in < 500ms with mock Neo4j."""
-        events = [
-            _make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-            for i in range(50)
-        ]
+        events = [_make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T10:{i:02d}:00") for i in range(50)]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10
@@ -212,10 +194,7 @@ class TestBatchPerformance:
     @pytest.mark.asyncio
     async def test_batch_memory_metrics(self, memory_service, mock_neo4j):
         """Stats fields are populated after batch processing."""
-        events = [
-            _make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-            for i in range(10)
-        ]
+        events = [_make_event(node_id=f"n_{i}", timestamp=f"2026-02-09T10:{i:02d}:00") for i in range(10)]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10
@@ -230,14 +209,8 @@ class TestBatchPerformance:
     @pytest.mark.asyncio
     async def test_concurrent_batch_requests(self, memory_service, mock_neo4j):
         """Two concurrent batch requests don't corrupt data."""
-        events_a = [
-            _make_event(node_id=f"a_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-            for i in range(10)
-        ]
-        events_b = [
-            _make_event(node_id=f"b_{i}", timestamp=f"2026-02-09T11:{i:02d}:00")
-            for i in range(10)
-        ]
+        events_a = [_make_event(node_id=f"a_{i}", timestamp=f"2026-02-09T10:{i:02d}:00") for i in range(10)]
+        events_b = [_make_event(node_id=f"b_{i}", timestamp=f"2026-02-09T11:{i:02d}:00") for i in range(10)]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10
@@ -252,9 +225,7 @@ class TestBatchPerformance:
         assert r_b["processed"] == 10
         # All 20 unique episodes should be in _episodes
         all_ids = set(
-            ep.get("episode_id")
-            for ep in memory_service._episodes
-            if ep.get("canvas_path") == "test/a.canvas"
+            ep.get("episode_id") for ep in memory_service._episodes if ep.get("canvas_path") == "test/a.canvas"
         )
         assert len(all_ids) >= 20
 
@@ -270,10 +241,7 @@ class TestBatchPartialFailureRecovery:
     @pytest.mark.asyncio
     async def test_partial_failure_recovery(self, memory_service, mock_neo4j):
         """50 events with 5 invalid: 45 succeed, 5 fail with correct indices."""
-        valid = [
-            _make_event(node_id=f"v_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-            for i in range(45)
-        ]
+        valid = [_make_event(node_id=f"v_{i}", timestamp=f"2026-02-09T10:{i:02d}:00") for i in range(45)]
         invalid = [
             {"event_type": "bad"}  # Missing fields
             for _ in range(5)
@@ -301,10 +269,7 @@ class TestBatchPartialFailureRecovery:
     @pytest.mark.asyncio
     async def test_event_ordering_preserved(self, memory_service, mock_neo4j):
         """Episode IDs are returned in the same order as input events."""
-        events = [
-            _make_event(node_id=f"ordered_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-            for i in range(5)
-        ]
+        events = [_make_event(node_id=f"ordered_{i}", timestamp=f"2026-02-09T10:{i:02d}:00") for i in range(5)]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10
@@ -321,10 +286,7 @@ class TestBatchPartialFailureRecovery:
         """Neo4j unavailable: all events still stored in memory."""
         mock_neo4j.stats = {"initialized": False}
 
-        events = [
-            _make_event(node_id=f"fb_{i}", timestamp=f"2026-02-09T10:{i:02d}:00")
-            for i in range(10)
-        ]
+        events = [_make_event(node_id=f"fb_{i}", timestamp=f"2026-02-09T10:{i:02d}:00") for i in range(10)]
 
         with patch("app.services.memory_service.settings") as mock_settings:
             mock_settings.BATCH_NEO4J_CONCURRENCY = 10

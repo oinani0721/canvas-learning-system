@@ -48,12 +48,8 @@ class RemedyStrategy(str, Enum):
     BACKTRACK_DEFINITION = "backtrack_definition"  # 回退到定义题
     DISCRIMINATION_TRANSFER = "discrimination_transfer"  # 辨析题 + 迁移应用题
     # Story 2.5 — PRD §FR-CONV-06 期望的 2 项细分:
-    DISCRIMINATION_COMPARISON = (
-        "discrimination_comparison"  # 辨析题 + 对比练习 (conceptual_confusion)
-    )
-    TRANSFER_SELF_EXPLANATION = (
-        "transfer_self_explanation"  # 迁移应用题 + 自我解释 (metacognitive_error)
-    )
+    DISCRIMINATION_COMPARISON = "discrimination_comparison"  # 辨析题 + 对比练习 (conceptual_confusion)
+    TRANSFER_SELF_EXPLANATION = "transfer_self_explanation"  # 迁移应用题 + 自我解释 (metacognitive_error)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -248,9 +244,7 @@ class LearningTip(BaseModel):
     title: str = Field(..., description="User-provided title for the tip")
     tags: List[TipTag] = Field(default_factory=list, description="Classification tags")
     node_id: str = Field(..., description="Source canvas node ID")
-    source_timestamp: str = Field(
-        ..., description="ISO timestamp of the source dialogue message"
-    )
+    source_timestamp: str = Field(..., description="ISO timestamp of the source dialogue message")
     # P0-4 (2026-05-14): rename created_at → tip_created_at to avoid Graphiti
     # EntityNode protected attribute conflict (graphiti_core.nodes.Node reserves
     # uuid/name/group_id/labels/created_at).
@@ -277,12 +271,8 @@ class Misconception(BaseModel):
     misconception_id: str = Field(..., description="Unique identifier")
     error_type: ErrorType = Field(..., description="One of 4 error categories")
     description: str = Field(..., description="Description of the error/misconception")
-    context: str = Field(
-        default="", description="Dialogue context where the error occurred"
-    )
-    remedy_strategy: RemedyStrategy = Field(
-        ..., description="Mapped differentiated remedy strategy"
-    )
+    context: str = Field(default="", description="Dialogue context where the error occurred")
+    remedy_strategy: RemedyStrategy = Field(..., description="Mapped differentiated remedy strategy")
     node_id: str = Field(..., description="Source canvas node ID")
     session_id: str = Field(default="", description="Dialogue session ID")
     # P0-4 (2026-05-14): rename created_at → misconception_created_at to avoid
@@ -347,15 +337,9 @@ class LearningConcept(BaseModel):
 
     concept_name: str = Field(..., description="Concept name")
     description: str = Field(..., description="Brief description of the concept")
-    subject_area: str = Field(
-        ..., description="Subject/discipline area (e.g. 数学, 物理)"
-    )
-    difficulty_level: str = Field(
-        default="", description="Difficulty level (e.g. beginner, intermediate)"
-    )
-    prerequisites: List[str] = Field(
-        default_factory=list, description="Prerequisite concept names"
-    )
+    subject_area: str = Field(..., description="Subject/discipline area (e.g. 数学, 物理)")
+    difficulty_level: str = Field(default="", description="Difficulty level (e.g. beginner, intermediate)")
+    prerequisites: List[str] = Field(default_factory=list, description="Prerequisite concept names")
 
 
 class MasteryRecord(BaseModel):
@@ -368,13 +352,9 @@ class MasteryRecord(BaseModel):
     """
 
     concept_name: str = Field(..., description="Name of the concept being tracked")
-    mastery_level: str = Field(
-        ..., description="Current mastery level (e.g. novice, proficient, expert)"
-    )
+    mastery_level: str = Field(..., description="Current mastery level (e.g. novice, proficient, expert)")
     last_reviewed: str = Field(..., description="ISO timestamp of last review")
-    error_count: int = Field(
-        default=0, description="Number of errors made on this concept"
-    )
+    error_count: int = Field(default=0, description="Number of errors made on this concept")
 
 
 class PrerequisiteRelation(BaseModel):
@@ -386,9 +366,7 @@ class PrerequisiteRelation(BaseModel):
     """
 
     source_concept: str = Field(..., description="The concept that is a prerequisite")
-    target_concept: str = Field(
-        ..., description="The concept that requires the prerequisite"
-    )
+    target_concept: str = Field(..., description="The concept that requires the prerequisite")
     relation_strength: str = Field(
         default="strong",
         description="Strength of the prerequisite relation (strong/weak)",

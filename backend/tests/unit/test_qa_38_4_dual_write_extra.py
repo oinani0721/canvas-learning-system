@@ -77,9 +77,7 @@ class TestQAGetAttrDefenseInDepth:
 
         # getattr with False fallback is a valid defense pattern
         result = getattr(fresh_settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False)
-        assert result is True, (
-            "getattr should return the actual True value, not the False fallback"
-        )
+        assert result is True, "getattr should return the actual True value, not the False fallback"
 
     def test_env_example_documents_true_default(self):
         """The .env.example file documents the safe default correctly."""

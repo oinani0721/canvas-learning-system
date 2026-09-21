@@ -24,9 +24,7 @@ from app.services.canvas_service import CanvasService
 
 # Skip integration tests if Neo4j not available
 NEO4J_AVAILABLE = os.getenv("NEO4J_MOCK", "true").lower() != "true"
-pytestmark = pytest.mark.skipif(
-    not NEO4J_AVAILABLE, reason="NEO4J_MOCK=true, skipping integration tests"
-)
+pytestmark = pytest.mark.skipif(not NEO4J_AVAILABLE, reason="NEO4J_MOCK=true, skipping integration tests")
 
 
 @pytest.fixture
@@ -88,9 +86,7 @@ async def canvas_service_with_real_neo4j(tmp_path):
     neo4j_client = get_neo4j_client()
     memory_service = MemoryService(neo4j=neo4j_client)
 
-    service = CanvasService(
-        canvas_base_path=str(tmp_path), memory_client=memory_service
-    )
+    service = CanvasService(canvas_base_path=str(tmp_path), memory_client=memory_service)
 
     yield service
 
@@ -123,9 +119,7 @@ class TestIntegrationSyncEdges:
         canvas_path.write_text(json.dumps(sample_canvas_50_edges))
 
         # Act
-        result = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j(
-            "integration_50"
-        )
+        result = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j("integration_50")
 
         # Assert API response
         assert result["total_edges"] == 50
@@ -133,9 +127,7 @@ class TestIntegrationSyncEdges:
 
         # Verify in Neo4j
         query_result = await neo4j_client.run_query(
-            "MATCH ()-[r:CONNECTS_TO]->() "
-            "WHERE r.edge_id STARTS WITH 'int-edge-' "
-            "RETURN count(r) as count"
+            "MATCH ()-[r:CONNECTS_TO]->() WHERE r.edge_id STARTS WITH 'int-edge-' RETURN count(r) as count"
         )
         neo4j_count = query_result[0]["count"] if query_result else 0
         assert neo4j_count == result["synced_count"], (
@@ -143,9 +135,7 @@ class TestIntegrationSyncEdges:
         )
 
     @pytest.mark.asyncio
-    async def test_idempotent_sync_no_duplicates(
-        self, canvas_service_with_real_neo4j, neo4j_client, tmp_path
-    ):
+    async def test_idempotent_sync_no_duplicates(self, canvas_service_with_real_neo4j, neo4j_client, tmp_path):
         """AC-3: Verify MERGE semantics - no duplicates on repeated sync."""
         # Create small canvas for idempotency test
         canvas_data = {
@@ -165,26 +155,19 @@ class TestIntegrationSyncEdges:
         canvas_path.write_text(json.dumps(canvas_data))
 
         # First sync
-        result1 = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j(
-            "idempotent_test"
-        )
+        result1 = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j("idempotent_test")
 
         # Second sync (should be idempotent)
-        result2 = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j(
-            "idempotent_test"
-        )
+        result2 = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j("idempotent_test")
 
         # Verify no duplicates in Neo4j
         query_result = await neo4j_client.run_query(
-            "MATCH ()-[r:CONNECTS_TO {edge_id: 'idem-edge-1'}]->() "
-            "RETURN count(r) as count"
+            "MATCH ()-[r:CONNECTS_TO {edge_id: 'idem-edge-1'}]->() RETURN count(r) as count"
         )
         neo4j_count = query_result[0]["count"] if query_result else 0
 
         # Should be exactly 1 (not 2)
-        assert neo4j_count == 1, (
-            f"Expected 1 edge, found {neo4j_count} (duplicate detected!)"
-        )
+        assert neo4j_count == 1, f"Expected 1 edge, found {neo4j_count} (duplicate detected!)"
         assert result1["synced_count"] == result2["synced_count"]
 
 
@@ -192,9 +175,7 @@ class TestIntegrationPerformance:
     """Performance integration tests."""
 
     @pytest.mark.asyncio
-    async def test_100_edges_under_5_seconds(
-        self, canvas_service_with_real_neo4j, tmp_path, sample_canvas_100_edges
-    ):
+    async def test_100_edges_under_5_seconds(self, canvas_service_with_real_neo4j, tmp_path, sample_canvas_100_edges):
         """AC-7: Verify 100 edges sync in < 5 seconds with real Neo4j."""
         # Setup
         canvas_path = tmp_path / "perf_100.canvas"
@@ -202,9 +183,7 @@ class TestIntegrationPerformance:
 
         # Act
         start = time.monotonic()
-        result = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j(
-            "perf_100"
-        )
+        result = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j("perf_100")
         elapsed = time.monotonic() - start
 
         # Assert
@@ -212,19 +191,14 @@ class TestIntegrationPerformance:
         assert elapsed < 5.0, f"100 edges took {elapsed:.2f}s, should be < 5s"
         # Log actual sync rate
         edges_per_second = result["synced_count"] / elapsed if elapsed > 0 else 0
-        print(
-            f"Performance: {result['synced_count']} edges in {elapsed:.2f}s "
-            f"({edges_per_second:.1f} edges/s)"
-        )
+        print(f"Performance: {result['synced_count']} edges in {elapsed:.2f}s ({edges_per_second:.1f} edges/s)")
 
 
 class TestIntegrationPartialFailure:
     """Partial failure integration tests."""
 
     @pytest.mark.asyncio
-    async def test_partial_sync_continues_after_error(
-        self, canvas_service_with_real_neo4j, neo4j_client, tmp_path
-    ):
+    async def test_partial_sync_continues_after_error(self, canvas_service_with_real_neo4j, neo4j_client, tmp_path):
         """AC-6: Verify other edges sync even if one fails."""
         # Create canvas with edges (some may fail due to missing nodes in Neo4j)
         canvas_data = {
@@ -255,14 +229,10 @@ class TestIntegrationPartialFailure:
         canvas_path.write_text(json.dumps(canvas_data))
 
         # Act - should complete without raising exception
-        result = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j(
-            "partial_failure"
-        )
+        result = await canvas_service_with_real_neo4j.sync_all_edges_to_neo4j("partial_failure")
 
         # Assert - request completed, some edges may have failed
         assert result["total_edges"] == 3
         # synced_count + failed_count + skipped_count should equal total
-        total_accounted = (
-            result["synced_count"] + result["failed_count"] + result["skipped_count"]
-        )
+        total_accounted = result["synced_count"] + result["failed_count"] + result["skipped_count"]
         assert total_accounted == result["total_edges"]

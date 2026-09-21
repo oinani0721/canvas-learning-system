@@ -68,9 +68,7 @@ def _create_canvas(base_dir: Path, name: str, node_count: int) -> Path:
         )
     canvas_data = {"nodes": nodes, "edges": []}
     canvas_file = base_dir / name
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
     return canvas_file
 
 
@@ -119,17 +117,13 @@ class TestFullBatchPipeline:
 
         # Fast mock agent that returns AgentResult
         async def fast_agent(*args, **kwargs):
-            at_str = kwargs.get(
-                "agent_type", args[0] if args else "basic-decomposition"
-            )
+            at_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
             await simulate_async_delay(0.005)
             try:
                 at = AgentType(at_str)
             except ValueError:
                 at = AgentType.BASIC_DECOMPOSITION
-            return AgentResult(
-                agent_type=at, success=True, result={"content": f"mock {at_str}"}
-            )
+            return AgentResult(agent_type=at, success=True, result={"content": f"mock {at_str}"})
 
         with (
             patch(
@@ -146,9 +140,7 @@ class TestFullBatchPipeline:
                 new=make_lightweight_ensure_deps(test_settings, fast_agent),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 # Step 1: Analyze
                 resp = await client.post(
                     "/api/v1/canvas/intelligent-parallel/",
@@ -187,9 +179,7 @@ class TestFullBatchPipeline:
                 # Step 3: Poll until complete
                 final = None
                 for _ in range(200):
-                    resp = await client.get(
-                        f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                    )
+                    resp = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                     assert resp.status_code == 200
                     final = resp.json()
                     if final["status"] in ("completed", "partial_failure", "failed"):
@@ -211,9 +201,7 @@ class TestFullBatchPipeline:
                     total_results += len(results)
                     for result in results:
                         assert "node_id" in result, "Each result should have node_id"
-                assert total_results > 0, (
-                    f"Should have node results but got {total_results}"
-                )
+                assert total_results > 0, f"Should have node results but got {total_results}"
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
@@ -229,9 +217,7 @@ class TestFullBatchPipeline:
             ),
             patch("app.dependencies.get_settings", return_value=test_settings),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 resp = await client.post(
                     "/api/v1/canvas/intelligent-parallel/",
                     json={"canvas_path": canvas_file.name, "target_color": "6"},
@@ -275,17 +261,13 @@ class TestCancelFlow:
 
         # Slow agent to give time for cancellation
         async def slow_agent(*args, **kwargs):
-            at_str = kwargs.get(
-                "agent_type", args[0] if args else "basic-decomposition"
-            )
+            at_str = kwargs.get("agent_type", args[0] if args else "basic-decomposition")
             await simulate_async_delay(0.5)  # 500ms per node
             try:
                 at = AgentType(at_str)
             except ValueError:
                 at = AgentType.BASIC_DECOMPOSITION
-            return AgentResult(
-                agent_type=at, success=True, result={"content": f"mock {at_str}"}
-            )
+            return AgentResult(agent_type=at, success=True, result={"content": f"mock {at_str}"})
 
         with (
             patch(
@@ -302,9 +284,7 @@ class TestCancelFlow:
                 new=make_lightweight_ensure_deps(test_settings, slow_agent),
             ),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 # Step 1: Analyze + Confirm
                 resp = await client.post(
                     "/api/v1/canvas/intelligent-parallel/",
@@ -327,17 +307,13 @@ class TestCancelFlow:
 
                 # Step 2: Wait briefly then cancel
                 await simulate_async_delay(0.3)
-                resp = await client.post(
-                    f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}"
-                )
+                resp = await client.post(f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}")
                 assert resp.status_code == 200, f"Cancel failed: {resp.text}"
                 cancel_data = resp.json()
                 assert "completed_count" in cancel_data
 
                 # Step 3: Verify status is cancelled
-                resp = await client.get(
-                    f"/api/v1/canvas/intelligent-parallel/{session_id}"
-                )
+                resp = await client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
                 assert resp.status_code == 200
                 assert resp.json()["status"] == "cancelled"
 
@@ -348,12 +324,8 @@ class TestCancelFlow:
         test_settings = _make_test_settings(str(canvas_dir))
 
         with patch("app.dependencies.get_settings", return_value=test_settings):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
-                resp = await client.post(
-                    "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-id"
-                )
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.post("/api/v1/canvas/intelligent-parallel/cancel/nonexistent-id")
                 assert resp.status_code == 404
 
 
@@ -383,9 +355,7 @@ def make_lightweight_ensure_deps(settings, agent_mock):
         from app.services.canvas_service import CanvasService
         from app.services.session_manager import SessionManager
 
-        canvas_base = (
-            str(settings.canvas_base_path) if settings.canvas_base_path else None
-        )
+        canvas_base = str(settings.canvas_base_path) if settings.canvas_base_path else None
         canvas_service = CanvasService(canvas_base_path=canvas_base)
 
         # Create AgentService with mocked gemini_client

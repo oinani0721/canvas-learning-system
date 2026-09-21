@@ -39,9 +39,7 @@ _FILENAME_PATTERN = re.compile(r"^(.+)_v(\d+)\.md$")
 
 # Regex patterns for metadata header lines (HTML comments)
 _META_SERVICE_REF = re.compile(r"<!--\s*引用方:\s*(.+?)\s*-->")
-_META_VERSION_DATE = re.compile(
-    r"<!--\s*版本:\s*v(\d+)\s*\|\s*创建:\s*(\d{4}-\d{2}-\d{2})\s*-->"
-)
+_META_VERSION_DATE = re.compile(r"<!--\s*版本:\s*v(\d+)\s*\|\s*创建:\s*(\d{4}-\d{2}-\d{2})\s*-->")
 
 
 @dataclass(frozen=True)
@@ -240,9 +238,7 @@ class PromptRegistry:
         if template is None:
             available = sorted(versions.keys())
             raise PromptLoadError(
-                message=(
-                    f"Version v{version} not found. Available versions: {available}"
-                ),
+                message=(f"Version v{version} not found. Available versions: {available}"),
                 prompt_name=name,
             )
 
@@ -269,9 +265,7 @@ class PromptRegistry:
         if template is None:
             available = sorted(versions.keys())
             raise PromptLoadError(
-                message=(
-                    f"Version v{version} not found. Available versions: {available}"
-                ),
+                message=(f"Version v{version} not found. Available versions: {available}"),
                 prompt_name=name,
             )
         return template
@@ -337,9 +331,7 @@ class PromptRegistry:
         if version not in versions:
             available = sorted(versions.keys())
             raise PromptLoadError(
-                message=(
-                    f"Cannot set active version to v{version}. Available: {available}"
-                ),
+                message=(f"Cannot set active version to v{version}. Available: {available}"),
                 prompt_name=name,
             )
         self._active_versions[name] = version

@@ -32,9 +32,7 @@ class RecordErrorInput(BaseModel):
 
     node_id: str = Field(..., description="The canvas node identifier.")
     session_id: str = Field(..., description="The dialogue session identifier.")
-    error_description: str = Field(
-        ..., description="Description of the student's understanding error."
-    )
+    error_description: str = Field(..., description="Description of the student's understanding error.")
     context: str = Field(
         default="",
         description="Dialogue context where the error was detected.",
@@ -239,9 +237,7 @@ async def record_error(
             import uuid
 
             misconception_id = str(uuid.uuid4())  # Graphiti only 路径生成新 id
-            graphiti_ok = await write_error_to_graphiti(
-                classified, node_id, session_id, error_id=misconception_id
-            )
+            graphiti_ok = await write_error_to_graphiti(classified, node_id, session_id, error_id=misconception_id)
             graphiti_status = "ok" if graphiti_ok else "failed"
 
         logger.info(

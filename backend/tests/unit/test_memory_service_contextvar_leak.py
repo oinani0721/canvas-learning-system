@@ -99,9 +99,7 @@ class TestVaultScopedGroupId:
         with patch("app.config.get_current_vault_id", return_value="process_vault"):
             gid = _vault_scoped_group_id("algorithms", canvas_name="dijkstra")
         assert gid == "vault:contextvar_vault:dijkstra"
-        assert "process_vault" not in gid, (
-            f"per-request scope must win over process vault (CARD-G2-2): {gid}"
-        )
+        assert "process_vault" not in gid, f"per-request scope must win over process vault (CARD-G2-2): {gid}"
 
     def test_unset_contextvar_falls_back_to_active_vault(self):
         """No request scope (ContextVar at its DEFAULT_SUBJECT_ID default,

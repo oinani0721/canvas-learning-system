@@ -44,18 +44,14 @@ class TestBKTCorrectAnswer:
 
     def test_correct_answer_raises_p_mastery_easy(self, engine):
         """Grade 3 on easy difficulty should increase p_mastery."""
-        concept = ConceptState(
-            concept_id="t", topic="t", name="t", bkt_difficulty="easy"
-        )
+        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="easy")
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=3)
         assert concept.p_mastery > old_p
 
     def test_correct_answer_raises_p_mastery_hard(self, engine):
         """Grade 3 on hard difficulty should increase p_mastery."""
-        concept = ConceptState(
-            concept_id="t", topic="t", name="t", bkt_difficulty="hard"
-        )
+        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="hard")
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=3)
         assert concept.p_mastery > old_p
@@ -107,18 +103,14 @@ class TestBKTIncorrectAnswer:
 
     def test_incorrect_answer_easy(self, engine):
         """Incorrect on easy difficulty."""
-        concept = ConceptState(
-            concept_id="t", topic="t", name="t", bkt_difficulty="easy", p_mastery=0.6
-        )
+        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="easy", p_mastery=0.6)
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=1)
         assert concept.p_mastery < old_p
 
     def test_incorrect_answer_hard(self, engine):
         """Incorrect on hard difficulty."""
-        concept = ConceptState(
-            concept_id="t", topic="t", name="t", bkt_difficulty="hard", p_mastery=0.6
-        )
+        concept = ConceptState(concept_id="t", topic="t", name="t", bkt_difficulty="hard", p_mastery=0.6)
         old_p = concept.p_mastery
         engine.update_on_interaction(concept, grade=1)
         assert concept.p_mastery < old_p

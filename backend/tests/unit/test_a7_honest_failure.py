@@ -42,12 +42,8 @@ async def test_status_written_when_structured_succeeds(service, monkeypatch):
     g.driver = MagicMock()
     g.embedder = MagicMock()
     _worker(monkeypatch, graphiti=g, is_ready=True)
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_callout", AsyncMock()
-    )
-    r = await service.record_knowledge_entity(
-        "callout_annotation", "x", {"node_id": "n", "content": "x"}, "vault:g"
-    )
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_callout", AsyncMock())
+    r = await service.record_knowledge_entity("callout_annotation", "x", {"node_id": "n", "content": "x"}, "vault:g")
     assert r["status"] == "written"
     assert r["entity_id"].startswith("callout_annotation-")
 
@@ -62,12 +58,8 @@ async def test_status_degraded_and_outbox_when_worker_not_ready(service, monkeyp
     """A7 核心: worker 未就绪 → degraded + 落 outbox, 不静默假成功。"""
     _worker(monkeypatch, graphiti=None, is_ready=False)
     captured = []
-    monkeypatch.setattr(
-        service, "_record_structured_outbox", lambda e: captured.append(e) or True
-    )
-    r = await service.record_knowledge_entity(
-        "callout_annotation", "x", {"node_id": "n", "content": "x"}, "vault:g"
-    )
+    monkeypatch.setattr(service, "_record_structured_outbox", lambda e: captured.append(e) or True)
+    r = await service.record_knowledge_entity("callout_annotation", "x", {"node_id": "n", "content": "x"}, "vault:g")
     assert r["status"] == "degraded"
     assert len(captured) == 1
     assert captured[0]["kind"] == "knowledge_entity"
@@ -79,9 +71,7 @@ async def test_from_recovery_does_not_repersist_outbox(service, monkeypatch):
     """重放路径 degraded 时不再落 outbox, 避免重复堆积。"""
     _worker(monkeypatch, graphiti=None, is_ready=False)
     captured = []
-    monkeypatch.setattr(
-        service, "_record_structured_outbox", lambda e: captured.append(e)
-    )
+    monkeypatch.setattr(service, "_record_structured_outbox", lambda e: captured.append(e))
     r = await service.record_knowledge_entity(
         "callout_annotation", "x", {"node_id": "n"}, "vault:g", _from_recovery=True
     )
@@ -108,9 +98,7 @@ async def test_recover_replays_structured_entry(service, monkeypatch, tmp_path):
     monkeypatch.setattr(ms, "FAILED_WRITES_FILE", f)
     calls = []
 
-    async def fake_rke(
-        event_type, content, metadata=None, group_id=None, _from_recovery=False
-    ):
+    async def fake_rke(event_type, content, metadata=None, group_id=None, _from_recovery=False):
         calls.append((event_type, _from_recovery))
         return {"entity_id": "e", "status": "written"}
 
@@ -121,9 +109,7 @@ async def test_recover_replays_structured_entry(service, monkeypatch, tmp_path):
     assert not f.exists()  # 全部重放成功 → 文件清空
 
 
-async def test_recover_keeps_pending_when_replay_degrades(
-    service, monkeypatch, tmp_path
-):
+async def test_recover_keeps_pending_when_replay_degrades(service, monkeypatch, tmp_path):
     """重放仍 degraded → 保留条目待下次 (不丢)。"""
     f = tmp_path / "failed.jsonl"
     f.write_text(
@@ -166,9 +152,7 @@ async def test_node_derived_routes_to_write_relation_reason(service, monkeypatch
     async def spy_wrr(driver, embedder, **kw):
         captured.update(kw)
 
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_relation_reason", spy_wrr
-    )
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_relation_reason", spy_wrr)
     r = await service.record_knowledge_entity(
         "node_derived",
         "我想单独讨论",
@@ -193,7 +177,5 @@ async def test_node_derived_no_target_falls_back_to_queue(service, monkeypatch):
     g.driver = MagicMock()
     g.embedder = MagicMock()
     _worker(monkeypatch, graphiti=g, is_ready=True, enqueue_ok=True)
-    r = await service.record_knowledge_entity(
-        "node_derived", "原因", {"node_id": "n"}, "vault:g"
-    )
+    r = await service.record_knowledge_entity("node_derived", "原因", {"node_id": "n"}, "vault:g")
     assert r["status"] == "enqueued"  # 缺 target → fallback

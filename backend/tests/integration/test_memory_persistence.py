@@ -47,16 +47,10 @@ def mock_neo4j_client_with_persistence():
         limit=100,
     ):
         """Return persistent data filtered by parameters."""
-        results = [
-            item
-            for item in persistent_storage["learning_history"]
-            if item.get("user_id") == user_id
-        ]
+        results = [item for item in persistent_storage["learning_history"] if item.get("user_id") == user_id]
 
         if concept:
-            results = [
-                r for r in results if concept.lower() in r.get("concept", "").lower()
-            ]
+            results = [r for r in results if concept.lower() in r.get("concept", "").lower()]
 
         if group_id:
             results = [r for r in results if r.get("group_id") == group_id]
@@ -66,9 +60,7 @@ def mock_neo4j_client_with_persistence():
 
         return results[:limit]
 
-    async def mock_create_learning_relationship(
-        user_id: str, concept: str, score=None, group_id=None
-    ):
+    async def mock_create_learning_relationship(user_id: str, concept: str, score=None, group_id=None):
         """Simulate persisting learning data."""
         record = {
             "user_id": user_id,
@@ -82,9 +74,7 @@ def mock_neo4j_client_with_persistence():
         return True
 
     client.get_learning_history = AsyncMock(side_effect=mock_get_learning_history)
-    client.create_learning_relationship = AsyncMock(
-        side_effect=mock_create_learning_relationship
-    )
+    client.create_learning_relationship = AsyncMock(side_effect=mock_create_learning_relationship)
     client.initialize = AsyncMock()
     client.close = AsyncMock()
 
@@ -143,10 +133,7 @@ class TestCrossSessionPersistence:
         )
 
         # Verify data was written
-        assert (
-            len(mock_neo4j_client_with_persistence._test_storage["learning_history"])
-            == 1
-        )
+        assert len(mock_neo4j_client_with_persistence._test_storage["learning_history"]) == 1
 
         # Session 1 cleanup (simulate service shutdown)
         await service1.cleanup()
@@ -171,9 +158,7 @@ class TestCrossSessionPersistence:
         await service2.cleanup()
 
     @pytest.mark.asyncio
-    async def test_data_fields_complete_after_restart(
-        self, mock_neo4j_client_with_persistence, mock_graphiti_memory
-    ):
+    async def test_data_fields_complete_after_restart(self, mock_neo4j_client_with_persistence, mock_graphiti_memory):
         """
         Verify all data fields are preserved across restarts.
 
@@ -205,9 +190,7 @@ class TestCrossSessionPersistence:
 
         # Verify all fields
         assert result["total"] >= 1
-        item = next(
-            (i for i in result["items"] if i["concept"] == "离散数学-逆否命题"), None
-        )
+        item = next((i for i in result["items"] if i["concept"] == "离散数学-逆否命题"), None)
         assert item is not None
         assert item["score"] == 90
         assert "timestamp" in item
@@ -248,9 +231,7 @@ class TestNeo4jQueryPriority:
         await service.initialize()
 
         # Add data to memory (should NOT be returned)
-        service._episodes.append(
-            {"user_id": "user1", "concept": "From Memory", "score": 50}
-        )
+        service._episodes.append({"user_id": "user1", "concept": "From Memory", "score": 50})
 
         result = await service.get_learning_history(user_id="user1")
 
@@ -267,9 +248,7 @@ class TestNeo4jQueryPriority:
         """Verify fallback to memory when Neo4j query fails."""
         mock_neo4j = MagicMock(spec=Neo4jClient)
         mock_neo4j._initialized = True
-        mock_neo4j.get_learning_history = AsyncMock(
-            side_effect=Exception("Neo4j connection lost")
-        )
+        mock_neo4j.get_learning_history = AsyncMock(side_effect=Exception("Neo4j connection lost"))
         mock_neo4j.initialize = AsyncMock()
 
         service = MemoryService(neo4j_client=mock_neo4j)
@@ -405,9 +384,7 @@ class TestFilteringAndPagination:
         service._learning_memory = mock_graphiti_memory
         await service.initialize()
 
-        result = await service.get_learning_history(
-            user_id="user1", page=1, page_size=2
-        )
+        result = await service.get_learning_history(user_id="user1", page=1, page_size=2)
 
         # Verify pagination
         assert result["page"] == 1
@@ -582,13 +559,9 @@ class TestRealNeo4jPersistence:
         await service2.initialize()
 
         # Filter by 数学
-        math_result = await service2.get_learning_history(
-            user_id=test_user_id, subject="数学"
-        )
+        math_result = await service2.get_learning_history(user_id=test_user_id, subject="数学")
         math_items = math_result.get("items", [])
 
         # Should find math concept
         math_concepts = {item.get("concept") for item in math_items}
-        assert math_concept in math_concepts, (
-            "Math concept should be in filtered results"
-        )
+        assert math_concept in math_concepts, "Math concept should be in filtered results"

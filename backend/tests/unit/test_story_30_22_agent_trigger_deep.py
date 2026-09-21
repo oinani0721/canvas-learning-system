@@ -87,9 +87,7 @@ class TestAgentTriggerBehavior:
 
     @pytest.mark.parametrize("agent_name", ALL_AGENTS)
     @pytest.mark.asyncio
-    async def test_trigger_passes_correct_concept(
-        self, agent_service, mock_memory_client, agent_name, wait_for_call
-    ):
+    async def test_trigger_passes_correct_concept(self, agent_service, mock_memory_client, agent_name, wait_for_call):
         """_trigger_memory_write passes correct concept to LearningMemory."""
         await agent_service._trigger_memory_write(
             agent_type=agent_name,
@@ -105,9 +103,7 @@ class TestAgentTriggerBehavior:
 
     @pytest.mark.parametrize("agent_name", ALL_AGENTS)
     @pytest.mark.asyncio
-    async def test_trigger_passes_correct_node_id(
-        self, agent_service, mock_memory_client, agent_name, wait_for_call
-    ):
+    async def test_trigger_passes_correct_node_id(self, agent_service, mock_memory_client, agent_name, wait_for_call):
         """_trigger_memory_write passes correct node_id to LearningMemory."""
         await agent_service._trigger_memory_write(
             agent_type=agent_name,
@@ -185,9 +181,7 @@ class TestTriggerDegradation:
         self, agent_service, mock_memory_client, wait_for_call
     ):
         """add_learning_episode raises exception: _trigger_memory_write does not crash."""
-        mock_memory_client.add_learning_episode = AsyncMock(
-            side_effect=Exception("Database connection lost")
-        )
+        mock_memory_client.add_learning_episode = AsyncMock(side_effect=Exception("Database connection lost"))
 
         # Should not raise
         await agent_service._trigger_memory_write(
@@ -201,9 +195,7 @@ class TestTriggerDegradation:
         await wait_for_call(mock_memory_client.add_learning_episode)
 
     @pytest.mark.asyncio
-    async def test_trigger_warning_contains_agent_type_on_outer_failure(
-        self, mock_gemini_client, mock_memory_client
-    ):
+    async def test_trigger_warning_contains_agent_type_on_outer_failure(self, mock_gemini_client, mock_memory_client):
         """When record_learning_episode raises, logger.warning includes agent_type."""
         from app.services.agent_service import AgentService
 
@@ -213,9 +205,7 @@ class TestTriggerDegradation:
         )
 
         # Patch record_learning_episode to raise — triggers _write_with_timeout's except
-        service.record_learning_episode = AsyncMock(
-            side_effect=RuntimeError("Unexpected failure")
-        )
+        service.record_learning_episode = AsyncMock(side_effect=RuntimeError("Unexpected failure"))
 
         with patch("app.services.agent_service.logger") as mock_logger:
             await service._trigger_memory_write(
@@ -250,9 +240,7 @@ class TestEpisodeStructure:
     """AC-30.22.3: Verify LearningMemory (episode) structure completeness."""
 
     @pytest.mark.asyncio
-    async def test_episode_structure_has_required_fields(
-        self, agent_service, mock_memory_client, wait_for_call
-    ):
+    async def test_episode_structure_has_required_fields(self, agent_service, mock_memory_client, wait_for_call):
         """LearningMemory passed to add_learning_episode has all required fields."""
         await agent_service._trigger_memory_write(
             agent_type="scoring-agent",
@@ -349,14 +337,10 @@ class TestEpisodeStructure:
         try:
             dt.fromisoformat(timestamp_str)
         except ValueError:
-            pytest.fail(
-                f"Auto-generated timestamp '{timestamp_str}' is not valid ISO 8601"
-            )
+            pytest.fail(f"Auto-generated timestamp '{timestamp_str}' is not valid ISO 8601")
 
     @pytest.mark.asyncio
-    async def test_episode_timestamp_field_present(
-        self, agent_service, mock_memory_client, wait_for_call
-    ):
+    async def test_episode_timestamp_field_present(self, agent_service, mock_memory_client, wait_for_call):
         """LearningMemory.timestamp is set (or None for auto-generation)."""
         await agent_service._trigger_memory_write(
             agent_type="oral-explanation",
@@ -372,9 +356,7 @@ class TestEpisodeStructure:
         assert memory_arg.memory_key, "memory_key (episode_id) must be non-empty"
         # canvas_name:node_id:timestamp format — ISO 8601 timestamps contain colons
         parts = memory_arg.memory_key.split(":")
-        assert len(parts) >= 3, (
-            f"memory_key should have at least 3 parts, got: {memory_arg.memory_key}"
-        )
+        assert len(parts) >= 3, f"memory_key should have at least 3 parts, got: {memory_arg.memory_key}"
         # AC-30.22.3: Validate timestamp portion is ISO 8601 format
         timestamp_str = ":".join(parts[2:])
         from datetime import datetime as dt
@@ -382,6 +364,4 @@ class TestEpisodeStructure:
         try:
             dt.fromisoformat(timestamp_str)
         except ValueError:
-            pytest.fail(
-                f"timestamp portion '{timestamp_str}' is not valid ISO 8601 format"
-            )
+            pytest.fail(f"timestamp portion '{timestamp_str}' is not valid ISO 8601 format")

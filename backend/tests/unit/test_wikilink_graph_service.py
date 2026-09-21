@@ -9,12 +9,8 @@ import pytest
 @pytest.fixture
 def vault_with_links(tmp_path):
     """Create a minimal vault with interlinked .md files."""
-    (tmp_path / "A.md").write_text(
-        "---\nmastery_score: 0.8\n---\n# A\nLinks to [[B]] and [[C]]\n"
-    )
-    (tmp_path / "B.md").write_text(
-        "---\nmastery_score: 0.5\n---\n# B\nLinks to [[C]] and [[D]]\n"
-    )
+    (tmp_path / "A.md").write_text("---\nmastery_score: 0.8\n---\n# A\nLinks to [[B]] and [[C]]\n")
+    (tmp_path / "B.md").write_text("---\nmastery_score: 0.5\n---\n# B\nLinks to [[C]] and [[D]]\n")
     (tmp_path / "C.md").write_text("# C\nLinks back to [[A]]\n")
     (tmp_path / "D.md").write_text("# D\nNo outgoing links\n")
     (tmp_path / "orphan.md").write_text("# Orphan\nNo links at all\n")
@@ -71,18 +67,14 @@ class TestNeighborQuery:
         assert len(titles) == len(set(titles))
 
     @pytest.mark.asyncio
-    async def test_nonexistent_note_returns_empty(
-        self, graph_service, vault_with_links
-    ):
+    async def test_nonexistent_note_returns_empty(self, graph_service, vault_with_links):
         """AC #5: Querying non-existent note returns empty list."""
         await graph_service.build(str(vault_with_links))
         result = graph_service.get_neighbors("nonexistent")
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_full_path_falls_back_to_basename_when_orphan(
-        self, graph_service, vault_with_links
-    ):
+    async def test_full_path_falls_back_to_basename_when_orphan(self, graph_service, vault_with_links):
         """Phase 1 hotfix — obsidiantools 给同一文件 2 个节点（vault 路径 + wikilink basename）。
         plugin 传 vault 路径命中孤立节点 → 应自动 fallback 到 basename。
         """
@@ -95,9 +87,7 @@ class TestNeighborQuery:
         assert "C" in titles
 
     @pytest.mark.asyncio
-    async def test_basename_only_path_still_works(
-        self, graph_service, vault_with_links
-    ):
+    async def test_basename_only_path_still_works(self, graph_service, vault_with_links):
         """Phase 1 hotfix — basename-only 路径（向后兼容）"""
         await graph_service.build(str(vault_with_links))
         result = graph_service.get_neighbors("A", hop=1)
@@ -105,9 +95,7 @@ class TestNeighborQuery:
         assert "B" in titles
 
     @pytest.mark.asyncio
-    async def test_truly_isolated_node_returns_empty(
-        self, graph_service, vault_with_links
-    ):
+    async def test_truly_isolated_node_returns_empty(self, graph_service, vault_with_links):
         """Phase 1 hotfix — 路径 + basename 都无邻居 = 真正孤立节点"""
         await graph_service.build(str(vault_with_links))
         # orphan.md 在 vault 但无 wikilink 引用 + 无外链
@@ -173,9 +161,7 @@ class TestGetDegree:
         assert graph_service.get_degree("A") == 0
 
     @pytest.mark.asyncio
-    async def test_existing_node_returns_positive_degree(
-        self, graph_service, vault_with_links
-    ):
+    async def test_existing_node_returns_positive_degree(self, graph_service, vault_with_links):
         await graph_service.build(str(vault_with_links))
         # A 在 graph 里有链接,degree > 0
         assert graph_service.get_degree("A") >= 1
@@ -186,9 +172,7 @@ class TestGetDegree:
         assert graph_service.get_degree("nonexistent_xyz") == 0
 
     @pytest.mark.asyncio
-    async def test_basename_fallback_matches_neighbor_logic(
-        self, graph_service, vault_with_links
-    ):
+    async def test_basename_fallback_matches_neighbor_logic(self, graph_service, vault_with_links):
         """与 get_neighbors() 的 basename fallback 行为一致,degree 用同一节点."""
         await graph_service.build(str(vault_with_links))
         # 传 vault 相对路径,应回退到 basename
@@ -275,9 +259,7 @@ class TestMultiVaultIsolation:
         token_b = _current_subject_id.set("vault_B_test")
         try:
             svc_b = get_wikilink_graph_service()
-            assert svc_b is not svc_a, (
-                "P0-1 violation: 两个 vault 拿到同一 WikilinkGraphService instance"
-            )
+            assert svc_b is not svc_a, "P0-1 violation: 两个 vault 拿到同一 WikilinkGraphService instance"
             await svc_b.build(str(vault_b))
             assert svc_b.is_built
             nodes_b = svc_b.node_count
@@ -292,9 +274,7 @@ class TestMultiVaultIsolation:
         try:
             svc_a_again = get_wikilink_graph_service()
             assert svc_a_again is svc_a, "vault_A 第二次 lookup 应返回同一 instance"
-            assert svc_a_again.node_count == nodes_a, (
-                "vault_A 的 node_count 被 vault_B build 污染了"
-            )
+            assert svc_a_again.node_count == nodes_a, "vault_A 的 node_count 被 vault_B build 污染了"
         finally:
             _current_subject_id.reset(token_c)
 
@@ -401,15 +381,9 @@ class TestDefaultFallbackObservability:
                 results = [_resolve_vault_key() for _ in range(5)]
 
             assert all(r == _DEFAULT_VAULT_KEY for r in results)
-            fallback_warns = [
-                rec
-                for rec in caplog.records
-                if "vault_key fallback to __default__" in rec.getMessage()
-            ]
+            fallback_warns = [rec for rec in caplog.records if "vault_key fallback to __default__" in rec.getMessage()]
             # 5 次调用 + 同一 caller frame → 应只 warn 一次
-            assert len(fallback_warns) == 1, (
-                f"期望只 warn 一次, 实际 {len(fallback_warns)} 次"
-            )
+            assert len(fallback_warns) == 1, f"期望只 warn 一次, 实际 {len(fallback_warns)} 次"
         finally:
             _current_subject_id.reset(token)
 
@@ -438,15 +412,9 @@ class TestDefaultFallbackObservability:
                 r2b = caller_two()  # same frame as r2
 
             assert r1 == r1b == r2 == r2b == _DEFAULT_VAULT_KEY
-            fallback_warns = [
-                rec
-                for rec in caplog.records
-                if "vault_key fallback to __default__" in rec.getMessage()
-            ]
+            fallback_warns = [rec for rec in caplog.records if "vault_key fallback to __default__" in rec.getMessage()]
             # 2 个不同 caller frame → 2 次 warn (各自一次)
-            assert len(fallback_warns) == 2, (
-                f"期望 2 次 warn, 实际 {len(fallback_warns)} 次"
-            )
+            assert len(fallback_warns) == 2, f"期望 2 次 warn, 实际 {len(fallback_warns)} 次"
         finally:
             _current_subject_id.reset(token)
 
@@ -472,11 +440,7 @@ class TestDefaultFallbackObservability:
             result = _resolve_vault_key()
 
         assert result == _DEFAULT_VAULT_KEY
-        fallback_warns = [
-            rec
-            for rec in caplog.records
-            if "vault_key fallback to __default__" in rec.getMessage()
-        ]
+        fallback_warns = [rec for rec in caplog.records if "vault_key fallback to __default__" in rec.getMessage()]
         assert len(fallback_warns) >= 1, "exception 路径也应 warn"
 
 
@@ -556,11 +520,7 @@ class TestLazyBuildOnCacheMiss:
             # 标记仍设置 (阻止反复尝试)
             assert getattr(svc, "_lazy_build_attempted", False) is True
             # warning 含 unresolvable 标识 (structlog 渲染成 event key)
-            unresolved = [
-                r
-                for r in caplog.records
-                if "lazy_build_skipped_unresolvable_vault_path" in r.getMessage()
-            ]
+            unresolved = [r for r in caplog.records if "lazy_build_skipped_unresolvable_vault_path" in r.getMessage()]
             assert len(unresolved) >= 1, "应 warn vault_path 无法解析"
         finally:
             _current_subject_id.reset(token)
@@ -589,9 +549,7 @@ class TestLazyBuildOnCacheMiss:
             # 第二次 lookup, 应直接返同 instance, 不再 _resolve_vault_path
             svc2 = svc_mod.get_wikilink_graph_service()
             assert svc2 is svc1
-            assert call_count["count"] == first_count, (
-                "第二次 lookup 不应重复调 _resolve_vault_path"
-            )
+            assert call_count["count"] == first_count, "第二次 lookup 不应重复调 _resolve_vault_path"
         finally:
             _current_subject_id.reset(token)
 
@@ -623,9 +581,7 @@ class TestLazyBuildOnCacheMiss:
             # 再次 lookup, 不应 _resolve_vault_path (已 built)
             svc2 = svc_mod.get_wikilink_graph_service()
             assert svc2 is svc
-            assert call_count["count"] == base_count, (
-                "已 built 的 instance 不应再次 resolve vault_path"
-            )
+            assert call_count["count"] == base_count, "已 built 的 instance 不应再次 resolve vault_path"
         finally:
             _current_subject_id.reset(token)
 

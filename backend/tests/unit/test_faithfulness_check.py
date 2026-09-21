@@ -45,9 +45,9 @@ class TestCalculateFaithfulness:
         assert calculate_faithfulness(list()) == 1.0
 
     def test_high_faithfulness(self):
-        verdicts = [
-            ClaimVerdict(claim=f"claim_{i}", verdict="SUPPORTED") for i in range(9)
-        ] + [ClaimVerdict(claim="claim_9", verdict="NOT_SUPPORTED")]
+        verdicts = [ClaimVerdict(claim=f"claim_{i}", verdict="SUPPORTED") for i in range(9)] + [
+            ClaimVerdict(claim="claim_9", verdict="NOT_SUPPORTED")
+        ]
         assert calculate_faithfulness(verdicts) == 0.9
 
 
@@ -90,9 +90,7 @@ class TestFaithfulnessCheckNode:
     @pytest.mark.asyncio
     async def test_disabled_returns_none_score(self):
         with _mock.patch("agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", False):
-            result = await faithfulness_check(
-                {"messages": list(), "reranked_results": list()}
-            )
+            result = await faithfulness_check({"messages": list(), "reranked_results": list()})
             assert result["faithfulness_score"] is None
             assert result["faithfulness_degraded"] is False
 
@@ -104,15 +102,10 @@ class TestFaithfulnessCheckNode:
             "reranked_results": list(),
         }
         with _mock.patch("agentic_rag.faithfulness_check.LITELLM_AVAILABLE", True):
-            with _mock.patch(
-                "agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True
-            ):
+            with _mock.patch("agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True):
                 result = await faithfulness_check(state)
                 assert result["faithfulness_score"] is None
-                assert (
-                    result["faithfulness_details"]["status"]
-                    == "not_applicable_no_answer"
-                )
+                assert result["faithfulness_details"]["status"] == "not_applicable_no_answer"
                 assert result["faithfulness_degraded"] is False
 
     @pytest.mark.asyncio
@@ -122,9 +115,7 @@ class TestFaithfulnessCheckNode:
             "reranked_results": list(),
         }
         with _mock.patch("agentic_rag.faithfulness_check.LITELLM_AVAILABLE", True):
-            with _mock.patch(
-                "agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True
-            ):
+            with _mock.patch("agentic_rag.faithfulness_check.FAITHFULNESS_ENABLED", True):
                 result = await faithfulness_check(state)
                 assert result["faithfulness_score"] == 0.0
                 assert result["faithfulness_degraded"] is True

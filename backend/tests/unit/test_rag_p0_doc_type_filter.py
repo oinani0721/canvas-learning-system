@@ -76,26 +76,23 @@ def _client():
 
 def test_where_filters_exclude_whiteboard_with_null_fallback():
     clauses = _client()._build_where_filters(exclude_doc_types=["whiteboard"])
-    assert any(
-        "doc_type NOT IN ('whiteboard')" in c and "doc_type IS NULL" in c
-        for c in clauses
-    ), "exclude must pass legacy NULL rows through, not drop them"
+    assert any("doc_type NOT IN ('whiteboard')" in c and "doc_type IS NULL" in c for c in clauses), (
+        "exclude must pass legacy NULL rows through, not drop them"
+    )
 
 
 def test_where_filters_include_note_with_null_fallback():
     clauses = _client()._build_where_filters(doc_type=["note"])
-    assert any(
-        "doc_type IN ('note')" in c and "doc_type IS NULL" in c for c in clauses
-    ), "include 'note' must also accept legacy NULL rows (treated as note)"
+    assert any("doc_type IN ('note')" in c and "doc_type IS NULL" in c for c in clauses), (
+        "include 'note' must also accept legacy NULL rows (treated as note)"
+    )
 
 
 def test_where_filters_include_lecture_strict_no_null_fallback():
     clauses = _client()._build_where_filters(doc_type=["lecture", "discussion"])
     sql = " ".join(clauses)
     assert "doc_type IN ('lecture', 'discussion')" in sql
-    assert "IS NULL" not in sql, (
-        "include without 'note' must be strict — NULL rows can't be assumed lecture"
-    )
+    assert "IS NULL" not in sql, "include without 'note' must be strict — NULL rows can't be assumed lecture"
 
 
 def test_where_filters_compose_with_other_filters():
@@ -200,9 +197,7 @@ def test_strip_whiteboard_size_reduction():
     # Real-world reduction: ~85%+ on actual whiteboard files
     before = len(WHITEBOARD_SAMPLE)
     after = len(LanceDBClient._strip_whiteboard_boilerplate(WHITEBOARD_SAMPLE))
-    assert after < before * 0.5, (
-        f"expected >50% reduction, got {after}/{before} = {after / before:.1%}"
-    )
+    assert after < before * 0.5, f"expected >50% reduction, got {after}/{before} = {after / before:.1%}"
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -230,6 +225,5 @@ return "auto-generated";
 """
     chunks = LanceDBClient._split_md_by_heading(content, "原白板/empty.md")
     assert chunks == [], (
-        "whiteboard with only boilerplate should produce zero chunks "
-        "(saves storage + index time + force_rebuild churn)"
+        "whiteboard with only boilerplate should produce zero chunks (saves storage + index time + force_rebuild churn)"
     )

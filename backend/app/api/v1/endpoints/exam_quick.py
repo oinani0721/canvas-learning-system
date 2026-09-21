@@ -62,12 +62,8 @@ def _evict_if_full() -> None:
 class ExamQuickRequest(BaseModel):
     """POST /api/v1/exam/quick 请求体."""
 
-    node_id: str = Field(
-        ..., min_length=1, description="节点 ID (节点 md 文件名, 不含 .md)"
-    )
-    vault_id: str = Field(
-        ..., min_length=1, description="vault 标识 (MVP-α 不做强校验, β 引入隔离)"
-    )
+    node_id: str = Field(..., min_length=1, description="节点 ID (节点 md 文件名, 不含 .md)")
+    vault_id: str = Field(..., min_length=1, description="vault 标识 (MVP-α 不做强校验, β 引入隔离)")
 
 
 class ExamQuickResponse(BaseModel):
@@ -119,9 +115,7 @@ async def exam_quick(req: ExamQuickRequest) -> ExamQuickResponse:
         raise
     except Exception as e:
         # 上下文获取失败不应导致 500 — 降级为空 tips, 让 generate_question 走回退路径
-        logger.warning(
-            f"[MVP-α-2] _fetch_tips_and_errors failed for node={req.node_id}: {e}"
-        )
+        logger.warning(f"[MVP-α-2] _fetch_tips_and_errors failed for node={req.node_id}: {e}")
         tips = []
 
     node_text = _read_node_markdown(req.node_id)
@@ -177,9 +171,7 @@ def _read_node_markdown(node_id: str) -> str:
     try:
         from app.config import settings
 
-        canvas_base = (
-            getattr(settings, "CANVAS_BASE_PATH", None) or "/vaults/canvas-vault"
-        )
+        canvas_base = getattr(settings, "CANVAS_BASE_PATH", None) or "/vaults/canvas-vault"
         for prefix in ("节点", "原白板"):
             md_path = Path(canvas_base) / prefix / f"{node_id}.md"
             if not md_path.exists():

@@ -78,9 +78,7 @@ def test_build_vault_group_id_output_works_with_cypher_helper():
     """vault_id → build_vault_group_id → cypher_with_group_filter 链路一致."""
     group_id = build_vault_group_id("cs_61b", subject_id="algorithms")
     # 用结果走 Cypher
-    query, params = cypher_with_group_filter(
-        "MATCH (n:Concept) RETURN n", group_id
-    )
+    query, params = cypher_with_group_filter("MATCH (n:Concept) RETURN n", group_id)
     assert params["group_id"] == group_id
     assert "vault:cs_61b:algorithms" in params["group_id"]
 
@@ -113,9 +111,7 @@ def test_default_subject_id_should_not_pass_strict_assert():
         ("CS 61B", "cs 61b", False),  # sanitize 后相同
     ],
 )
-def test_different_vault_ids_yield_different_group_ids(
-    vault_a, vault_b, expect_distinct
-):
+def test_different_vault_ids_yield_different_group_ids(vault_a, vault_b, expect_distinct):
     """不同 vault_id 应生成不同 group_id (防 sanitize 冲突误隔离失效)."""
     g_a = build_vault_group_id(vault_a)
     g_b = build_vault_group_id(vault_b)
@@ -149,9 +145,7 @@ def test_cypher_query_without_group_id_rejected():
 
 def test_cypher_query_uses_parameterized_binding():
     """group_id 应通过参数绑定 (防 Cypher injection)."""
-    _, params = cypher_with_group_filter(
-        "MATCH (n) RETURN n", "vault:cs_61b'; DROP DATABASE neo4j; --"
-    )
+    _, params = cypher_with_group_filter("MATCH (n) RETURN n", "vault:cs_61b'; DROP DATABASE neo4j; --")
     # 参数化绑定 → SQL/Cypher injection 无效 (params dict 不影响 query 文本)
     assert params["group_id"] == "vault:cs_61b'; DROP DATABASE neo4j; --"
     # query 文本不应含 raw injection

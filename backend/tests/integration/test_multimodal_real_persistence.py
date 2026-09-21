@@ -75,9 +75,7 @@ def pdf_bytes() -> bytes:
 class TestFullLifecycleRealPersistence:
     """AC 35.12.3: 真实持久化端到端测试."""
 
-    async def test_upload_creates_file_on_disk(
-        self, service, png_bytes, real_storage_dir
-    ):
+    async def test_upload_creates_file_on_disk(self, service, png_bytes, real_storage_dir):
         """Step 1: Upload — 验证文件真的写入磁盘."""
         await service.initialize()
 
@@ -95,17 +93,13 @@ class TestFullLifecycleRealPersistence:
 
         # 验证: 文件在磁盘上存在
         uploaded_files = list(real_storage_dir.rglob("*.png"))
-        assert len(uploaded_files) >= 1, (
-            f"Expected at least 1 PNG on disk, found {len(uploaded_files)}"
-        )
+        assert len(uploaded_files) >= 1, f"Expected at least 1 PNG on disk, found {len(uploaded_files)}"
 
         # 验证: 文件内容匹配
         actual_bytes = uploaded_files[0].read_bytes()
         assert actual_bytes == png_bytes
 
-    async def test_upload_persists_to_json_index(
-        self, service, png_bytes, real_storage_dir
-    ):
+    async def test_upload_persists_to_json_index(self, service, png_bytes, real_storage_dir):
         """Upload 后 content_index.json 包含新条目."""
         await service.initialize()
 
@@ -148,14 +142,10 @@ class TestFullLifecycleRealPersistence:
         search_result = await service.search(request=search_req)
 
         found_ids = [item.id for item in search_result.items]
-        assert content_id in found_ids, (
-            f"Uploaded content {content_id} not found in search results: {found_ids}"
-        )
+        assert content_id in found_ids, f"Uploaded content {content_id} not found in search results: {found_ids}"
         assert search_result.search_mode == "text"
 
-    async def test_delete_removes_file_from_disk(
-        self, service, png_bytes, real_storage_dir
-    ):
+    async def test_delete_removes_file_from_disk(self, service, png_bytes, real_storage_dir):
         """Step 3: Delete — 验证文件从磁盘删除."""
         await service.initialize()
 
@@ -177,16 +167,10 @@ class TestFullLifecycleRealPersistence:
 
         # 验证: 文件已从磁盘删除
         # (只有 to_delete 的 PNG 应被删除)
-        remaining = [
-            f for f in real_storage_dir.rglob("*.png") if f.name != ".health_check"
-        ]
-        assert len(remaining) == 0, (
-            f"Expected 0 PNG files after delete, found {len(remaining)}: {remaining}"
-        )
+        remaining = [f for f in real_storage_dir.rglob("*.png") if f.name != ".health_check"]
+        assert len(remaining) == 0, f"Expected 0 PNG files after delete, found {len(remaining)}: {remaining}"
 
-    async def test_delete_removes_from_json_index(
-        self, service, png_bytes, real_storage_dir
-    ):
+    async def test_delete_removes_from_json_index(self, service, png_bytes, real_storage_dir):
         """Delete 后 content_index.json 不再包含该条目."""
         await service.initialize()
 
@@ -223,9 +207,7 @@ class TestFullLifecycleRealPersistence:
         with pytest.raises(ContentNotFoundError):
             await service.get_content(content_id)
 
-    async def test_full_lifecycle_upload_search_delete(
-        self, service, png_bytes, real_storage_dir
-    ):
+    async def test_full_lifecycle_upload_search_delete(self, service, png_bytes, real_storage_dir):
         """完整 Upload → Verify → Search → Delete → Verify 流程."""
         await service.initialize()
 
@@ -252,18 +234,14 @@ class TestFullLifecycleRealPersistence:
         # ── Search ──
         from app.models.multimodal_schemas import MultimodalSearchRequest
 
-        search_result = await service.search(
-            request=MultimodalSearchRequest(query="lifecycle", min_score=0.0)
-        )
+        search_result = await service.search(request=MultimodalSearchRequest(query="lifecycle", min_score=0.0))
         assert any(i.id == content_id for i in search_result.items)
 
         # ── Delete (returns None — HTTP 204) ──
         await service.delete_content(content_id)
 
         # ── Verify cleanup ──
-        remaining = [
-            f for f in real_storage_dir.rglob("*.png") if f.name != ".health_check"
-        ]
+        remaining = [f for f in real_storage_dir.rglob("*.png") if f.name != ".health_check"]
         assert len(remaining) == 0
 
         with pytest.raises(ContentNotFoundError):
@@ -309,9 +287,7 @@ class TestDataSurvivesServiceRestart:
         assert content.related_concept_id == "concept-survive"
         assert content.description == "Should survive restart"
 
-    async def test_multiple_items_survive_restart(
-        self, real_storage_dir, png_bytes, pdf_bytes
-    ):
+    async def test_multiple_items_survive_restart(self, real_storage_dir, png_bytes, pdf_bytes):
         """多个不同类型的内容在重启后全部保留."""
         service1 = MultimodalService(storage_base_path=str(real_storage_dir))
         await service1.initialize()
@@ -351,9 +327,7 @@ class TestDataSurvivesServiceRestart:
         list_result = await service2.list_content()
         assert list_result.total == 2
 
-    async def test_deleted_items_stay_deleted_after_restart(
-        self, real_storage_dir, png_bytes
-    ):
+    async def test_deleted_items_stay_deleted_after_restart(self, real_storage_dir, png_bytes):
         """删除的内容在重启后不会复活."""
         service1 = MultimodalService(storage_base_path=str(real_storage_dir))
         await service1.initialize()
@@ -415,9 +389,7 @@ class TestConcurrentUploads:
         assert len(pngs) == 5
 
         # JSON index 包含 5 个条目
-        index_data = json.loads(
-            (real_storage_dir / "content_index.json").read_text(encoding="utf-8")
-        )
+        index_data = json.loads((real_storage_dir / "content_index.json").read_text(encoding="utf-8"))
         assert len(index_data["items"]) == 5
 
 
@@ -461,9 +433,7 @@ class TestPdfPersistence:
 class TestUpdatePersistence:
     """Update 操作的持久化验证."""
 
-    async def test_update_persists_to_json_and_survives_restart(
-        self, real_storage_dir, png_bytes
-    ):
+    async def test_update_persists_to_json_and_survives_restart(self, real_storage_dir, png_bytes):
         """Update 后的 metadata 在重启后保留."""
         service1 = MultimodalService(storage_base_path=str(real_storage_dir))
         await service1.initialize()

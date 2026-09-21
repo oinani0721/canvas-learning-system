@@ -26,24 +26,12 @@ class DifficultyMatchRecord(BaseModel):
     """
 
     node_id: str = Field(..., description="Canvas node identifier")
-    proficiency: float = Field(
-        ..., ge=0.0, le=1.0, description="User effective_proficiency at evaluation time"
-    )
-    estimated_difficulty: float = Field(
-        ..., ge=0.0, le=1.0, description="LLM-estimated question difficulty"
-    )
-    is_matched: bool = Field(
-        ..., description="Whether difficulty fell within acceptable range"
-    )
-    lower_bound: float = Field(
-        ..., ge=0.0, le=1.0, description="Lower bound of acceptable range"
-    )
-    upper_bound: float = Field(
-        ..., ge=0.0, le=1.0, description="Upper bound of acceptable range"
-    )
-    question_preview: str = Field(
-        default="", description="First 100 chars of the question text"
-    )
+    proficiency: float = Field(..., ge=0.0, le=1.0, description="User effective_proficiency at evaluation time")
+    estimated_difficulty: float = Field(..., ge=0.0, le=1.0, description="LLM-estimated question difficulty")
+    is_matched: bool = Field(..., description="Whether difficulty fell within acceptable range")
+    lower_bound: float = Field(..., ge=0.0, le=1.0, description="Lower bound of acceptable range")
+    upper_bound: float = Field(..., ge=0.0, le=1.0, description="Upper bound of acceptable range")
+    question_preview: str = Field(default="", description="First 100 chars of the question text")
     timestamp: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO 8601 timestamp",
@@ -80,13 +68,9 @@ class ExtractionRecord(BaseModel):
     id: str = Field(..., description="Record UUID")
     source_session_id: str = Field(..., description="Source conversation session ID")
     source_node_id: str = Field(..., description="Source canvas node ID")
-    original_text: str = Field(
-        ..., description="Original conversation fragment used for extraction"
-    )
+    original_text: str = Field(..., description="Original conversation fragment used for extraction")
     extracted_content: str = Field(..., description="Extracted structured content")
-    extraction_type: str = Field(
-        ..., description="Extraction type: 'error' | 'tip' | 'key_qa'"
-    )
+    extraction_type: str = Field(..., description="Extraction type: 'error' | 'tip' | 'key_qa'")
     extraction_subtype: Optional[str] = Field(
         default=None,
         description="Error subtype: 'breakthrough' | 'reasoning' | 'knowledge_gap' | 'pseudo_understanding'",
@@ -95,12 +79,8 @@ class ExtractionRecord(BaseModel):
     annotation: Optional[str] = Field(
         default=None, description="Annotation: 'correct' | 'incorrect' | 'partial' | None"
     )
-    annotated_at: Optional[str] = Field(
-        default=None, description="ISO 8601 annotation timestamp"
-    )
-    updated_at: Optional[str] = Field(
-        default=None, description="ISO 8601 last update timestamp"
-    )
+    annotated_at: Optional[str] = Field(default=None, description="ISO 8601 annotation timestamp")
+    updated_at: Optional[str] = Field(default=None, description="ISO 8601 last update timestamp")
 
 
 class AnnotationRequest(BaseModel):
@@ -109,9 +89,7 @@ class AnnotationRequest(BaseModel):
     [Source: Story 7.4 AC-3 — annotation submission]
     """
 
-    annotation: str = Field(
-        ..., description="Annotation value: 'correct' | 'incorrect' | 'partial'"
-    )
+    annotation: str = Field(..., description="Annotation value: 'correct' | 'incorrect' | 'partial'")
 
 
 class UpdateExtractionRequest(BaseModel):
@@ -120,9 +98,7 @@ class UpdateExtractionRequest(BaseModel):
     [Source: Story 5.8 Task 2.5]
     """
 
-    extracted_content: str = Field(
-        ..., min_length=1, description="Updated extracted content"
-    )
+    extracted_content: str = Field(..., min_length=1, description="Updated extracted content")
 
 
 class TypeStats(BaseModel):
@@ -142,9 +118,7 @@ class ExtractionStats(BaseModel):
     total_records: int = Field(default=0, description="Total extraction records")
     annotated_count: int = Field(default=0, description="Number of annotated records")
     accuracy: float = Field(default=0.0, description="Overall accuracy (correct / annotated)")
-    by_type: Dict[str, TypeStats] = Field(
-        default_factory=dict, description="Per-type accuracy breakdown"
-    )
+    by_type: Dict[str, TypeStats] = Field(default_factory=dict, description="Per-type accuracy breakdown")
 
 
 class ExtractionRecordPage(BaseModel):
@@ -168,14 +142,10 @@ class HealthMetric(BaseModel):
     """
 
     name: str = Field(..., description="Metric identifier")
-    status: str = Field(
-        default="healthy", description="Status: 'healthy' | 'warning' | 'critical'"
-    )
+    status: str = Field(default="healthy", description="Status: 'healthy' | 'warning' | 'critical'")
     value: str = Field(default="", description="Current metric value (stringified)")
     threshold: str = Field(default="", description="Health threshold description")
-    message: Optional[str] = Field(
-        default=None, description="Warning/error message when unhealthy"
-    )
+    message: Optional[str] = Field(default=None, description="Warning/error message when unhealthy")
 
 
 class ErrorCategoryCounts(BaseModel):
@@ -205,12 +175,8 @@ class PipelineHealthStatus(BaseModel):
     [Source: Story 7.4 AC-5 — GET /api/v1/system/pipeline-health]
     """
 
-    overall: str = Field(
-        default="healthy", description="Overall: 'healthy' | 'degraded' | 'critical'"
-    )
-    metrics: List[HealthMetric] = Field(
-        default_factory=list, description="Individual metrics"
-    )
+    overall: str = Field(default="healthy", description="Overall: 'healthy' | 'degraded' | 'critical'")
+    metrics: List[HealthMetric] = Field(default_factory=list, description="Individual metrics")
     last_updated: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat(),
         description="ISO 8601 timestamp",

@@ -185,9 +185,7 @@ class ExamService:
             self._sessions[exam_id] = session
         return session
 
-    async def list_sessions_by_canvas(
-        self, canvas_id: str
-    ) -> List[ExamSessionResponse]:
+    async def list_sessions_by_canvas(self, canvas_id: str) -> List[ExamSessionResponse]:
         """Get all exam sessions for a source canvas, sorted by creation time DESC."""
         sessions: List[ExamSessionResponse] = list()
         seen_ids: set[str] = set()
@@ -206,9 +204,7 @@ class ExamService:
         sessions.sort(key=lambda s: s.created_at, reverse=True)
         return sessions
 
-    async def update_status(
-        self, exam_id: str, update: ExamStatusUpdate
-    ) -> Optional[ExamSessionResponse]:
+    async def update_status(self, exam_id: str, update: ExamStatusUpdate) -> Optional[ExamSessionResponse]:
         """Update exam session status."""
         session = await self.get_session(exam_id)
         if not session:
@@ -228,9 +224,7 @@ class ExamService:
         self._sessions[exam_id] = session
         await self._persist_session_to_neo4j(session)
 
-        logger.info(
-            f"[Story 6.1] Exam session updated: {exam_id} status={update.status.value}"
-        )
+        logger.info(f"[Story 6.1] Exam session updated: {exam_id} status={update.status.value}")
         return session
 
     async def record_node_examined(self, exam_id: str, node_id: str) -> None:
@@ -328,9 +322,7 @@ class ExamService:
     # Topic-Level Trigger Detection (Story 6.4 AC-1)
     # ═══════════════════════════════════════════════════════════════════════
 
-    async def detect_topic_switch(
-        self, exam_id: str, new_node_id: str
-    ) -> Optional[str]:
+    async def detect_topic_switch(self, exam_id: str, new_node_id: str) -> Optional[str]:
         """Detect if Agent has switched to a new topic node.
 
         Returns the previous node_id if a switch occurred, None otherwise.
@@ -379,9 +371,7 @@ class ExamService:
 
         return "regular"
 
-    async def _get_canvas_nodes(
-        self, canvas_id: str, target_node_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def _get_canvas_nodes(self, canvas_id: str, target_node_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get nodes from a canvas for content analysis.
 
         Uses CanvasService with settings.canvas_base_path (6-3 H2 fix).
@@ -393,9 +383,7 @@ class ExamService:
         canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
 
         if target_node_id:
-            _canvas_name, node = await canvas_svc.find_node_across_canvases(
-                target_node_id
-            )
+            _canvas_name, node = await canvas_svc.find_node_across_canvases(target_node_id)
             if node:
                 return [node]
             return list(_EMPTY_NODE_LIST)
@@ -447,9 +435,7 @@ class ExamService:
         except (ImportError, RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 6.1] Failed to persist exam session to Neo4j: {e}")
 
-    async def _load_session_from_neo4j(
-        self, exam_id: str
-    ) -> Optional[ExamSessionResponse]:
+    async def _load_session_from_neo4j(self, exam_id: str) -> Optional[ExamSessionResponse]:
         """Load a single exam session from Neo4j."""
         try:
             from app.clients.neo4j_client import get_neo4j_client
@@ -467,9 +453,7 @@ class ExamService:
             logger.debug(f"[Story 6.1] Failed to load exam session: {e}")
         return None
 
-    async def _load_sessions_by_canvas_from_neo4j(
-        self, canvas_id: str
-    ) -> List[ExamSessionResponse]:
+    async def _load_sessions_by_canvas_from_neo4j(self, canvas_id: str) -> List[ExamSessionResponse]:
         """Load all exam sessions for a canvas from Neo4j."""
         from app.clients.neo4j_client import get_neo4j_client
 

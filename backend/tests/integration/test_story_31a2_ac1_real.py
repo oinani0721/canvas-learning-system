@@ -147,14 +147,10 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             result = await service.get_learning_history(user_id=user_id)
 
             # Both Neo4j and memory data present
-            assert result["total"] >= 2, (
-                f"Expected at least 2 items (Neo4j + memory), got {result['total']}"
-            )
+            assert result["total"] >= 2, f"Expected at least 2 items (Neo4j + memory), got {result['total']}"
             concepts = [item["concept"] for item in result["items"]]
             assert any("矩阵" in c for c in concepts), "Neo4j concept missing"
-            assert any("Memory-向量" in c for c in concepts), (
-                "In-memory concept missing"
-            )
+            assert any("Memory-向量" in c for c in concepts), "In-memory concept missing"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -197,9 +193,7 @@ class TestAC31A21_Neo4jQueryPriority_Real:
                 concept=f"{prefix}矩阵",
             )
             concepts = [item["concept"] for item in result["items"]]
-            assert all("矩阵" in c for c in concepts), (
-                f"Concept filter broken, got: {concepts}"
-            )
+            assert all("矩阵" in c for c in concepts), f"Concept filter broken, got: {concepts}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -272,9 +266,7 @@ class TestAC31A21_Neo4jQueryPriority_Real:
                 await service.get_learning_history(user_id=user_id)
 
             assert any(
-                "Neo4j query failed" in record.message
-                and "falling back" in record.message
-                for record in caplog.records
+                "Neo4j query failed" in record.message and "falling back" in record.message for record in caplog.records
             ), "Should log warning about Neo4j failure and fallback"
         finally:
             await _cleanup_prefix(client, prefix)
@@ -348,14 +340,11 @@ class TestAC31A21_Neo4jQueryPriority_Real:
             result = await service.get_learning_history(user_id=user_id)
 
             # If dedup works, concept_name should appear at most once
-            matching = [
-                item for item in result["items"] if "Dedup-A" in item.get("concept", "")
-            ]
+            matching = [item for item in result["items"] if "Dedup-A" in item.get("concept", "")]
             # Neo4j returns concept_id in a separate field; the dedup key is (node_id, timestamp).
             # With same node_id and timestamp, should be deduped to 1 entry.
             assert len(matching) <= 2, (
-                f"Dedup failed: expected at most 2 items (Neo4j doesn't have node_id in LEARNED), "
-                f"got {len(matching)}"
+                f"Dedup failed: expected at most 2 items (Neo4j doesn't have node_id in LEARNED), got {len(matching)}"
             )
         finally:
             await _cleanup_prefix(client, prefix)

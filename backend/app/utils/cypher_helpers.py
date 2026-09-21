@@ -176,11 +176,7 @@ def cypher_with_group_filter(
         # 没找到关键字 → 追加到末尾
         modified = f"{base_query.rstrip()} {filter_clause}"
     else:
-        modified = (
-            f"{base_query[:insert_pos].rstrip()} "
-            f"{filter_clause} "
-            f"{base_query[insert_pos:].lstrip()}"
-        )
+        modified = f"{base_query[:insert_pos].rstrip()} {filter_clause} {base_query[insert_pos:].lstrip()}"
 
     return modified, {"group_id": group_id}
 
@@ -208,7 +204,6 @@ def assert_group_id_required(group_id: str | None, context: str = "") -> str:
     if not group_id or not group_id.strip():
         ctx_str = f" [context: {context}]" if context else ""
         raise ValueError(
-            f"Story 2.5.Y AC #5: group_id is required{ctx_str}. "
-            "缺失会导致跨 vault 数据泄漏, 调用方必须显式传值."
+            f"Story 2.5.Y AC #5: group_id is required{ctx_str}. 缺失会导致跨 vault 数据泄漏, 调用方必须显式传值."
         )
     return group_id.strip()

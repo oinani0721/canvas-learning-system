@@ -126,9 +126,7 @@ class TestVerificationServiceDIRuntime:
             }
 
             for attr_name, dep_name in critical_attrs.items():
-                assert hasattr(service, attr_name), (
-                    f"VerificationService missing attribute '{attr_name}' ({dep_name})"
-                )
+                assert hasattr(service, attr_name), f"VerificationService missing attribute '{attr_name}' ({dep_name})"
                 # Note: Some deps may legitimately be None if their upstream
                 # singletons are not available (e.g., graphiti requires Neo4j).
                 # We log warnings for these but don't fail — the key assertion
@@ -199,8 +197,7 @@ class TestVerificationServiceDIRuntime:
 
         try:
             assert service._canvas_base_path == "/my/canvas/path", (
-                f"Expected canvas_base_path='/my/canvas/path', "
-                f"got '{service._canvas_base_path}'"
+                f"Expected canvas_base_path='/my/canvas/path', got '{service._canvas_base_path}'"
             )
         finally:
             try:
@@ -239,7 +236,4 @@ class TestVerificationServiceDegradationLogging:
             # Should have logged init info with dependency status
             info_calls = [str(c) for c in mock_logger.info.call_args_list]
             init_logged = any("initialized" in c.lower() for c in info_calls)
-            assert init_logged, (
-                f"VerificationService should log initialization status. "
-                f"Actual info calls: {info_calls}"
-            )
+            assert init_logged, f"VerificationService should log initialization status. Actual info calls: {info_calls}"

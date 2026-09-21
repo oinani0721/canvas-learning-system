@@ -93,9 +93,7 @@ def _build_mock_memory_service(mock_neo4j):
     svc._initialized = True
     svc._episodes_recovered = True
     svc.record_learning_event = AsyncMock(return_value="ep-test-123")
-    svc.get_learning_history = AsyncMock(
-        return_value={"items": [], "total": 0, "page": 1, "page_size": 50, "pages": 0}
-    )
+    svc.get_learning_history = AsyncMock(return_value={"items": [], "total": 0, "page": 1, "page_size": 50, "pages": 0})
     return svc
 
 
@@ -163,9 +161,7 @@ class TestChatEndpointVaultIsolation:
                 degraded=False,
                 degraded_reason=None,
                 elapsed_ms=1.0,
-                trace=RetrievalTrace(
-                    seed=node_path, max_hops=max_hops, graph_version="test"
-                ),
+                trace=RetrievalTrace(seed=node_path, max_hops=max_hops, graph_version="test"),
             )
 
         # Patch the symbol referenced inside chat.py
@@ -211,12 +207,8 @@ class TestChatEndpointVaultIsolation:
             ctx_a = captured[0][1]
             ctx_b = captured[1][1]
 
-            assert ctx_a.startswith("vault:cs_61b"), (
-                f"vault A should produce 'vault:cs_61b*' ContextVar, got {ctx_a!r}"
-            )
-            assert ctx_b.startswith("vault:数学"), (
-                f"vault B should produce 'vault:数学*' ContextVar, got {ctx_b!r}"
-            )
+            assert ctx_a.startswith("vault:cs_61b"), f"vault A should produce 'vault:cs_61b*' ContextVar, got {ctx_a!r}"
+            assert ctx_b.startswith("vault:数学"), f"vault B should produce 'vault:数学*' ContextVar, got {ctx_b!r}"
             assert ctx_a != ctx_b, "Two vaults must yield different ContextVar values"
         finally:
             app.dependency_overrides.clear()
@@ -256,9 +248,7 @@ class TestMasteryBatchConcurrentVaultScoping:
 
         mock_store = MagicMock()
         mock_store.get_all_concepts = AsyncMock(side_effect=capture_get_all_concepts)
-        mock_store.get_board_concepts = AsyncMock(
-            side_effect=capture_get_board_concepts
-        )
+        mock_store.get_board_concepts = AsyncMock(side_effect=capture_get_board_concepts)
 
         mock_engine = MagicMock()
         mock_engine.concept_to_response = MagicMock(side_effect=lambda c: {})
@@ -446,9 +436,7 @@ class TestErrorsAcceptCandidateVaultScoped:
             # body fails Pydantic validation, status will surface in text.
             assert resp.status_code in (200, 422), resp.text
             # Even on 422 (model shape), the ContextVar was set before that.
-            assert len(observed_ctx) == 1, (
-                f"Expected helper called once; got {observed_ctx}"
-            )
+            assert len(observed_ctx) == 1, f"Expected helper called once; got {observed_ctx}"
             ctx_value = observed_ctx[0]
             assert ctx_value.startswith("vault:cs_61b"), (
                 f"errors endpoint must inject vault_id ContextVar; got {ctx_value!r}"
@@ -535,9 +523,7 @@ class TestBackgroundTaskInheritsVaultContextvar:
         set_current_subject_id(DEFAULT_SUBJECT_ID)
         await t
 
-        assert seen == ["vault:数学"], (
-            f"copy_context() must snapshot the value; got {seen!r}"
-        )
+        assert seen == ["vault:数学"], f"copy_context() must snapshot the value; got {seen!r}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -563,9 +549,7 @@ class TestReactAgentUsesRequestVaultId:
 
         set_current_subject_id("vault:cs_61b:algorithms")
         gid = _resolve_effective_group_id()
-        assert gid == "vault:cs_61b:algorithms", (
-            f"ReAct agent must read ContextVar; got {gid!r}"
-        )
+        assert gid == "vault:cs_61b:algorithms", f"ReAct agent must read ContextVar; got {gid!r}"
 
     def test_react_agent_resolves_from_contextvar_for_vault_b(self):
         from app.core.subject_config import set_current_subject_id
@@ -573,9 +557,7 @@ class TestReactAgentUsesRequestVaultId:
 
         set_current_subject_id("vault:数学")
         gid = _resolve_effective_group_id()
-        assert gid == "vault:数学", (
-            f"ReAct agent must read ContextVar (CJK); got {gid!r}"
-        )
+        assert gid == "vault:数学", f"ReAct agent must read ContextVar (CJK); got {gid!r}"
 
     def test_react_agent_two_vaults_yield_different_group_ids(self):
         """The leak scenario: same agent code, two vaults → two group_ids."""
@@ -627,10 +609,7 @@ class TestLanceDBResolveTableNamePerRequestVault:
         set_current_subject_id("vault:数学")
         name_b = client.resolve_table_name("vault_notes")
 
-        assert name_a != name_b, (
-            f"LanceDB must namespace per-request vault; got "
-            f"vault_a={name_a!r}, vault_b={name_b!r}"
-        )
+        assert name_a != name_b, f"LanceDB must namespace per-request vault; got vault_a={name_a!r}, vault_b={name_b!r}"
         assert name_a == "cs_61b_vault_notes", name_a
         assert name_b == "数学_vault_notes", name_b
 
@@ -646,8 +625,7 @@ class TestLanceDBResolveTableNamePerRequestVault:
         name = client.resolve_table_name("vault_notes")
         # active_vault_id strips 'vault:' and splits ':' — first segment = cs_61b
         assert name == "cs_61b_vault_notes", (
-            f"Subject segment ':algorithms' should not propagate into table prefix; "
-            f"got {name!r}"
+            f"Subject segment ':algorithms' should not propagate into table prefix; got {name!r}"
         )
 
     def test_lancedb_constructor_override_wins_over_contextvar(self):

@@ -259,9 +259,7 @@ class TestPathResolution:
         test_image.write_bytes(b"fake image data")
 
         refs = [ImageReference(path="./images/graph.png")]
-        resolved = await extractor.resolve_paths(
-            refs, vault_path=tmp_path, canvas_dir=canvas_dir
-        )
+        resolved = await extractor.resolve_paths(refs, vault_path=tmp_path, canvas_dir=canvas_dir)
 
         assert len(resolved) == 1
         assert resolved[0]["exists"] is True

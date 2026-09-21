@@ -197,9 +197,7 @@ class TestConnectionManager:
     """Test ConnectionManager WebSocket connection handling."""
 
     @pytest.mark.asyncio
-    async def test_connect_accepts_websocket(
-        self, connection_manager, mock_websocket, session_id
-    ):
+    async def test_connect_accepts_websocket(self, connection_manager, mock_websocket, session_id):
         """Test connection accept with valid session."""
         result = await connection_manager.connect(session_id, mock_websocket)
 
@@ -208,9 +206,7 @@ class TestConnectionManager:
         assert connection_manager.get_connection_count(session_id) == 1
 
     @pytest.mark.asyncio
-    async def test_connect_sends_connected_event(
-        self, connection_manager, mock_websocket, session_id
-    ):
+    async def test_connect_sends_connected_event(self, connection_manager, mock_websocket, session_id):
         """Test connected event is sent after accept."""
         await connection_manager.connect(session_id, mock_websocket)
 
@@ -221,9 +217,7 @@ class TestConnectionManager:
         assert call_args["task_id"] == session_id
 
     @pytest.mark.asyncio
-    async def test_connect_multiple_clients_same_session(
-        self, connection_manager, session_id
-    ):
+    async def test_connect_multiple_clients_same_session(self, connection_manager, session_id):
         """Test multiple simultaneous connections per session."""
         ws1 = AsyncMock()
         ws2 = AsyncMock()
@@ -236,9 +230,7 @@ class TestConnectionManager:
         assert connection_manager.get_connection_count(session_id) == 3
 
     @pytest.mark.asyncio
-    async def test_disconnect_removes_connection(
-        self, connection_manager, mock_websocket, session_id
-    ):
+    async def test_disconnect_removes_connection(self, connection_manager, mock_websocket, session_id):
         """Test graceful disconnect removes connection."""
         await connection_manager.connect(session_id, mock_websocket)
         assert connection_manager.get_connection_count(session_id) == 1
@@ -247,9 +239,7 @@ class TestConnectionManager:
         assert connection_manager.get_connection_count(session_id) == 0
 
     @pytest.mark.asyncio
-    async def test_disconnect_cleans_up_empty_session(
-        self, connection_manager, mock_websocket, session_id
-    ):
+    async def test_disconnect_cleans_up_empty_session(self, connection_manager, mock_websocket, session_id):
         """Test session is cleaned up when last connection closes."""
         await connection_manager.connect(session_id, mock_websocket)
         assert connection_manager.has_session(session_id) is True
@@ -258,9 +248,7 @@ class TestConnectionManager:
         assert connection_manager.has_session(session_id) is False
 
     @pytest.mark.asyncio
-    async def test_disconnect_keeps_other_connections(
-        self, connection_manager, session_id
-    ):
+    async def test_disconnect_keeps_other_connections(self, connection_manager, session_id):
         """Test disconnecting one client keeps others connected."""
         ws1 = AsyncMock()
         ws2 = AsyncMock()
@@ -274,9 +262,7 @@ class TestConnectionManager:
         assert connection_manager.has_session(session_id) is True
 
     @pytest.mark.asyncio
-    async def test_broadcast_to_session_sends_to_all(
-        self, connection_manager, session_id
-    ):
+    async def test_broadcast_to_session_sends_to_all(self, connection_manager, session_id):
         """Test broadcast sends to all connected clients."""
         ws1 = AsyncMock()
         ws2 = AsyncMock()
@@ -305,21 +291,15 @@ class TestConnectionManager:
         ws3.send_json.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_broadcast_to_nonexistent_session_returns_zero(
-        self, connection_manager
-    ):
+    async def test_broadcast_to_nonexistent_session_returns_zero(self, connection_manager):
         """Test broadcast to nonexistent session returns 0."""
         event = create_ws_ping_event("nonexistent-session")
-        sent_count = await connection_manager.broadcast_to_session(
-            "nonexistent-session", event
-        )
+        sent_count = await connection_manager.broadcast_to_session("nonexistent-session", event)
 
         assert sent_count == 0
 
     @pytest.mark.asyncio
-    async def test_broadcast_removes_failed_connections(
-        self, connection_manager, session_id
-    ):
+    async def test_broadcast_removes_failed_connections(self, connection_manager, session_id):
         """Test failed connections are cleaned up during broadcast."""
         ws_good = AsyncMock()
         ws_bad = AsyncMock()
@@ -382,9 +362,7 @@ class TestConnectionManager:
         await connection_manager.connect(session_id, ws2)
         assert connection_manager.get_connection_count(session_id) == 2
 
-        closed_count = await connection_manager.close_session_connections(
-            session_id, reason="Test complete"
-        )
+        closed_count = await connection_manager.close_session_connections(session_id, reason="Test complete")
 
         assert closed_count == 2
         assert connection_manager.get_connection_count(session_id) == 0
@@ -395,9 +373,7 @@ class TestConnectionManager:
     @pytest.mark.asyncio
     async def test_close_nonexistent_session_returns_zero(self, connection_manager):
         """Test closing nonexistent session returns 0."""
-        closed_count = await connection_manager.close_session_connections(
-            "nonexistent-session"
-        )
+        closed_count = await connection_manager.close_session_connections("nonexistent-session")
         assert closed_count == 0
 
     def test_get_all_session_ids(self, connection_manager):
@@ -420,9 +396,7 @@ class TestConnectionManager:
         assert len(session_ids) == 2
 
     @pytest.mark.asyncio
-    async def test_get_last_activity(
-        self, connection_manager, mock_websocket, session_id
-    ):
+    async def test_get_last_activity(self, connection_manager, mock_websocket, session_id):
         """Test last activity tracking."""
         # Before connection
         assert connection_manager.get_last_activity(session_id) is None
@@ -442,9 +416,7 @@ class TestConnectionManager:
         await connection_manager.connect(session_id, ws)
 
         # Manually set old last activity
-        connection_manager._last_activity[session_id] = datetime.now() - timedelta(
-            minutes=15
-        )
+        connection_manager._last_activity[session_id] = datetime.now() - timedelta(minutes=15)
 
         cleaned = await connection_manager.cleanup_inactive_sessions(timeout_minutes=10)
 

@@ -134,9 +134,7 @@ def test_unknown_operation_logs_warning():
 
 def test_record_memory_query_success():
     """Test recording a successful memory query."""
-    record_memory_query(
-        memory_type="graphiti", operation="search", status="success", duration_s=0.5
-    )
+    record_memory_query(memory_type="graphiti", operation="search", status="success", duration_s=0.5)
 
 
 def test_record_memory_query_error():
@@ -152,9 +150,7 @@ def test_record_memory_query_error():
 
 def test_record_memory_query_zero_duration():
     """Test recording with zero duration."""
-    record_memory_query(
-        memory_type="temporal", operation="read", status="success", duration_s=0.0
-    )
+    record_memory_query(memory_type="temporal", operation="read", status="success", duration_s=0.0)
 
 
 def test_record_memory_query_all_combinations():

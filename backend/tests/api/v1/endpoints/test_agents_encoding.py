@@ -48,10 +48,7 @@ def test_encoding_error_returns_encoding_error_type():
     # Verify HTTPException is returned with correct structure
     assert http_exception.status_code == 500
     assert http_exception.detail["error_type"] == "ENCODING_ERROR"
-    assert (
-        http_exception.detail["message"]
-        == "Text encoding error - please ensure content uses UTF-8"
-    )
+    assert http_exception.detail["message"] == "Text encoding error - please ensure content uses UTF-8"
     assert http_exception.detail["is_retryable"] is True
 
 
@@ -66,9 +63,7 @@ def test_encoding_error_is_retryable():
 
     with patch("app.api.v1.endpoints.agents.cancel_request"):
         with patch("app.api.v1.endpoints.agents.logger"):
-            http_exception = _create_encoding_error_response(
-                e=error, endpoint_name="decompose_basic", cache_key=""
-            )
+            http_exception = _create_encoding_error_response(e=error, endpoint_name="decompose_basic", cache_key="")
 
     assert http_exception.detail["is_retryable"] is True
 
@@ -88,9 +83,7 @@ def test_encoding_error_diagnostic_contains_position():
 
     with patch("app.api.v1.endpoints.agents.cancel_request"):
         with patch("app.api.v1.endpoints.agents.logger"):
-            http_exception = _create_encoding_error_response(
-                e=error, endpoint_name="decompose_basic", cache_key=""
-            )
+            http_exception = _create_encoding_error_response(e=error, endpoint_name="decompose_basic", cache_key="")
 
     diagnostic = http_exception.detail["diagnostic"]
     assert "position 3" in diagnostic
@@ -107,9 +100,7 @@ def test_encoding_error_diagnostic_contains_hex_char_code():
 
     with patch("app.api.v1.endpoints.agents.cancel_request"):
         with patch("app.api.v1.endpoints.agents.logger"):
-            http_exception = _create_encoding_error_response(
-                e=error, endpoint_name="decompose_basic", cache_key=""
-            )
+            http_exception = _create_encoding_error_response(e=error, endpoint_name="decompose_basic", cache_key="")
 
     diagnostic = http_exception.detail["diagnostic"]
     assert "U+1F525" in diagnostic  # Fire emoji code point
@@ -126,9 +117,7 @@ def test_encoding_error_diagnostic_chinese_character():
 
     with patch("app.api.v1.endpoints.agents.cancel_request"):
         with patch("app.api.v1.endpoints.agents.logger"):
-            http_exception = _create_encoding_error_response(
-                e=error, endpoint_name="explain_oral", cache_key=""
-            )
+            http_exception = _create_encoding_error_response(e=error, endpoint_name="explain_oral", cache_key="")
 
     diagnostic = http_exception.detail["diagnostic"]
     assert "position 4" in diagnostic
@@ -150,9 +139,7 @@ def test_encoding_error_logs_ascii_safe():
 
     with patch("app.api.v1.endpoints.agents.cancel_request"):
         with patch("app.api.v1.endpoints.agents.logger") as mock_logger:
-            _create_encoding_error_response(
-                e=error, endpoint_name="test_endpoint", cache_key=""
-            )
+            _create_encoding_error_response(e=error, endpoint_name="test_endpoint", cache_key="")
 
             # Verify logger.error was called
             mock_logger.error.assert_called_once()
@@ -173,9 +160,7 @@ def test_encoding_error_logs_ascii_safe():
                 is_ascii_safe = True
             except UnicodeEncodeError:
                 is_ascii_safe = False
-            assert is_ascii_safe, (
-                f"Log message contains non-ASCII characters: {log_message}"
-            )
+            assert is_ascii_safe, f"Log message contains non-ASCII characters: {log_message}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -193,9 +178,7 @@ def test_encoding_error_cancels_request_cache():
 
     with patch("app.api.v1.endpoints.agents.cancel_request") as mock_cancel:
         with patch("app.api.v1.endpoints.agents.logger"):
-            _create_encoding_error_response(
-                e=error, endpoint_name="decompose_basic", cache_key="test_cache_key_123"
-            )
+            _create_encoding_error_response(e=error, endpoint_name="decompose_basic", cache_key="test_cache_key_123")
 
             # Verify cancel_request was called with the cache key
             mock_cancel.assert_called_once_with("test_cache_key_123")
@@ -211,9 +194,7 @@ def test_encoding_error_no_cancel_when_no_cache_key():
 
     with patch("app.api.v1.endpoints.agents.cancel_request") as mock_cancel:
         with patch("app.api.v1.endpoints.agents.logger"):
-            _create_encoding_error_response(
-                e=error, endpoint_name="decompose_basic", cache_key=""
-            )
+            _create_encoding_error_response(e=error, endpoint_name="decompose_basic", cache_key="")
 
             # Verify cancel_request was NOT called
             mock_cancel.assert_not_called()
@@ -232,9 +213,7 @@ def test_encoding_error_empty_object():
 
     with patch("app.api.v1.endpoints.agents.cancel_request"):
         with patch("app.api.v1.endpoints.agents.logger"):
-            http_exception = _create_encoding_error_response(
-                e=error, endpoint_name="test", cache_key=""
-            )
+            http_exception = _create_encoding_error_response(e=error, endpoint_name="test", cache_key="")
 
     # Should not crash, just have position info
     assert "position 0" in http_exception.detail["diagnostic"]
@@ -248,9 +227,7 @@ def test_encoding_error_position_out_of_bounds():
 
     with patch("app.api.v1.endpoints.agents.cancel_request"):
         with patch("app.api.v1.endpoints.agents.logger"):
-            http_exception = _create_encoding_error_response(
-                e=error, endpoint_name="test", cache_key=""
-            )
+            http_exception = _create_encoding_error_response(e=error, endpoint_name="test", cache_key="")
 
     # Should not crash, just have position without char code
     assert "position 100" in http_exception.detail["diagnostic"]

@@ -118,9 +118,7 @@ async def test_enrich_normal_2hop():
         _make_neighbor("Matrix-Rank", hop=2, type="concept"),
     ]
 
-    result = await enrich_from_wikilink_graph(
-        "节点/Eigenvalues.md", max_hops=2, graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Eigenvalues.md", max_hops=2, graph_service=mock_service)
 
     assert isinstance(result, EnrichmentResult)
     assert result.degraded is False
@@ -163,9 +161,7 @@ async def test_enrich_relationship_type_extracted():
         ),
     ]
 
-    result = await enrich_from_wikilink_graph(
-        "节点/Eigenvalues.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Eigenvalues.md", graph_service=mock_service)
 
     assert result.neighbors[0].relationship_type == "prerequisite"
 
@@ -190,9 +186,7 @@ async def test_enrich_empty_neighbors_not_degraded():
     mock_service.is_built = True
     mock_service.get_neighbors.return_value = []
 
-    result = await enrich_from_wikilink_graph(
-        "节点/Isolated.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Isolated.md", graph_service=mock_service)
 
     assert result.degraded is False
     assert result.neighbors == []
@@ -254,9 +248,7 @@ async def test_enrich_returns_trace_with_graph_version():
         _make_neighbor("Y", hop=2, type="concept"),
     ]
 
-    result = await enrich_from_wikilink_graph(
-        "节点/Eigenvalues.md", max_hops=2, graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Eigenvalues.md", max_hops=2, graph_service=mock_service)
 
     assert result.trace is not None
     assert result.trace.seed == "节点/Eigenvalues.md"
@@ -285,9 +277,7 @@ async def test_enrich_trace_marks_frontmatter_link_reason():
         _make_neighbor("PlainNeighbor", hop=1, type="concept"),
     ]
 
-    result = await enrich_from_wikilink_graph(
-        "节点/Eigenvalues.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Eigenvalues.md", graph_service=mock_service)
 
     by_path = {item.path: item for item in result.trace.included}
     assert by_path["节点/Linear-Independence.md"].reason == "frontmatter_link"
@@ -322,9 +312,7 @@ async def test_enrich_trace_records_degradation_on_unexpected_error():
     result = await enrich_from_wikilink_graph("节点/X.md", graph_service=mock_service)
 
     assert result.trace is not None
-    assert any("RuntimeError" in d for d in result.trace.degradations), (
-        result.trace.degradations
-    )
+    assert any("RuntimeError" in d for d in result.trace.degradations), result.trace.degradations
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -457,9 +445,7 @@ async def test_enrich_filters_seed_self_loop():
     # 模拟 BFS 返回邻居含 seed 自身 (basename 形式 vs path 形式)
     mock_service.get_neighbors.return_value = [
         _make_neighbor("Fundamentals", hop=1),
-        _make_neighbor(
-            "Characteristic-Equation-for-Eigenvalues", hop=2
-        ),  # ← seed 自身, 必须过滤
+        _make_neighbor("Characteristic-Equation-for-Eigenvalues", hop=2),  # ← seed 自身, 必须过滤
         _make_neighbor("Eigenvalues-are-special-vectors-that-sat", hop=2),
     ]
 
@@ -469,9 +455,7 @@ async def test_enrich_filters_seed_self_loop():
     )
 
     slugs = [n.slug for n in result.neighbors]
-    assert "Characteristic-Equation-for-Eigenvalues" not in slugs, (
-        f"seed 自循环没被过滤: {slugs}"
-    )
+    assert "Characteristic-Equation-for-Eigenvalues" not in slugs, f"seed 自循环没被过滤: {slugs}"
     assert len(result.neighbors) == 2
     assert set(slugs) == {
         "Fundamentals",
@@ -496,9 +480,7 @@ async def test_enrich_dedupes_same_slug_neighbors():
         ),
     ]
 
-    result = await enrich_from_wikilink_graph(
-        "节点/Seed.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Seed.md", graph_service=mock_service)
 
     assert len(result.neighbors) == 1
     assert result.neighbors[0].slug == "Linear-Algebra"
@@ -569,9 +551,7 @@ async def test_enrich_frontmatter_link_overrides_backlink_reason():
             title="Y",
             path="节点/Y.md",
             hop_distance=1,
-            frontmatter={
-                "relationships": [{"type": "prerequisite", "target": "[[X]]"}]
-            },
+            frontmatter={"relationships": [{"type": "prerequisite", "target": "[[X]]"}]},
             is_backlink=True,
             path_trace=["X", "Y"],
         ),
@@ -630,23 +610,15 @@ def test_extract_relationship_info_malformed_evidence_dropped():
     """非 str / 空 str evidence → None (避免序列化崩溃)."""
     from app.services.wikilink_context_service import _extract_relationship_info
 
-    fm_int = {
-        "relationships": [{"type": "prerequisite", "target": "[[X]]", "evidence": 42}]
-    }
-    fm_empty = {
-        "relationships": [{"type": "prerequisite", "target": "[[X]]", "evidence": ""}]
-    }
+    fm_int = {"relationships": [{"type": "prerequisite", "target": "[[X]]", "evidence": 42}]}
+    fm_empty = {"relationships": [{"type": "prerequisite", "target": "[[X]]", "evidence": ""}]}
     assert _extract_relationship_info(fm_int, "X") == ("prerequisite", None)
     assert _extract_relationship_info(fm_empty, "X") == ("prerequisite", None)
 
 
 def test_extract_relationship_type_backward_compat():
     """shim 仍保 single-value type return (现有调用方未迁移)."""
-    fm = {
-        "relationships": [
-            {"type": "refines", "target": "[[X]]", "evidence": "ignored by shim"}
-        ]
-    }
+    fm = {"relationships": [{"type": "refines", "target": "[[X]]", "evidence": "ignored by shim"}]}
     assert _extract_relationship_type(fm, "X") == "refines"
 
 
@@ -672,9 +644,7 @@ async def test_enrich_populates_evidence_on_neighbor_and_trace():
             },
         ),
     ]
-    result = await enrich_from_wikilink_graph(
-        "节点/Eigenvalues.md", graph_service=mock_service
-    )
+    result = await enrich_from_wikilink_graph("节点/Eigenvalues.md", graph_service=mock_service)
     assert len(result.neighbors) == 1
     assert result.neighbors[0].evidence == "see eq. 3.2 in Strang Ch. 6"
     assert result.trace.included[0].evidence == "see eq. 3.2 in Strang Ch. 6"

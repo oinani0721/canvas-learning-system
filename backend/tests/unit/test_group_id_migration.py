@@ -158,9 +158,7 @@ async def test_migrate_dry_run_lists_migrations_no_apply():
     assert len(stats.migrations) == 3
 
     # dry_run → 仅 distinct query, 不调 update
-    update_calls = [
-        c for c in driver.session_obj.run_calls if "SET" in c[0] or "UPDATE" in c[0]
-    ]
+    update_calls = [c for c in driver.session_obj.run_calls if "SET" in c[0] or "UPDATE" in c[0]]
     assert len(update_calls) == 0
 
 

@@ -102,9 +102,7 @@ class TestQAFallbackCountAccuracy:
                     node_id="n1",
                 )
 
-        assert service._fallback_count == 5, (
-            f"Expected 5, got {service._fallback_count}"
-        )
+        assert service._fallback_count == 5, f"Expected 5, got {service._fallback_count}"
 
 
 class TestQAIsFallbackActiveLifecycle:
@@ -203,9 +201,7 @@ class TestQAFallbackEventFields:
         mock_memory = MagicMock()
         mock_memory.neo4j = None
 
-        service = CanvasService(
-            canvas_base_path=str(tmp_path), memory_client=mock_memory
-        )
+        service = CanvasService(canvas_base_path=str(tmp_path), memory_client=mock_memory)
         service._fallback_file_path = fallback_file
 
         with patch("app.services.canvas_service.settings") as mock_settings:

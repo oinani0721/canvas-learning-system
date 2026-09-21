@@ -232,9 +232,7 @@ async def test_fetch_tips_and_errors_forwards_group(monkeypatch):
     async def _fake_get_memory_service():
         return _Svc()
 
-    monkeypatch.setattr(
-        "app.services.memory_service.get_memory_service", _fake_get_memory_service
-    )
+    monkeypatch.setattr("app.services.memory_service.get_memory_service", _fake_get_memory_service)
 
     await lcs._fetch_tips_and_errors("node-1", SUB_CANVAS)
 

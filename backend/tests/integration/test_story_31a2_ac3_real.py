@@ -52,9 +52,7 @@ async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
         pass
 
 
-async def _poll_neo4j(
-    client: Neo4jClient, user_id: str, *, min_count: int = 1, timeout: float = 10.0
-):
+async def _poll_neo4j(client: Neo4jClient, user_id: str, *, min_count: int = 1, timeout: float = 10.0):
     """Poll Neo4j until at least min_count learning history records appear."""
     loop = asyncio.get_running_loop()
     start = loop.time()
@@ -63,9 +61,7 @@ async def _poll_neo4j(
         if results and len(results) >= min_count:
             return results
         await asyncio.sleep(0.3)
-    raise TimeoutError(
-        f"Neo4j did not return {min_count} records for {user_id} within {timeout}s"
-    )
+    raise TimeoutError(f"Neo4j did not return {min_count} records for {user_id} within {timeout}s")
 
 
 # =============================================================================
@@ -107,9 +103,7 @@ class TestAC31A23_CrossSessionPersistence:
             result = await svc2.get_learning_history(user_id=f"{prefix}u1")
 
             assert result["total"] >= 1
-            found = any(
-                "linear_algebra" in str(i.get("concept", "")) for i in result["items"]
-            )
+            found = any("linear_algebra" in str(i.get("concept", "")) for i in result["items"])
             assert found, "Session 1 data should be accessible in session 2"
         finally:
             await _cleanup_prefix(client, prefix)
@@ -143,11 +137,7 @@ class TestAC31A23_CrossSessionPersistence:
             result = await svc2.get_learning_history(user_id=f"{prefix}u1")
 
             item = next(
-                (
-                    i
-                    for i in result["items"]
-                    if "probability_theory" in str(i.get("concept", ""))
-                ),
+                (i for i in result["items"] if "probability_theory" in str(i.get("concept", ""))),
                 None,
             )
             assert item is not None, "Should find probability_theory in results"

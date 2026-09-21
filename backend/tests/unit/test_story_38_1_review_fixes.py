@@ -107,10 +107,7 @@ class TestDoIndexCoverage:
                 assert (
                     call_kwargs.kwargs.get("canvas_path") == "my_canvas.canvas"
                     or call_kwargs[1].get("canvas_path") == "my_canvas.canvas"
-                    or (
-                        len(call_kwargs[0]) > 0
-                        and call_kwargs[0][0] == "my_canvas.canvas"
-                    )
+                    or (len(call_kwargs[0]) > 0 and call_kwargs[0][0] == "my_canvas.canvas")
                 )
 
     @pytest.mark.asyncio
@@ -258,6 +255,4 @@ class TestReviewM4DeleteNodeTrigger:
             ):
                 result = await svc.delete_node("test", node_id)
                 assert result is True
-                mock_index_svc.schedule_index.assert_called_once_with(
-                    "test", tmpdir, trigger_node_id=node_id
-                )
+                mock_index_svc.schedule_index.assert_called_once_with("test", tmpdir, trigger_node_id=node_id)

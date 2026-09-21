@@ -41,9 +41,7 @@ class MigrationStats(BaseModel):
     total_old_group_ids: int = 0
     total_nodes_affected: int = 0
     migrations: list[GroupIdMigration] = Field(default_factory=list)
-    skipped_already_vault_format: int = Field(
-        default=0, description="已是 vault: 格式的 group_id 被跳过"
-    )
+    skipped_already_vault_format: int = Field(default=0, description="已是 vault: 格式的 group_id 被跳过")
     elapsed_ms: float = 0.0
 
 

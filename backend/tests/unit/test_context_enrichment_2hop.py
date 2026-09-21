@@ -374,10 +374,7 @@ class TestPerformance:
         Large Canvas performance test.
         """
         # Arrange - Generate large canvas with complex edges
-        nodes = {
-            f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"}
-            for i in range(PERF_LARGE_GRAPH_NODES)
-        }
+        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(PERF_LARGE_GRAPH_NODES)}
         edges = []
         for i in range(PERF_LARGE_GRAPH_NODES - 1):
             edges.append({"fromNode": f"n{i}", "toNode": f"n{i + 1}"})
@@ -391,25 +388,18 @@ class TestPerformance:
         elapsed_ms = (time.time() - start) * 1000
 
         # Assert
-        assert elapsed_ms < PERF_TIMEOUT_MS, (
-            f"Too slow: {elapsed_ms:.2f}ms (should be < {PERF_TIMEOUT_MS}ms)"
-        )
+        assert elapsed_ms < PERF_TIMEOUT_MS, f"Too slow: {elapsed_ms:.2f}ms (should be < {PERF_TIMEOUT_MS}ms)"
         assert len(result) > 0  # Should find some adjacent nodes
 
     @pytest.mark.performance
     def test_2hop_performance_dense_graph(self, service: ContextEnrichmentService):
         """Test performance on a dense graph (many edges per node)."""
         # Arrange - Dense graph with many interconnections
-        nodes = {
-            f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"}
-            for i in range(PERF_DENSE_GRAPH_NODES)
-        }
+        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(PERF_DENSE_GRAPH_NODES)}
         edges = []
         # Create dense connections
         for i in range(PERF_DENSE_GRAPH_NODES):
-            for j in range(
-                i + 1, min(i + PERF_DENSE_MAX_CONNECTIONS, PERF_DENSE_GRAPH_NODES)
-            ):
+            for j in range(i + 1, min(i + PERF_DENSE_MAX_CONNECTIONS, PERF_DENSE_GRAPH_NODES)):
                 edges.append({"fromNode": f"n{i}", "toNode": f"n{j}"})
 
         # Act
@@ -484,9 +474,7 @@ class TestBackwardCompatibility:
         explicit_ids = {n.node["id"] for n in result_explicit}
         assert default_ids == explicit_ids
 
-    def test_1hop_only_returns_direct_neighbors(
-        self, service: ContextEnrichmentService
-    ):
+    def test_1hop_only_returns_direct_neighbors(self, service: ContextEnrichmentService):
         """Test that 1-hop only returns direct neighbors, not 2-hop."""
         # Arrange
         nodes = {
@@ -605,7 +593,4 @@ class TestEnrichWithAdjacentNodes2Hop:
         )
 
         # Assert - check that 2-hop is indicated in the context
-        assert (
-            "parent-2hop" in result.enriched_context
-            or "Grandparent" in result.enriched_context
-        )
+        assert "parent-2hop" in result.enriched_context or "Grandparent" in result.enriched_context

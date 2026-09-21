@@ -7,9 +7,7 @@ BKT, and canvas-related domain models.
 from hypothesis import strategies as st
 
 # Mastery/proficiency scores: always 0.0-1.0
-mastery_scores = st.floats(
-    min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
-)
+mastery_scores = st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False)
 
 # Canvas node IDs: hex strings like those in Obsidian
 node_ids = st.from_regex(r"[a-f0-9]{16}", fullmatch=True)

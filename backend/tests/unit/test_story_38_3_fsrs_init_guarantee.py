@@ -143,9 +143,7 @@ class TestAC3InitLogging:
         # Either way, the manager should be None
         assert review_service_no_fsrs._fsrs_manager is None
 
-    def test_fsrs_init_reason_set_when_unavailable(
-        self, mock_canvas_service, mock_task_manager
-    ):
+    def test_fsrs_init_reason_set_when_unavailable(self, mock_canvas_service, mock_task_manager):
         """When FSRS library not available, reason is set."""
         with patch("app.services.review_service.FSRS_AVAILABLE", False):
             with patch("app.services.review_service.FSRSManager", None):
@@ -158,10 +156,7 @@ class TestAC3InitLogging:
                 )
                 assert svc._fsrs_init_ok is False
                 assert svc._fsrs_init_reason is not None
-                assert (
-                    "unavailable" in svc._fsrs_init_reason
-                    or "disabled" in svc._fsrs_init_reason
-                )
+                assert "unavailable" in svc._fsrs_init_reason or "disabled" in svc._fsrs_init_reason
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -173,9 +168,7 @@ class TestAC4AutoCardCreation:
     """AC-4: Auto card creation when no FSRS card exists."""
 
     @pytest.mark.asyncio
-    async def test_auto_creates_card_when_none_exists(
-        self, review_service, mock_fsrs_manager
-    ):
+    async def test_auto_creates_card_when_none_exists(self, review_service, mock_fsrs_manager):
         """When no card exists, get_fsrs_state auto-creates one."""
         # No card in cache or persistence
         assert "new-concept" not in review_service._card_states
@@ -196,9 +189,7 @@ class TestAC4AutoCardCreation:
         assert "new-concept" in review_service._card_states
 
     @pytest.mark.asyncio
-    async def test_auto_created_card_returned_on_subsequent_query(
-        self, review_service, mock_fsrs_manager
-    ):
+    async def test_auto_created_card_returned_on_subsequent_query(self, review_service, mock_fsrs_manager):
         """Subsequent queries return the auto-created card."""
         # First query - auto-creates
         result1 = await review_service.get_fsrs_state("concept-x")
@@ -215,9 +206,7 @@ class TestAC4AutoCardCreation:
         mock_fsrs_manager.create_card.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_existing_card_not_overwritten(
-        self, review_service, mock_fsrs_manager
-    ):
+    async def test_existing_card_not_overwritten(self, review_service, mock_fsrs_manager):
         """When card already exists in cache, it's not overwritten."""
         # Pre-populate cache
         review_service._card_states["existing-concept"] = '{"existing": true}'
@@ -295,18 +284,14 @@ class TestFSRSStateQueryResponseReason:
         """FSRSStateQueryResponse works without reason."""
         from app.models.schemas import FSRSStateQueryResponse
 
-        resp = FSRSStateQueryResponse(
-            concept_id="test", fsrs_state=None, card_state=None, found=True
-        )
+        resp = FSRSStateQueryResponse(concept_id="test", fsrs_state=None, card_state=None, found=True)
         assert resp.reason is None
 
     def test_response_fsrs_not_initialized_reason(self):
         """FSRSStateQueryResponse can carry fsrs_not_initialized reason."""
         from app.models.schemas import FSRSStateQueryResponse
 
-        resp = FSRSStateQueryResponse(
-            concept_id="test", found=False, reason="fsrs_not_initialized"
-        )
+        resp = FSRSStateQueryResponse(concept_id="test", found=False, reason="fsrs_not_initialized")
         assert resp.found is False
         assert resp.reason == "fsrs_not_initialized"
 
@@ -326,25 +311,19 @@ class TestCodeReviewC1FireAndForgetPersistence:
     """
 
     @pytest.mark.asyncio
-    async def test_auto_create_spawns_no_persistence_task(
-        self, review_service, mock_fsrs_manager
-    ):
+    async def test_auto_create_spawns_no_persistence_task(self, review_service, mock_fsrs_manager):
         """Auto-create 不再派生幻影持久化后台任务 (CARD-C4)。
 
         只 patch create_task 而非整个 asyncio (Codex LOW-1): to_thread 保持
         真实, 唯一文件通道真正执行, 用例同时证明 '只走文件通道'。
         """
-        with patch(
-            "app.services.review_service.asyncio.create_task"
-        ) as mock_create_task:
+        with patch("app.services.review_service.asyncio.create_task") as mock_create_task:
             result = await review_service.get_fsrs_state("persist-test")
             assert result["found"] is True
             mock_create_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_create_task_failure_can_no_longer_break_get_fsrs_state(
-        self, review_service, mock_fsrs_manager
-    ):
+    async def test_create_task_failure_can_no_longer_break_get_fsrs_state(self, review_service, mock_fsrs_manager):
         """原用例锁 'create_task 抛错时优雅降级' —— 该调用路径已删,
         create_task 抛错不再可能波及 get_fsrs_state (CARD-C4)。"""
         with patch(

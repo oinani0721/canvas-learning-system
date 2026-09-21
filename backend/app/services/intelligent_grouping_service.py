@@ -151,12 +151,8 @@ class IntelligentGroupingService:
 
         [Source: docs/stories/33.4.story.md#Task-1.1]
         """
-        self.canvas_base_path = (
-            Path(canvas_base_path) if canvas_base_path else Path.cwd()
-        )
-        logger.info(
-            f"IntelligentGroupingService initialized with base_path: {self.canvas_base_path}"
-        )
+        self.canvas_base_path = Path(canvas_base_path) if canvas_base_path else Path.cwd()
+        logger.info(f"IntelligentGroupingService initialized with base_path: {self.canvas_base_path}")
 
     async def analyze_canvas(
         self,
@@ -202,18 +198,10 @@ class IntelligentGroupingService:
         canvas_name = Path(canvas_path).stem
         _ctx_value = get_current_subject_id()
         if _ctx_value and _ctx_value != "general":
-            subject_group_id = (
-                _ctx_value
-                if is_vault_group_id(_ctx_value)
-                else canonical_group_id(_ctx_value)
-            )
+            subject_group_id = _ctx_value if is_vault_group_id(_ctx_value) else canonical_group_id(_ctx_value)
         else:
-            subject_group_id = build_vault_group_id(
-                "default", subject_id=subject, canvas_path=canvas_name
-            )
-        logger.debug(
-            f"Subject isolation: subject={subject}, group_id={subject_group_id}"
-        )
+            subject_group_id = build_vault_group_id("default", subject_id=subject, canvas_path=canvas_name)
+        logger.debug(f"Subject isolation: subject={subject}, group_id={subject_group_id}")
 
         # Resolve canvas path
         full_canvas_path = self._resolve_canvas_path(canvas_path)
@@ -233,12 +221,8 @@ class IntelligentGroupingService:
         )
 
         # Extract clustering metrics
-        silhouette_score = clustering_result.get("optimization_stats", {}).get(
-            "clustering_accuracy", 0.0
-        )
-        recommended_k = clustering_result.get("clustering_parameters", {}).get(
-            "n_clusters", 0
-        )
+        silhouette_score = clustering_result.get("optimization_stats", {}).get("clustering_accuracy", 0.0)
+        recommended_k = clustering_result.get("clustering_parameters", {}).get("n_clusters", 0)
         clusters = clustering_result.get("clusters", [])
 
         # Check quality threshold
@@ -327,18 +311,10 @@ class IntelligentGroupingService:
                 with _canvas_utils_load_lock:
                     # Double-check after acquiring lock
                     if "canvas_utils" not in sys.modules:
-                        canvas_utils_path = (
-                            Path(__file__).parent.parent.parent.parent
-                            / "src"
-                            / "canvas_utils.py"
-                        )
-                        spec = importlib.util.spec_from_file_location(
-                            "canvas_utils", canvas_utils_path
-                        )
+                        canvas_utils_path = Path(__file__).parent.parent.parent.parent / "src" / "canvas_utils.py"
+                        spec = importlib.util.spec_from_file_location("canvas_utils", canvas_utils_path)
                         if spec is None or spec.loader is None:
-                            raise ImportError(
-                                f"Cannot create module spec from {canvas_utils_path}"
-                            )
+                            raise ImportError(f"Cannot create module spec from {canvas_utils_path}")
                         canvas_utils_mod = importlib.util.module_from_spec(spec)
                         sys.modules["canvas_utils"] = canvas_utils_mod
                         try:
@@ -359,11 +335,7 @@ class IntelligentGroupingService:
             # Filter nodes by target color first
             filtered_nodes = []
             for node in logic.canvas_data.get("nodes", []):
-                if (
-                    node.get("type") == "text"
-                    and node.get("color") == target_color
-                    and node.get("text", "").strip()
-                ):
+                if node.get("type") == "text" and node.get("color") == target_color and node.get("text", "").strip():
                     filtered_nodes.append(node)
 
             if len(filtered_nodes) < min_nodes_per_group:
@@ -412,9 +384,7 @@ class IntelligentGroupingService:
             logger.error(f"Clustering failed: {e}")
             raise ClusteringFailedError(f"Clustering failed: {e}")
 
-    def _map_clusters_to_groups(
-        self, clusters: List[Dict[str, Any]]
-    ) -> List[NodeGroup]:
+    def _map_clusters_to_groups(self, clusters: List[Dict[str, Any]]) -> List[NodeGroup]:
         """
         Map clustering results to NodeGroup schema.
 

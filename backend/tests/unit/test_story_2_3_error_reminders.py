@@ -165,9 +165,7 @@ def test_inject_error_reminders_public_api_delegates():
     """spec Task 2.1: inject_error_reminders 公开 API 与 _format_historical_errors 等价."""
     assembler = ChatContextAssembler()
     errors = [_make_error("test")]
-    assert assembler.inject_error_reminders(
-        errors
-    ) == assembler._format_historical_errors(errors)
+    assert assembler.inject_error_reminders(errors) == assembler._format_historical_errors(errors)
     assert assembler.inject_error_reminders([]) == ""
 
 
@@ -264,9 +262,7 @@ def test_assemble_context_historical_errors_before_neighbors():
     cn_idx = text.find("<current_note")
     he_idx = text.find("<historical_errors")
     nb_idx = text.find("<neighbor")
-    assert cn_idx < he_idx < nb_idx, (
-        f"section order wrong: cn={cn_idx} he={he_idx} nb={nb_idx}"
-    )
+    assert cn_idx < he_idx < nb_idx, f"section order wrong: cn={cn_idx} he={he_idx} nb={nb_idx}"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -290,21 +286,11 @@ async def test_search_error_memories_filters_by_episode_type():
     """AC #1: 只保留 error / misconception / mistake 类型, 跳过 learning/recovered 等."""
     svc = MemoryService()
     raw_episodes = [
-        _make_episode(
-            "error one", episode_type="error", timestamp="2026-04-15T10:00:00"
-        ),
-        _make_episode(
-            "learning one", episode_type="learning", timestamp="2026-04-15T11:00:00"
-        ),
-        _make_episode(
-            "misc one", episode_type="misconception", timestamp="2026-04-15T12:00:00"
-        ),
-        _make_episode(
-            "mistake one", episode_type="MISTAKE", timestamp="2026-04-15T13:00:00"
-        ),  # case-insensitive
-        _make_episode(
-            "recovered one", episode_type="recovered", timestamp="2026-04-15T14:00:00"
-        ),
+        _make_episode("error one", episode_type="error", timestamp="2026-04-15T10:00:00"),
+        _make_episode("learning one", episode_type="learning", timestamp="2026-04-15T11:00:00"),
+        _make_episode("misc one", episode_type="misconception", timestamp="2026-04-15T12:00:00"),
+        _make_episode("mistake one", episode_type="MISTAKE", timestamp="2026-04-15T13:00:00"),  # case-insensitive
+        _make_episode("recovered one", episode_type="recovered", timestamp="2026-04-15T14:00:00"),
     ]
 
     # CARD-G4-2: search_error_memories 内部改调 search_memories_with_status
@@ -350,9 +336,7 @@ async def test_search_error_memories_truncates_to_limit():
     """AC #1: 限制返回最多 limit 条 (默认 5)."""
     svc = MemoryService()
     raw_episodes = [
-        _make_episode(
-            f"err-{i}", episode_type="error", timestamp=f"2026-04-{i:02d}T00:00:00"
-        )
+        _make_episode(f"err-{i}", episode_type="error", timestamp=f"2026-04-{i:02d}T00:00:00")
         for i in range(1, 11)  # 10 episodes
     ]
 
@@ -364,9 +348,7 @@ async def test_search_error_memories_truncates_to_limit():
         new=AsyncMock(return_value=StatusedResult.from_items(raw_episodes)),
     ):
         result_default = await svc.search_error_memories(node_id="admissibility")
-        result_custom = await svc.search_error_memories(
-            node_id="admissibility", limit=3
-        )
+        result_custom = await svc.search_error_memories(node_id="admissibility", limit=3)
 
     assert len(result_default) == 5
     assert len(result_custom) == 3
@@ -470,9 +452,7 @@ async def test_search_memories_node_id_filter_post_merge():
                 assert len(all_results) == 2
 
                 # With node_id filter: only admissibility
-                filtered = await svc.search_memories(
-                    query="test", max_results=10, node_id="admissibility"
-                )
+                filtered = await svc.search_memories(query="test", max_results=10, node_id="admissibility")
                 assert len(filtered) == 1
                 assert filtered[0]["content"] == "a"
 
@@ -490,9 +470,7 @@ async def test_search_memories_node_id_none_is_no_filter():
     ]
 
     with patch.object(svc, "_search_graphiti", new=AsyncMock(return_value=tier1)):
-        with patch.object(
-            svc, "_search_neo4j_fulltext", new=AsyncMock(return_value=[])
-        ):
+        with patch.object(svc, "_search_neo4j_fulltext", new=AsyncMock(return_value=[])):
             with patch.object(svc, "_inject_fsrs_r_values", new=MagicMock()):
                 results = await svc.search_memories(query="test", max_results=10)
                 assert len(results) == 3

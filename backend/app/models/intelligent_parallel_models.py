@@ -117,9 +117,7 @@ class IntelligentParallelRequest(BaseModel):
         le=20,
         description="Maximum number of groups (optional, auto-determined if not specified)",
     )
-    min_nodes_per_group: int = Field(
-        default=2, ge=1, description="Minimum nodes per group"
-    )
+    min_nodes_per_group: int = Field(default=2, ge=1, description="Minimum nodes per group")
 
 
 class NodeInGroup(BaseModel):
@@ -130,9 +128,7 @@ class NodeInGroup(BaseModel):
     """
 
     node_id: str = Field(..., description="Node ID", examples=["node-001"])
-    text: str = Field(
-        ..., description="Node text content", examples=["逆否命题 vs 否命题"]
-    )
+    text: str = Field(..., description="Node text content", examples=["逆否命题 vs 否命题"])
 
 
 class NodeGroup(BaseModel):
@@ -144,14 +140,10 @@ class NodeGroup(BaseModel):
     """
 
     group_id: str = Field(..., description="Group ID", examples=["group-1"])
-    group_name: str = Field(
-        ..., description="Auto-generated group name", examples=["对比类概念"]
-    )
+    group_name: str = Field(..., description="Auto-generated group name", examples=["对比类概念"])
     group_emoji: Optional[str] = Field(default=None, description="Group icon", examples=["📊"])
     nodes: List[NodeInGroup] = Field(..., description="Nodes in this group")
-    recommended_agent: str = Field(
-        ..., description="Recommended agent type", examples=["comparison-table"]
-    )
+    recommended_agent: str = Field(..., description="Recommended agent type", examples=["comparison-table"])
     confidence: Optional[float] = Field(
         default=None, ge=0, le=1, description="Recommendation confidence score", examples=[0.85]
     )
@@ -166,12 +158,8 @@ class GroupExecuteConfig(BaseModel):
     """
 
     group_id: str = Field(..., description="Group ID", examples=["group-1"])
-    agent_type: str = Field(
-        ..., description="Agent type to use", examples=["comparison-table"]
-    )
-    node_ids: List[str] = Field(
-        ..., description="Node IDs to process", examples=[["node-001", "node-002"]]
-    )
+    agent_type: str = Field(..., description="Agent type to use", examples=["comparison-table"])
+    node_ids: List[str] = Field(..., description="Node IDs to process", examples=[["node-001", "node-002"]])
 
 
 class ConfirmRequest(BaseModel):
@@ -209,9 +197,7 @@ class ConfirmRequest(BaseModel):
         le=50,
         description="Maximum concurrent executions (optional, scheduler decides if not specified)",
     )
-    timeout: int = Field(
-        default=600, ge=60, le=3600, description="Total timeout in seconds"
-    )
+    timeout: int = Field(default=600, ge=60, le=3600, description="Total timeout in seconds")
 
 
 class SingleAgentRequest(BaseModel):
@@ -222,9 +208,7 @@ class SingleAgentRequest(BaseModel):
     """
 
     node_id: str = Field(..., description="Node ID to process", examples=["node-005"])
-    agent_type: str = Field(
-        ..., description="Agent type", examples=["oral-explanation"]
-    )
+    agent_type: str = Field(..., description="Agent type", examples=["oral-explanation"])
     canvas_path: str = Field(
         ...,
         max_length=500,
@@ -258,18 +242,10 @@ class IntelligentParallelResponse(BaseModel):
     Story 33.4: Added subject and subject_group_id for multi-subject isolation (AC-33.4.5)
     """
 
-    canvas_path: str = Field(
-        ..., description="Canvas file path", examples=["离散数学.canvas"]
-    )
-    total_nodes: int = Field(
-        ..., description="Total target nodes detected", examples=[12]
-    )
-    groups: List[NodeGroup] = Field(
-        ..., description="Grouped nodes with recommendations"
-    )
-    estimated_duration: Optional[str] = Field(
-        default=None, description="Estimated execution time", examples=["2分钟"]
-    )
+    canvas_path: str = Field(..., description="Canvas file path", examples=["离散数学.canvas"])
+    total_nodes: int = Field(..., description="Total target nodes detected", examples=[12])
+    groups: List[NodeGroup] = Field(..., description="Grouped nodes with recommendations")
+    estimated_duration: Optional[str] = Field(default=None, description="Estimated execution time", examples=["2分钟"])
     resource_warning: Optional[str] = Field(
         default=None,
         description="Resource warning if applicable",
@@ -316,17 +292,11 @@ class SessionResponse(BaseModel):
         description="Session/Task ID",
         examples=["parallel-20250118-001"],
     )
-    status: ParallelTaskStatus = Field(
-        default=ParallelTaskStatus.pending, description="Initial status"
-    )
+    status: ParallelTaskStatus = Field(default=ParallelTaskStatus.pending, description="Initial status")
     total_groups: int = Field(..., description="Total number of groups", examples=[4])
-    total_nodes: Optional[int] = Field(
-        default=None, description="Total number of nodes", examples=[12]
-    )
+    total_nodes: Optional[int] = Field(default=None, description="Total number of nodes", examples=[12])
     created_at: datetime = Field(..., description="Creation timestamp")
-    estimated_completion: Optional[datetime] = Field(
-        default=None, description="Estimated completion time"
-    )
+    estimated_completion: Optional[datetime] = Field(default=None, description="Estimated completion time")
     websocket_url: Optional[str] = Field(
         default=None,
         description="WebSocket URL for progress subscription",
@@ -370,14 +340,10 @@ class GroupProgress(BaseModel):
 
     group_id: str = Field(..., description="Group ID", examples=["group-1"])
     status: GroupStatus = Field(..., description="Group status")
-    agent_type: str = Field(
-        ..., description="Agent type used", examples=["comparison-table"]
-    )
+    agent_type: str = Field(..., description="Agent type used", examples=["comparison-table"])
     completed_nodes: int = Field(default=0, description="Completed nodes count")
     total_nodes: int = Field(..., description="Total nodes in group")
-    results: List[NodeResult] = Field(
-        default_factory=list, description="Generated files"
-    )
+    results: List[NodeResult] = Field(default_factory=list, description="Generated files")
     errors: List[NodeError] = Field(default_factory=list, description="Error list")
 
 
@@ -397,9 +363,7 @@ class PerformanceMetrics(BaseModel):
     parallel_efficiency: Optional[float] = Field(
         default=None, description="Parallel efficiency (speedup ratio)", examples=[7.2]
     )
-    peak_concurrent: Optional[int] = Field(
-        default=None, description="Peak concurrent executions", examples=[8]
-    )
+    peak_concurrent: Optional[int] = Field(default=None, description="Peak concurrent executions", examples=[8])
 
 
 class ProgressResponse(BaseModel):
@@ -421,15 +385,11 @@ class ProgressResponse(BaseModel):
     completed_groups: int = Field(default=0, description="Completed groups")
     completed_nodes: int = Field(default=0, description="Completed nodes")
     failed_nodes: int = Field(default=0, description="Failed nodes")
-    progress_percent: int = Field(
-        default=0, ge=0, le=100, description="Progress percentage"
-    )
+    progress_percent: int = Field(default=0, ge=0, le=100, description="Progress percentage")
     created_at: datetime = Field(..., description="Creation timestamp")
     started_at: Optional[datetime] = Field(default=None, description="Start timestamp")
     completed_at: Optional[datetime] = Field(default=None, description="Completion timestamp")
-    groups: List[GroupProgress] = Field(
-        default_factory=list, description="Group progress details"
-    )
+    groups: List[GroupProgress] = Field(default_factory=list, description="Group progress details")
     performance_metrics: Optional[PerformanceMetrics] = Field(
         default=None, description="Performance metrics (available after completion)"
     )
@@ -445,12 +405,8 @@ class CancelResponse(BaseModel):
     """
 
     success: bool = Field(..., description="Whether cancellation succeeded")
-    message: str = Field(
-        ..., description="Status message", examples=["Task cancelled successfully"]
-    )
-    completed_count: int = Field(
-        default=0, description="Number of tasks completed before cancellation"
-    )
+    message: str = Field(..., description="Status message", examples=["Task cancelled successfully"])
+    completed_count: int = Field(default=0, description="Number of tasks completed before cancellation")
 
 
 class SingleAgentResponse(BaseModel):
@@ -489,9 +445,7 @@ class ParallelErrorResponse(BaseModel):
         description="Error message",
         examples=["Canvas file '离散数学.canvas' not found"],
     )
-    details: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional error details"
-    )
+    details: Optional[Dict[str, Any]] = Field(default=None, description="Additional error details")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -538,12 +492,8 @@ class WSGroupCompleteData(BaseModel):
     """
 
     group_id: str = Field(..., description="Completed group ID", examples=["group-1"])
-    agent_type: str = Field(
-        ..., description="Agent type used", examples=["comparison-table"]
-    )
-    results: List[NodeResult] = Field(
-        default_factory=list, description="Generated files"
-    )
+    agent_type: str = Field(..., description="Agent type used", examples=["comparison-table"])
+    results: List[NodeResult] = Field(default_factory=list, description="Generated files")
 
 
 class WSNodeCompleteData(BaseModel):
@@ -587,9 +537,7 @@ class WSCompleteData(BaseModel):
     """
 
     status: ParallelTaskStatus = Field(..., description="Final session status")
-    total_duration: float = Field(
-        ..., description="Total duration in seconds", examples=[135]
-    )
+    total_duration: float = Field(..., description="Total duration in seconds", examples=[135])
     success_count: int = Field(..., ge=0, description="Successful node count")
     failure_count: int = Field(..., ge=0, description="Failed node count")
 
@@ -605,13 +553,9 @@ class WebSocketMessage(BaseModel):
     """
 
     type: WSEventType = Field(..., description="Event type")
-    task_id: str = Field(
-        ..., description="Session/Task ID", examples=["parallel-20250118-001"]
-    )
+    task_id: str = Field(..., description="Session/Task ID", examples=["parallel-20250118-001"])
     timestamp: datetime = Field(..., description="Event timestamp")
-    data: Optional[Dict[str, Any]] = Field(
-        default=None, description="Event-specific data payload"
-    )
+    data: Optional[Dict[str, Any]] = Field(default=None, description="Event-specific data payload")
 
     # Note: In Pydantic V2, datetime is automatically serialized to ISO format
     model_config = ConfigDict()

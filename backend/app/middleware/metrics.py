@@ -109,18 +109,14 @@ class MetricsMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.bind_contextvars(request_id=request_id)
         request.state.request_id = request_id
 
-        logger.debug(
-            "request.started", method=method, path=request.url.path, endpoint=endpoint
-        )
+        logger.debug("request.started", method=method, path=request.url.path, endpoint=endpoint)
 
         try:
             response = await call_next(request)
             status_code = response.status_code
         except Exception as e:
             status_code = 500
-            logger.exception(
-                "request.error", method=method, path=request.url.path, error=str(e)
-            )
+            logger.exception("request.error", method=method, path=request.url.path, error=str(e))
             raise
         finally:
             # Calculate duration
@@ -132,9 +128,7 @@ class MetricsMiddleware(BaseHTTPMiddleware):
 
             # Record request count
             # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
-            REQUEST_COUNT.labels(
-                method=method, endpoint=endpoint, status=str(status_code)
-            ).inc()
+            REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=str(status_code)).inc()
 
             # Record latency
             # ✅ Verified from Context7:/prometheus/client_python (Histogram.labels().observe())
@@ -231,9 +225,7 @@ async def metrics_middleware(request: Request, call_next: Callable) -> Response:
         duration = time.perf_counter() - start_time
         CONCURRENT_REQUESTS.dec()
 
-        REQUEST_COUNT.labels(
-            method=method, endpoint=endpoint, status=str(status_code)
-        ).inc()
+        REQUEST_COUNT.labels(method=method, endpoint=endpoint, status=str(status_code)).inc()
 
         REQUEST_LATENCY.labels(method=method, endpoint=endpoint).observe(duration)
 
@@ -265,10 +257,7 @@ def get_api_metrics_snapshot() -> dict:
     for metric in REGISTRY.collect():
         if metric.name == "canvas_api_requests_total":
             for sample in metric.samples:
-                if (
-                    sample.name.endswith("_total")
-                    or sample.name == "canvas_api_requests_total"
-                ):
+                if sample.name.endswith("_total") or sample.name == "canvas_api_requests_total":
                     count = int(sample.value)
                     requests_total += count
                     status = sample.labels.get("status", "200")

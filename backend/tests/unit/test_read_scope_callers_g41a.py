@@ -79,9 +79,7 @@ async def test_tips_and_errors_raise_not_swallow(monkeypatch):
     async def _fake_get_memory_service():
         return _Svc()
 
-    monkeypatch.setattr(
-        "app.services.memory_service.get_memory_service", _fake_get_memory_service
-    )
+    monkeypatch.setattr("app.services.memory_service.get_memory_service", _fake_get_memory_service)
     with pytest.raises(VaultScopeUnresolved):
         await lcs._fetch_tips_and_errors("node-1", VAULT)
 
@@ -106,9 +104,7 @@ async def test_archive_scheduler_uses_read_scope_not_default_bucket(monkeypatch,
     async def _fake_get_memory_service():
         return _Mem()
 
-    monkeypatch.setattr(
-        "app.services.memory_service.get_memory_service", _fake_get_memory_service
-    )
+    monkeypatch.setattr("app.services.memory_service.get_memory_service", _fake_get_memory_service)
     await ArchiveScheduler()._get_active_node_ids()
 
     assert seen.get("group_id") == VAULT, seen
@@ -184,9 +180,7 @@ async def test_exam_quick_rejects_other_vault(monkeypatch):
     monkeypatch.setattr(eq, "_fetch_tips_and_errors", _fake_fetch)
 
     with pytest.raises(HTTPException) as exc:
-        await eq.exam_quick(
-            eq.ExamQuickRequest(node_id="n1", vault_id="g41a_definitely_other_vault")
-        )
+        await eq.exam_quick(eq.ExamQuickRequest(node_id="n1", vault_id="g41a_definitely_other_vault"))
     assert exc.value.status_code == 409
     assert called["fetch"] is False, "409 必须发生在任何读取之前"
 
@@ -205,9 +199,7 @@ async def test_exam_quick_scope_failure_is_not_downgraded_to_empty_tips(monkeypa
     from app.config import get_current_vault_id
 
     with pytest.raises(VaultScopeUnresolved):
-        await eq.exam_quick(
-            eq.ExamQuickRequest(node_id="n1", vault_id=get_current_vault_id())
-        )
+        await eq.exam_quick(eq.ExamQuickRequest(node_id="n1", vault_id=get_current_vault_id()))
 
 
 # ---------------------------------------------------------------------------
@@ -313,9 +305,7 @@ async def test_json_fallback_score_history_is_scoped(in_vault):
         {"concept_id": "n1", "score": 99, "timestamp": "2026-08-30T02:00:00", "group_id": "vault:g41a_other"},
     ]
 
-    rows = await client.get_concept_score_history(
-        concept_id="n1", canvas_name="board.canvas", limit=10
-    )
+    rows = await client.get_concept_score_history(concept_id="n1", canvas_name="board.canvas", limit=10)
 
     assert [r["score"] for r in rows] == [11], rows
 

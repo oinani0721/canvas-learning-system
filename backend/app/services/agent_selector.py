@@ -122,9 +122,7 @@ class SelectionResult:
             "agent": self.agent.value,
             "reason": self.reason,
             "confidence": round(self.confidence, 2),
-            "fallback_agent": self.fallback_agent.value
-            if self.fallback_agent
-            else None,
+            "fallback_agent": self.fallback_agent.value if self.fallback_agent else None,
         }
 
 
@@ -224,10 +222,7 @@ class AgentSelector:
         Returns:
             SelectionResult: 包含选中Agent和选择理由
         """
-        logger.debug(
-            f"Selecting agent for quality={context.answer_quality}, "
-            f"concept_type={context.concept_type}"
-        )
+        logger.debug(f"Selecting agent for quality={context.answer_quality}, concept_type={context.concept_type}")
 
         # 1. 尝试精确匹配 (质量 + 概念类型)
         if context.concept_type:
@@ -286,9 +281,7 @@ class AgentSelector:
             fallback_agent=GuidanceAgent.CLARIFICATION_PATH,
         )
 
-    def _get_fallback(
-        self, primary: GuidanceAgent, context: SelectionContext
-    ) -> Optional[GuidanceAgent]:
+    def _get_fallback(self, primary: GuidanceAgent, context: SelectionContext) -> Optional[GuidanceAgent]:
         """获取备选Agent"""
         # 排除主选和已使用的Agent
         # SelectionContext.__post_init__ 把 None 归一成 []; 构造后恒非 None。
@@ -311,9 +304,7 @@ class AgentSelector:
 
         return None
 
-    async def analyze_concept_type(
-        self, concept_text: str, rag_context: Optional[str] = None
-    ) -> ConceptType:
+    async def analyze_concept_type(self, concept_text: str, rag_context: Optional[str] = None) -> ConceptType:
         """
         分析概念类型
 
@@ -350,9 +341,7 @@ class AgentSelector:
         # 默认为抽象概念
         return ConceptType.ABSTRACT
 
-    async def infer_quality_from_score(
-        self, score: float, hints_given: int = 0
-    ) -> AnswerQuality:
+    async def infer_quality_from_score(self, score: float, hints_given: int = 0) -> AnswerQuality:
         """
         从评分推断回答质量
 

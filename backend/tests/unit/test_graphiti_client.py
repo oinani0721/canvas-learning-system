@@ -149,9 +149,7 @@ class TestGraphitiClientBase:
             async def add_edge_relationship(self, relationship):
                 pass
 
-            async def search_nodes(
-                self, query, canvas_path=None, group_id=None, limit=10
-            ):
+            async def search_nodes(self, query, canvas_path=None, group_id=None, limit=10):
                 return []
 
             async def get_related_memories(self, node_id, canvas_path=None, limit=10):
@@ -234,9 +232,7 @@ class TestGraphitiEdgeClientMethods:
         return GraphitiEdgeClient(neo4j_client=mock_neo4j_client)
 
     @pytest.mark.asyncio
-    async def test_initialize_delegates_to_neo4j(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_initialize_delegates_to_neo4j(self, graphiti_client, mock_neo4j_client):
         """Test initialize() calls Neo4jClient.initialize()."""
         result = await graphiti_client.initialize()
 
@@ -268,21 +264,15 @@ class TestGraphitiEdgeClientMethods:
     @pytest.mark.asyncio
     async def test_search_nodes(self, graphiti_client, mock_neo4j_client):
         """Test search_nodes returns expected format."""
-        mock_neo4j_client.run_query = AsyncMock(
-            return_value=[{"id": "node1", "content": "Test content", "score": 0.9}]
-        )
+        mock_neo4j_client.run_query = AsyncMock(return_value=[{"id": "node1", "content": "Test content", "score": 0.9}])
 
-        results = await graphiti_client.search_nodes(
-            query="test query", canvas_path="test.canvas", limit=5
-        )
+        results = await graphiti_client.search_nodes(query="test query", canvas_path="test.canvas", limit=5)
 
         assert isinstance(results, list)
         # The actual implementation details may vary
 
     @pytest.mark.asyncio
-    async def test_health_check_delegates_to_neo4j(
-        self, graphiti_client, mock_neo4j_client
-    ):
+    async def test_health_check_delegates_to_neo4j(self, graphiti_client, mock_neo4j_client):
         """Test health_check() calls Neo4jClient.health_check()."""
         result = await graphiti_client.health_check()
 
@@ -324,13 +314,9 @@ class TestGraphitiEdgeClientAdapter:
                 adapter = GraphitiEdgeClientAdapter()
 
                 assert len(w) >= 1
-                deprecation_warnings = [
-                    x for x in w if issubclass(x.category, DeprecationWarning)
-                ]
+                deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
                 assert len(deprecation_warnings) >= 1
-                assert any(
-                    "deprecated" in str(x.message).lower() for x in deprecation_warnings
-                )
+                assert any("deprecated" in str(x.message).lower() for x in deprecation_warnings)
 
     def test_adapter_creates_internal_client(self):
         """Test adapter creates GraphitiEdgeClient internally."""

@@ -42,11 +42,7 @@ class FakeEdgeStore:
         ]
 
     def all(self, belief_key: str) -> list[EntityEdge]:
-        return [
-            e
-            for e in self.edges
-            if (e.attributes or {}).get("belief_key") == belief_key
-        ]
+        return [e for e in self.edges if (e.attributes or {}).get("belief_key") == belief_key]
 
     def save(self, edge: EntityEdge) -> None:
         for i, e in enumerate(self.edges):
@@ -146,9 +142,7 @@ async def test_get_belief_history_as_of_returns_then_active(store_and_graphiti):
 
     # as_of = v1 与 v2 之间 (v1 当时有效)
     as_of = T2 - timedelta(days=1)
-    history = await bs.get_belief_history(
-        graphiti, BK, "vault:cs_61b:recursion", as_of=as_of
-    )
+    history = await bs.get_belief_history(graphiti, BK, "vault:cs_61b:recursion", as_of=as_of)
 
     assert len(history) == 3
     # 按 valid_at 升序

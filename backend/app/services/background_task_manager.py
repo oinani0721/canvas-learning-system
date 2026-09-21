@@ -64,9 +64,7 @@ class TaskInfo:
             "status": self.status.value,
             "created_at": self.created_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "result": self.result,
             "error": self.error,
             "progress": self.progress,
@@ -280,9 +278,7 @@ class BackgroundTaskManager:
         if task_id in self._tasks:
             self._tasks[task_id].progress = min(max(progress, 0.0), 1.0)
 
-    def list_tasks(
-        self, status: Optional[TaskStatus] = None, task_type: Optional[str] = None
-    ) -> List[TaskInfo]:
+    def list_tasks(self, status: Optional[TaskStatus] = None, task_type: Optional[str] = None) -> List[TaskInfo]:
         """
         列出任务
 
@@ -402,9 +398,7 @@ class BackgroundTaskManager:
 
         # 等待任务取消完成
         if self._running_futures:
-            await asyncio.gather(
-                *self._running_futures.values(), return_exceptions=True
-            )
+            await asyncio.gather(*self._running_futures.values(), return_exceptions=True)
 
         self._tasks.clear()
         self._running_futures.clear()

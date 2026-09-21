@@ -211,9 +211,7 @@ class LanceDBClientProtocol(Protocol):
 class GraphitiClientProtocol(Protocol):
     """Protocol for Graphiti client."""
 
-    async def add_relationship(
-        self, entity1: str, entity2: str, relationship_type: str
-    ) -> bool: ...
+    async def add_relationship(self, entity1: str, entity2: str, relationship_type: str) -> bool: ...
 
     async def initialize(self) -> bool: ...
 
@@ -338,18 +336,14 @@ class AssociationEngine:
             SimilarityCalculationError: If calculation fails
         """
         if not NUMPY_AVAILABLE:
-            return self._calculate_similarity_pure_python(
-                vector1, vector2, metric or self.metric
-            )
+            return self._calculate_similarity_pure_python(vector1, vector2, metric or self.metric)
 
         try:
             v1 = np.array(vector1)
             v2 = np.array(vector2)
 
             if v1.shape != v2.shape:
-                raise SimilarityCalculationError(
-                    f"Vector dimension mismatch: {v1.shape} vs {v2.shape}"
-                )
+                raise SimilarityCalculationError(f"Vector dimension mismatch: {v1.shape} vs {v2.shape}")
 
             metric = metric or self.metric
 
@@ -386,9 +380,7 @@ class AssociationEngine:
     ) -> float:
         """Pure Python fallback for similarity calculation."""
         if len(vector1) != len(vector2):
-            raise SimilarityCalculationError(
-                f"Vector dimension mismatch: {len(vector1)} vs {len(vector2)}"
-            )
+            raise SimilarityCalculationError(f"Vector dimension mismatch: {len(vector1)} vs {len(vector2)}")
 
         if metric == SimilarityMetric.COSINE:
             dot_product = sum(a * b for a, b in zip(vector1, vector2))
@@ -482,9 +474,7 @@ class AssociationEngine:
             return recommendations
 
         except asyncio.TimeoutError:
-            raise RecommendationError(
-                f"Recommendation timeout ({self.timeout_ms}ms) for concept {concept_id}"
-            )
+            raise RecommendationError(f"Recommendation timeout ({self.timeout_ms}ms) for concept {concept_id}")
         except Exception as e:
             if isinstance(e, RecommendationError):
                 raise
@@ -534,12 +524,7 @@ class AssociationEngine:
                 continue
 
             # Get media ID
-            media_id = (
-                result.get("id")
-                or result.get("doc_id")
-                or result.get("content_id")
-                or ""
-            )
+            media_id = result.get("id") or result.get("doc_id") or result.get("content_id") or ""
 
             # Filter existing associations
             if filter_existing and media_id in existing_set:
@@ -627,10 +612,7 @@ class AssociationEngine:
 
                 return result
 
-        tasks = [
-            recommend_with_semaphore(idx, cid, cvec, cname)
-            for idx, (cid, cvec, cname) in enumerate(concepts)
-        ]
+        tasks = [recommend_with_semaphore(idx, cid, cvec, cname) for idx, (cid, cvec, cname) in enumerate(concepts)]
 
         results = await asyncio.gather(*tasks)
         return list(results)
@@ -639,9 +621,7 @@ class AssociationEngine:
     # Relationship Creation (AC 6.7.3)
     # ============================================================
 
-    async def create_associations(
-        self, concept_id: str, recommendations: List[MediaRecommendation]
-    ) -> int:
+    async def create_associations(self, concept_id: str, recommendations: List[MediaRecommendation]) -> int:
         """
         Create Neo4j relationships for recommendations.
 
@@ -684,9 +664,7 @@ class AssociationEngine:
 
         return created_count
 
-    async def batch_create_associations(
-        self, association_results: List[AssociationResult]
-    ) -> int:
+    async def batch_create_associations(self, association_results: List[AssociationResult]) -> int:
         """
         Batch create Neo4j relationships for multiple concepts.
 
@@ -744,9 +722,7 @@ class AssociationEngine:
             # Create relationships if requested
             created_count = 0
             if create_relations and recommendations:
-                created_count = await self.create_associations(
-                    concept_id=concept_id, recommendations=recommendations
-                )
+                created_count = await self.create_associations(concept_id=concept_id, recommendations=recommendations)
 
             processing_time = int((time.perf_counter() - start_time) * 1000)
 
@@ -775,9 +751,7 @@ class AssociationEngine:
         vector_hash = hashlib.md5(str(concept_vector[:8]).encode()).hexdigest()[:8]
         return f"{concept_id}_{vector_hash}"
 
-    def _update_cache(
-        self, key: str, recommendations: List[MediaRecommendation]
-    ) -> None:
+    def _update_cache(self, key: str, recommendations: List[MediaRecommendation]) -> None:
         """Update cache with new recommendations."""
         # Evict old entries if cache is full
         if len(self._cache) >= self.cache_size:
@@ -802,18 +776,14 @@ class AssociationEngine:
     # Statistics
     # ============================================================
 
-    def _update_stats(
-        self, recommendations: List[MediaRecommendation], processing_time_ms: float
-    ) -> None:
+    def _update_stats(self, recommendations: List[MediaRecommendation], processing_time_ms: float) -> None:
         """Update statistics after a recommendation."""
         self._stats.total_concepts_processed += 1
         self._stats.total_recommendations += len(recommendations)
 
         # Update average similarity
         if recommendations:
-            avg_sim = sum(r.similarity_score for r in recommendations) / len(
-                recommendations
-            )
+            avg_sim = sum(r.similarity_score for r in recommendations) / len(recommendations)
             n = self._stats.total_concepts_processed
             old_avg = self._stats.average_similarity_score
             self._stats.average_similarity_score = (old_avg * (n - 1) + avg_sim) / n
@@ -821,9 +791,7 @@ class AssociationEngine:
         # Update average processing time
         n = self._stats.total_concepts_processed
         old_avg = self._stats.average_processing_time_ms
-        self._stats.average_processing_time_ms = (
-            old_avg * (n - 1) + processing_time_ms
-        ) / n
+        self._stats.average_processing_time_ms = (old_avg * (n - 1) + processing_time_ms) / n
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -884,9 +852,7 @@ async def recommend_media(
     # Generate a temporary concept ID
     concept_id = f"temp_{hashlib.md5(str(concept_vector[:8]).encode()).hexdigest()[:8]}"
 
-    return await engine.recommend_media_for_concept(
-        concept_id=concept_id, concept_vector=concept_vector
-    )
+    return await engine.recommend_media_for_concept(concept_id=concept_id, concept_vector=concept_vector)
 
 
 def cosine_similarity(vector1: List[float], vector2: List[float]) -> float:
@@ -916,6 +882,4 @@ def euclidean_similarity(vector1: List[float], vector2: List[float]) -> float:
         Euclidean similarity (0 to 1, higher is more similar)
     """
     engine = AssociationEngine()
-    return engine.calculate_similarity(
-        vector1, vector2, metric=SimilarityMetric.EUCLIDEAN
-    )
+    return engine.calculate_similarity(vector1, vector2, metric=SimilarityMetric.EUCLIDEAN)

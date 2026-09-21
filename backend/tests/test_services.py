@@ -58,9 +58,7 @@ class TestCanvasService:
         assert "nonexistent" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_read_canvas_path_traversal_blocked(
-        self, canvas_service: CanvasService
-    ):
+    async def test_read_canvas_path_traversal_blocked(self, canvas_service: CanvasService):
         """Test path traversal attack prevention"""
         with pytest.raises(ValidationError) as exc_info:
             await canvas_service.read_canvas("../../../etc/passwd")
@@ -68,9 +66,7 @@ class TestCanvasService:
         assert "path traversal" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_write_canvas(
-        self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict
-    ):
+    async def test_write_canvas(self, canvas_service: CanvasService, temp_dir: Path, sample_canvas_data: dict):
         """Test writing canvas file with asyncio.to_thread"""
         # Act
         result = await canvas_service.write_canvas("new_canvas", sample_canvas_data)
@@ -106,9 +102,7 @@ class TestCanvasService:
     async def test_update_node(self, canvas_service: CanvasService, canvas_file: Path):
         """Test updating existing node"""
         # Act
-        result = await canvas_service.update_node(
-            "test", "node1", {"text": "Updated Text", "color": "5"}
-        )
+        result = await canvas_service.update_node("test", "node1", {"text": "Updated Text", "color": "5"})
 
         # Assert
         assert result["text"] == "Updated Text"
@@ -116,9 +110,7 @@ class TestCanvasService:
         assert result["id"] == "node1"  # ID should not change
 
     @pytest.mark.asyncio
-    async def test_update_node_not_found(
-        self, canvas_service: CanvasService, canvas_file: Path
-    ):
+    async def test_update_node_not_found(self, canvas_service: CanvasService, canvas_file: Path):
         """Test NodeNotFoundException when updating non-existent node"""
         with pytest.raises(NodeNotFoundException) as exc_info:
             await canvas_service.update_node("test", "nonexistent", {"text": "New"})
@@ -145,9 +137,7 @@ class TestCanvasService:
             assert edge.get("toNode") != "node1"
 
     @pytest.mark.asyncio
-    async def test_get_nodes_by_color(
-        self, canvas_service: CanvasService, canvas_file: Path
-    ):
+    async def test_get_nodes_by_color(self, canvas_service: CanvasService, canvas_file: Path):
         """Test filtering nodes by color"""
         # Act
         green_nodes = await canvas_service.get_nodes_by_color("test", "3")
@@ -157,9 +147,7 @@ class TestCanvasService:
         assert green_nodes[0]["id"] == "node2"
 
     @pytest.mark.asyncio
-    async def test_canvas_exists(
-        self, canvas_service: CanvasService, canvas_file: Path
-    ):
+    async def test_canvas_exists(self, canvas_service: CanvasService, canvas_file: Path):
         """Test canvas existence check"""
         assert await canvas_service.canvas_exists("test") is True
         assert await canvas_service.canvas_exists("nonexistent") is False
@@ -199,9 +187,7 @@ class TestAgentService:
         """Test agent call timeout handling"""
         # Create a service with very short timeout behavior
         # The simulated delay is 0.1s, so this should succeed
-        result = await agent_service.call_agent(
-            AgentType.BASIC_DECOMPOSITION, "Test prompt", timeout=1.0
-        )
+        result = await agent_service.call_agent(AgentType.BASIC_DECOMPOSITION, "Test prompt", timeout=1.0)
 
         assert result.success is True
 
@@ -210,10 +196,7 @@ class TestAgentService:
         """Test that Semaphore limits concurrent calls to max_concurrent"""
         # Arrange - create many concurrent requests
         num_requests = 20
-        requests = [
-            {"agent_type": AgentType.SCORING, "prompt": f"Prompt {i}"}
-            for i in range(num_requests)
-        ]
+        requests = [{"agent_type": AgentType.SCORING, "prompt": f"Prompt {i}"} for i in range(num_requests)]
 
         # Track max concurrent during execution
         max_observed_concurrent = 0
@@ -238,9 +221,7 @@ class TestAgentService:
         assert max_observed_concurrent <= agent_service._max_concurrent
 
     @pytest.mark.asyncio
-    async def test_call_agents_batch_return_exceptions(
-        self, agent_service: AgentService
-    ):
+    async def test_call_agents_batch_return_exceptions(self, agent_service: AgentService):
         """Test batch calls with return_exceptions=True"""
         # Arrange
         requests = [
@@ -250,9 +231,7 @@ class TestAgentService:
         ]
 
         # Act
-        results = await agent_service.call_agents_batch(
-            requests, return_exceptions=True
-        )
+        results = await agent_service.call_agents_batch(requests, return_exceptions=True)
 
         # Assert
         assert len(results) == 3
@@ -322,10 +301,7 @@ class TestAgentService:
         service = AgentService(max_concurrent=2)
 
         # Start some calls
-        tasks = [
-            asyncio.create_task(service.call_agent(AgentType.SCORING, f"Test {i}"))
-            for i in range(3)
-        ]
+        tasks = [asyncio.create_task(service.call_agent(AgentType.SCORING, f"Test {i}")) for i in range(3)]
 
         # Small delay to ensure tasks started
         await simulate_async_delay(0.01)
@@ -364,9 +340,7 @@ class TestBackgroundTaskManager:
 
         # Wait for task to complete
         await wait_for_condition(
-            lambda: (
-                task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED
-            ),
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED,
             description="task completed",
         )
 
@@ -397,9 +371,7 @@ class TestBackgroundTaskManager:
 
         # Wait for completion
         await wait_for_condition(
-            lambda: (
-                task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED
-            ),
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED,
             description="task completed",
         )
         task_info = task_manager.get_task_status(task_id)
@@ -448,9 +420,7 @@ class TestBackgroundTaskManager:
 
         # Wait for cancellation to process
         await wait_for_condition(
-            lambda: (
-                task_manager.get_task_status(task_id).status == TaskStatus.CANCELLED
-            ),
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.CANCELLED,
             description="task cancelled",
         )
 
@@ -506,9 +476,7 @@ class TestBackgroundTaskManager:
 
         # Wait for quick task to complete
         await wait_for_condition(
-            lambda: (
-                task_manager.get_task_status(quick_id).status == TaskStatus.COMPLETED
-            ),
+            lambda: task_manager.get_task_status(quick_id).status == TaskStatus.COMPLETED,
             description="quick task completed",
         )
 
@@ -539,8 +507,7 @@ class TestBackgroundTaskManager:
         # Wait for completion
         await wait_for_condition(
             lambda: all(
-                task_manager.get_task_status(tid).status == TaskStatus.COMPLETED
-                for tid in [id_a1, id_a2, id_b1]
+                task_manager.get_task_status(tid).status == TaskStatus.COMPLETED for tid in [id_a1, id_a2, id_b1]
             ),
             description="all tasks completed",
         )
@@ -564,10 +531,7 @@ class TestBackgroundTaskManager:
             task_ids.append(await task_manager.create_task("test", quick_task))
 
         await wait_for_condition(
-            lambda: all(
-                task_manager.get_task_status(tid).status == TaskStatus.COMPLETED
-                for tid in task_ids
-            ),
+            lambda: all(task_manager.get_task_status(tid).status == TaskStatus.COMPLETED for tid in task_ids),
             description="all cleanup tasks completed",
         )
 
@@ -596,14 +560,10 @@ class TestBackgroundTaskManager:
         async def sample_task():
             return {"data": "value"}
 
-        task_id = await task_manager.create_task(
-            "test_type", sample_task, metadata={"key": "value"}
-        )
+        task_id = await task_manager.create_task("test_type", sample_task, metadata={"key": "value"})
 
         await wait_for_condition(
-            lambda: (
-                task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED
-            ),
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED,
             description="task completed for dict check",
         )
 
@@ -626,9 +586,7 @@ class TestReviewService:
     """Tests for ReviewService background task execution"""
 
     @pytest.mark.asyncio
-    async def test_generate_review_canvas_returns_task_id(
-        self, review_service: ReviewService, canvas_file: Path
-    ):
+    async def test_generate_review_canvas_returns_task_id(self, review_service: ReviewService, canvas_file: Path):
         """Test that generate_review_canvas returns task_id immediately"""
         # Act
         result = await review_service.generate_review_canvas("test")
@@ -639,9 +597,7 @@ class TestReviewService:
         assert "test" in result["message"]
 
     @pytest.mark.asyncio
-    async def test_generate_review_canvas_not_found(
-        self, review_service: ReviewService
-    ):
+    async def test_generate_review_canvas_not_found(self, review_service: ReviewService):
         """Test CanvasNotFoundException for non-existent canvas"""
         with pytest.raises(CanvasNotFoundException):
             await review_service.generate_review_canvas("nonexistent")
@@ -661,9 +617,7 @@ class TestReviewService:
         assert progress.canvas_name == "test"
 
     @pytest.mark.asyncio
-    async def test_get_progress_dict(
-        self, review_service: ReviewService, canvas_file: Path
-    ):
+    async def test_get_progress_dict(self, review_service: ReviewService, canvas_file: Path):
         """Test progress dictionary format"""
         result = await review_service.generate_review_canvas("test")
         task_id = result["task_id"]
@@ -676,9 +630,7 @@ class TestReviewService:
         assert "progress" in progress_dict
 
     @pytest.mark.asyncio
-    async def test_cancel_generation(
-        self, review_service: ReviewService, canvas_file: Path
-    ):
+    async def test_cancel_generation(self, review_service: ReviewService, canvas_file: Path):
         """Test cancelling review generation"""
         result = await review_service.generate_review_canvas("test")
         task_id = result["task_id"]
@@ -709,9 +661,7 @@ class TestReviewService:
         assert all(isinstance(t, ReviewProgress) for t in tasks)
 
     @pytest.mark.asyncio
-    async def test_list_tasks_by_canvas_name(
-        self, review_service: ReviewService, canvas_file: Path
-    ):
+    async def test_list_tasks_by_canvas_name(self, review_service: ReviewService, canvas_file: Path):
         """Test listing tasks filtered by canvas name"""
         await review_service.generate_review_canvas("test")
 
@@ -729,9 +679,7 @@ class TestReviewService:
         assert len(tasks) == 0
 
     @pytest.mark.asyncio
-    async def test_extract_question_from_node_with_colon(
-        self, review_service: ReviewService
-    ):
+    async def test_extract_question_from_node_with_colon(self, review_service: ReviewService):
         """Test question extraction from node with colon"""
         node = {"text": "递归：一个函数调用自身"}
         question = review_service._extract_question_from_node(node)
@@ -740,9 +688,7 @@ class TestReviewService:
         assert "？" in question
 
     @pytest.mark.asyncio
-    async def test_extract_question_from_node_without_colon(
-        self, review_service: ReviewService
-    ):
+    async def test_extract_question_from_node_without_colon(self, review_service: ReviewService):
         """Test question extraction from node without colon"""
         node = {"text": "简单文本"}
         question = review_service._extract_question_from_node(node)
@@ -751,9 +697,7 @@ class TestReviewService:
         assert "简单文本" in question
 
     @pytest.mark.asyncio
-    async def test_cleanup(
-        self, canvas_service: CanvasService, task_manager: BackgroundTaskManager
-    ):
+    async def test_cleanup(self, canvas_service: CanvasService, task_manager: BackgroundTaskManager):
         """Test service cleanup"""
         service = ReviewService(canvas_service, task_manager)
         assert service._initialized is True
@@ -810,9 +754,7 @@ class TestIntegration:
             assert all(r.success for r in results)
 
             # 5. Start review generation
-            review_result = await review_service.generate_review_canvas(
-                "integration_test"
-            )
+            review_result = await review_service.generate_review_canvas("integration_test")
             task_id = review_result["task_id"]
 
             # 6. Wait and check progress
@@ -838,9 +780,7 @@ class TestIntegration:
             BackgroundTaskManager.reset_instance()
 
     @pytest.mark.asyncio
-    async def test_concurrent_canvas_operations(
-        self, canvas_service: CanvasService, canvas_file: Path
-    ):
+    async def test_concurrent_canvas_operations(self, canvas_service: CanvasService, canvas_file: Path):
         """Test concurrent canvas operations don't interfere"""
         # Create multiple operations concurrently
         tasks = [

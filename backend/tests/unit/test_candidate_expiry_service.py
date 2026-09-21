@@ -116,9 +116,7 @@ def test_is_expired_pending_recent_returns_false():
 
 
 def test_is_expired_non_pending_returns_false():
-    cand = _make_candidate(
-        "c1", status="accepted", created_at="2026-01-01T00:00:00+00:00"
-    )
+    cand = _make_candidate("c1", status="accepted", created_at="2026-01-01T00:00:00+00:00")
     cutoff = datetime(2026, 5, 1, tzinfo=timezone.utc)
     assert _is_expired(cand, cutoff) is False
 
@@ -149,9 +147,7 @@ async def test_expire_old_pending_candidate_marked_expired(tmp_path):
     )
 
     now = datetime(2026, 5, 5, tzinfo=timezone.utc)  # 34 天后
-    stats = await expire_pending_candidates(
-        tmp_path, expiry_days=30, now=now
-    )
+    stats = await expire_pending_candidates(tmp_path, expiry_days=30, now=now)
 
     assert stats.total_files_scanned == 1
     assert stats.total_pending_scanned == 1
@@ -178,9 +174,7 @@ async def test_expire_recent_pending_not_changed(tmp_path):
     )
 
     now = datetime(2026, 5, 5, tzinfo=timezone.utc)  # 仅 1 天后
-    stats = await expire_pending_candidates(
-        tmp_path, expiry_days=30, now=now
-    )
+    stats = await expire_pending_candidates(tmp_path, expiry_days=30, now=now)
 
     assert stats.total_pending_scanned == 1
     assert stats.total_expired == 0
@@ -206,9 +200,7 @@ async def test_expire_skips_terminal_status(tmp_path):
     )
 
     now = datetime(2026, 5, 5, tzinfo=timezone.utc)
-    stats = await expire_pending_candidates(
-        tmp_path, expiry_days=30, now=now
-    )
+    stats = await expire_pending_candidates(tmp_path, expiry_days=30, now=now)
 
     assert stats.total_pending_scanned == 0  # 没有 pending
     assert stats.total_expired == 0  # 都不动
@@ -224,9 +216,7 @@ async def test_expire_idempotent_second_run_no_change(tmp_path):
     nodes = tmp_path / "节点"
     nodes.mkdir()
     f = nodes / "x.md"
-    _md_with_candidates(
-        f, [_make_candidate("c1", created_at="2026-04-01T00:00:00+00:00")]
-    )
+    _md_with_candidates(f, [_make_candidate("c1", created_at="2026-04-01T00:00:00+00:00")])
 
     now = datetime(2026, 5, 5, tzinfo=timezone.utc)
     stats1 = await expire_pending_candidates(tmp_path, expiry_days=30, now=now)
@@ -282,9 +272,7 @@ async def test_expire_no_candidates_in_file_skipped(tmp_path):
 @pytest.mark.asyncio
 async def test_expire_vault_not_exist_returns_empty(tmp_path):
     """vault 不存在 → 空 stats."""
-    stats = await expire_pending_candidates(
-        tmp_path / "missing", expiry_days=30
-    )
+    stats = await expire_pending_candidates(tmp_path / "missing", expiry_days=30)
     assert stats.total_files_scanned == 0
     assert stats.total_expired == 0
 
@@ -310,9 +298,7 @@ async def test_expire_only_writes_when_changes_exist(tmp_path):
     nodes = tmp_path / "节点"
     nodes.mkdir()
     f = nodes / "x.md"
-    _md_with_candidates(
-        f, [_make_candidate("recent", created_at="2026-05-04T00:00:00+00:00")]
-    )
+    _md_with_candidates(f, [_make_candidate("recent", created_at="2026-05-04T00:00:00+00:00")])
 
     mtime_before = f.stat().st_mtime
     import time as _time

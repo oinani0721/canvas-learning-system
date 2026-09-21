@@ -181,9 +181,7 @@ class TestAnalyzeEndpoint:
     @pytest.mark.asyncio
     async def test_analyze_valid_canvas(self, patched_service):
         """Test analyze endpoint with valid canvas path returns groupings."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/",
                 json={
@@ -201,9 +199,7 @@ class TestAnalyzeEndpoint:
         assert data["total_nodes"] == 4
 
     @pytest.mark.asyncio
-    async def test_analyze_with_max_groups(
-        self, patched_service, mock_grouping_service
-    ):
+    async def test_analyze_with_max_groups(self, patched_service, mock_grouping_service):
         """Test analyze endpoint respects max_groups parameter."""
         # Return only 1 group when max_groups=1
         mock_grouping_service.analyze_canvas.return_value = IntelligentParallelResponse(
@@ -227,9 +223,7 @@ class TestAnalyzeEndpoint:
             resource_warning=None,
         )
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/",
                 json={
@@ -244,17 +238,13 @@ class TestAnalyzeEndpoint:
         assert len(data["groups"]) <= 1
 
     @pytest.mark.asyncio
-    async def test_analyze_missing_canvas_404(
-        self, patched_service, mock_grouping_service
-    ):
+    async def test_analyze_missing_canvas_404(self, patched_service, mock_grouping_service):
         """Test analyze endpoint returns 404 for nonexistent canvas."""
         mock_grouping_service.analyze_canvas.side_effect = FileNotFoundError(
             "Canvas file 'nonexistent.canvas' not found"
         )
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/",
                 json={
@@ -271,9 +261,7 @@ class TestAnalyzeEndpoint:
     @pytest.mark.asyncio
     async def test_analyze_invalid_color(self, patched_service):
         """Test analyze endpoint validates target_color."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/",
                 json={
@@ -296,9 +284,7 @@ class TestConfirmEndpoint:
     @pytest.mark.asyncio
     async def test_confirm_valid_groups(self, patched_service):
         """Test confirm endpoint with valid groups returns session ID."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/confirm",
                 json={
@@ -322,18 +308,14 @@ class TestConfirmEndpoint:
         assert "websocket_url" in data
 
     @pytest.mark.asyncio
-    async def test_confirm_missing_canvas_404(
-        self, patched_service, mock_session_manager
-    ):
+    async def test_confirm_missing_canvas_404(self, patched_service, mock_session_manager):
         """Test confirm endpoint returns 404 for nonexistent canvas."""
         # Make create_session raise FileNotFoundError
         mock_session_manager.create_session.side_effect = FileNotFoundError(
             "Canvas file 'nonexistent.canvas' not found"
         )
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/confirm",
                 json={
@@ -357,9 +339,7 @@ class TestConfirmEndpoint:
     @pytest.mark.asyncio
     async def test_confirm_empty_groups_400(self, patched_service):
         """Test confirm endpoint returns 400 for empty groups."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/confirm",
                 json={
@@ -373,9 +353,7 @@ class TestConfirmEndpoint:
     @pytest.mark.asyncio
     async def test_confirm_timeout_validation(self, patched_service):
         """Test confirm endpoint validates timeout range."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/confirm",
                 json={
@@ -405,12 +383,8 @@ class TestProgressEndpoint:
     @pytest.mark.asyncio
     async def test_progress_valid_session(self, patched_service):
         """Test progress endpoint returns status for valid session."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            response = await ac.get(
-                "/api/v1/canvas/intelligent-parallel/parallel-20260209-abc123"
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/canvas/intelligent-parallel/parallel-20260209-abc123")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -419,20 +393,14 @@ class TestProgressEndpoint:
         assert "progress_percent" in data
 
     @pytest.mark.asyncio
-    async def test_progress_invalid_session_404(
-        self, patched_service, mock_session_manager
-    ):
+    async def test_progress_invalid_session_404(self, patched_service, mock_session_manager):
         """Test progress endpoint returns 404 for nonexistent session."""
         from app.services.session_manager import SessionNotFoundError
 
         mock_session_manager.get_session.side_effect = SessionNotFoundError("not found")
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            response = await ac.get(
-                "/api/v1/canvas/intelligent-parallel/nonexistent-session"
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/canvas/intelligent-parallel/nonexistent-session")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -461,12 +429,8 @@ class TestCancelEndpoint:
         session_info = mock_session_manager.get_session.return_value
         session_info.status = SessionStatus.RUNNING
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            response = await ac.post(
-                "/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123"
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.post("/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -474,27 +438,19 @@ class TestCancelEndpoint:
         assert "completed_count" in data
 
     @pytest.mark.asyncio
-    async def test_cancel_nonexistent_session_404(
-        self, patched_service, mock_session_manager
-    ):
+    async def test_cancel_nonexistent_session_404(self, patched_service, mock_session_manager):
         """Test cancel endpoint returns 404 for nonexistent session."""
         from app.services.session_manager import SessionNotFoundError
 
         mock_session_manager.get_session.side_effect = SessionNotFoundError("not found")
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            response = await ac.post(
-                "/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session"
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.post("/api/v1/canvas/intelligent-parallel/cancel/nonexistent-session")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
-    async def test_cancel_already_cancelled_409(
-        self, patched_service, mock_session_manager
-    ):
+    async def test_cancel_already_cancelled_409(self, patched_service, mock_session_manager):
         """Test cancel endpoint returns 409 for already cancelled session."""
         session_info = MagicMock()
         session_info.status = MagicMock()
@@ -502,12 +458,8 @@ class TestCancelEndpoint:
         session_info.completed_nodes = 0
         mock_session_manager.get_session.return_value = session_info
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            response = await ac.post(
-                "/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123"
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.post("/api/v1/canvas/intelligent-parallel/cancel/parallel-20260209-abc123")
 
         assert response.status_code == status.HTTP_409_CONFLICT
 
@@ -523,9 +475,7 @@ class TestSingleAgentEndpoint:
     @pytest.mark.asyncio
     async def test_single_agent_success(self, patched_service):
         """Test single agent endpoint processes node successfully."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/single-agent",
                 json={
@@ -542,17 +492,11 @@ class TestSingleAgentEndpoint:
         assert "file_path" in data
 
     @pytest.mark.asyncio
-    async def test_single_agent_canvas_not_found_404(
-        self, patched_service, mock_agent_service
-    ):
+    async def test_single_agent_canvas_not_found_404(self, patched_service, mock_agent_service):
         """Test single agent endpoint returns 404 for nonexistent canvas."""
-        mock_agent_service.call_agent.side_effect = FileNotFoundError(
-            "Canvas file 'nonexistent.canvas' not found"
-        )
+        mock_agent_service.call_agent.side_effect = FileNotFoundError("Canvas file 'nonexistent.canvas' not found")
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/single-agent",
                 json={
@@ -584,12 +528,8 @@ class TestErrorResponses:
 
         mock_session_manager.get_session.side_effect = SessionNotFoundError("not found")
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            response = await ac.get(
-                "/api/v1/canvas/intelligent-parallel/nonexistent-session"
-            )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/api/v1/canvas/intelligent-parallel/nonexistent-session")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
         data = response.json()
@@ -601,9 +541,7 @@ class TestErrorResponses:
     @pytest.mark.asyncio
     async def test_400_error_format(self, patched_service):
         """Test 400 errors include proper error type and message."""
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.post(
                 "/api/v1/canvas/intelligent-parallel/confirm",
                 json={
@@ -706,9 +644,7 @@ class TestDIIntegration:
         assert patched_service._agent_service is not None
 
     @pytest.mark.asyncio
-    async def test_analyze_delegates_to_grouping_service(
-        self, patched_service, mock_grouping_service
-    ):
+    async def test_analyze_delegates_to_grouping_service(self, patched_service, mock_grouping_service):
         """Verify analyze_canvas delegates to IntelligentGroupingService."""
         await patched_service.analyze_canvas("test.canvas", "3")
         mock_grouping_service.analyze_canvas.assert_called_once_with(
@@ -719,27 +655,21 @@ class TestDIIntegration:
         )
 
     @pytest.mark.asyncio
-    async def test_start_batch_delegates_to_session_manager(
-        self, patched_service, mock_session_manager
-    ):
+    async def test_start_batch_delegates_to_session_manager(self, patched_service, mock_session_manager):
         """Verify start_batch_session creates session via SessionManager."""
         groups = [GroupExecuteConfig(group_id="g1", agent_type="test", node_ids=["n1"])]
         await patched_service.start_batch_session("test.canvas", groups)
         mock_session_manager.create_session.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_session_exists_delegates_to_session_manager(
-        self, patched_service, mock_session_manager
-    ):
+    async def test_session_exists_delegates_to_session_manager(self, patched_service, mock_session_manager):
         """Verify session_exists checks SessionManager."""
         result = await patched_service.session_exists("test-session")
         assert result is True
         mock_session_manager.get_session.assert_called_with("test-session")
 
     @pytest.mark.asyncio
-    async def test_retry_single_node_delegates_to_agent_service(
-        self, patched_service, mock_agent_service
-    ):
+    async def test_retry_single_node_delegates_to_agent_service(self, patched_service, mock_agent_service):
         """Verify retry_single_node calls AgentService.call_agent."""
         result = await patched_service.retry_single_node(
             node_id="node-001",

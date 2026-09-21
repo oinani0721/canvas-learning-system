@@ -107,9 +107,7 @@ class TestReviewModeSupport:
         return mock
 
     @pytest.fixture
-    def review_service(
-        self, mock_canvas_service, mock_task_manager, mock_graphiti_client
-    ):
+    def review_service(self, mock_canvas_service, mock_task_manager, mock_graphiti_client):
         """Create ReviewService with mocked dependencies"""
         service = ReviewService(
             canvas_service=mock_canvas_service,
@@ -123,23 +121,17 @@ class TestReviewModeSupport:
     @pytest.mark.asyncio
     async def test_fresh_mode_parameter_accepted(self, review_service):
         """AC1: API accepts mode='fresh' parameter"""
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
-            result = await review_service.generate_verification_canvas(
-                source_canvas_name="test.canvas", mode="fresh"
-            )
+            result = await review_service.generate_verification_canvas(source_canvas_name="test.canvas", mode="fresh")
 
             assert result["mode_used"] == "fresh"
 
     @pytest.mark.asyncio
     async def test_targeted_mode_parameter_accepted(self, review_service):
         """AC1: API accepts mode='targeted' parameter"""
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
             result = await review_service.generate_verification_canvas(
@@ -153,14 +145,10 @@ class TestReviewModeSupport:
     @pytest.mark.asyncio
     async def test_fresh_mode_no_graphiti_query(self, review_service):
         """AC2: Fresh mode should not query Graphiti history"""
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
-            await review_service.generate_verification_canvas(
-                source_canvas_name="test.canvas", mode="fresh"
-            )
+            await review_service.generate_verification_canvas(source_canvas_name="test.canvas", mode="fresh")
 
             # Fresh mode should NOT call Graphiti query
             mock_query.assert_not_called()
@@ -168,9 +156,7 @@ class TestReviewModeSupport:
     @pytest.mark.asyncio
     async def test_fresh_mode_equal_probability(self, review_service):
         """AC2: Fresh mode uses equal probability for all concepts"""
-        result = await review_service.generate_verification_canvas(
-            source_canvas_name="test.canvas", mode="fresh"
-        )
+        result = await review_service.generate_verification_canvas(source_canvas_name="test.canvas", mode="fresh")
 
         # Fresh mode should include all eligible nodes (color 3 and 4)
         # weight_config.applied should be False
@@ -186,14 +172,10 @@ class TestReviewModeSupport:
             {"concept_id": "node2", "rating": 1, "timestamp": "2025-01-02"},
         ]
 
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
-            await review_service.generate_verification_canvas(
-                source_canvas_name="test.canvas", mode="targeted"
-            )
+            await review_service.generate_verification_canvas(source_canvas_name="test.canvas", mode="targeted")
 
             # Targeted mode MUST call Graphiti query
             mock_query.assert_called_once_with("test.canvas")
@@ -206,9 +188,7 @@ class TestReviewModeSupport:
             {"concept_id": "node2", "rating": 4, "timestamp": "2025-01-02"},  # Mastered
         ]
 
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
             result = await review_service.generate_verification_canvas(
@@ -240,9 +220,7 @@ class TestReviewModeSupport:
     @pytest.mark.asyncio
     async def test_mode_metadata_in_response(self, review_service):
         """AC5: Mode should be stored in canvas metadata"""
-        result = await review_service.generate_verification_canvas(
-            source_canvas_name="test.canvas", mode="targeted"
-        )
+        result = await review_service.generate_verification_canvas(source_canvas_name="test.canvas", mode="targeted")
 
         # mode_used must be in response
         assert "mode_used" in result
@@ -250,16 +228,10 @@ class TestReviewModeSupport:
         assert "generated_at" in result
 
     @pytest.mark.asyncio
-    async def test_graphiti_relationship_stored(
-        self, review_service, mock_graphiti_client
-    ):
+    async def test_graphiti_relationship_stored(self, review_service, mock_graphiti_client):
         """AC5: Graphiti stores GENERATED_FROM relationship with mode"""
-        with patch.object(
-            review_service, "_store_review_relationship", new_callable=AsyncMock
-        ) as mock_store:
-            await review_service.generate_verification_canvas(
-                source_canvas_name="test.canvas", mode="targeted"
-            )
+        with patch.object(review_service, "_store_review_relationship", new_callable=AsyncMock) as mock_store:
+            await review_service.generate_verification_canvas(source_canvas_name="test.canvas", mode="targeted")
 
             # Verify relationship was stored with mode
             mock_store.assert_called_once()
@@ -275,9 +247,7 @@ class TestReviewModeSupport:
             {"concept_id": "node1", "rating": 2, "timestamp": "2025-01-01"},
         ]
 
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
             result = await review_service.generate_verification_canvas(
@@ -295,9 +265,7 @@ class TestReviewModeSupport:
         """AC6: Weights should be between 0 and 1"""
         mock_history = []
 
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
             # Valid weights at bounds
@@ -347,13 +315,9 @@ class TestReviewModeFallback:
         return service
 
     @pytest.mark.asyncio
-    async def test_targeted_mode_fallback_when_graphiti_unavailable(
-        self, review_service
-    ):
+    async def test_targeted_mode_fallback_when_graphiti_unavailable(self, review_service):
         """AC2 Story 24.6: Fallback triggered when Graphiti unavailable"""
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             # Simulate Graphiti returning empty (unavailable/error)
             mock_query.return_value = []
 
@@ -367,9 +331,7 @@ class TestReviewModeFallback:
     @pytest.mark.asyncio
     async def test_fallback_returns_all_eligible_concepts(self, review_service):
         """AC2 Story 24.6: Fallback returns all eligible concepts with equal probability"""
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
             result = await review_service.generate_verification_canvas(
@@ -383,9 +345,7 @@ class TestReviewModeFallback:
     @pytest.mark.asyncio
     async def test_fresh_mode_no_fallback_indicator(self, review_service):
         """Fresh mode should not trigger fallback indicator"""
-        result = await review_service.generate_verification_canvas(
-            source_canvas_name="test.canvas", mode="fresh"
-        )
+        result = await review_service.generate_verification_canvas(source_canvas_name="test.canvas", mode="fresh")
 
         # Fresh mode: fallback_used should be False
         assert result["fallback_used"] is False
@@ -397,9 +357,7 @@ class TestReviewModeFallback:
             {"concept_id": "node1", "rating": 2, "timestamp": "2025-01-01"},
         ]
 
-        with patch.object(
-            review_service, "_query_review_history_from_memory", new_callable=AsyncMock
-        ) as mock_query:
+        with patch.object(review_service, "_query_review_history_from_memory", new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
             result = await review_service.generate_verification_canvas(

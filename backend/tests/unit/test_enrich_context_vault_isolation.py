@@ -115,8 +115,7 @@ def test_vault_id_provided_triggers_context_var_injection(client):
     # build_vault_group_id 应该传入 sanitized "cs_61b"
     injected_group_id = mock_set_subj.call_args.args[0]
     assert "cs_61b" in injected_group_id, (
-        f"set_current_subject_id 应注入 sanitize 后含 'cs_61b' 的 group_id，"
-        f"实际 {injected_group_id}"
+        f"set_current_subject_id 应注入 sanitize 后含 'cs_61b' 的 group_id，实际 {injected_group_id}"
     )
 
 
@@ -141,12 +140,8 @@ def test_chinese_vault_id_not_collapsed_to_default(client):
 
     assert resp.status_code == 200
     injected_group_id = mock_set_subj.call_args.args[0]
-    assert "数学101" in injected_group_id, (
-        f"中文 vault_id 必须保留，不能坍缩 default。实际 {injected_group_id}"
-    )
-    assert injected_group_id != "default", (
-        "中文 vault_id 坍缩 default → 多中文 vault 数据泄漏 P0"
-    )
+    assert "数学101" in injected_group_id, f"中文 vault_id 必须保留，不能坍缩 default。实际 {injected_group_id}"
+    assert injected_group_id != "default", "中文 vault_id 坍缩 default → 多中文 vault 数据泄漏 P0"
 
 
 def test_subject_id_optional_backward_compat(client):
@@ -205,9 +200,7 @@ async def test_concurrent_two_vaults_dont_share_context_var():
     assert captured["b_after_yield"] == "vault:数学:_:integral", (
         f"request B 应看到自己的 vault，实际 {captured['b_after_yield']}"
     )
-    assert captured["a_after_yield"] != captured["b_after_yield"], (
-        "两个 vault 并发请求 ContextVar 串库 — P0 数据泄漏"
-    )
+    assert captured["a_after_yield"] != captured["b_after_yield"], "两个 vault 并发请求 ContextVar 串库 — P0 数据泄漏"
 
 
 # ─────────────────────────────────────────────────────────────

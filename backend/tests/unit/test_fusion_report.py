@@ -203,9 +203,7 @@ async def test_fusion_report_avg_support_topk_for_multi_source_overlap():
 async def test_fusion_report_zero_support_for_single_source_topk():
     """When top-k is all single-source, support_ge_2_ratio should be 0."""
     state = create_initial_state(fusion_strategy="rrf")
-    state["graphiti_results"] = [
-        _mk_result(f"g{i}", f"content{i}", file_path=f"{i}.md") for i in range(3)
-    ]
+    state["graphiti_results"] = [_mk_result(f"g{i}", f"content{i}", file_path=f"{i}.md") for i in range(3)]
     state["lancedb_results"] = []
     state["multimodal_results"] = []
     state["cross_canvas_results"] = []

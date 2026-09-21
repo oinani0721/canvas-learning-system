@@ -186,9 +186,7 @@ class RollbackService:
         self._ensure_initialized()
         # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
         assert self._operation_tracker is not None
-        return self._operation_tracker.get_history(
-            canvas_path, limit=limit, offset=offset
-        )
+        return self._operation_tracker.get_history(canvas_path, limit=limit, offset=offset)
 
     def get_operation_count(self, canvas_path: str) -> int:
         """
@@ -251,9 +249,7 @@ class RollbackService:
         self._ensure_initialized()
         # 本方法已调用 self._ensure_initialized() 装配该组件; 原代码此处遇 None 同样 AttributeError
         assert self._snapshot_manager is not None
-        return await self._snapshot_manager.list_snapshots(
-            canvas_path, limit=limit, offset=offset
-        )
+        return await self._snapshot_manager.list_snapshots(canvas_path, limit=limit, offset=offset)
 
     async def get_snapshot_count(self, canvas_path: str) -> int:
         """
@@ -465,15 +461,9 @@ class RollbackService:
                     {
                         "id": node_id,
                         "before": {
-                            k: v
-                            for k, v in snap_nodes[node_id].items()
-                            if snap_nodes[node_id].get(k) != node.get(k)
+                            k: v for k, v in snap_nodes[node_id].items() if snap_nodes[node_id].get(k) != node.get(k)
                         },
-                        "after": {
-                            k: v
-                            for k, v in node.items()
-                            if snap_nodes[node_id].get(k) != node.get(k)
-                        },
+                        "after": {k: v for k, v in node.items() if snap_nodes[node_id].get(k) != node.get(k)},
                     }
                 )
 

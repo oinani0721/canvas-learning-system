@@ -140,9 +140,7 @@ class WeightCalculator:
 
         return history_map
 
-    def _calculate_from_history(
-        self, concept: Dict, history: List[Dict]
-    ) -> ConceptWeightData:
+    def _calculate_from_history(self, concept: Dict, history: List[Dict]) -> ConceptWeightData:
         """
         Calculate weakness score from review history.
 
@@ -156,24 +154,14 @@ class WeightCalculator:
             ConceptWeightData with calculated scores
         """
         # Calculate metrics
-        ratings = [
-            h.get("rating") or h.get("score", 0)
-            for h in history
-            if h.get("rating") or h.get("score")
-        ]
+        ratings = [h.get("rating") or h.get("score", 0) for h in history if h.get("rating") or h.get("score")]
         avg_rating = sum(ratings) / len(ratings) if ratings else 0
-        failure_count = sum(
-            1 for h in history if (h.get("rating") or h.get("score", 0)) <= 2
-        )
+        failure_count = sum(1 for h in history if (h.get("rating") or h.get("score", 0)) <= 2)
         review_count = len(history)
 
         # Days since last review
         last_review = max(
-            (
-                self._parse_timestamp(h.get("timestamp"))
-                for h in history
-                if h.get("timestamp")
-            ),
+            (self._parse_timestamp(h.get("timestamp")) for h in history if h.get("timestamp")),
             default=None,
         )
         days_since = 0
@@ -240,21 +228,15 @@ class WeightCalculator:
             return 0.5  # Neutral for insufficient data
 
         # Sort by timestamp
-        sorted_history = sorted(
-            history, key=lambda h: self._parse_timestamp(h.get("timestamp"))
-        )
+        sorted_history = sorted(history, key=lambda h: self._parse_timestamp(h.get("timestamp")))
 
         # Compare recent half vs older half
         mid = len(sorted_history) // 2
         older_ratings = [
-            h.get("rating") or h.get("score", 0)
-            for h in sorted_history[:mid]
-            if h.get("rating") or h.get("score")
+            h.get("rating") or h.get("score", 0) for h in sorted_history[:mid] if h.get("rating") or h.get("score")
         ]
         recent_ratings = [
-            h.get("rating") or h.get("score", 0)
-            for h in sorted_history[mid:]
-            if h.get("rating") or h.get("score")
+            h.get("rating") or h.get("score", 0) for h in sorted_history[mid:] if h.get("rating") or h.get("score")
         ]
 
         if not older_ratings or not recent_ratings:

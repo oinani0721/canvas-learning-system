@@ -131,10 +131,7 @@ class ProviderFactory:
             if success:
                 self._providers[config.name] = provider
                 self._update_priority_order()
-                logger.info(
-                    f"Provider {config.name} registered: "
-                    f"priority={config.priority}, model={config.model}"
-                )
+                logger.info(f"Provider {config.name} registered: priority={config.priority}, model={config.model}")
                 return True
             else:
                 logger.error(f"Failed to initialize provider {config.name}")
@@ -284,9 +281,7 @@ class ProviderFactory:
 
     def _update_priority_order(self) -> None:
         """Update provider priority order."""
-        self._priority_order = sorted(
-            self._providers.keys(), key=lambda name: self._providers[name].priority
-        )
+        self._priority_order = sorted(self._providers.keys(), key=lambda name: self._providers[name].priority)
 
     def get_provider(self, name: Optional[str] = None) -> BaseProvider:
         """
@@ -413,9 +408,7 @@ class ProviderFactory:
 
             except ProviderError as e:
                 last_error = e
-                logger.warning(
-                    f"Provider {provider.name} failed: {e}. Trying next provider..."
-                )
+                logger.warning(f"Provider {provider.name} failed: {e}. Trying next provider...")
                 continue
             except Exception as e:
                 last_error = e
@@ -423,9 +416,7 @@ class ProviderFactory:
                 continue
 
         # All providers failed
-        raise NoHealthyProviderError(
-            f"All providers failed. Tried: {tried_providers}. Last error: {last_error}"
-        )
+        raise NoHealthyProviderError(f"All providers failed. Tried: {tried_providers}. Last error: {last_error}")
 
     async def complete_with_images(
         self,
@@ -467,9 +458,7 @@ class ProviderFactory:
             tried_providers.append(provider.name)
 
             try:
-                logger.info(
-                    f"Attempting multimodal completion with provider: {provider.name}"
-                )
+                logger.info(f"Attempting multimodal completion with provider: {provider.name}")
                 response = await provider.complete_with_images(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
@@ -486,9 +475,7 @@ class ProviderFactory:
 
             except ProviderError as e:
                 last_error = e
-                logger.warning(
-                    f"Provider {provider.name} failed: {e}. Trying next provider..."
-                )
+                logger.warning(f"Provider {provider.name} failed: {e}. Trying next provider...")
                 continue
             except Exception as e:
                 last_error = e
@@ -496,13 +483,10 @@ class ProviderFactory:
                 continue
 
         raise NoHealthyProviderError(
-            f"All providers failed for multimodal. Tried: {tried_providers}. "
-            f"Last error: {last_error}"
+            f"All providers failed for multimodal. Tried: {tried_providers}. Last error: {last_error}"
         )
 
-    def _get_failover_order(
-        self, preferred_name: Optional[str] = None
-    ) -> List[BaseProvider]:
+    def _get_failover_order(self, preferred_name: Optional[str] = None) -> List[BaseProvider]:
         """
         Get providers in failover order.
 
@@ -532,10 +516,7 @@ class ProviderFactory:
         """Record a provider switch event."""
         self._switch_count += 1
         self._last_switch_time = datetime.now()
-        logger.warning(
-            f"Provider switched from {from_provider} to {to_provider}. "
-            f"Total switches: {self._switch_count}"
-        )
+        logger.warning(f"Provider switched from {from_provider} to {to_provider}. Total switches: {self._switch_count}")
 
     async def check_all_health(self) -> Dict[str, ProviderHealth]:
         """
@@ -585,9 +566,7 @@ class ProviderFactory:
             "selection_strategy": self._selection_strategy.value,
             "active_provider": self._get_active_provider_name(),
             "switch_count": self._switch_count,
-            "last_switch_time": self._last_switch_time.isoformat()
-            if self._last_switch_time
-            else None,
+            "last_switch_time": self._last_switch_time.isoformat() if self._last_switch_time else None,
             "initialized": self._initialized,
         }
 

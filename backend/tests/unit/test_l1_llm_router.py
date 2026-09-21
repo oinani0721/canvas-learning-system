@@ -42,9 +42,7 @@ from agentic_rag.llm_router import (
 
 def _make_litellm_response(content: str) -> SimpleNamespace:
     """Build a minimal mock LiteLLM response object."""
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
 
 
 # ============================================================================
@@ -57,9 +55,7 @@ class TestLLMRouterSuccess:
 
     @pytest.mark.asyncio
     async def test_classifies_knowledge_point(self):
-        mock_response = _make_litellm_response(
-            '{"intent": "knowledge_point", "reason": "asks about a concept"}'
-        )
+        mock_response = _make_litellm_response('{"intent": "knowledge_point", "reason": "asks about a concept"}')
 
         with patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
             result = await llm_route("什么是牛顿第二定律？")
@@ -73,9 +69,7 @@ class TestLLMRouterSuccess:
 
     @pytest.mark.asyncio
     async def test_classifies_file_locate(self):
-        mock_response = _make_litellm_response(
-            '{"intent": "file_locate", "reason": "locator query"}'
-        )
+        mock_response = _make_litellm_response('{"intent": "file_locate", "reason": "locator query"}')
         with patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
             result = await llm_route("我的物理笔记在哪？")
 
@@ -84,9 +78,7 @@ class TestLLMRouterSuccess:
 
     @pytest.mark.asyncio
     async def test_classifies_learning_history(self):
-        mock_response = _make_litellm_response(
-            '{"intent": "learning_history", "reason": "review query"}'
-        )
+        mock_response = _make_litellm_response('{"intent": "learning_history", "reason": "review query"}')
         with patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
             result = await llm_route("我之前复习过哪些章节？")
 
@@ -96,11 +88,7 @@ class TestLLMRouterSuccess:
     @pytest.mark.asyncio
     async def test_handles_markdown_code_fence(self):
         """LLM sometimes wraps JSON in ```json ... ``` despite system prompt."""
-        wrapped = (
-            "```json\n"
-            + json.dumps({"intent": "comprehensive", "reason": "fallback"})
-            + "\n```"
-        )
+        wrapped = "```json\n" + json.dumps({"intent": "comprehensive", "reason": "fallback"}) + "\n```"
         mock_response = _make_litellm_response(wrapped)
         with patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
             result = await llm_route("某个综合查询")
@@ -155,9 +143,7 @@ class TestLLMRouterFallback:
 
     @pytest.mark.asyncio
     async def test_unknown_intent_falls_back(self):
-        mock_response = _make_litellm_response(
-            '{"intent": "make_coffee", "reason": "haha"}'
-        )
+        mock_response = _make_litellm_response('{"intent": "make_coffee", "reason": "haha"}')
         with patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
             result = await llm_route("查询")
 
@@ -219,9 +205,7 @@ class TestLLMRouterContract:
     @pytest.mark.asyncio
     async def test_result_dataclass_shape(self):
         """LLMRouterResult must have the exact fields we documented."""
-        mock_response = _make_litellm_response(
-            '{"intent": "knowledge_point", "reason": "x"}'
-        )
+        mock_response = _make_litellm_response('{"intent": "knowledge_point", "reason": "x"}')
         with patch("litellm.acompletion", new=AsyncMock(return_value=mock_response)):
             result = await llm_route("query")
 

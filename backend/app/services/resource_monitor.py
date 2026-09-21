@@ -39,31 +39,19 @@ RESOURCE_CPU_USAGE = Gauge("canvas_resource_cpu_percent", "CPU usage percentage"
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Gauge with labels)
 # Gauge for memory usage
-RESOURCE_MEMORY_USAGE = Gauge(
-    "canvas_resource_memory_percent", "Memory usage percentage"
-)
+RESOURCE_MEMORY_USAGE = Gauge("canvas_resource_memory_percent", "Memory usage percentage")
 
-RESOURCE_MEMORY_USED_BYTES = Gauge(
-    "canvas_resource_memory_used_bytes", "Memory used in bytes"
-)
+RESOURCE_MEMORY_USED_BYTES = Gauge("canvas_resource_memory_used_bytes", "Memory used in bytes")
 
-RESOURCE_MEMORY_AVAILABLE_BYTES = Gauge(
-    "canvas_resource_memory_available_bytes", "Memory available in bytes"
-)
+RESOURCE_MEMORY_AVAILABLE_BYTES = Gauge("canvas_resource_memory_available_bytes", "Memory available in bytes")
 
 # ✅ Verified from Context7:/prometheus/client_python (topic: Gauge with labels)
 # Gauge for disk usage
-RESOURCE_DISK_USAGE = Gauge(
-    "canvas_resource_disk_percent", "Disk usage percentage", ["mount_point"]
-)
+RESOURCE_DISK_USAGE = Gauge("canvas_resource_disk_percent", "Disk usage percentage", ["mount_point"])
 
-RESOURCE_DISK_USED_BYTES = Gauge(
-    "canvas_resource_disk_used_bytes", "Disk used in bytes", ["mount_point"]
-)
+RESOURCE_DISK_USED_BYTES = Gauge("canvas_resource_disk_used_bytes", "Disk used in bytes", ["mount_point"])
 
-RESOURCE_DISK_FREE_BYTES = Gauge(
-    "canvas_resource_disk_free_bytes", "Disk free in bytes", ["mount_point"]
-)
+RESOURCE_DISK_FREE_BYTES = Gauge("canvas_resource_disk_free_bytes", "Disk free in bytes", ["mount_point"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Default Thresholds
@@ -324,9 +312,7 @@ class ResourceMonitor:
         self._running = True
 
         async def collection_loop() -> None:
-            logger.info(
-                "resource_monitor.background_started", interval_seconds=interval_seconds
-            )
+            logger.info("resource_monitor.background_started", interval_seconds=interval_seconds)
 
             while self._running:
                 try:

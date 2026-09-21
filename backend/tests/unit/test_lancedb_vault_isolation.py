@@ -214,9 +214,7 @@ class TestActiveVaultIdFallbackWhenNoContextVar:
         # Force ContextVar to DEFAULT to simulate no-request-scope.
         token = _current_subject_id.set(DEFAULT_SUBJECT_ID)
         try:
-            with patch(
-                "app.config.get_current_vault_id", return_value="fallback_vault"
-            ):
+            with patch("app.config.get_current_vault_id", return_value="fallback_vault"):
                 client = LanceDBClient()
                 # Should derive from legacy global config, NOT "default" baked in.
                 assert client.active_vault_id == "fallback_vault"
@@ -282,14 +280,10 @@ class TestActiveVaultIdNarrowExceptionAndFallbackWarning:
         # AttributeError (one of our narrow-tuple errors) on every attr access.
         class _BrokenSubjectConfigModule(types.ModuleType):
             def __getattr__(self, name):
-                raise AttributeError(
-                    f"subject_config outage: attr {name!r} unavailable"
-                )
+                raise AttributeError(f"subject_config outage: attr {name!r} unavailable")
 
         broken_subject_config = _BrokenSubjectConfigModule("app.core.subject_config")
-        monkeypatch.setitem(
-            sys.modules, "app.core.subject_config", broken_subject_config
-        )
+        monkeypatch.setitem(sys.modules, "app.core.subject_config", broken_subject_config)
 
         # ---- Level-3 outage: app.config.get_current_vault_id raises RuntimeError
         # (also in narrow tuple) so we drop to Level-4.
@@ -325,9 +319,7 @@ class TestActiveVaultIdNarrowExceptionAndFallbackWarning:
             ):
                 result = client.active_vault_id
 
-            assert result == "default", (
-                "Level-4 must still yield 'default' (wave-2 contract)"
-            )
+            assert result == "default", "Level-4 must still yield 'default' (wave-2 contract)"
 
             captured_text = " ".join(rec.getMessage() for rec in caplog.records)
             assert "fell back to 'default'" in captured_text, (

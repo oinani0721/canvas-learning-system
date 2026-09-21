@@ -156,10 +156,7 @@ class TestAutoScoreRegression:
                 scenario["expected_output"],
             )
 
-            passed = (
-                result["scoring_consistency_rate"] >= 0.75
-                and result["avg_score_diff"] <= 1.0
-            )
+            passed = result["scoring_consistency_rate"] >= 0.75 and result["avg_score_diff"] <= 1.0
 
             regression_metrics.record(
                 scenario_id=scenario["scenario_id"],
@@ -186,14 +183,10 @@ class TestAutoScoreRegression:
         agg_consistency = total_consistency / n
         agg_avg_diff = total_avg_diff / n
 
-        assert agg_consistency >= 0.80, (
-            "Scoring consistency below 80 percent threshold: {v:.4f}".format(
-                v=agg_consistency
-            )
+        assert agg_consistency >= 0.80, "Scoring consistency below 80 percent threshold: {v:.4f}".format(
+            v=agg_consistency
         )
-        assert agg_avg_diff <= 0.5, (
-            "Average score diff {v:.2f} above 0.5 threshold".format(v=agg_avg_diff)
-        )
+        assert agg_avg_diff <= 0.5, "Average score diff {v:.2f} above 0.5 threshold".format(v=agg_avg_diff)
 
     def test_replay_full_score_scenario(self, autoscore_baselines: BaselineLoader):
         """Verify full-score scenario scores within expected range."""
@@ -202,11 +195,9 @@ class TestAutoScoreRegression:
             scenario["replay_response"],
             scenario["expected_output"],
         )
-        assert result["overall"]["in_range"], (
-            "Full score overall {a} not in {r}".format(
-                a=result["overall"]["actual"],
-                r=result["overall"]["expected_range"],
-            )
+        assert result["overall"]["in_range"], "Full score overall {a} not in {r}".format(
+            a=result["overall"]["actual"],
+            r=result["overall"]["expected_range"],
         )
 
     def test_replay_zero_score_scenario(self, autoscore_baselines: BaselineLoader):
@@ -216,11 +207,9 @@ class TestAutoScoreRegression:
             scenario["replay_response"],
             scenario["expected_output"],
         )
-        assert result["overall"]["in_range"], (
-            "Zero score overall {a} not in {r}".format(
-                a=result["overall"]["actual"],
-                r=result["overall"]["expected_range"],
-            )
+        assert result["overall"]["in_range"], "Zero score overall {a} not in {r}".format(
+            a=result["overall"]["actual"],
+            r=result["overall"]["expected_range"],
         )
 
     def test_generate_report(
@@ -241,10 +230,7 @@ class TestAutoScoreRegression:
                 scenario["replay_response"],
                 scenario["expected_output"],
             )
-            passed = (
-                result["scoring_consistency_rate"] >= 0.75
-                and result["avg_score_diff"] <= 1.0
-            )
+            passed = result["scoring_consistency_rate"] >= 0.75 and result["avg_score_diff"] <= 1.0
             scenario_results.append(
                 {
                     "scenario_id": scenario["scenario_id"],

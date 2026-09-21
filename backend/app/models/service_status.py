@@ -78,23 +78,19 @@ class StatusedResult:
         if status in _REASON_REQUIRED:
             if not isinstance(self.reason, str) or not self.reason.strip():
                 raise ValueError(
-                    f"ServiceStatus.{status.name} requires a non-empty str reason "
-                    "(G4-2 值域契约: 故障必须给出诊断信息)"
+                    f"ServiceStatus.{status.name} requires a non-empty str reason (G4-2 值域契约: 故障必须给出诊断信息)"
                 )
         else:
             if self.reason is not None:
                 raise ValueError(
-                    f"ServiceStatus.{status.name} must not carry a reason "
-                    "(G4-2 值域契约: ok/empty 不是故障态)"
+                    f"ServiceStatus.{status.name} must not carry a reason (G4-2 值域契约: ok/empty 不是故障态)"
                 )
 
         # ── 载荷不变量 (Codex round-1 MEDIUM-12) ─────────────────────
         # 状态与载荷必须自洽, 否则「ok 却空手」「empty 却有货」这类矛盾
         # 会让消费方两边都不敢信。
         if not isinstance(self.items, list):
-            raise TypeError(
-                f"StatusedResult.items must be a list, got {type(self.items).__name__}"
-            )
+            raise TypeError(f"StatusedResult.items must be a list, got {type(self.items).__name__}")
         # 冻结载荷: frozen=True 挡不住 items.append(), 复制成新 list 隔断
         # 外部引用, 避免构造后被旁路修改破坏不变量。
         object.__setattr__(self, "items", list(self.items))
@@ -120,8 +116,7 @@ class StatusedResult:
         """
         if items is None:
             raise ValueError(
-                "from_items(None) is ambiguous — 用 unavailable()/degraded() "
-                "表达故障, 用 from_items([]) 表达真空"
+                "from_items(None) is ambiguous — 用 unavailable()/degraded() 表达故障, 用 from_items([]) 表达真空"
             )
         return cls(
             status=ServiceStatus.OK if items else ServiceStatus.EMPTY,
@@ -169,9 +164,7 @@ def max_severity(*statuses: ServiceStatus) -> ServiceStatus:
     return max(normalized, key=lambda s: order[s.value])
 
 
-def fold_overall_status(
-    *, has_results: bool, failed_sources: int, healthy_sources: int
-) -> ServiceStatus:
+def fold_overall_status(*, has_results: bool, failed_sources: int, healthy_sources: int) -> ServiceStatus:
     """把「各源成败 + 有无结果」折算成整体四态 (Codex round-1 MEDIUM-15)。
 
     规则 (与 memory_service / fuse_results 的手写折算同口径):

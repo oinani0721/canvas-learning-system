@@ -170,9 +170,7 @@ async def get_learning_history(
     end_date: Optional[datetime] = Query(None, description="结束日期"),
     concept: Optional[str] = Query(None, description="概念过滤"),
     subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
-    canvas_path: Optional[str] = Query(
-        None, description="Canvas路径 (Epic 6: canvas-scoped filtering)"
-    ),
+    canvas_path: Optional[str] = Query(None, description="Canvas路径 (Epic 6: canvas-scoped filtering)"),
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(50, ge=1, le=100, description="每页大小"),
     vault_id: Optional[str] = Query(
@@ -300,9 +298,7 @@ async def get_concept_history(
         description="Multi-vault — 推荐必填. 注入 ContextVar 防跨 vault 概念历史串库.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> ConceptHistoryResponse:
     """
     查询概念学习历史
@@ -330,9 +326,7 @@ async def get_concept_history(
     )
 
     try:
-        result = await memory_service.get_concept_history(
-            concept_id=concept_id, user_id=user_id, limit=limit
-        )
+        result = await memory_service.get_concept_history(concept_id=concept_id, user_id=user_id, limit=limit)
 
         # CARD-G4-3: service 一直在返回 retrieval_status/reason 两键
         # (memory_service.py:892-893), 但 ConceptHistoryResponse 没有这两个
@@ -379,18 +373,14 @@ async def get_review_suggestions(
     user_id: str = Query(..., description="用户ID"),
     limit: int = Query(10, ge=1, le=50, description="返回数量"),
     subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
-    canvas_path: Optional[str] = Query(
-        None, description="Canvas路径 (Epic 6: canvas-scoped filtering)"
-    ),
+    canvas_path: Optional[str] = Query(None, description="Canvas路径 (Epic 6: canvas-scoped filtering)"),
     vault_id: Optional[str] = Query(
         default=None,
         min_length=1,
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 复习建议串库.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ) -> ReviewSuggestionsResponse:
     """
     获取复习建议
@@ -646,9 +636,7 @@ class ExtractConversationRequest(BaseModel):
 
     node_id: str = Field(..., description="Canvas node identifier")
     session_id: str = Field(default="", description="Dialogue session identifier")
-    messages: List[dict] = Field(
-        ..., description="List of {role, content} message dicts"
-    )
+    messages: List[dict] = Field(..., description="List of {role, content} message dicts")
     # audit-2026-04-07/p0-2: callers may now scope the extraction to a real
     # canvas/subject instead of falling back to the global DEFAULT_GROUP_ID.
     # CARD-G2-2 (2026-08-28): 新增 vault_id (推荐)。sidecar 目前只传
@@ -789,16 +777,10 @@ class SessionArchiveRequest(BaseModel):
 
     session_id: str = Field(..., description="Claude Code session identifier")
     vault_id: str = Field(..., description="Vault folder name (backend sanitizes)")
-    messages: List[dict] = Field(
-        ..., description="List of {role, content} dicts parsed from transcript"
-    )
-    canvas_path: Optional[str] = Field(
-        default=None, description="Optional canvas path for group derivation"
-    )
+    messages: List[dict] = Field(..., description="List of {role, content} dicts parsed from transcript")
+    canvas_path: Optional[str] = Field(default=None, description="Optional canvas path for group derivation")
     subject_id: Optional[str] = Field(default=None)
-    group_id: Optional[str] = Field(
-        default=None, description="Explicit group_id override (D16 format)"
-    )
+    group_id: Optional[str] = Field(default=None, description="Explicit group_id override (D16 format)")
 
 
 class SessionArchiveResponse(BaseModel):
@@ -862,13 +844,10 @@ async def archive_session(
         # 通道 2: 对话全文 → 语义影子图 (worker 单点重定向 __semantic)。
         # 截断对齐 distiller (尾部 8000 字符, 近因优先)。
         conversation_text = "\n\n".join(
-            f"{'Student' if m.get('role') == 'user' else 'Tutor'}: {m.get('content', '')}"
-            for m in request.messages
+            f"{'Student' if m.get('role') == 'user' else 'Tutor'}: {m.get('content', '')}" for m in request.messages
         )
         if len(conversation_text) > 8000:
-            conversation_text = (
-                "...(earlier messages truncated)...\n\n" + conversation_text[-8000:]
-            )
+            conversation_text = "...(earlier messages truncated)...\n\n" + conversation_text[-8000:]
         enqueued = memory_service.enqueue_conversation_archive(
             session_id=request.session_id,
             conversation_text=conversation_text,
@@ -876,8 +855,7 @@ async def archive_session(
         )
 
         logger.info(
-            "[M3] Session archived: session=%s group=%s tips=%d errors=%d "
-            "episode_enqueued=%s",
+            "[M3] Session archived: session=%s group=%s tips=%d errors=%d episode_enqueued=%s",
             request.session_id[:16],
             resolved_group_id,
             len(result.tips),

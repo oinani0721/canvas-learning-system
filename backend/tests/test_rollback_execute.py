@@ -50,9 +50,7 @@ class TestRollbackEndpoint:
     [Source: docs/stories/18.3.story.md - AC 6]
     """
 
-    def test_rollback_operation_returns_200(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_operation_returns_200(self, client: TestClient, mock_rollback_engine):
         """Test that rollback operation endpoint returns HTTP 200 OK."""
         with patch(
             "app.api.v1.endpoints.rollback.get_rollback_engine",
@@ -67,9 +65,7 @@ class TestRollbackEndpoint:
             )
             assert response.status_code == 200
 
-    def test_rollback_response_structure(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_response_structure(self, client: TestClient, mock_rollback_engine):
         """
         Test that rollback response has correct structure.
 
@@ -117,9 +113,7 @@ class TestRollbackEndpoint:
     def test_rollback_snapshot_type(self, client: TestClient, mock_rollback_engine):
         """Test rollback with snapshot type."""
         # Mock for snapshot type
-        mock_rollback_engine.rollback.return_value.rollback_type = MagicMock(
-            value="snapshot"
-        )
+        mock_rollback_engine.rollback.return_value.rollback_type = MagicMock(value="snapshot")
         mock_rollback_engine.rollback.return_value.restored_snapshot_id = "snap-001"
 
         with patch(
@@ -138,9 +132,7 @@ class TestRollbackEndpoint:
 
     def test_rollback_timepoint_type(self, client: TestClient, mock_rollback_engine):
         """Test rollback with timepoint type."""
-        mock_rollback_engine.rollback.return_value.rollback_type = MagicMock(
-            value="timepoint"
-        )
+        mock_rollback_engine.rollback.return_value.rollback_type = MagicMock(value="timepoint")
 
         with patch(
             "app.api.v1.endpoints.rollback.get_rollback_engine",
@@ -156,9 +148,7 @@ class TestRollbackEndpoint:
             )
             assert response.status_code == 200
 
-    def test_rollback_with_create_backup_false(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_with_create_backup_false(self, client: TestClient, mock_rollback_engine):
         """Test rollback with create_backup=false."""
         mock_rollback_engine.rollback.return_value.backup_snapshot_id = None
 
@@ -176,13 +166,9 @@ class TestRollbackEndpoint:
             )
             assert response.status_code == 200
 
-    def test_rollback_with_preserve_graph(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_with_preserve_graph(self, client: TestClient, mock_rollback_engine):
         """Test rollback with preserve_graph=true skips graph sync."""
-        mock_rollback_engine.rollback.return_value.graph_sync_status = MagicMock(
-            value="skipped"
-        )
+        mock_rollback_engine.rollback.return_value.graph_sync_status = MagicMock(value="skipped")
 
         with patch(
             "app.api.v1.endpoints.rollback.get_rollback_engine",
@@ -200,9 +186,7 @@ class TestRollbackEndpoint:
             data = response.json()
             assert data["graph_sync_status"] == "skipped"
 
-    def test_rollback_missing_canvas_path(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_missing_canvas_path(self, client: TestClient, mock_rollback_engine):
         """Test that missing canvas_path returns 422 validation error."""
         with patch(
             "app.api.v1.endpoints.rollback.get_rollback_engine",
@@ -216,9 +200,7 @@ class TestRollbackEndpoint:
             )
             assert response.status_code == 422
 
-    def test_rollback_missing_rollback_type(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_missing_rollback_type(self, client: TestClient, mock_rollback_engine):
         """Test that missing rollback_type returns 422 validation error."""
         with patch(
             "app.api.v1.endpoints.rollback.get_rollback_engine",
@@ -232,9 +214,7 @@ class TestRollbackEndpoint:
             )
             assert response.status_code == 422
 
-    def test_rollback_invalid_rollback_type(
-        self, client: TestClient, mock_rollback_engine
-    ):
+    def test_rollback_invalid_rollback_type(self, client: TestClient, mock_rollback_engine):
         """Test that invalid rollback_type returns 422 validation error."""
         with patch(
             "app.api.v1.endpoints.rollback.get_rollback_engine",
@@ -264,9 +244,7 @@ class TestRollbackEndpointRegistration:
             paths = openapi.get("paths", {})
 
             # Check rollback endpoint
-            assert any(path.endswith("/rollback/rollback") for path in paths.keys()), (
-                "Rollback endpoint not found"
-            )
+            assert any(path.endswith("/rollback/rollback") for path in paths.keys()), "Rollback endpoint not found"
 
     def test_rollback_type_enum_values(self, client: TestClient):
         """

@@ -45,9 +45,7 @@ class TestDependenciesImportClean:
 
         all_exports = getattr(app.dependencies, "__all__", [])
         cross_refs = [name for name in all_exports if "cross_canvas" in name.lower()]
-        assert cross_refs == [], (
-            f"__all__ still contains cross_canvas refs: {cross_refs}"
-        )
+        assert cross_refs == [], f"__all__ still contains cross_canvas refs: {cross_refs}"
 
 
 class TestServiceInstantiation:
@@ -97,11 +95,8 @@ class TestNoResidualReferences:
                     # Exclude 'across_canvases' which is an unrelated CanvasService method
                     if "across_canvases" in lower:
                         continue
-                    violations.append(
-                        f"{py_file.relative_to(_BACKEND_APP)}:{i}: {line.strip()}"
-                    )
+                    violations.append(f"{py_file.relative_to(_BACKEND_APP)}:{i}: {line.strip()}")
 
-        assert violations == [], (
-            f"Found {len(violations)} residual cross_canvas references:\n"
-            + "\n".join(violations[:20])
+        assert violations == [], f"Found {len(violations)} residual cross_canvas references:\n" + "\n".join(
+            violations[:20]
         )

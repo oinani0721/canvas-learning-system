@@ -82,9 +82,7 @@ class TestGroupIdQueryIsolation:
         # Patch load_failed_scores to avoid file access
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
             with patch.object(memory_service, "_episodes_recovered", True):
-                result = await memory_service.get_learning_history(
-                    user_id="user1", subject="数学"
-                )
+                result = await memory_service.get_learning_history(user_id="user1", subject="数学")
 
         # Only Math data
         concepts = [item.get("concept") for item in result["items"]]
@@ -116,9 +114,7 @@ class TestGroupIdQueryIsolation:
 
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
             with patch.object(memory_service, "_episodes_recovered", True):
-                result = await memory_service.get_learning_history(
-                    user_id="user1", subject="物理"
-                )
+                result = await memory_service.get_learning_history(user_id="user1", subject="物理")
 
         concepts = [item.get("concept") for item in result["items"]]
         assert "牛顿定律" in concepts
@@ -175,10 +171,7 @@ class TestGroupIdQueryIsolation:
         # Check group_id is stored in _episodes
         ep = memory_service._episodes[0]
         assert ep.get("group_id") is not None
-        assert (
-            "数学" in ep.get("group_id", "").lower()
-            or "math" in ep.get("group_id", "").lower()
-        )
+        assert "数学" in ep.get("group_id", "").lower() or "math" in ep.get("group_id", "").lower()
 
 
 # ============================================================================
@@ -217,24 +210,18 @@ class TestNeo4jGroupIdFiltering:
         return service
 
     @pytest.mark.asyncio
-    async def test_get_learning_history_passes_group_id(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_get_learning_history_passes_group_id(self, memory_service, mock_neo4j):
         """get_learning_history passes group_id to Neo4j when subject provided."""
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
             with patch.object(memory_service, "_episodes_recovered", True):
-                await memory_service.get_learning_history(
-                    user_id="user1", subject="数学"
-                )
+                await memory_service.get_learning_history(user_id="user1", subject="数学")
 
         mock_neo4j.get_learning_history.assert_called_once()
         call_kwargs = mock_neo4j.get_learning_history.call_args[1]
         assert call_kwargs.get("group_id") is not None
 
     @pytest.mark.asyncio
-    async def test_get_learning_history_no_group_id_without_subject(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_get_learning_history_no_group_id_without_subject(self, memory_service, mock_neo4j):
         """get_learning_history passes group_id=None when no subject."""
         with patch.object(memory_service, "load_failed_scores", return_value=[]):
             with patch.object(memory_service, "_episodes_recovered", True):
@@ -261,9 +248,7 @@ class TestDIChainIntegrity:
 
         sig = inspect.signature(get_verification_service)
         param_names = list(sig.parameters.keys())
-        assert "canvas_service" in param_names, (
-            "P0: get_verification_service must accept canvas_service parameter"
-        )
+        assert "canvas_service" in param_names, "P0: get_verification_service must accept canvas_service parameter"
 
     def test_canvas_service_memory_client_code_path(self):
         """P0 regression: get_canvas_service injects memory_client."""
@@ -277,9 +262,7 @@ class TestDIChainIntegrity:
             end = code.find("\ndef ", start + 1)
         func_code = code[start:end]
 
-        assert "memory_client" in func_code, (
-            "P0: get_canvas_service must inject memory_client into CanvasService"
-        )
+        assert "memory_client" in func_code, "P0: get_canvas_service must inject memory_client into CanvasService"
 
     def test_context_enrichment_graphiti_injected(self):
         """P1 regression: get_context_enrichment_service injects learning_memory_service."""
@@ -328,15 +311,9 @@ class TestDIParameterCompleteness:
         func_code = code[start:end]
 
         # Must pass these to VerificationService()
-        assert "canvas_service=canvas_service" in func_code, (
-            "Missing canvas_service injection"
-        )
-        assert "memory_service=memory_service" in func_code, (
-            "Missing memory_service injection"
-        )
-        assert "agent_service=agent_service" in func_code, (
-            "Missing agent_service injection"
-        )
+        assert "canvas_service=canvas_service" in func_code, "Missing canvas_service injection"
+        assert "memory_service=memory_service" in func_code, "Missing memory_service injection"
+        assert "agent_service=agent_service" in func_code, "Missing agent_service injection"
 
     def test_canvas_service_di_passes_memory_client(self):
         """dependencies.py passes memory_client to CanvasService."""
@@ -347,9 +324,7 @@ class TestDIParameterCompleteness:
         end = code.find("\n\n# Type alias for CanvasService", start)
         func_code = code[start:end]
 
-        assert "memory_client=memory_client" in func_code, (
-            "Missing memory_client injection"
-        )
+        assert "memory_client=memory_client" in func_code, "Missing memory_client injection"
 
     def test_context_enrichment_di_passes_graphiti(self):
         """dependencies.py passes learning_memory_service to ContextEnrichmentService."""

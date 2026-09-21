@@ -127,9 +127,7 @@ async def websocket_intelligent_parallel(
     logger.info(f"WebSocket accepted for session: {session_id}")
 
     # AC3: Start heartbeat task
-    heartbeat_task = asyncio.create_task(
-        _heartbeat_loop(manager, session_id, websocket)
-    )
+    heartbeat_task = asyncio.create_task(_heartbeat_loop(manager, session_id, websocket))
 
     try:
         # Main message receive loop
@@ -147,8 +145,7 @@ async def websocket_intelligent_parallel(
             except asyncio.TimeoutError:
                 # AC3: Connection timeout after 10 minutes of inactivity
                 logger.info(
-                    f"WebSocket timeout for session {session_id} "
-                    f"(inactive for {INACTIVITY_TIMEOUT_MINUTES} minutes)"
+                    f"WebSocket timeout for session {session_id} (inactive for {INACTIVITY_TIMEOUT_MINUTES} minutes)"
                 )
                 # Send error event before closing
                 error_event = create_ws_error_event(

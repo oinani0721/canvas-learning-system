@@ -139,9 +139,7 @@ def test_track_agent_execution_sync_error():
 
 def test_record_agent_invocation_success():
     """Test recording a successful agent invocation."""
-    record_agent_invocation(
-        agent_type="oral-explanation", status="success", duration_s=1.5
-    )
+    record_agent_invocation(agent_type="oral-explanation", status="success", duration_s=1.5)
     # If no exception, test passes
 
 
@@ -158,9 +156,7 @@ def test_record_agent_invocation_error():
 
 def test_record_agent_invocation_zero_duration():
     """Test recording with zero duration."""
-    record_agent_invocation(
-        agent_type="memory-anchor", status="success", duration_s=0.0
-    )
+    record_agent_invocation(agent_type="memory-anchor", status="success", duration_s=0.0)
     # Zero duration should not record to histogram
 
 

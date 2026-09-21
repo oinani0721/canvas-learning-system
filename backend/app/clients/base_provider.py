@@ -269,9 +269,7 @@ class BaseProvider(ABC):
         """
         pass
 
-    async def update_health(
-        self, success: bool, latency_ms: float = 0.0, error: Optional[str] = None
-    ) -> None:
+    async def update_health(self, success: bool, latency_ms: float = 0.0, error: Optional[str] = None) -> None:
         """
         Update health status after a request.
 

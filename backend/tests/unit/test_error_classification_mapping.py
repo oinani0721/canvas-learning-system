@@ -35,34 +35,22 @@ from app.services.error_classifier import (
 
 def test_legacy_to_pedagogy_problem_framing_maps_to_careless_slip():
     """破题错误 (审题失误) → 粗心 (PRD AC#2)."""
-    assert (
-        LEGACY_TO_PEDAGOGY[ErrorType.PROBLEM_FRAMING]
-        == PedagogyErrorType.CARELESS_SLIP
-    )
+    assert LEGACY_TO_PEDAGOGY[ErrorType.PROBLEM_FRAMING] == PedagogyErrorType.CARELESS_SLIP
 
 
 def test_legacy_to_pedagogy_reasoning_fallacy_maps_to_procedural_error():
     """推理谬误 → 程序性错误 (几乎等价)."""
-    assert (
-        LEGACY_TO_PEDAGOGY[ErrorType.REASONING_FALLACY]
-        == PedagogyErrorType.PROCEDURAL_ERROR
-    )
+    assert LEGACY_TO_PEDAGOGY[ErrorType.REASONING_FALLACY] == PedagogyErrorType.PROCEDURAL_ERROR
 
 
 def test_legacy_to_pedagogy_knowledge_gap_maps_to_conceptual_confusion():
     """知识点缺失 → 概念混淆 (缺概念也算混淆)."""
-    assert (
-        LEGACY_TO_PEDAGOGY[ErrorType.KNOWLEDGE_GAP]
-        == PedagogyErrorType.CONCEPTUAL_CONFUSION
-    )
+    assert LEGACY_TO_PEDAGOGY[ErrorType.KNOWLEDGE_GAP] == PedagogyErrorType.CONCEPTUAL_CONFUSION
 
 
 def test_legacy_to_pedagogy_superficial_default_maps_to_conceptual_confusion():
     """SUPERFICIAL 默认 → CONCEPTUAL_CONFUSION (无 disambiguation)."""
-    assert (
-        LEGACY_TO_PEDAGOGY[ErrorType.SUPERFICIAL]
-        == PedagogyErrorType.CONCEPTUAL_CONFUSION
-    )
+    assert LEGACY_TO_PEDAGOGY[ErrorType.SUPERFICIAL] == PedagogyErrorType.CONCEPTUAL_CONFUSION
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -78,33 +66,25 @@ def test_disambiguate_superficial_default_is_conceptual_confusion():
 
 def test_disambiguate_superficial_with_transfer_keyword_metacognitive():
     """关键词"迁移"/transfer → METACOGNITIVE_ERROR."""
-    result = disambiguate_superficial(
-        "学生能背定义但不能迁移到新场景", sub_tags=None
-    )
+    result = disambiguate_superficial("学生能背定义但不能迁移到新场景", sub_tags=None)
     assert result == PedagogyErrorType.METACOGNITIVE_ERROR
 
 
 def test_disambiguate_superficial_with_transfer_failure_subtag():
     """sub_tag transfer_failure → METACOGNITIVE_ERROR."""
-    result = disambiguate_superficial(
-        "无明显迁移描述", sub_tags=["transfer_failure"]
-    )
+    result = disambiguate_superficial("无明显迁移描述", sub_tags=["transfer_failure"])
     assert result == PedagogyErrorType.METACOGNITIVE_ERROR
 
 
 def test_disambiguate_superficial_subtag_priority_over_keyword():
     """sub_tag 优先级 > 关键词 (即使 description 无关键词)."""
-    result = disambiguate_superficial(
-        "完全描述无关", sub_tags=["metacognitive"]
-    )
+    result = disambiguate_superficial("完全描述无关", sub_tags=["metacognitive"])
     assert result == PedagogyErrorType.METACOGNITIVE_ERROR
 
 
 def test_disambiguate_superficial_overconfidence_subtag():
     """过度自信 sub_tag → METACOGNITIVE_ERROR."""
-    result = disambiguate_superficial(
-        "学生说自己懂了", sub_tags=["overconfidence"]
-    )
+    result = disambiguate_superficial("学生说自己懂了", sub_tags=["overconfidence"])
     assert result == PedagogyErrorType.METACOGNITIVE_ERROR
 
 
@@ -164,14 +144,8 @@ def test_all_pedagogy_types_have_remedy_mapping():
 
 def test_legacy_remedy_unchanged_backward_compat():
     """向后兼容: ERROR_TYPE_TO_REMEDY (Story 3.6) 行为不变."""
-    assert (
-        ERROR_TYPE_TO_REMEDY[ErrorType.PROBLEM_FRAMING]
-        == RemedyStrategy.SAME_STRUCTURE_NEW_PROBLEM
-    )
-    assert (
-        ERROR_TYPE_TO_REMEDY[ErrorType.SUPERFICIAL]
-        == RemedyStrategy.DISCRIMINATION_TRANSFER
-    )
+    assert ERROR_TYPE_TO_REMEDY[ErrorType.PROBLEM_FRAMING] == RemedyStrategy.SAME_STRUCTURE_NEW_PROBLEM
+    assert ERROR_TYPE_TO_REMEDY[ErrorType.SUPERFICIAL] == RemedyStrategy.DISCRIMINATION_TRANSFER
 
 
 # ════════════════════════════════════════════════════════════════════

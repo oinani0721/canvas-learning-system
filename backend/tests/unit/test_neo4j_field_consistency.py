@@ -52,8 +52,7 @@ class _CypherCapture:
             if snippet in call["query"]:
                 return call["query"]
         raise AssertionError(
-            f"no captured query contains: {snippet!r}; "
-            f"captured: {[c['query'][:80] for c in self.calls]}"
+            f"no captured query contains: {snippet!r}; captured: {[c['query'][:80] for c in self.calls]}"
         )
 
 
@@ -79,44 +78,30 @@ class TestCreateLearningRelationshipCypher:
     @pytest.mark.asyncio
     async def test_write_sets_score_field(self, neo4j_client_with_capture: Any) -> None:
         client, capture = neo4j_client_with_capture
-        await client.create_learning_relationship(
-            user_id="u1", concept="addition", score=75, group_id="math"
-        )
+        await client.create_learning_relationship(user_id="u1", concept="addition", score=75, group_id="math")
         cypher = capture.last_query
         # The write path uses r.score (single source of truth), NOT r.last_score
         assert "r.score = $score" in cypher, (
-            "create_learning_relationship must SET r.score, not r.last_score; "
-            f"got: {cypher}"
+            f"create_learning_relationship must SET r.score, not r.last_score; got: {cypher}"
         )
         # Negative guard: never write r.last_score (legacy phantom field)
-        assert "r.last_score" not in cypher, (
-            "r.last_score is a legacy phantom field — never write it"
-        )
+        assert "r.last_score" not in cypher, "r.last_score is a legacy phantom field — never write it"
 
     @pytest.mark.asyncio
-    async def test_write_increments_review_count_via_coalesce(
-        self, neo4j_client_with_capture: Any
-    ) -> None:
+    async def test_write_increments_review_count_via_coalesce(self, neo4j_client_with_capture: Any) -> None:
         client, capture = neo4j_client_with_capture
-        await client.create_learning_relationship(
-            user_id="u1", concept="addition", score=80, group_id="math"
-        )
+        await client.create_learning_relationship(user_id="u1", concept="addition", score=80, group_id="math")
         cypher = capture.last_query
         # coalesce handles both first-time (null → 0) and repeat (n → n+1) cases
         assert "coalesce(r.review_count, 0)" in cypher, (
-            "review_count must use coalesce(r.review_count, 0) + 1 to handle "
-            f"first-time scoring; got: {cypher}"
+            f"review_count must use coalesce(r.review_count, 0) + 1 to handle first-time scoring; got: {cypher}"
         )
         assert "+ 1" in cypher, "review_count must increment by 1 each scoring event"
 
     @pytest.mark.asyncio
-    async def test_write_passes_score_param(
-        self, neo4j_client_with_capture: Any
-    ) -> None:
+    async def test_write_passes_score_param(self, neo4j_client_with_capture: Any) -> None:
         client, capture = neo4j_client_with_capture
-        await client.create_learning_relationship(
-            user_id="u1", concept="addition", score=75, group_id="math"
-        )
+        await client.create_learning_relationship(user_id="u1", concept="addition", score=75, group_id="math")
         kwargs = capture.calls[-1]["kwargs"]
         assert kwargs["score"] == 75
         assert kwargs["userId"] == "u1"
@@ -135,26 +120,19 @@ class TestGetReviewSuggestionsCypher:
     """The read Cypher MUST alias r.score AS last_score, NOT read r.last_score."""
 
     @pytest.mark.asyncio
-    async def test_read_with_group_id_uses_alias(
-        self, neo4j_client_with_capture: Any
-    ) -> None:
+    async def test_read_with_group_id_uses_alias(self, neo4j_client_with_capture: Any) -> None:
         client, capture = neo4j_client_with_capture
         await client.get_review_suggestions(user_id="u1", limit=10, group_id="math")
         cypher = capture.find_query_with("LEARNED")
         # Single source of truth: alias r.score back as last_score
         assert "r.score as last_score" in cypher.lower(), (
-            "get_review_suggestions must read r.score (aliased to last_score), "
-            f"not r.last_score; got: {cypher}"
+            f"get_review_suggestions must read r.score (aliased to last_score), not r.last_score; got: {cypher}"
         )
         # Negative guard against the legacy phantom field
-        assert "r.last_score" not in cypher, (
-            "r.last_score is a legacy phantom field — must use r.score AS last_score"
-        )
+        assert "r.last_score" not in cypher, "r.last_score is a legacy phantom field — must use r.score AS last_score"
 
     @pytest.mark.asyncio
-    async def test_read_without_group_id_still_scoped(
-        self, neo4j_client_with_capture: Any
-    ) -> None:
+    async def test_read_without_group_id_still_scoped(self, neo4j_client_with_capture: Any) -> None:
         """CARD-G4-1a (2026-08-30) — 原名 test_read_without_group_id_uses_alias。
 
         契约变更: 不传 group_id **不再**意味着"不过滤"。审计 §5 #3 的无 group
@@ -172,9 +150,7 @@ class TestGetReviewSuggestionsCypher:
         )
 
     @pytest.mark.asyncio
-    async def test_read_filter_by_group_id_when_provided(
-        self, neo4j_client_with_capture: Any
-    ) -> None:
+    async def test_read_filter_by_group_id_when_provided(self, neo4j_client_with_capture: Any) -> None:
         """CARD-G4-1a: 过滤形态由等值 `$groupId` 改为**等值 OR 前缀**。
 
         原断言 `c.group_id = $groupId` 锁的是旧的等值语义 —— 现网存量 Concept/
@@ -236,16 +212,10 @@ class TestEndToEndContract:
         client._initialized = True  # type: ignore[attr-defined]
         client.run_query = AsyncMock(side_effect=fake_run_query)  # type: ignore[method-assign]
 
-        await client.create_learning_relationship(
-            user_id="u1", concept="addition", score=75, group_id="math"
-        )
-        suggestions = await client.get_review_suggestions(
-            user_id="u1", limit=10, group_id="math"
-        )
+        await client.create_learning_relationship(user_id="u1", concept="addition", score=75, group_id="math")
+        suggestions = await client.get_review_suggestions(user_id="u1", limit=10, group_id="math")
 
         assert len(suggestions) == 1
-        assert suggestions[0]["last_score"] == 75, (
-            "score=75 written via r.score must round-trip as last_score=75"
-        )
+        assert suggestions[0]["last_score"] == 75, "score=75 written via r.score must round-trip as last_score=75"
         # Never null: the bug it replaces returned None forever
         assert suggestions[0]["last_score"] is not None

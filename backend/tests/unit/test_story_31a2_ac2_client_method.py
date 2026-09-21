@@ -26,6 +26,7 @@ def _json_scope() -> str:
 
     return current_group_id()
 
+
 # =============================================================================
 # AC-31.A.2.2: Neo4jClient.get_learning_history() Method
 # [Source: docs/stories/31.A.2.story.md#AC-31.A.2.2]

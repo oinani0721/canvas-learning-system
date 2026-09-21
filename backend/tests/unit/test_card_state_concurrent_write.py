@@ -79,9 +79,7 @@ class TestConcurrentCardStateWrite:
     """Verify asyncio.Lock protects _save_card_states from corruption."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_record_review_no_exception(
-        self, review_service_with_fsrs
-    ):
+    async def test_concurrent_record_review_no_exception(self, review_service_with_fsrs):
         """T2.2: 10 concurrent record_review_result calls — all succeed.
 
         AC-32.11.3: All 10 calls return successfully without exception.
@@ -101,18 +99,14 @@ class TestConcurrentCardStateWrite:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         exceptions = [r for r in results if isinstance(r, Exception)]
-        assert len(exceptions) == 0, (
-            f"Concurrent writes raised {len(exceptions)} exception(s): {exceptions}"
-        )
+        assert len(exceptions) == 0, f"Concurrent writes raised {len(exceptions)} exception(s): {exceptions}"
         # All results should be dicts with algorithm key
         for r in results:
             assert isinstance(r, dict), f"Expected dict result, got {type(r)}"
             assert "algorithm" in r
 
     @pytest.mark.asyncio
-    async def test_concurrent_write_json_integrity(
-        self, review_service_with_fsrs, isolate_card_states_file
-    ):
+    async def test_concurrent_write_json_integrity(self, review_service_with_fsrs, isolate_card_states_file):
         """T2.3: After concurrent writes, card states JSON is parseable.
 
         AC-32.11.3: card states JSON file does not become corrupted.
@@ -140,9 +134,7 @@ class TestConcurrentCardStateWrite:
         assert isinstance(parsed, dict), f"Expected dict, got {type(parsed)}"
 
     @pytest.mark.asyncio
-    async def test_concurrent_write_eventual_consistency(
-        self, review_service_with_fsrs, isolate_card_states_file
-    ):
+    async def test_concurrent_write_eventual_consistency(self, review_service_with_fsrs, isolate_card_states_file):
         """T2.4: Final card state reflects last write (eventual consistency).
 
         AC-32.11.3: After all concurrent writes complete, the in-memory
@@ -164,14 +156,10 @@ class TestConcurrentCardStateWrite:
         await asyncio.gather(*tasks)
 
         # Verify the concept has a card state (content determined by last write)
-        assert "same-concept" in service._card_states, (
-            "Concept should have a card state after concurrent writes"
-        )
+        assert "same-concept" in service._card_states, "Concept should have a card state after concurrent writes"
         state = service._card_states["same-concept"]
         assert isinstance(state, str), f"Card state should be string, got {type(state)}"
         assert len(state) > 0, "Card state should not be empty"
         # M3 Fix: Verify state is a complete, valid JSON (not corrupted by partial writes)
         parsed = json.loads(state)
-        assert isinstance(parsed, dict), (
-            f"Card state should deserialize to dict, got {type(parsed)}"
-        )
+        assert isinstance(parsed, dict), f"Card state should deserialize to dict, got {type(parsed)}"

@@ -52,9 +52,7 @@ def _make_color_change_event(
     }
 
 
-def _generate_expected_episode_id(
-    canvas_path: str, node_id: str, event_type: str, timestamp: str
-) -> str:
+def _generate_expected_episode_id(canvas_path: str, node_id: str, event_type: str, timestamp: str) -> str:
     """Mirror _generate_batch_episode_id from memory_service.py."""
     content = f"{canvas_path}:{node_id}:{event_type}:{timestamp}"
     hash_hex = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
@@ -157,9 +155,7 @@ class TestAC30201BatchEndpointCallChain:
     """Verify POST /memory/episodes/batch calls MemoryService correctly."""
 
     @pytest.mark.asyncio
-    async def test_batch_endpoint_returns_200_with_processed(
-        self, client_with_mock, mock_memory_svc
-    ):
+    async def test_batch_endpoint_returns_200_with_processed(self, client_with_mock, mock_memory_svc):
         """POST color change event → 200, processed >= 1."""
         event = _make_color_change_event()
         resp = await client_with_mock.post(
@@ -172,9 +168,7 @@ class TestAC30201BatchEndpointCallChain:
         assert body["success"] is True
 
     @pytest.mark.asyncio
-    async def test_batch_endpoint_calls_record_batch(
-        self, client_with_mock, mock_memory_svc
-    ):
+    async def test_batch_endpoint_calls_record_batch(self, client_with_mock, mock_memory_svc):
         """MemoryService.record_batch_learning_events() is called."""
         event = _make_color_change_event()
         await client_with_mock.post(
@@ -188,9 +182,7 @@ class TestAC30201BatchEndpointCallChain:
         assert call_args[0]["node_id"] == "b33c50660173e5d3"
 
     @pytest.mark.asyncio
-    async def test_batch_stores_episode_in_memory(
-        self, client_with_mock, mock_memory_svc
-    ):
+    async def test_batch_stores_episode_in_memory(self, client_with_mock, mock_memory_svc):
         """Episode appears in shared storage after POST."""
         event = _make_color_change_event()
         await client_with_mock.post(
@@ -271,12 +263,8 @@ class TestAC30202PayloadValidation:
 
     def test_different_inputs_produce_different_ids(self):
         """Different events produce different episode IDs."""
-        id1 = _generate_expected_episode_id(
-            "a.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z"
-        )
-        id2 = _generate_expected_episode_id(
-            "b.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z"
-        )
+        id1 = _generate_expected_episode_id("a.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z")
+        id2 = _generate_expected_episode_id("b.canvas", "n1", "color_changed", "2026-01-01T00:00:00Z")
         assert id1 != id2
 
     @pytest.mark.asyncio
@@ -379,9 +367,7 @@ class TestAC30204EndToEndChain:
         # during Pydantic v2 validation (extra='ignore'). The real MemoryService derives
         # concept from metadata.concept or metadata.node_text, both absent after
         # Pydantic processing.
-        assert found["concept"] == "unknown", (
-            "concept should be 'unknown' — BatchEventMetadata strips extra fields"
-        )
+        assert found["concept"] == "unknown", "concept should be 'unknown' — BatchEventMetadata strips extra fields"
 
     @pytest.mark.asyncio
     async def test_episode_data_integrity(self, client_with_mock, mock_memory_svc):
@@ -406,9 +392,7 @@ class TestAC30204EndToEndChain:
         assert found[0]["canvas_path"] == "integrity/test.canvas"
         # canvas_path and node_id are preserved through the batch pipeline.
         # concept defaults to "unknown" as BatchEventMetadata strips extra fields.
-        assert found[0]["concept"] == "unknown", (
-            "concept should be 'unknown' — BatchEventMetadata strips extra fields"
-        )
+        assert found[0]["concept"] == "unknown", "concept should be 'unknown' — BatchEventMetadata strips extra fields"
 
 
 # ============================================================================
@@ -420,9 +404,7 @@ class TestAC30205MultiBatchDebounce:
     """Verify backend correctly handles multiple events in single batch."""
 
     @pytest.mark.asyncio
-    async def test_three_events_in_single_batch(
-        self, client_with_mock, mock_memory_svc
-    ):
+    async def test_three_events_in_single_batch(self, client_with_mock, mock_memory_svc):
         """3 events merged by debounce → batch POST → processed: 3."""
         ts_base = "2026-02-10T12:00:00"
         events = [
@@ -448,9 +430,7 @@ class TestAC30205MultiBatchDebounce:
         assert body["success"] is True
 
     @pytest.mark.asyncio
-    async def test_batch_service_receives_all_events(
-        self, client_with_mock, mock_memory_svc
-    ):
+    async def test_batch_service_receives_all_events(self, client_with_mock, mock_memory_svc):
         """MemoryService receives all 3 events from batch."""
         events = [
             _make_color_change_event(

@@ -35,14 +35,10 @@ class TestEpisodesSubjectFilter:
 
         ✅ AC-30.8.3: API supports subject query parameter
         """
-        response = await async_client.get(
-            "/api/v1/memory/episodes", params={"user_id": "test_user"}
-        )
+        response = await async_client.get("/api/v1/memory/episodes", params={"user_id": "test_user"})
         assert response.status_code == 200
 
-    async def test_episodes_endpoint_accepts_subject_param(
-        self, async_client: AsyncClient
-    ):
+    async def test_episodes_endpoint_accepts_subject_param(self, async_client: AsyncClient):
         """
         Episodes endpoint should accept subject query parameter.
 
@@ -113,9 +109,7 @@ class TestEpisodesSubjectFilter:
         assert data["page"] == 1
         assert data["page_size"] == 10
 
-    async def test_episodes_with_date_filters_and_subject(
-        self, async_client: AsyncClient
-    ):
+    async def test_episodes_with_date_filters_and_subject(self, async_client: AsyncClient):
         """
         Episodes endpoint should support date filters combined with subject.
 
@@ -138,9 +132,7 @@ class TestEpisodesSubjectFilter:
 
         ✅ AC-30.8.3: Subject filter is optional
         """
-        response = await async_client.get(
-            "/api/v1/memory/episodes", params={"user_id": "test_user"}
-        )
+        response = await async_client.get("/api/v1/memory/episodes", params={"user_id": "test_user"})
         assert response.status_code == 200
 
 
@@ -153,14 +145,10 @@ class TestReviewSuggestionsSubjectFilter:
 
         ✅ AC-30.8.3: API supports subject query parameter
         """
-        response = await async_client.get(
-            "/api/v1/memory/review-suggestions", params={"user_id": "test_user"}
-        )
+        response = await async_client.get("/api/v1/memory/review-suggestions", params={"user_id": "test_user"})
         assert response.status_code == 200
 
-    async def test_review_suggestions_accepts_subject_param(
-        self, async_client: AsyncClient
-    ):
+    async def test_review_suggestions_accepts_subject_param(self, async_client: AsyncClient):
         """
         Review suggestions endpoint should accept subject query parameter.
 
@@ -172,9 +160,7 @@ class TestReviewSuggestionsSubjectFilter:
         )
         assert response.status_code == 200
 
-    async def test_review_suggestions_response_structure(
-        self, async_client: AsyncClient
-    ):
+    async def test_review_suggestions_response_structure(self, async_client: AsyncClient):
         """
         Review suggestions response should be an envelope carrying the list.
 
@@ -199,9 +185,7 @@ class TestReviewSuggestionsSubjectFilter:
             assert "concept_id" in suggestion
             assert "priority" in suggestion
 
-    async def test_review_suggestions_subject_filter_unicode(
-        self, async_client: AsyncClient
-    ):
+    async def test_review_suggestions_subject_filter_unicode(self, async_client: AsyncClient):
         """
         Review suggestions should accept Chinese subject names.
 
@@ -231,17 +215,13 @@ class TestReviewSuggestionsSubjectFilter:
         # CARD-G4-3: 信封化, 条目在 items 下
         assert len(data["items"]) <= 5
 
-    async def test_review_suggestions_subject_none_returns_all(
-        self, async_client: AsyncClient
-    ):
+    async def test_review_suggestions_subject_none_returns_all(self, async_client: AsyncClient):
         """
         When subject is not provided, should return suggestions from all subjects.
 
         ✅ AC-30.8.3: Subject filter is optional
         """
-        response = await async_client.get(
-            "/api/v1/memory/review-suggestions", params={"user_id": "test_user"}
-        )
+        response = await async_client.get("/api/v1/memory/review-suggestions", params={"user_id": "test_user"})
         assert response.status_code == 200
 
 
@@ -370,9 +350,7 @@ class TestSubjectFilterPerformance:
         assert response.status_code == 200
         assert elapsed_ms < 500, f"Endpoint took {elapsed_ms:.1f}ms (expected < 500ms)"
 
-    async def test_review_suggestions_subject_filter_performance(
-        self, async_client: AsyncClient
-    ):
+    async def test_review_suggestions_subject_filter_performance(self, async_client: AsyncClient):
         """
         Review suggestions with subject filter should respond quickly.
 
@@ -400,9 +378,7 @@ class TestConceptHistoryEndpoint:
 
         ✅ Verified from backend/app/api/v1/endpoints/memory.py
         """
-        response = await async_client.get(
-            "/api/v1/memory/concepts/test_concept/history"
-        )
+        response = await async_client.get("/api/v1/memory/concepts/test_concept/history")
         assert response.status_code == 200
 
     async def test_concept_history_with_user_id(self, async_client: AsyncClient):
@@ -423,9 +399,7 @@ class TestConceptHistoryEndpoint:
 
         ✅ Verified from backend/app/api/v1/endpoints/memory.py
         """
-        response = await async_client.get(
-            "/api/v1/memory/concepts/test_concept/history", params={"limit": 20}
-        )
+        response = await async_client.get("/api/v1/memory/concepts/test_concept/history", params={"limit": 20})
         assert response.status_code == 200
 
     async def test_concept_history_response_structure(self, async_client: AsyncClient):
@@ -434,9 +408,7 @@ class TestConceptHistoryEndpoint:
 
         ✅ Verified from backend/app/models/memory_schemas.py ConceptHistoryResponse
         """
-        response = await async_client.get(
-            "/api/v1/memory/concepts/test_concept/history"
-        )
+        response = await async_client.get("/api/v1/memory/concepts/test_concept/history")
         data = response.json()
 
         assert "concept_id" in data

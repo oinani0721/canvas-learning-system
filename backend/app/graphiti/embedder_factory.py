@@ -86,6 +86,4 @@ def build_embedder(google_api_key: str = "", *, embedding_dim: int = 1024) -> An
     key = google_api_key or os.getenv("GOOGLE_API_KEY") or ""
     model = os.getenv("GEMINI_EMBEDDER_MODEL") or "gemini-embedding-001"
     logger.info("[Embedder] provider=gemini model=%s", model)
-    return GeminiEmbedder(
-        config=GeminiEmbedderConfig(api_key=key, embedding_model=model)
-    )
+    return GeminiEmbedder(config=GeminiEmbedderConfig(api_key=key, embedding_model=model))

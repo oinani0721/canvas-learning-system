@@ -153,10 +153,7 @@ class PDFProcessor:
             cache_dir: Directory to store thumbnails (optional)
         """
         if fitz is None:
-            raise ImportError(
-                "PyMuPDF is required for PDF processing. "
-                "Install with: pip install PyMuPDF"
-            )
+            raise ImportError("PyMuPDF is required for PDF processing. Install with: pip install PyMuPDF")
 
         self.max_size_mb = max_size_mb or self.MAX_SIZE_MB
         self.thumbnail_size = thumbnail_size or self.THUMBNAIL_SIZE
@@ -250,9 +247,7 @@ class PDFProcessor:
         finally:
             doc.close()
 
-    async def generate_thumbnail(
-        self, doc_or_path: "fitz.Document | str | Path", page_num: int = 0
-    ) -> str:
+    async def generate_thumbnail(self, doc_or_path: "fitz.Document | str | Path", page_num: int = 0) -> str:
         """
         Generate thumbnail from PDF first page.
 
@@ -299,9 +294,7 @@ class PDFProcessor:
 
             # Save to bytes
             buffer = io.BytesIO()
-            img.save(
-                buffer, format=self.THUMBNAIL_FORMAT, quality=self.THUMBNAIL_QUALITY
-            )
+            img.save(buffer, format=self.THUMBNAIL_FORMAT, quality=self.THUMBNAIL_QUALITY)
             buffer.seek(0)
 
             return base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -350,14 +343,10 @@ class PDFProcessor:
                     start, end = int(match.group(1)), int(match.group(2))
 
                     if start > end:
-                        raise PageRangeError(
-                            f"Invalid range: start > end ({start} > {end})"
-                        )
+                        raise PageRangeError(f"Invalid range: start > end ({start} > {end})")
 
                     if start < 1 or end > total_pages:
-                        raise PageRangeError(
-                            f"Page range {start}-{end} out of bounds (1-{total_pages})"
-                        )
+                        raise PageRangeError(f"Page range {start}-{end} out of bounds (1-{total_pages})")
 
                     pages.update(range(start, end + 1))
 
@@ -368,9 +357,7 @@ class PDFProcessor:
                 try:
                     page_num = int(part)
                     if page_num < 1 or page_num > total_pages:
-                        raise PageRangeError(
-                            f"Page {page_num} out of bounds (1-{total_pages})"
-                        )
+                        raise PageRangeError(f"Page {page_num} out of bounds (1-{total_pages})")
                     pages.add(page_num)
                 except ValueError as e:
                     raise PageRangeError(f"Invalid page number: {part}") from e
@@ -419,17 +406,13 @@ class PDFProcessor:
 
         if pdf_path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
             raise PDFValidationError(
-                f"Unsupported format: {pdf_path.suffix}. "
-                f"Supported: {', '.join(self.SUPPORTED_EXTENSIONS)}"
+                f"Unsupported format: {pdf_path.suffix}. Supported: {', '.join(self.SUPPORTED_EXTENSIONS)}"
             )
 
         # Check file size
         file_size_mb = pdf_path.stat().st_size / (1024 * 1024)
         if file_size_mb > self.max_size_mb:
-            raise PDFSizeError(
-                f"File too large: {file_size_mb:.1f}MB. "
-                f"Maximum allowed: {self.max_size_mb}MB"
-            )
+            raise PDFSizeError(f"File too large: {file_size_mb:.1f}MB. Maximum allowed: {self.max_size_mb}MB")
 
         # Check if file is readable (basic PDF header check)
         try:
@@ -460,9 +443,7 @@ class PDFProcessor:
 
 
 # Convenience function for async usage
-async def process_pdf(
-    pdf_path: str | Path, page_range: Optional[str] = None, **kwargs
-) -> PDFMetadata:
+async def process_pdf(pdf_path: str | Path, page_range: Optional[str] = None, **kwargs) -> PDFMetadata:
     """
     Process a PDF file and return metadata.
 

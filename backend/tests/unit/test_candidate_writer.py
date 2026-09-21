@@ -53,11 +53,7 @@ def _make_md_with_frontmatter(tmp_path, body: str = "# Body\n") -> "Path":
     """创建测试节点 .md 含基础 frontmatter (无 errors / candidates)."""
     f = tmp_path / "test_node.md"
     f.write_text(
-        "---\n"
-        "type: concept\n"
-        "board_name: UAT\n"
-        "mastery_score: 0.30\n"
-        "---\n" + body,
+        "---\ntype: concept\nboard_name: UAT\nmastery_score: 0.30\n---\n" + body,
         encoding="utf-8",
     )
     return f
@@ -144,9 +140,7 @@ def test_candidate_optional_metadata_defaults_to_none_or_empty(tmp_path):
     f = _make_md_with_frontmatter(tmp_path)
     error = _make_error()
 
-    ok, _ = write_candidate_to_frontmatter(
-        f, error, node_id="节点/test_node.md", session_id="s-1"
-    )
+    ok, _ = write_candidate_to_frontmatter(f, error, node_id="节点/test_node.md", session_id="s-1")
     assert ok is True
     text = f.read_text(encoding="utf-8")
     fm_dict = yaml.safe_load(text.split("---")[1])
@@ -167,15 +161,11 @@ def test_candidate_dedupe_updates_existing_not_append(tmp_path):
     error = _make_error()
 
     # 第 1 次写入
-    ok1, id1 = write_candidate_to_frontmatter(
-        f, error, node_id="节点/test_node.md", session_id="s-1"
-    )
+    ok1, id1 = write_candidate_to_frontmatter(f, error, node_id="节点/test_node.md", session_id="s-1")
     assert ok1 is True
 
     # 第 2 次同样的错误 (同 session)
-    ok2, id2 = write_candidate_to_frontmatter(
-        f, error, node_id="节点/test_node.md", session_id="s-1"
-    )
+    ok2, id2 = write_candidate_to_frontmatter(f, error, node_id="节点/test_node.md", session_id="s-1")
     assert ok2 is True
     assert id2 == id1  # AC #3: 返回同一 id
 
@@ -195,15 +185,11 @@ def test_candidate_dedupe_hash_excludes_session_id(tmp_path):
     error = _make_error()
 
     # session A 写一次
-    ok1, id1 = write_candidate_to_frontmatter(
-        f, error, node_id="节点/test_node.md", session_id="s-A"
-    )
+    ok1, id1 = write_candidate_to_frontmatter(f, error, node_id="节点/test_node.md", session_id="s-A")
     assert ok1 is True
 
     # session B 写同样错误 (跨 session)
-    ok2, id2 = write_candidate_to_frontmatter(
-        f, error, node_id="节点/test_node.md", session_id="s-B"
-    )
+    ok2, id2 = write_candidate_to_frontmatter(f, error, node_id="节点/test_node.md", session_id="s-B")
     assert ok2 is True
     assert id2 == id1  # 仍是同一 candidate
 
@@ -224,12 +210,8 @@ def test_candidate_dedupe_takes_max_confidence(tmp_path):
     error_low = _make_error(confidence=0.65)
     error_high = _make_error(confidence=0.92)
 
-    write_candidate_to_frontmatter(
-        f, error_low, node_id="节点/test_node.md", session_id="s-1"
-    )
-    write_candidate_to_frontmatter(
-        f, error_high, node_id="节点/test_node.md", session_id="s-2"
-    )
+    write_candidate_to_frontmatter(f, error_low, node_id="节点/test_node.md", session_id="s-1")
+    write_candidate_to_frontmatter(f, error_high, node_id="节点/test_node.md", session_id="s-2")
 
     text = f.read_text(encoding="utf-8")
     fm_dict = yaml.safe_load(text.split("---")[1])
@@ -243,12 +225,8 @@ def test_candidate_different_descriptions_append_separately(tmp_path):
     error_a = _make_error(description="错误 A")
     error_b = _make_error(description="错误 B")
 
-    write_candidate_to_frontmatter(
-        f, error_a, node_id="节点/test_node.md", session_id="s-1"
-    )
-    write_candidate_to_frontmatter(
-        f, error_b, node_id="节点/test_node.md", session_id="s-1"
-    )
+    write_candidate_to_frontmatter(f, error_a, node_id="节点/test_node.md", session_id="s-1")
+    write_candidate_to_frontmatter(f, error_b, node_id="节点/test_node.md", session_id="s-1")
 
     text = f.read_text(encoding="utf-8")
     fm_dict = yaml.safe_load(text.split("---")[1])
@@ -266,9 +244,7 @@ async def test_dual_mode_default_is_candidate_only(tmp_path):
     f = _make_md_with_frontmatter(tmp_path)
     error = _make_error()
 
-    result = await write_error_dual(
-        f, error, node_id="节点/test_node.md", session_id="s-1"
-    )
+    result = await write_error_dual(f, error, node_id="节点/test_node.md", session_id="s-1")
 
     assert result["mode"] == "candidate_only"
     assert result["frontmatter"] is True
@@ -283,9 +259,7 @@ async def test_dual_mode_candidate_only_writes_candidates_not_errors(tmp_path):
     f = _make_md_with_frontmatter(tmp_path)
     error = _make_error()
 
-    await write_error_dual(
-        f, error, node_id="节点/test_node.md", session_id="s-1", mode="candidate_only"
-    )
+    await write_error_dual(f, error, node_id="节点/test_node.md", session_id="s-1", mode="candidate_only")
 
     text = f.read_text(encoding="utf-8")
     fm_dict = yaml.safe_load(text.split("---")[1])
@@ -321,9 +295,7 @@ async def test_dual_mode_write_confirmed_legacy_behavior(tmp_path):
     f = _make_md_with_frontmatter(tmp_path)
     error = _make_error()
 
-    with patch(
-        "app.services.error_writer.write_error_to_graphiti"
-    ) as mock_graphiti:
+    with patch("app.services.error_writer.write_error_to_graphiti") as mock_graphiti:
         # asyncio.create_task 内部调用 write_error_to_graphiti
         # 测试只验证 mode 路由正确, 不验证 fire-and-forget 实际触发
         result = await write_error_dual(
@@ -345,10 +317,7 @@ async def test_dual_mode_write_confirmed_legacy_behavior(tmp_path):
     assert "errors" in fm_dict
     assert len(fm_dict["errors"]) == 1
     # error_candidates[] 不应被写入
-    assert (
-        "error_candidates" not in fm_dict
-        or fm_dict.get("error_candidates") in (None, [])
-    )
+    assert "error_candidates" not in fm_dict or fm_dict.get("error_candidates") in (None, [])
 
 
 @pytest.mark.asyncio
@@ -357,9 +326,7 @@ async def test_dual_mode_write_confirmed_returns_error_id_not_candidate_id(tmp_p
     f = _make_md_with_frontmatter(tmp_path)
     error = _make_error()
 
-    result = await write_error_dual(
-        f, error, node_id="节点/test_node.md", session_id="s-1", mode="write_confirmed"
-    )
+    result = await write_error_dual(f, error, node_id="节点/test_node.md", session_id="s-1", mode="write_confirmed")
 
     assert "error_id" in result
     assert "candidate_id" not in result
@@ -372,9 +339,7 @@ async def test_dual_mode_candidate_only_returns_candidate_id_not_error_id(tmp_pa
     f = _make_md_with_frontmatter(tmp_path)
     error = _make_error()
 
-    result = await write_error_dual(
-        f, error, node_id="节点/test_node.md", session_id="s-1"
-    )
+    result = await write_error_dual(f, error, node_id="节点/test_node.md", session_id="s-1")
 
     assert "candidate_id" in result
     assert "error_id" not in result
@@ -412,9 +377,7 @@ def test_candidate_file_not_found_returns_false(tmp_path):
     f = tmp_path / "missing.md"  # 不创建
     error = _make_error()
 
-    ok, candidate_id = write_candidate_to_frontmatter(
-        f, error, node_id="节点/missing.md"
-    )
+    ok, candidate_id = write_candidate_to_frontmatter(f, error, node_id="节点/missing.md")
     assert ok is False
     assert candidate_id is None
 
@@ -435,9 +398,7 @@ def test_candidate_appends_to_existing_errors_array_independently(tmp_path):
     )
     error = _make_error()
 
-    ok, _ = write_candidate_to_frontmatter(
-        f, error, node_id="节点/node.md", session_id="s-1"
-    )
+    ok, _ = write_candidate_to_frontmatter(f, error, node_id="节点/node.md", session_id="s-1")
     assert ok is True
 
     text = f.read_text(encoding="utf-8")

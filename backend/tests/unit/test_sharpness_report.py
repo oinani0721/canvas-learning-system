@@ -38,12 +38,8 @@ async def test_sharpness_report_is_flat_when_scores_cluster():
     """Nearly identical scores -> is_flat=True, cut=max_k."""
     # All scores within epsilon=0.01 of each other -> flat
     state = create_initial_state(reranking_strategy="local")
-    state["fused_results"] = [_mk_result(f"d{i}", 0.5 + i * 0.001) for i in range(20)][
-        ::-1
-    ]  # descending
-    runtime = _make_runtime(
-        {"adaptive_k_buffer": 5, "adaptive_k_min": 3, "adaptive_k_max": 15}
-    )
+    state["fused_results"] = [_mk_result(f"d{i}", 0.5 + i * 0.001) for i in range(20)][::-1]  # descending
+    runtime = _make_runtime({"adaptive_k_buffer": 5, "adaptive_k_min": 3, "adaptive_k_max": 15})
 
     async def _fake_local(results, _state, _runtime):
         return results
@@ -65,12 +61,10 @@ async def test_sharpness_report_detects_cliff():
     # 3 high scores then a cliff then 5 low scores
     high_scores = [0.95, 0.90, 0.88]
     low_scores = [0.20, 0.18, 0.15, 0.10, 0.05]
-    state["fused_results"] = [
-        _mk_result(f"h{i}", s) for i, s in enumerate(high_scores)
-    ] + [_mk_result(f"l{i}", s) for i, s in enumerate(low_scores)]
-    runtime = _make_runtime(
-        {"adaptive_k_buffer": 2, "adaptive_k_min": 3, "adaptive_k_max": 15}
-    )
+    state["fused_results"] = [_mk_result(f"h{i}", s) for i, s in enumerate(high_scores)] + [
+        _mk_result(f"l{i}", s) for i, s in enumerate(low_scores)
+    ]
+    runtime = _make_runtime({"adaptive_k_buffer": 2, "adaptive_k_min": 3, "adaptive_k_max": 15})
 
     async def _fake_local(results, _state, _runtime):
         return results

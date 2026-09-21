@@ -24,9 +24,7 @@ try:
     FSRS_AVAILABLE = True
 except ImportError:
     FSRS_AVAILABLE = False
-    logger.warning(
-        "py-fsrs not installed. FSRS features will use fallback implementation."
-    )
+    logger.warning("py-fsrs not installed. FSRS features will use fallback implementation.")
 
     # Fallback implementations
     class Rating:
@@ -81,9 +79,7 @@ class CardState:
             stability=data.get("stability", 0.0),
             due=datetime.fromisoformat(data["due"]) if data.get("due") else None,
             state=data.get("state") or 1,  # legacy 0/缺失 → Learning (CARD-C3)
-            last_review=datetime.fromisoformat(data["last_review"])
-            if data.get("last_review")
-            else None,
+            last_review=datetime.fromisoformat(data["last_review"]) if data.get("last_review") else None,
             reps=data.get("reps", 0),
             lapses=data.get("lapses", 0),
             card_data=data.get("card_data"),
@@ -124,9 +120,7 @@ class FSRSManager:
         if FSRS_AVAILABLE:
             # ✅ Verified from Context7 - Initialize FSRS Scheduler
             self._scheduler = Scheduler(desired_retention=desired_retention)
-            logger.info(
-                f"Initialized FSRS scheduler with retention={desired_retention}"
-            )
+            logger.info(f"Initialized FSRS scheduler with retention={desired_retention}")
         else:
             logger.warning("FSRS not available, using fallback scheduler")
 
@@ -198,9 +192,7 @@ class FSRSManager:
         # Update difficulty based on rating
         old_difficulty = card.get("difficulty", 5.0)
         difficulty_change = {1: 0.5, 2: 0.25, 3: 0, 4: -0.25}
-        new_difficulty = max(
-            1, min(10, old_difficulty + difficulty_change.get(rating, 0))
-        )
+        new_difficulty = max(1, min(10, old_difficulty + difficulty_change.get(rating, 0)))
 
         # Update card state
         updated_card = {
@@ -340,17 +332,9 @@ class FSRSManager:
                 card.due = datetime.fromisoformat(card_dict["due"])
             # JSON null → None roundtrip (new-card semantics preserved)
             if "stability" in card_dict:
-                card.stability = (
-                    float(card_dict["stability"])
-                    if card_dict["stability"] is not None
-                    else None
-                )
+                card.stability = float(card_dict["stability"]) if card_dict["stability"] is not None else None
             if "difficulty" in card_dict:
-                card.difficulty = (
-                    float(card_dict["difficulty"])
-                    if card_dict["difficulty"] is not None
-                    else None
-                )
+                card.difficulty = float(card_dict["difficulty"]) if card_dict["difficulty"] is not None else None
             if "state" in card_dict:
                 raw_state = card_dict["state"]
                 if raw_state == 0:
@@ -363,11 +347,7 @@ class FSRSManager:
                         card.stability = None
                     if not card.difficulty:
                         card.difficulty = None
-                    if (
-                        card_dict.get("stability")
-                        or card_dict.get("reps")
-                        or card_dict.get("last_review")
-                    ):
+                    if card_dict.get("stability") or card_dict.get("reps") or card_dict.get("last_review"):
                         logger.warning(
                             "legacy state:0 record carries non-empty params "
                             "(stability=%s, reps=%s, last_review=%s) — mapped "

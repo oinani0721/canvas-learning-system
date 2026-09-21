@@ -60,9 +60,7 @@ class TestRealGetConcept:
             store = MasteryStore(client)
 
             # Seed a concept via save_concept
-            concept = ConceptState(
-                concept_id="c1", topic="Graphs", name="BFS", p_mastery=0.65
-            )
+            concept = ConceptState(concept_id="c1", topic="Graphs", name="BFS", p_mastery=0.65)
             await store.save_concept(concept, group_id=gid)
 
             # Read it back
@@ -161,9 +159,7 @@ class TestRealGetAllConcepts:
             store = MasteryStore(client)
 
             for name, p in [("BFS", 0.3), ("DFS", 0.7), ("A*", 0.5)]:
-                c = ConceptState(
-                    concept_id=name.lower(), topic="Search", name=name, p_mastery=p
-                )
+                c = ConceptState(concept_id=name.lower(), topic="Search", name=name, p_mastery=p)
                 await store.save_concept(c, group_id=gid)
 
             results = await store.get_all_concepts(group_id=gid)
@@ -223,9 +219,7 @@ class TestRealGetOrCreateConcept:
                 group_id=gid,
                 bkt_difficulty="hard",
             )
-            assert (
-                abs(result_hard.p_mastery - DEFAULT_BKT_PARAMS["hard"]["P_L0"]) < 0.01
-            )
+            assert abs(result_hard.p_mastery - DEFAULT_BKT_PARAMS["hard"]["P_L0"]) < 0.01
 
             # Verify both persisted in DB
             all_c = await store.get_all_concepts(group_id=gid)
@@ -258,9 +252,7 @@ class TestRealGetOrCreateConcept:
                 name="BFS",
                 group_id=gid,
             )
-            assert abs(result.p_mastery - 0.9) < 0.01, (
-                f"Existing p_mastery should be preserved, got {result.p_mastery}"
-            )
+            assert abs(result.p_mastery - 0.9) < 0.01, f"Existing p_mastery should be preserved, got {result.p_mastery}"
         finally:
             await _cleanup_group(client, gid)
             await client.cleanup()
@@ -282,9 +274,7 @@ class TestRealRecordEvents:
             store = MasteryStore(client)
 
             # Must create the concept first (MATCH requires existing node)
-            c = ConceptState(
-                concept_id="interact_c", topic="T", name="N", p_mastery=0.5
-            )
+            c = ConceptState(concept_id="interact_c", topic="T", name="N", p_mastery=0.5)
             await store.save_concept(c, group_id=gid)
 
             await store.record_interaction_event("interact_c", grade=3, group_id=gid)
@@ -310,9 +300,7 @@ class TestRealRecordEvents:
             await client.initialize()
             store = MasteryStore(client)
 
-            c = ConceptState(
-                concept_id="override_c", topic="T", name="N", p_mastery=0.5
-            )
+            c = ConceptState(concept_id="override_c", topic="T", name="N", p_mastery=0.5)
             await store.save_concept(c, group_id=gid)
 
             await store.record_override_event(
@@ -416,9 +404,7 @@ class TestRealGroupIdIsolation:
             store = MasteryStore(client)
 
             # Save concept in group A only
-            c = ConceptState(
-                concept_id="isolated_c", topic="T", name="N", p_mastery=0.5
-            )
+            c = ConceptState(concept_id="isolated_c", topic="T", name="N", p_mastery=0.5)
             await store.save_concept(c, group_id=gid_a)
 
             # Should be found in A

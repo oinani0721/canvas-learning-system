@@ -89,18 +89,14 @@ class TestMasteryLabelAndColor:
         assert engine.mastery_label(concept) == "Not Assessed"
 
     def test_label_mastered(self, engine):
-        assert (
-            engine.mastery_label(_concept(p_mastery=0.95, fluent_count=3)) == "Mastered"
-        )
+        assert engine.mastery_label(_concept(p_mastery=0.95, fluent_count=3)) == "Mastered"
 
     def test_color_not_assessed(self, engine):
         concept = ConceptState(concept_id="t", topic="t", name="t")
         assert engine.mastery_color(concept) == "#6c757d"
 
     def test_color_mastered(self, engine):
-        assert (
-            engine.mastery_color(_concept(p_mastery=0.95, fluent_count=3)) == "#198754"
-        )
+        assert engine.mastery_color(_concept(p_mastery=0.95, fluent_count=3)) == "#198754"
 
     def test_color_shaky(self, engine):
         assert engine.mastery_color(_concept(p_mastery=0.20)) == "#dc3545"

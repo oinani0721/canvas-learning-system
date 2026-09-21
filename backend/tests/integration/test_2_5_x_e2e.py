@@ -78,9 +78,7 @@ async def test_e2e_full_accept_flow(tmp_path):
     session_id = "s-2026-05-05-001"
 
     # Step 1: write candidate (candidate_only mode 默认)
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id=session_id
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id=session_id)
     assert result1["mode"] == "candidate_only"
     assert result1["frontmatter"] is True
     assert result1["graphiti"] == "skipped_candidate_mode"
@@ -101,9 +99,7 @@ async def test_e2e_full_accept_flow(tmp_path):
         "app.services.candidate_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ):
-        result2 = await accept_candidate(
-            f, candidate_id=candidate_id, session_id=session_id
-        )
+        result2 = await accept_candidate(f, candidate_id=candidate_id, session_id=session_id)
 
     assert result2.status == "accepted"
     assert result2.error_id == candidate_id  # 复用 id
@@ -134,9 +130,7 @@ async def test_e2e_accept_with_edits(tmp_path):
     f = _make_test_node(tmp_path)
     error = _make_classified_error()
 
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     candidate_id = result1["candidate_id"]
 
     with patch(
@@ -171,9 +165,7 @@ async def test_e2e_dismiss_path_no_errors_written(tmp_path):
     f = _make_test_node(tmp_path)
     error = _make_classified_error()
 
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     candidate_id = result1["candidate_id"]
 
     result2 = await dismiss_candidate(f, candidate_id=candidate_id)
@@ -196,14 +188,10 @@ async def test_e2e_dispute_path_writes_reason(tmp_path):
     f = _make_test_node(tmp_path)
     error = _make_classified_error()
 
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     candidate_id = result1["candidate_id"]
 
-    result2 = await dispute_candidate(
-        f, candidate_id=candidate_id, dispute_reason="我不是说它们等价，只是问关系"
-    )
+    result2 = await dispute_candidate(f, candidate_id=candidate_id, dispute_reason="我不是说它们等价，只是问关系")
     assert result2.status == "disputed"
     assert result2.dispute_reason == "我不是说它们等价，只是问关系"
 
@@ -226,17 +214,11 @@ async def test_e2e_session_id_accumulates_across_sessions(tmp_path):
     error = _make_classified_error()
 
     # session 1
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     # session 2 (同错误)
-    result2 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-2"
-    )
+    result2 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-2")
     # session 3 (同错误)
-    result3 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-3"
-    )
+    result3 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-3")
 
     # 同一 candidate (dedupe hash 不含 session_id)
     assert result1["candidate_id"] == result2["candidate_id"] == result3["candidate_id"]
@@ -260,9 +242,7 @@ async def test_e2e_expired_old_pending_after_30_days(tmp_path):
     error = _make_classified_error()
 
     # 写候选 (默认 created_at = 当前)
-    await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
 
     # 模拟 31 天后跑 cron (now 设为 future)
     fm = yaml.safe_load(f.read_text().split("---")[1])
@@ -275,9 +255,7 @@ async def test_e2e_expired_old_pending_after_30_days(tmp_path):
 
     future_now = created_dt + _timedelta(days=31)
 
-    stats = await expire_pending_candidates(
-        tmp_path, expiry_days=30, now=future_now
-    )
+    stats = await expire_pending_candidates(tmp_path, expiry_days=30, now=future_now)
 
     assert stats.total_expired == 1
 
@@ -299,9 +277,7 @@ async def test_e2e_rebuild_graphiti_from_accepted_errors(tmp_path):
     error = _make_classified_error()
 
     # write candidate + accept
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     with patch(
         "app.services.candidate_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
@@ -313,9 +289,7 @@ async def test_e2e_rebuild_graphiti_from_accepted_errors(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ) as mock_g:
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=False
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=False)
 
     assert stats.total_files_scanned == 1
     assert stats.total_errors_scanned == 1
@@ -330,9 +304,7 @@ async def test_e2e_rebuild_graphiti_dry_run_no_writes(tmp_path):
     f = _make_test_node(tmp_path)
     error = _make_classified_error()
 
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     with patch(
         "app.services.candidate_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
@@ -343,9 +315,7 @@ async def test_e2e_rebuild_graphiti_dry_run_no_writes(tmp_path):
         "app.services.error_rebuild_service.write_error_to_graphiti",
         new=AsyncMock(return_value=True),
     ) as mock_g:
-        stats = await rebuild_graphiti_from_frontmatter(
-            tmp_path, group_id="vault:cs_61b", dry_run=True
-        )
+        stats = await rebuild_graphiti_from_frontmatter(tmp_path, group_id="vault:cs_61b", dry_run=True)
 
     assert stats.total_errors_scanned == 1
     assert stats.newly_written == 0  # dry_run
@@ -365,9 +335,7 @@ async def test_e2e_double_accept_rejected_idempotency(tmp_path):
     f = _make_test_node(tmp_path)
     error = _make_classified_error()
 
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     candidate_id = result1["candidate_id"]
 
     with patch(
@@ -389,9 +357,7 @@ async def test_e2e_dismiss_then_accept_rejected(tmp_path):
     f = _make_test_node(tmp_path)
     error = _make_classified_error()
 
-    result1 = await write_error_dual(
-        f, error, node_id="节点/admissibility.md", session_id="s-1"
-    )
+    result1 = await write_error_dual(f, error, node_id="节点/admissibility.md", session_id="s-1")
     candidate_id = result1["candidate_id"]
 
     await dismiss_candidate(f, candidate_id=candidate_id)

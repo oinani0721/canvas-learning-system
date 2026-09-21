@@ -528,9 +528,7 @@ class TestAgentMemoryMappingCompleteness:
             "question-decomposition",
         ]
         for agent in decomp_agents:
-            assert (
-                AGENT_MEMORY_MAPPING[agent] == AgentMemoryType.DECOMPOSITION_COMPLETED
-            )
+            assert AGENT_MEMORY_MAPPING[agent] == AgentMemoryType.DECOMPOSITION_COMPLETED
 
     def test_p1_explanation_agents_map_to_explanation_generated(self):
         """[P1] All explanation agents must map to EXPLANATION_GENERATED."""
@@ -576,9 +574,7 @@ class TestHealthStatusDegradation:
     async def test_p1_json_fallback_mode_still_ok(self):
         """[P1] When Neo4j mode=JSON_FALLBACK -> graphiti status ok, backend=json_fallback."""
         # Given
-        neo4j = _build_mock_neo4j(
-            mode="JSON_FALLBACK", initialized=True, health_status=False
-        )
+        neo4j = _build_mock_neo4j(mode="JSON_FALLBACK", initialized=True, health_status=False)
         svc = await _create_memory_service(neo4j=neo4j)
 
         # When
@@ -726,12 +722,8 @@ class TestNeo4jWriteLatencyMetrics:
                 pass
 
         # Then — should contain latency warning
-        warning_msgs = [
-            r.message for r in caplog.records if r.levelno >= logging.WARNING
-        ]
-        assert any("200ms" in msg for msg in warning_msgs), (
-            f"Expected >200ms latency warning. Got: {warning_msgs}"
-        )
+        warning_msgs = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+        assert any("200ms" in msg for msg in warning_msgs), f"Expected >200ms latency warning. Got: {warning_msgs}"
 
 
 # ===========================================================================

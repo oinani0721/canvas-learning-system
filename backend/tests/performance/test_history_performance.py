@@ -32,9 +32,7 @@ def _build_card_states(count: int, canvas_prefix: str = "perf") -> Dict[str, Any
         review_date = _FIXED_DATE - timedelta(days=i % 30)
         key = f"{canvas_prefix}.canvas:concept_{i}"
         states[key] = {
-            "last_review": datetime(
-                review_date.year, review_date.month, review_date.day, 10, 0, 0
-            ).isoformat(),
+            "last_review": datetime(review_date.year, review_date.month, review_date.day, 10, 0, 0).isoformat(),
             "rating": (i % 4) + 1,
         }
     return states
@@ -66,9 +64,7 @@ async def _benchmark_get_history(count: int, iterations: int = 20) -> Dict[str, 
     service = _make_service(card_states)
 
     # Patch datetime.now() in service to match _FIXED_DATE so records fall in range
-    _fixed_now = datetime(
-        _FIXED_DATE.year, _FIXED_DATE.month, _FIXED_DATE.day, 23, 59, 0
-    )
+    _fixed_now = datetime(_FIXED_DATE.year, _FIXED_DATE.month, _FIXED_DATE.day, 23, 59, 0)
 
     timings = []
     with patch("app.services.review_service.datetime") as mock_dt:
@@ -115,9 +111,7 @@ class TestHistoryPerformanceBenchmarks:
     @pytest.fixture(autouse=True)
     def _patch_service_datetime(self):
         """Patch datetime.now() in review_service to match _FIXED_DATE."""
-        _fixed_now = datetime(
-            _FIXED_DATE.year, _FIXED_DATE.month, _FIXED_DATE.day, 23, 59, 0
-        )
+        _fixed_now = datetime(_FIXED_DATE.year, _FIXED_DATE.month, _FIXED_DATE.day, 23, 59, 0)
         with patch("app.services.review_service.datetime") as mock_dt:
             mock_dt.now.return_value = _fixed_now
             mock_dt.fromisoformat = datetime.fromisoformat
@@ -128,39 +122,27 @@ class TestHistoryPerformanceBenchmarks:
         result = await _benchmark_get_history(100, iterations=20)
 
         print(f"\n--- 100 records ---")
-        print(
-            f"  Mean: {result['mean_ms']:.2f}ms  P50: {result['p50_ms']:.2f}ms  P95: {result['p95_ms']:.2f}ms"
-        )
+        print(f"  Mean: {result['mean_ms']:.2f}ms  P50: {result['p50_ms']:.2f}ms  P95: {result['p95_ms']:.2f}ms")
 
-        assert result["p95_ms"] < 50, (
-            f"100 records P95={result['p95_ms']:.2f}ms exceeds 50ms"
-        )
+        assert result["p95_ms"] < 50, f"100 records P95={result['p95_ms']:.2f}ms exceeds 50ms"
 
     async def test_500_records_performance(self):
         """Benchmark: 500 records P95 < 100ms."""
         result = await _benchmark_get_history(500, iterations=20)
 
         print(f"\n--- 500 records ---")
-        print(
-            f"  Mean: {result['mean_ms']:.2f}ms  P50: {result['p50_ms']:.2f}ms  P95: {result['p95_ms']:.2f}ms"
-        )
+        print(f"  Mean: {result['mean_ms']:.2f}ms  P50: {result['p50_ms']:.2f}ms  P95: {result['p95_ms']:.2f}ms")
 
-        assert result["p95_ms"] < 100, (
-            f"500 records P95={result['p95_ms']:.2f}ms exceeds 100ms"
-        )
+        assert result["p95_ms"] < 100, f"500 records P95={result['p95_ms']:.2f}ms exceeds 100ms"
 
     async def test_1000_records_performance(self):
         """Benchmark: 1000 records (MAX_HISTORY_RECORDS) P95 < 200ms."""
         result = await _benchmark_get_history(1000, iterations=20)
 
         print(f"\n--- 1000 records ---")
-        print(
-            f"  Mean: {result['mean_ms']:.2f}ms  P50: {result['p50_ms']:.2f}ms  P95: {result['p95_ms']:.2f}ms"
-        )
+        print(f"  Mean: {result['mean_ms']:.2f}ms  P50: {result['p50_ms']:.2f}ms  P95: {result['p95_ms']:.2f}ms")
 
-        assert result["p95_ms"] < 200, (
-            f"1000 records P95={result['p95_ms']:.2f}ms exceeds 200ms"
-        )
+        assert result["p95_ms"] < 200, f"1000 records P95={result['p95_ms']:.2f}ms exceeds 200ms"
 
     async def test_scaling_is_subquadratic(self):
         """Verify doubling records doesn't quadruple time (O(n log n) expected)."""
@@ -170,9 +152,7 @@ class TestHistoryPerformanceBenchmarks:
         ratio = result_1000["mean_ms"] / max(result_500["mean_ms"], 0.001)
 
         print(f"\n--- Scaling ---")
-        print(
-            f"  500: {result_500['mean_ms']:.2f}ms  1000: {result_1000['mean_ms']:.2f}ms  ratio: {ratio:.2f}"
-        )
+        print(f"  500: {result_500['mean_ms']:.2f}ms  1000: {result_1000['mean_ms']:.2f}ms  ratio: {ratio:.2f}")
 
         assert ratio < 4.0, f"Scaling ratio {ratio:.2f} worse than O(n log n)"
 
@@ -183,9 +163,7 @@ class TestHistoryPerformanceBenchmarks:
             canvas = f"canvas_{i % 10}"
             review_date = _FIXED_DATE - timedelta(days=i % 30)
             states[f"{canvas}.canvas:concept_{i}"] = {
-                "last_review": datetime(
-                    review_date.year, review_date.month, review_date.day, 10, 0, 0
-                ).isoformat(),
+                "last_review": datetime(review_date.year, review_date.month, review_date.day, 10, 0, 0).isoformat(),
                 "rating": (i % 4) + 1,
             }
 
@@ -196,9 +174,7 @@ class TestHistoryPerformanceBenchmarks:
         unfiltered_ms = (time.perf_counter() - start) * 1000
 
         start = time.perf_counter()
-        await service.get_history(
-            days=30, canvas_path="canvas_0", limit=MAX_HISTORY_RECORDS
-        )
+        await service.get_history(days=30, canvas_path="canvas_0", limit=MAX_HISTORY_RECORDS)
         filtered_ms = (time.perf_counter() - start) * 1000
 
         print(f"\n--- Filter ---")

@@ -102,9 +102,7 @@ class TestMemoryApiE2E:
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
-    async def test_memory_api_full_cycle(
-        self, e2e_client: AsyncClient, test_episode_data
-    ):
+    async def test_memory_api_full_cycle(self, e2e_client: AsyncClient, test_episode_data):
         """
         端到端测试: 写入 → 读取 完整周期。
 
@@ -113,9 +111,7 @@ class TestMemoryApiE2E:
         [Source: docs/stories/31.A.5.story.md#AC-31.A.5.4]
         """
         # 1. 写入学习事件
-        write_response = await e2e_client.post(
-            "/api/v1/memory/episodes", json=test_episode_data
-        )
+        write_response = await e2e_client.post("/api/v1/memory/episodes", json=test_episode_data)
 
         # 验证写入响应
         assert write_response.status_code == 201, (
@@ -149,26 +145,18 @@ class TestMemoryApiE2E:
         items = read_data["items"]
         assert len(items) > 0, "Should have at least one learning event"
 
-        found_concept = any(
-            item.get("concept") == test_episode_data["concept"] for item in items
-        )
-        assert found_concept, (
-            f"Concept '{test_episode_data['concept']}' not found in response"
-        )
+        found_concept = any(item.get("concept") == test_episode_data["concept"] for item in items)
+        assert found_concept, f"Concept '{test_episode_data['concept']}' not found in response"
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
-    async def test_create_episode_returns_201(
-        self, e2e_client: AsyncClient, test_episode_data
-    ):
+    async def test_create_episode_returns_201(self, e2e_client: AsyncClient, test_episode_data):
         """
         验证 POST /episodes 返回 201 Created。
 
         [Source: docs/stories/31.A.5.story.md#8.1-SDD规范参考]
         """
-        response = await e2e_client.post(
-            "/api/v1/memory/episodes", json=test_episode_data
-        )
+        response = await e2e_client.post("/api/v1/memory/episodes", json=test_episode_data)
 
         assert response.status_code == 201
         data = response.json()
@@ -178,17 +166,13 @@ class TestMemoryApiE2E:
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
-    async def test_get_episodes_returns_200(
-        self, e2e_client: AsyncClient, unique_user_id
-    ):
+    async def test_get_episodes_returns_200(self, e2e_client: AsyncClient, unique_user_id):
         """
         验证 GET /episodes 返回 200 OK。
 
         [Source: docs/stories/31.A.5.story.md#8.1-SDD规范参考]
         """
-        response = await e2e_client.get(
-            "/api/v1/memory/episodes", params={"user_id": unique_user_id}
-        )
+        response = await e2e_client.get("/api/v1/memory/episodes", params={"user_id": unique_user_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -198,9 +182,7 @@ class TestMemoryApiE2E:
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
-    async def test_create_episode_with_all_required_fields(
-        self, e2e_client: AsyncClient, unique_user_id
-    ):
+    async def test_create_episode_with_all_required_fields(self, e2e_client: AsyncClient, unique_user_id):
         """
         验证必填字段验证。
 
@@ -241,18 +223,14 @@ class TestMemoryApiE2E:
             "agent_type": "scoring",
         }
 
-        response = await e2e_client.post(
-            "/api/v1/memory/episodes", json=incomplete_data
-        )
+        response = await e2e_client.post("/api/v1/memory/episodes", json=incomplete_data)
 
         # FastAPI validation returns 422
         assert response.status_code == 422
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
-    async def test_get_episodes_with_subject_filter(
-        self, e2e_client: AsyncClient, unique_user_id
-    ):
+    async def test_get_episodes_with_subject_filter(self, e2e_client: AsyncClient, unique_user_id):
         """
         验证 subject 查询参数过滤。
 
@@ -291,9 +269,7 @@ class TestMemoryApiE2E:
 
     @pytest.mark.e2e
     @pytest.mark.asyncio
-    async def test_get_episodes_pagination(
-        self, e2e_client: AsyncClient, unique_user_id
-    ):
+    async def test_get_episodes_pagination(self, e2e_client: AsyncClient, unique_user_id):
         """
         验证分页功能。
 
@@ -394,9 +370,7 @@ class TestMemoryApiDataPersistence:
         # POST 返回 201 时数据已持久化，无需 sleep
 
         # 第二个请求: 读取
-        response = await e2e_client.get(
-            "/api/v1/memory/episodes", params={"user_id": user_id}
-        )
+        response = await e2e_client.get("/api/v1/memory/episodes", params={"user_id": user_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -430,18 +404,12 @@ class TestMemoryApiDataPersistence:
             assert response.status_code == 201
 
         # 查询所有事件
-        response = await e2e_client.get(
-            "/api/v1/memory/episodes", params={"user_id": user_id}
-        )
+        response = await e2e_client.get("/api/v1/memory/episodes", params={"user_id": user_id})
 
         assert response.status_code == 200
         data = response.json()
 
         # 验证所有概念都存在
-        found_concepts = {
-            item.get("concept") for item in data["items"] if item.get("concept")
-        }
+        found_concepts = {item.get("concept") for item in data["items"] if item.get("concept")}
         for concept in concepts:
-            assert concept in found_concepts, (
-                f"Concept '{concept}' should be in response"
-            )
+            assert concept in found_concepts, f"Concept '{concept}' should be in response"

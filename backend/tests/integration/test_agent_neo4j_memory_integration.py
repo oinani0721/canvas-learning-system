@@ -76,9 +76,7 @@ class TestDependencyInjectionChain:
     """
 
     @pytest.mark.asyncio
-    async def test_get_agent_service_injects_neo4j_client(
-        self, mock_settings, mock_canvas_service, mock_neo4j_client
-    ):
+    async def test_get_agent_service_injects_neo4j_client(self, mock_settings, mock_canvas_service, mock_neo4j_client):
         """
         Test that get_agent_service correctly injects Neo4jClient.
 
@@ -131,9 +129,7 @@ class TestEndToEndAgentCall:
         service = AgentService(gemini_client=None, neo4j_client=mock_neo4j_client)
 
         # Call _get_learning_memories directly
-        result = await service._get_learning_memories(
-            content="测试概念查询", canvas_name="测试Canvas"
-        )
+        result = await service._get_learning_memories(content="测试概念查询", canvas_name="测试Canvas")
 
         # Verify Neo4j was queried
         mock_neo4j_client.run_query.assert_called_once()
@@ -176,9 +172,7 @@ class TestContextEnrichmentIntegration:
     """
 
     @pytest.mark.asyncio
-    async def test_neo4j_memories_combined_with_context_enrichment(
-        self, mock_neo4j_client
-    ):
+    async def test_neo4j_memories_combined_with_context_enrichment(self, mock_neo4j_client):
         """
         Test that Neo4j memories can be combined with other context sources.
 
@@ -273,12 +267,8 @@ class TestFallbackIntegration:
         """
         # Mock memory_client for fallback
         mock_memory_client = MagicMock()
-        mock_memory_client.search_memories = AsyncMock(
-            return_value=[{"concept": "Fallback Concept"}]
-        )
-        mock_memory_client.format_for_context = MagicMock(
-            return_value="## Fallback Context"
-        )
+        mock_memory_client.search_memories = AsyncMock(return_value=[{"concept": "Fallback Concept"}])
+        mock_memory_client.format_for_context = MagicMock(return_value="## Fallback Context")
 
         # Mock Neo4j client in fallback mode
         mock_neo4j = MagicMock()

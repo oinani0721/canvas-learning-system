@@ -808,8 +808,7 @@ class Neo4jClient:
         scope = params.get("group_id")
         if not scope:
             logger.error(
-                "[G4-1a] JSON fallback review query without scope — refusing "
-                "cross-vault full scan (user_id=%s)",
+                "[G4-1a] JSON fallback review query without scope — refusing cross-vault full scan (user_id=%s)",
                 user_id,
             )
             return []
@@ -839,8 +838,7 @@ class Neo4jClient:
                             (
                                 c
                                 for c in self._data["concepts"]
-                                if c["name"] == rel["concept_name"]
-                                and group_in_read_scope(c.get("group_id"), scope)
+                                if c["name"] == rel["concept_name"] and group_in_read_scope(c.get("group_id"), scope)
                             ),
                             {
                                 "id": rel.get("concept_id", ""),
@@ -986,9 +984,7 @@ class Neo4jClient:
                     # `group_in_read_scope` 判定都是 False (无归属不属于任何可见面),
                     # 那些 episode 永久不可见, 且 `_episodes_recovered=True` 不会重恢复。
                     # 与镜像逐字同型 (含 agent_type), 输出 D16 冒号格式 (R5 还原)。
-                    "group_id": desanitize_group_id_from_graphiti(
-                        rel.get("group_id") or ""
-                    ),
+                    "group_id": desanitize_group_id_from_graphiti(rel.get("group_id") or ""),
                     "agent_type": rel.get("agent_type"),
                     "review_count": rel.get("review_count", 0),
                 }
@@ -1139,9 +1135,7 @@ class Neo4jClient:
 
         # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式
         # (read_scope_params 内部即 to_physical_group_id)
-        scope_params = read_scope_params(
-            group_id, context="neo4j_client.get_review_suggestions"
-        )
+        scope_params = read_scope_params(group_id, context="neo4j_client.get_review_suggestions")
         query = f"""
         MATCH (u:User {{id: $userId}})-[r:LEARNED]->(c:Concept)
         WHERE r.next_review < datetime()
@@ -1212,9 +1206,7 @@ class Neo4jClient:
         """
         from app.core.vault_scope import read_group_filter, read_scope_params
 
-        scope_params = read_scope_params(
-            group_id, context="neo4j_client.get_concept_history"
-        )
+        scope_params = read_scope_params(group_id, context="neo4j_client.get_concept_history")
         params: Dict[str, Any] = {
             "conceptId": concept_id,
             "limit": limit,
@@ -1251,9 +1243,7 @@ class Neo4jClient:
 
         for record in results or []:
             if isinstance(record, dict) and record.get("group_id"):
-                record["group_id"] = desanitize_group_id_from_graphiti(
-                    record["group_id"]
-                )
+                record["group_id"] = desanitize_group_id_from_graphiti(record["group_id"])
         # 独立审计 HIGH: temporal → ISO 串, 否则响应模型校验失败 → 端点 500
         return _iso_timestamps(results or [])[:limit]
 
@@ -1323,9 +1313,7 @@ class Neo4jClient:
         from app.core.vault_scope import read_group_filter, read_scope_params
 
         query += f" AND {read_group_filter('r')} AND {read_group_filter('c')}"
-        params.update(
-            read_scope_params(group_id, context="neo4j_client.get_learning_history")
-        )
+        params.update(read_scope_params(group_id, context="neo4j_client.get_learning_history"))
 
         query += """
         RETURN c.name as concept,
@@ -1370,9 +1358,7 @@ class Neo4jClient:
         from app.core.vault_scope import group_in_read_scope, require_read_group
 
         # 与 Cypher 路径同一个解析链 (Codex round-1 B-2): 降级模式也 fail-closed。
-        scope = require_read_group(
-            group_id, context="neo4j_client._get_learning_history_json"
-        )
+        scope = require_read_group(group_id, context="neo4j_client._get_learning_history_json")
         results = []
 
         for rel in self._data.get("relationships", []):
@@ -1647,15 +1633,11 @@ class Neo4jClient:
             # Codex round-2: 降级路径同样按 scope 过滤 —— 否则"把 Neo4j 弄挂"
             # 就能绕过封堵。其余 JSON 镜像 (canvas associations / concepts) 仍
             # 移交 CARD-G4-1b: 它们背后的 Cypher 读方法本卡也没封, 两侧同批改。
-            return await self._get_score_history_json_fallback(
-                concept_id, canvas_name, limit, group_id=group_id
-            )
+            return await self._get_score_history_json_fallback(concept_id, canvas_name, limit, group_id=group_id)
 
         from app.core.vault_scope import read_group_filter, read_scope_params
 
-        scope_params = read_scope_params(
-            group_id, context="neo4j_client.get_concept_score_history"
-        )
+        scope_params = read_scope_params(group_id, context="neo4j_client.get_concept_score_history")
 
         query = f"""
         MATCH (n:Node {{id: $conceptId}})<-[cn:CONTAINS_NODE]-(c:Canvas {{path: $canvasPath}})
@@ -1711,9 +1693,7 @@ class Neo4jClient:
         """
         from app.core.vault_scope import group_in_read_scope, require_read_group
 
-        scope = require_read_group(
-            group_id, context="neo4j_client._get_score_history_json_fallback"
-        )
+        scope = require_read_group(group_id, context="neo4j_client._get_score_history_json_fallback")
         results = []
 
         # Check in-memory relationships for matching concept
@@ -2146,14 +2126,10 @@ class Neo4jClient:
         """
         from app.core.vault_scope import read_group_filter, read_scope_params
 
-        scope_params = read_scope_params(
-            group_id, context="neo4j_client.get_canvas_associations"
-        )
+        scope_params = read_scope_params(group_id, context="neo4j_client.get_canvas_associations")
 
         if self._use_json_fallback:
-            return await self._get_associations_json_fallback(
-                canvas_path, association_type, limit, group_id=group_id
-            )
+            return await self._get_associations_json_fallback(canvas_path, association_type, limit, group_id=group_id)
 
         params: Dict[str, Any] = {"limit": limit, **scope_params}
         conditions = [
@@ -2224,9 +2200,7 @@ class Neo4jClient:
         """
         from app.core.vault_scope import group_in_read_scope, require_read_group
 
-        scope = require_read_group(
-            group_id, context="neo4j_client._get_associations_json_fallback"
-        )
+        scope = require_read_group(group_id, context="neo4j_client._get_associations_json_fallback")
         associations = self._data.get("canvas_associations", [])
         results = []
 
@@ -2457,9 +2431,7 @@ class Neo4jClient:
         logger.warning(f"Canvas association not found (JSON): {association_id}")
         return False
 
-    async def load_all_canvas_associations(
-        self, group_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def load_all_canvas_associations(self, group_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Load all canvas associations at startup.
 
@@ -2488,9 +2460,7 @@ class Neo4jClient:
     # [Source: docs/stories/36.6.story.md]
     # =========================================================================
 
-    async def get_canvas_concepts(
-        self, canvas_path: str, group_id: Optional[str] = None
-    ) -> List[str]:
+    async def get_canvas_concepts(self, canvas_path: str, group_id: Optional[str] = None) -> List[str]:
         """
         Get all concepts associated with a Canvas.
 
@@ -2528,14 +2498,10 @@ class Neo4jClient:
         """
         from app.core.vault_scope import read_group_filter, read_scope_params
 
-        scope_params = read_scope_params(
-            group_id, context="neo4j_client.get_canvas_concepts"
-        )
+        scope_params = read_scope_params(group_id, context="neo4j_client.get_canvas_concepts")
 
         if self._use_json_fallback:
-            return await self._get_canvas_concepts_json_fallback(
-                canvas_path, group_id=group_id
-            )
+            return await self._get_canvas_concepts_json_fallback(canvas_path, group_id=group_id)
 
         query = f"""
         MATCH (c:Canvas {{path: $canvasPath}})-[cn:CONTAINS_NODE]->(n:Node)
@@ -2555,9 +2521,7 @@ class Neo4jClient:
 
         return [r["concept_name"] for r in results if r.get("concept_name")]
 
-    async def _get_canvas_concepts_json_fallback(
-        self, canvas_path: str, group_id: Optional[str] = None
-    ) -> List[str]:
+    async def _get_canvas_concepts_json_fallback(self, canvas_path: str, group_id: Optional[str] = None) -> List[str]:
         """
         Get canvas concepts from JSON fallback storage.
 
@@ -2603,9 +2567,7 @@ class Neo4jClient:
         """
         from app.core.vault_scope import group_in_read_scope, require_read_group
 
-        scope = require_read_group(
-            group_id, context="neo4j_client._get_canvas_concepts_json_fallback"
-        )
+        scope = require_read_group(group_id, context="neo4j_client._get_canvas_concepts_json_fallback")
         concepts = set()
 
         # Check relationships for concepts linked to this canvas
@@ -2625,9 +2587,7 @@ class Neo4jClient:
 
         return list(concepts)
 
-    async def find_common_concepts(
-        self, canvas1: str, canvas2: str, group_id: Optional[str] = None
-    ) -> List[str]:
+    async def find_common_concepts(self, canvas1: str, canvas2: str, group_id: Optional[str] = None) -> List[str]:
         """
         Find common concepts between two Canvases.
 
@@ -2654,14 +2614,10 @@ class Neo4jClient:
         """
         from app.core.vault_scope import read_group_filter, read_scope_params
 
-        scope_params = read_scope_params(
-            group_id, context="neo4j_client.find_common_concepts"
-        )
+        scope_params = read_scope_params(group_id, context="neo4j_client.find_common_concepts")
 
         if self._use_json_fallback:
-            return await self._find_common_concepts_json_fallback(
-                canvas1, canvas2, group_id=group_id
-            )
+            return await self._find_common_concepts_json_fallback(canvas1, canvas2, group_id=group_id)
 
         query = f"""
         MATCH (c1:Canvas {{path: $canvas1}})-[cn1:CONTAINS_NODE]->(n1:Node)
@@ -2678,9 +2634,7 @@ class Neo4jClient:
         WITH concepts1, COLLECT(DISTINCT n2.text) as concepts2
         RETURN [c IN concepts1 WHERE c IN concepts2] as common_concepts
         """
-        results = await self.run_query(
-            query, canvas1=canvas1, canvas2=canvas2, **scope_params
-        )
+        results = await self.run_query(query, canvas1=canvas1, canvas2=canvas2, **scope_params)
 
         if results and results[0].get("common_concepts"):
             return results[0]["common_concepts"]
@@ -2711,18 +2665,12 @@ class Neo4jClient:
 
         [Source: docs/stories/36.6.story.md#Task-2.2]
         """
-        concepts1 = set(
-            await self._get_canvas_concepts_json_fallback(canvas1, group_id=group_id)
-        )
-        concepts2 = set(
-            await self._get_canvas_concepts_json_fallback(canvas2, group_id=group_id)
-        )
+        concepts1 = set(await self._get_canvas_concepts_json_fallback(canvas1, group_id=group_id))
+        concepts2 = set(await self._get_canvas_concepts_json_fallback(canvas2, group_id=group_id))
 
         return list(concepts1.intersection(concepts2))
 
-    async def get_all_recent_episodes(
-        self, limit: int = 1000, group_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    async def get_all_recent_episodes(self, limit: int = 1000, group_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get all recent learning episodes across all users.
 
@@ -2768,9 +2716,7 @@ class Neo4jClient:
         """
         from app.core.vault_scope import read_group_filter, read_scope_params
 
-        scope_params = read_scope_params(
-            group_id, context="neo4j_client.get_all_recent_episodes"
-        )
+        scope_params = read_scope_params(group_id, context="neo4j_client.get_all_recent_episodes")
 
         if self._use_json_fallback:
             return await self._get_all_recent_episodes_json(limit, group_id=group_id)
@@ -2826,9 +2772,7 @@ class Neo4jClient:
         """
         from app.core.vault_scope import group_in_read_scope, require_read_group
 
-        scope = require_read_group(
-            group_id, context="neo4j_client._get_all_recent_episodes_json"
-        )
+        scope = require_read_group(group_id, context="neo4j_client._get_all_recent_episodes_json")
         rels = self._data.get("relationships", [])
         results = []
         for rel in rels:

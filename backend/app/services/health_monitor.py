@@ -71,10 +71,7 @@ class PipelineHealthMonitor:
 
         async with self._refresh_lock:
             # Double-check after acquiring lock
-            if (
-                self._cache
-                and (time.monotonic() - self._cache_time) < _CACHE_TTL_SECONDS
-            ):
+            if self._cache and (time.monotonic() - self._cache_time) < _CACHE_TTL_SECONDS:
                 return self._cache
 
             status = await self._collect_metrics()
@@ -129,9 +126,7 @@ class PipelineHealthMonitor:
         unhealthy = [m for m in metrics if m.status != "healthy"]
         if unhealthy:
             names = ", ".join(f"{m.name}({m.status})" for m in unhealthy)
-            logger.warning(
-                f"[Story 7.4] Pipeline health: {overall} — unhealthy: {names}"
-            )
+            logger.warning(f"[Story 7.4] Pipeline health: {overall} — unhealthy: {names}")
 
         from datetime import datetime, timezone
 
@@ -173,20 +168,14 @@ class PipelineHealthMonitor:
 
             alive = sum(1 for v in channel_statuses.values() if v)
             total = len(channel_statuses)
-            status = (
-                "healthy"
-                if alive == total
-                else ("warning" if alive >= 4 else "critical")
-            )
+            status = "healthy" if alive == total else ("warning" if alive >= 4 else "critical")
 
             return HealthMetric(
                 name="search_channels",
                 status=status,
                 value=f"{alive}/{total}",
                 threshold="6/6 channels alive",
-                message=None
-                if status == "healthy"
-                else f"Only {alive}/{total} channels alive",
+                message=None if status == "healthy" else f"Only {alive}/{total} channels alive",
             )
         except Exception:
             return HealthMetric(
@@ -310,9 +299,7 @@ class PipelineHealthMonitor:
                 status=status,
                 value="active" if reranker_active else "pass-through",
                 threshold="Reranker reorders results",
-                message=None
-                if reranker_active
-                else "Reranker is not reordering (pass-through)",
+                message=None if reranker_active else "Reranker is not reordering (pass-through)",
             )
         except Exception:
             return HealthMetric(
@@ -398,18 +385,14 @@ class PipelineHealthMonitor:
                 )
 
             avg = faith_stats["total_score"] / faith_stats["count"]
-            status = (
-                "healthy" if avg >= 0.85 else ("warning" if avg >= 0.70 else "critical")
-            )
+            status = "healthy" if avg >= 0.85 else ("warning" if avg >= 0.70 else "critical")
 
             return HealthMetric(
                 name="faithfulness_score",
                 status=status,
                 value=f"{avg:.3f}",
                 threshold=">= 0.85",
-                message=None
-                if avg >= 0.85
-                else f"Average faithfulness {avg:.3f} below 0.85",
+                message=None if avg >= 0.85 else f"Average faithfulness {avg:.3f} below 0.85",
             )
         except Exception:
             return HealthMetric(
@@ -443,11 +426,7 @@ class PipelineHealthMonitor:
                 )
 
             rate = stats.match_rate
-            status = (
-                "healthy"
-                if rate >= 0.70
-                else ("warning" if rate >= 0.50 else "critical")
-            )
+            status = "healthy" if rate >= 0.70 else ("warning" if rate >= 0.50 else "critical")
 
             return HealthMetric(
                 name="difficulty_match_rate",

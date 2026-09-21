@@ -18,9 +18,7 @@ from app.services.intelligent_grouping_service import (
 class TestEstimatedDuration:
     """Tests for estimated duration calculation - AC-33.4.4."""
 
-    def test_calculate_estimated_duration_minutes(
-        self, service: IntelligentGroupingService
-    ):
+    def test_calculate_estimated_duration_minutes(self, service: IntelligentGroupingService):
         """Test duration calculation for small node counts."""
         result = service._calculate_estimated_duration(6)
         assert result == "1分钟"
@@ -31,9 +29,7 @@ class TestEstimatedDuration:
         result = service._calculate_estimated_duration(30)
         assert result == "5分钟"
 
-    def test_calculate_estimated_duration_hours(
-        self, service: IntelligentGroupingService
-    ):
+    def test_calculate_estimated_duration_hours(self, service: IntelligentGroupingService):
         """Test duration calculation for large node counts."""
         result = service._calculate_estimated_duration(360)
         assert result == "1小时"
@@ -41,9 +37,7 @@ class TestEstimatedDuration:
         result = service._calculate_estimated_duration(420)
         assert result == "1小时10分钟"
 
-    def test_calculate_estimated_duration_minimum(
-        self, service: IntelligentGroupingService
-    ):
+    def test_calculate_estimated_duration_minimum(self, service: IntelligentGroupingService):
         """Test minimum duration is 1 minute."""
         result = service._calculate_estimated_duration(1)
         assert result == "1分钟"
@@ -116,9 +110,7 @@ class TestAgentRecommendation:
 class TestClusterMapping:
     """Tests for mapping clusters to NodeGroup schema."""
 
-    def test_map_clusters_to_groups(
-        self, service: IntelligentGroupingService, mock_clustering_result: Dict
-    ):
+    def test_map_clusters_to_groups(self, service: IntelligentGroupingService, mock_clustering_result: Dict):
         """Test cluster to NodeGroup mapping."""
         clusters = mock_clustering_result["clusters"]
         groups = service._map_clusters_to_groups(clusters)

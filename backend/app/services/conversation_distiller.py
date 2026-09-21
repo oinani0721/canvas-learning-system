@@ -66,9 +66,7 @@ class DistillationResult(BaseModel):
     tips: List[ExtractedTip] = Field(default_factory=list)
     errors: List[ExtractedError] = Field(default_factory=list)
     qa_highlights: List[ExtractedQA] = Field(default_factory=list)
-    distilled_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    distilled_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -150,24 +148,18 @@ class ConversationDistiller:
                 injection_check.matched_patterns,
                 node_id,
             )
-            return DistillationResult(
-                summary=f"Conversation with {len(messages)} messages (input safety check failed)"
-            )
+            return DistillationResult(summary=f"Conversation with {len(messages)} messages (input safety check failed)")
 
         # Truncate to avoid token limits (keep last ~8000 chars)
         if len(conversation_text) > 8000:
-            conversation_text = (
-                "...(earlier messages truncated)...\n\n" + conversation_text[-8000:]
-            )
+            conversation_text = "...(earlier messages truncated)...\n\n" + conversation_text[-8000:]
 
         try:
             return await self._llm_distill(conversation_text)
         except Exception as e:
             logger.warning(f"[Story 3.8] Distillation failed: {e}")
             # Return empty result on failure (non-blocking)
-            return DistillationResult(
-                summary=f"Conversation with {len(messages)} messages (distillation failed)"
-            )
+            return DistillationResult(summary=f"Conversation with {len(messages)} messages (distillation failed)")
 
     async def distill_and_persist(
         self,
@@ -217,17 +209,11 @@ class ConversationDistiller:
         # Tier 1: Ollama Qwen3 local (free, Chinese-native, no encoding issues)
         # Tier 2: CLIProxyAPI Claude Haiku (subscription, English-only due to encoding bug)
         # Tier 3: Configured LiteLLM provider (API key fallback)
-        ollama_base = os.environ.get(
-            "OLLAMA_API_BASE", "http://canvas-learning-system-ollama:11434"
-        )
+        ollama_base = os.environ.get("OLLAMA_API_BASE", "http://canvas-learning-system-ollama:11434")
         ollama_model = os.environ.get("DISTILL_OLLAMA_MODEL", "ollama/qwen3:8b")
-        cli_proxy_base = os.environ.get(
-            "CLI_PROXY_API_BASE", "http://cli-proxy-api:8317/v1"
-        )
+        cli_proxy_base = os.environ.get("CLI_PROXY_API_BASE", "http://cli-proxy-api:8317/v1")
         cli_proxy_key = os.environ.get("CLI_PROXY_API_KEY", "dummy")
-        cli_proxy_model = os.environ.get(
-            "CLI_PROXY_MODEL", "openai/claude-haiku-4-5-20251001"
-        )
+        cli_proxy_model = os.environ.get("CLI_PROXY_MODEL", "openai/claude-haiku-4-5-20251001")
 
         prompt = DISTILLATION_PROMPT.format(conversation_text=conversation_text)
         response = None
@@ -237,12 +223,8 @@ class ConversationDistiller:
         # =local 时蒸馏与 Graphiti 语义抽取共用同一运行时, 归档链全本地。
         # 失败静默降级到原有 Tier1-3 (Iron Rule 5: Tier2 cli-proxy 保持休眠)。
         if (os.environ.get("GRAPHITI_LLM_PROVIDER") or "").strip().lower() == "local":
-            local_base = os.environ.get(
-                "GRAPHITI_LLM_BASE_URL", "http://host.docker.internal:12341/v1"
-            )
-            local_model = (
-                os.environ.get("GRAPHITI_LLM_MODEL") or "qwen3.5-35b-a3b-q4_k_s"
-            )
+            local_base = os.environ.get("GRAPHITI_LLM_BASE_URL", "http://host.docker.internal:12341/v1")
+            local_model = os.environ.get("GRAPHITI_LLM_MODEL") or "qwen3.5-35b-a3b-q4_k_s"
             try:
                 response = await litellm.acompletion(
                     model=f"openai/{local_model}",
@@ -301,9 +283,7 @@ class ConversationDistiller:
 
                     # Tier 3: Configured LiteLLM provider (requires API key)
                     runtime_cfg = get_runtime_model_config()
-                    api_key = (
-                        runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
-                    )
+                    api_key = runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
                     provider = settings.AI_PROVIDER
                     model_name = settings.AI_MODEL_NAME
                     model = format_litellm_model(provider, model_name)
@@ -437,9 +417,7 @@ class ConversationDistiller:
                             context="(extracted from conversation distillation)",
                         )
                         if node_path is None:
-                            logger.warning(
-                                f"[P14a] 节点 md 不存在, 蒸馏候选无处落: node={node_id}"
-                            )
+                            logger.warning(f"[P14a] 节点 md 不存在, 蒸馏候选无处落: node={node_id}")
                             continue
                         dual = await write_error_dual(
                             file_path=node_path,
@@ -462,9 +440,7 @@ class ConversationDistiller:
                                 },
                             )
                     except Exception as e:
-                        logger.warning(
-                            f"[Story 3.8] Error classification failed during distillation: {e}"
-                        )
+                        logger.warning(f"[Story 3.8] Error classification failed during distillation: {e}")
 
             # Persist Q&A highlights
             for qa in result.qa_highlights:

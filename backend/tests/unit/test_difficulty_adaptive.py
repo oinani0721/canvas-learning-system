@@ -183,9 +183,7 @@ class TestDifficultyResult:
             average_score=72.5,
             sample_size=5,
             question_type=QuestionType.VERIFICATION,
-            forgetting_status=ForgettingStatus(
-                needs_review=False, decay_percentage=5.0
-            ),
+            forgetting_status=ForgettingStatus(needs_review=False, decay_percentage=5.0),
             is_mastered=False,
         )
 
@@ -309,9 +307,7 @@ class TestIntegration:
             ([85, 90, 88], DifficultyLevel.HARD, QuestionType.APPLICATION),
         ],
     )
-    def test_question_type_matches_difficulty(
-        self, scores, expected_level, expected_type
-    ):
+    def test_question_type_matches_difficulty(self, scores, expected_level, expected_type):
         """Test that question type always matches difficulty level."""
         result = calculate_full_difficulty_result(scores)
         assert result.level == expected_level

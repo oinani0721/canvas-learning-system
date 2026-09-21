@@ -23,6 +23,7 @@ from app.services.memory_service import MemoryService
 # Helpers: mock SearchResults + edges/nodes
 # ══════════════════════════════════════════════════════════════════════
 
+
 def _make_mock_edge(uuid: str, fact: str, name: str, created_at=None):
     """Build a mock EntityEdge-like object."""
     edge = MagicMock()
@@ -44,8 +45,10 @@ def _make_mock_node(uuid: str, name: str, summary: str = "", created_at=None):
 
 
 def _make_search_results(
-    edges=None, edge_scores=None,
-    nodes=None, node_scores=None,
+    edges=None,
+    edge_scores=None,
+    nodes=None,
+    node_scores=None,
 ):
     """Build a mock SearchResults Pydantic model."""
     sr = MagicMock()
@@ -75,6 +78,7 @@ def _make_service() -> MemoryService:
 # (a) _search_graphiti calls search_() and parses SearchResults
 # ══════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_search_graphiti_parses_edges_and_nodes():
     """search_() results parsed into dicts with reranker scores as relevance_score."""
@@ -88,8 +92,10 @@ async def test_search_graphiti_parses_edges_and_nodes():
         _make_mock_node("n1", "node_X", summary="summary X"),
     ]
     search_results = _make_search_results(
-        edges=edges, edge_scores=[0.95, 0.70],
-        nodes=nodes, node_scores=[0.88],
+        edges=edges,
+        edge_scores=[0.95, 0.70],
+        nodes=nodes,
+        node_scores=[0.88],
     )
 
     mock_graphiti = MagicMock()
@@ -172,6 +178,7 @@ async def test_search_graphiti_timeout_degrades():
 # (b) 5 search config recipes are mapped correctly
 # ══════════════════════════════════════════════════════════════════════
 
+
 def test_search_recipes_all_5_mapped():
     """All 5 recipe names resolve to distinct SearchConfig objects."""
     recipes = MemoryService._get_search_recipes()
@@ -211,9 +218,7 @@ async def test_search_graphiti_passes_config_to_search_():
     mock_worker._graphiti = mock_graphiti
 
     with patch("app.services.memory_service.get_episode_worker", return_value=mock_worker):
-        await svc._search_graphiti(
-            "test", limit=15, search_config="edge_rrf"
-        )
+        await svc._search_graphiti("test", limit=15, search_config="edge_rrf")
 
     call_kwargs = mock_graphiti.search_.call_args[1]
     assert call_kwargs["query"] == "test"
@@ -243,6 +248,7 @@ async def test_search_graphiti_unknown_config_falls_back():
 # ══════════════════════════════════════════════════════════════════════
 # (c) _compute_unified_score for each tier
 # ══════════════════════════════════════════════════════════════════════
+
 
 def test_unified_score_tier1_uses_reranker():
     """Tier 1 (graphiti): uses relevance_score directly."""
@@ -280,6 +286,7 @@ def test_unified_score_tier3_fixed():
 # (d) FSRS R-value injection with mock MasteryEngine
 # ══════════════════════════════════════════════════════════════════════
 
+
 def test_fsrs_injection_boosts_low_r():
     """Low R-value concept gets up to 50% score boost."""
     svc = _make_service()
@@ -300,9 +307,7 @@ def test_fsrs_injection_boosts_low_r():
     }
     # Calculus: low R (about to forget) → big boost
     # Algebra: high R (fresh) → small boost
-    mock_engine.get_retrievability.side_effect = lambda c: (
-        0.2 if c is mock_concept_calculus else 0.9
-    )
+    mock_engine.get_retrievability.side_effect = lambda c: 0.2 if c is mock_concept_calculus else 0.9
 
     with patch("app.services.mastery_engine.get_mastery_engine", return_value=mock_engine):
         svc._inject_fsrs_r_values(results)
@@ -365,6 +370,7 @@ def test_fsrs_injection_no_name_or_concept():
 # (e) search_memories returns results sorted by relevance_score
 # ══════════════════════════════════════════════════════════════════════
 
+
 @pytest.mark.asyncio
 async def test_search_memories_sorted_by_relevance():
     """Results from all 3 tiers are sorted by relevance_score descending."""
@@ -416,9 +422,11 @@ async def test_search_memories_sorted_by_relevance():
         }
     ]
 
-    with patch.object(svc, "_search_graphiti", new_callable=AsyncMock, return_value=tier1_results), \
-         patch.object(svc, "_search_neo4j_fulltext", new_callable=AsyncMock, return_value=tier2_results), \
-         patch.object(svc, "_inject_fsrs_r_values"):  # skip FSRS for this test
+    with (
+        patch.object(svc, "_search_graphiti", new_callable=AsyncMock, return_value=tier1_results),
+        patch.object(svc, "_search_neo4j_fulltext", new_callable=AsyncMock, return_value=tier2_results),
+        patch.object(svc, "_inject_fsrs_r_values"),
+    ):  # skip FSRS for this test
         results = await svc.search_memories("python")
 
     assert len(results) == 3
@@ -439,13 +447,13 @@ async def test_search_memories_passes_search_config():
     svc = _make_service()
     svc._episodes = []
 
-    with patch.object(svc, "_search_graphiti", new_callable=AsyncMock, return_value=[]) as mock_sg, \
-         patch.object(svc, "_search_neo4j_fulltext", new_callable=AsyncMock, return_value=[]), \
-         patch.object(svc, "_inject_fsrs_r_values"):
+    with (
+        patch.object(svc, "_search_graphiti", new_callable=AsyncMock, return_value=[]) as mock_sg,
+        patch.object(svc, "_search_neo4j_fulltext", new_callable=AsyncMock, return_value=[]),
+        patch.object(svc, "_inject_fsrs_r_values"),
+    ):
         mock_filter = MagicMock()
-        await svc.search_memories(
-            "test", search_config="edge_cross_encoder", search_filter=mock_filter
-        )
+        await svc.search_memories("test", search_config="edge_cross_encoder", search_filter=mock_filter)
 
     mock_sg.assert_called_once()
     call_kwargs = mock_sg.call_args[1]
@@ -459,9 +467,11 @@ async def test_search_memories_backward_compat():
     svc = _make_service()
     svc._episodes = []
 
-    with patch.object(svc, "_search_graphiti", new_callable=AsyncMock, return_value=[]), \
-         patch.object(svc, "_search_neo4j_fulltext", new_callable=AsyncMock, return_value=[]), \
-         patch.object(svc, "_inject_fsrs_r_values"):
+    with (
+        patch.object(svc, "_search_graphiti", new_callable=AsyncMock, return_value=[]),
+        patch.object(svc, "_search_neo4j_fulltext", new_callable=AsyncMock, return_value=[]),
+        patch.object(svc, "_inject_fsrs_r_values"),
+    ):
         results = await svc.search_memories("test query", group_id="g1", max_results=10)
 
     assert isinstance(results, list)
@@ -470,6 +480,7 @@ async def test_search_memories_backward_compat():
 # ══════════════════════════════════════════════════════════════════════
 # (f) SearchFilters passthrough
 # ══════════════════════════════════════════════════════════════════════
+
 
 @pytest.mark.asyncio
 async def test_search_filter_passed_to_search_():

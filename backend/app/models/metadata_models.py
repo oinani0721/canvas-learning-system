@@ -89,9 +89,7 @@ class CanvasIndexStatusResponse(BaseModel):
     canvas_path: str = Field(..., description="Canvas file path")
     indexed: bool = Field(..., description="Whether the Canvas is indexed")
     node_count: int = Field(default=0, description="Number of indexed nodes", ge=0)
-    last_indexed: Optional[datetime] = Field(
-        default=None, description="Last indexing timestamp"
-    )
+    last_indexed: Optional[datetime] = Field(default=None, description="Last indexing timestamp")
     subject: Optional[str] = Field(default=None, description="Subject used during indexing")
     table_name: str = Field(default="canvas_nodes", description="LanceDB table name")
 
@@ -121,9 +119,7 @@ class CanvasIndexRequest(BaseModel):
     canvas_path: str = Field(..., description="Canvas file path")
     subject: Optional[str] = Field(default=None, description="Override subject (optional)")
     category: Optional[str] = Field(default=None, description="Override category (optional)")
-    force: bool = Field(
-        default=False, description="Force re-index even if already indexed"
-    )
+    force: bool = Field(default=False, description="Force re-index even if already indexed")
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     # LanceDB index 此前无 vault 隔离 → 5 vault 共存 时索引串库.
     vault_id: Optional[str] = Field(
@@ -135,9 +131,7 @@ class CanvasIndexRequest(BaseModel):
         ),
         examples=["cs_61b", "数学"],
     )
-    subject_id: Optional[str] = Field(
-        default=None, description="可选 vault 内学科二级 namespace."
-    )
+    subject_id: Optional[str] = Field(default=None, description="可选 vault 内学科二级 namespace.")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -165,12 +159,8 @@ class CanvasIndexResponse(BaseModel):
     subject: str = Field(..., description="Subject used for indexing")
     category: str = Field(..., description="Category used for indexing")
     group_id: str = Field(..., description="Group ID used for indexing")
-    duration_ms: float = Field(
-        default=0.0, description="Indexing duration in milliseconds", ge=0
-    )
-    message: Optional[str] = Field(
-        default=None, description="Additional message or error details"
-    )
+    duration_ms: float = Field(default=0.0, description="Indexing duration in milliseconds", ge=0)
+    message: Optional[str] = Field(default=None, description="Additional message or error details")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -200,9 +190,7 @@ class SubjectMappingRule(BaseModel):
     Maps a folder pattern to subject and category.
     """
 
-    pattern: str = Field(
-        ..., description="Folder pattern (glob-style, e.g., 'Math 54/**')"
-    )
+    pattern: str = Field(..., description="Folder pattern (glob-style, e.g., 'Math 54/**')")
     subject: str = Field(..., description="Subject identifier")
     category: str = Field(..., description="Category identifier")
 
@@ -225,14 +213,10 @@ class CategoryRule(BaseModel):
     """
 
     category: str = Field(..., description="Category identifier")
-    patterns: List[str] = Field(
-        ..., description="List of patterns that map to this category"
-    )
+    patterns: List[str] = Field(..., description="List of patterns that map to this category")
 
     model_config = ConfigDict(
-        json_schema_extra={
-            "example": {"category": "math", "patterns": ["math*", "数学*", "线性代数*"]}
-        }
+        json_schema_extra={"example": {"category": "math", "patterns": ["math*", "数学*", "线性代数*"]}}
     )
 
 
@@ -320,9 +304,7 @@ class BatchIndexRequest(BaseModel):
         min_length=1,
         max_length=50,
     )
-    force: bool = Field(
-        default=False, description="Force re-index even if already indexed"
-    )
+    force: bool = Field(default=False, description="Force re-index even if already indexed")
     # Wave-5 Stage B (2026-05-12) — Multi-vault P0-2.
     vault_id: Optional[str] = Field(
         default=None,
@@ -339,16 +321,10 @@ class BatchIndexResponse(BaseModel):
     """
 
     total: int = Field(..., description="Total Canvas files requested")
-    success_count: int = Field(
-        default=0, description="Number of successfully indexed files"
-    )
+    success_count: int = Field(default=0, description="Number of successfully indexed files")
     failed_count: int = Field(default=0, description="Number of failed files")
-    results: List[CanvasIndexResponse] = Field(
-        default_factory=list, description="Individual results for each Canvas"
-    )
-    total_duration_ms: float = Field(
-        default=0.0, description="Total operation duration in milliseconds"
-    )
+    results: List[CanvasIndexResponse] = Field(default_factory=list, description="Individual results for each Canvas")
+    total_duration_ms: float = Field(default=0.0, description="Total operation duration in milliseconds")
 
 
 # =============================================================================

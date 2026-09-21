@@ -150,9 +150,7 @@ async def expire_pending_candidates(
             except Exception as e:
                 failed += 1
                 failures.append(ExpireFailure(file=str(f), reason=f"parse: {e}"))
-                logger.warning(
-                    "candidate_expiry.parse_failed", file=str(f), error=str(e)
-                )
+                logger.warning("candidate_expiry.parse_failed", file=str(f), error=str(e))
                 continue
 
             candidates = fm_dict.get("error_candidates") or []
@@ -200,17 +198,11 @@ async def expire_pending_candidates(
             if file_expired_count > 0:
                 try:
                     fm_dict["error_candidates"] = candidates
-                    await asyncio.to_thread(
-                        _atomic_write_frontmatter, f, fm_dict, body
-                    )
+                    await asyncio.to_thread(_atomic_write_frontmatter, f, fm_dict, body)
                 except Exception as e:
                     failed += 1
-                    failures.append(
-                        ExpireFailure(file=str(f), reason=f"write: {e}")
-                    )
-                    logger.warning(
-                        "candidate_expiry.write_failed", file=str(f), error=str(e)
-                    )
+                    failures.append(ExpireFailure(file=str(f), reason=f"write: {e}"))
+                    logger.warning("candidate_expiry.write_failed", file=str(f), error=str(e))
 
     elapsed_ms = (_time.monotonic() - start) * 1000.0
     logger.info(

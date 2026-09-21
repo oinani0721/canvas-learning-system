@@ -128,9 +128,7 @@ async def upload_file(
             description=description,
         )
 
-        logger.info(
-            f"File uploaded: {result.content.id} by concept {related_concept_id}"
-        )
+        logger.info(f"File uploaded: {result.content.id} by concept {related_concept_id}")
 
         return result
 
@@ -213,9 +211,7 @@ async def upload_from_url(
 async def list_content(
     service: MultimodalServiceDep,
     concept_id: Optional[str] = Query(None, description="Filter by concept ID"),
-    media_type: Optional[MultimodalMediaType] = Query(
-        None, description="Filter by media type"
-    ),
+    media_type: Optional[MultimodalMediaType] = Query(None, description="Filter by media type"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum items to return"),
 ) -> MultimodalListResponse:
     """
@@ -261,18 +257,10 @@ async def list_multimodal(
     service: MultimodalServiceDep,
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    media_type: Optional[MultimodalMediaType] = Query(
-        None, description="Filter by media type"
-    ),
-    sort_by: str = Query(
-        "created_at", pattern="^(created_at|updated_at)$", description="Sort field"
-    ),
-    sort_order: str = Query(
-        "desc", pattern="^(asc|desc)$", description="Sort direction"
-    ),
-    include_thumbnail: bool = Query(
-        False, description="Include base64 encoded thumbnails"
-    ),
+    media_type: Optional[MultimodalMediaType] = Query(None, description="Filter by media type"),
+    sort_by: str = Query("created_at", pattern="^(created_at|updated_at)$", description="Sort field"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort direction"),
+    include_thumbnail: bool = Query(False, description="Include base64 encoded thumbnails"),
 ) -> MultimodalPaginatedListResponse:
     """
     List all multimodal content with pagination.
@@ -315,9 +303,7 @@ async def list_multimodal(
 async def search_multimodal(
     service: MultimodalServiceDep,
     request: MultimodalSearchRequest,
-    include_thumbnail: bool = Query(
-        False, description="Include base64 encoded thumbnails"
-    ),
+    include_thumbnail: bool = Query(False, description="Include base64 encoded thumbnails"),
 ) -> MultimodalSearchResponse:
     """
     Search multimodal content using vector similarity.
@@ -359,13 +345,9 @@ async def search_multimodal(
 async def get_by_concept(
     service: MultimodalServiceDep,
     concept_id: str = Path(..., description="Canvas concept node ID"),
-    media_type: Optional[MultimodalMediaType] = Query(
-        None, description="Filter by media type"
-    ),
+    media_type: Optional[MultimodalMediaType] = Query(None, description="Filter by media type"),
     limit: int = Query(100, ge=1, le=200, description="Maximum items to return"),
-    include_thumbnail: bool = Query(
-        False, description="Include base64 encoded thumbnails"
-    ),
+    include_thumbnail: bool = Query(False, description="Include base64 encoded thumbnails"),
 ) -> MultimodalByConceptResponse:
     """
     Get all multimodal content associated with a concept.

@@ -20,9 +20,7 @@ class TestReviewServiceDICompleteness:
         from app.services.review_service import get_review_service
 
         source = inspect.getsource(get_review_service)
-        assert "graphiti_client" in source, (
-            "Canonical get_review_service() does not mention graphiti_client"
-        )
+        assert "graphiti_client" in source, "Canonical get_review_service() does not mention graphiti_client"
         assert "graphiti_client=graphiti_client" in source, (
             "Canonical get_review_service() does not pass graphiti_client= to ReviewService()"
         )

@@ -125,9 +125,7 @@ async def test_idempotent_neo4j_persistence(neo4j_client, memory_svc, uid):
             agent_type="test_agent",
             score=80,
         )
-        assert episode_id_1 == expected_id, (
-            f"First episode_id mismatch: {episode_id_1} != {expected_id}"
-        )
+        assert episode_id_1 == expected_id, f"First episode_id mismatch: {episode_id_1} != {expected_id}"
 
         # --- Second write (score=90, same event identity) ---
         episode_id_2 = await memory_svc.record_learning_event(
@@ -138,23 +136,18 @@ async def test_idempotent_neo4j_persistence(neo4j_client, memory_svc, uid):
             agent_type="test_agent",
             score=90,
         )
-        assert episode_id_2 == expected_id, (
-            f"Second episode_id mismatch: {episode_id_2} != {expected_id}"
-        )
+        assert episode_id_2 == expected_id, f"Second episode_id mismatch: {episode_id_2} != {expected_id}"
         assert episode_id_1 == episode_id_2, "Deterministic IDs must be identical"
 
         # --- Cypher verification: only 1 LEARNED relationship ---
         results = await neo4j_client.run_query(
-            "MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept {name: $concept}) "
-            "RETURN count(r) as cnt",
+            "MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept {name: $concept}) RETURN count(r) as cnt",
             userId=uid,
             concept=concept,
         )
         assert len(results) == 1, f"Expected 1 result row, got {len(results)}"
         count = results[0]["cnt"]
-        assert count == 1, (
-            f"MERGE should produce exactly 1 LEARNED relationship, got {count}"
-        )
+        assert count == 1, f"MERGE should produce exactly 1 LEARNED relationship, got {count}"
     finally:
         # --- Cleanup (always runs, even on assertion failure) ---
         await neo4j_client.run_query(
@@ -216,9 +209,7 @@ async def test_idempotent_batch_persistence(neo4j_client, memory_svc, uid):
         )
         assert len(results) == 1
         count = results[0]["cnt"]
-        assert count == 5, (
-            f"Expected 5 unique LEARNED relationships after 8 writes, got {count}"
-        )
+        assert count == 5, f"Expected 5 unique LEARNED relationships after 8 writes, got {count}"
     finally:
         # Cleanup (always runs, even on assertion failure)
         await neo4j_client.run_query(
@@ -288,9 +279,7 @@ async def test_real_batch_50_benchmark(neo4j_client, memory_svc, uid):
         }
 
         # Write benchmark report
-        report_dir = (
-            Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
-        )
+        report_dir = Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
         report_dir.mkdir(parents=True, exist_ok=True)
 
         # JSON report
@@ -332,8 +321,7 @@ async def test_real_batch_50_benchmark(neo4j_client, memory_svc, uid):
             userId=uid,
         )
         await neo4j_client.run_query(
-            "MATCH (c:Concept) WHERE c.name STARTS WITH 'test_BenchConcept_' "
-            "DETACH DELETE c",
+            "MATCH (c:Concept) WHERE c.name STARTS WITH 'test_BenchConcept_' DETACH DELETE c",
         )
 
 
@@ -379,9 +367,7 @@ async def test_real_single_write_latency(neo4j_client, memory_svc, uid):
         print(f"{'=' * 60}\n")
 
         # Append to benchmark report
-        report_dir = (
-            Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
-        )
+        report_dir = Path(__file__).resolve().parents[3] / "_bmad-output" / "test-artifacts"
         report_dir.mkdir(parents=True, exist_ok=True)
         latency_report = {
             "env": "Real Neo4j",
@@ -405,8 +391,7 @@ async def test_real_single_write_latency(neo4j_client, memory_svc, uid):
             userId=uid,
         )
         await neo4j_client.run_query(
-            "MATCH (c:Concept) WHERE c.name STARTS WITH 'test_LatencyConcept_' "
-            "DETACH DELETE c",
+            "MATCH (c:Concept) WHERE c.name STARTS WITH 'test_LatencyConcept_' DETACH DELETE c",
         )
 
 
@@ -440,9 +425,7 @@ async def test_json_fallback_data_persistence(tmp_path):
     await client.initialize()
 
     # Verify auto-degradation happened
-    assert client.is_fallback_mode is True, (
-        "Client should have auto-degraded to JSON fallback after connection failure"
-    )
+    assert client.is_fallback_mode is True, "Client should have auto-degraded to JSON fallback after connection failure"
 
     # Create MemoryService with fallback client
     service = MemoryService(neo4j_client=client)
@@ -461,9 +444,7 @@ async def test_json_fallback_data_persistence(tmp_path):
     )
 
     # Verify episode_id is deterministic
-    expected_id = _generate_deterministic_episode_id(
-        user_id, "test/fallback/math.canvas", "test_fb_node_001", concept
-    )
+    expected_id = _generate_deterministic_episode_id(user_id, "test/fallback/math.canvas", "test_fb_node_001", concept)
     assert episode_id == expected_id
 
     # Verify JSON file contains the data
@@ -474,14 +455,9 @@ async def test_json_fallback_data_persistence(tmp_path):
 
     # The JSON fallback stores relationships with concept_name field
     relationships = data.get("relationships", [])
-    matching = [
-        r
-        for r in relationships
-        if r.get("concept_name") == concept and r.get("user_id") == user_id
-    ]
+    matching = [r for r in relationships if r.get("concept_name") == concept and r.get("user_id") == user_id]
     assert len(matching) >= 1, (
-        f"Expected at least 1 relationship for {concept}, "
-        f"found {len(matching)} in {len(relationships)} total"
+        f"Expected at least 1 relationship for {concept}, found {len(matching)} in {len(relationships)} total"
     )
 
     # Cleanup
@@ -514,13 +490,10 @@ async def test_json_fallback_warning_log(tmp_path, caplog):
         await client.initialize()
 
     # Verify WARNING log contains "Falling back" or "fallback"
-    warning_messages = [
-        r.message for r in caplog.records if r.levelno >= logging.WARNING
-    ]
-    assert any(
-        "falling back" in msg.lower() or "fallback" in msg.lower()
-        for msg in warning_messages
-    ), f"Expected WARNING with 'falling back' or 'fallback', got: {warning_messages}"
+    warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any("falling back" in msg.lower() or "fallback" in msg.lower() for msg in warning_messages), (
+        f"Expected WARNING with 'falling back' or 'fallback', got: {warning_messages}"
+    )
 
     # Verify client auto-degraded to fallback mode
     assert client.is_fallback_mode is True
@@ -572,17 +545,12 @@ async def test_json_fallback_event_queryable(tmp_path):
     # Verify the event is queryable
     items = history.get("items", []) if isinstance(history, dict) else []
     # Also check in-memory episodes as fallback
-    memory_episodes = [
-        ep
-        for ep in service._episodes
-        if ep.get("user_id") == user_id and ep.get("concept") == concept
-    ]
+    memory_episodes = [ep for ep in service._episodes if ep.get("user_id") == user_id and ep.get("concept") == concept]
 
     # At least one source should have the data
     has_data = len(items) > 0 or len(memory_episodes) > 0
     assert has_data, (
-        f"Data not queryable after fallback write. "
-        f"History items: {len(items)}, Memory episodes: {len(memory_episodes)}"
+        f"Data not queryable after fallback write. History items: {len(items)}, Memory episodes: {len(memory_episodes)}"
     )
 
     # Cleanup
@@ -616,8 +584,7 @@ def test_integration_marker_configured():
 
     markers_raw = config.get("pytest", "markers", fallback="")
     assert "integration" in markers_raw, (
-        f"'integration' marker not found in pytest.ini markers section. "
-        f"Found: {markers_raw}"
+        f"'integration' marker not found in pytest.ini markers section. Found: {markers_raw}"
     )
 
     # Verify this file has @pytest.mark.integration tests that would be filtered
@@ -636,6 +603,5 @@ def test_integration_marker_configured():
         )
     ]
     assert len(integration_funcs) >= 4, (
-        f"Expected at least 4 @pytest.mark.integration tests, "
-        f"found {len(integration_funcs)}: {integration_funcs}"
+        f"Expected at least 4 @pytest.mark.integration tests, found {len(integration_funcs)}: {integration_funcs}"
     )

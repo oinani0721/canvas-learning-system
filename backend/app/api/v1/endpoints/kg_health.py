@@ -48,15 +48,11 @@ async def kg_health_check(
                 node_record = await node_result.single()
                 total_nodes = node_record["cnt"] if node_record else 0
 
-                rel_result = await session.run(
-                    "MATCH ()-[r]->() RETURN count(r) AS cnt"
-                )
+                rel_result = await session.run("MATCH ()-[r]->() RETURN count(r) AS cnt")
                 rel_record = await rel_result.single()
                 total_rels = rel_record["cnt"] if rel_record else 0
 
-                orphan_result = await session.run(
-                    "MATCH (n) WHERE NOT (n)--() RETURN n.name AS name LIMIT 20"
-                )
+                orphan_result = await session.run("MATCH (n) WHERE NOT (n)--() RETURN n.name AS name LIMIT 20")
                 orphan_records = [r["name"] async for r in orphan_result if r["name"]]
 
                 report = KGHealthResponse(

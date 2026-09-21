@@ -69,9 +69,7 @@ async def cleanup_test_nodes(neo4j_client):
     """Cleanup test nodes after each test."""
     yield
     try:
-        await neo4j_client.run_query(
-            "MATCH (n) WHERE n.id STARTS WITH 'gap-test-' DETACH DELETE n"
-        )
+        await neo4j_client.run_query("MATCH (n) WHERE n.id STARTS WITH 'gap-test-' DETACH DELETE n")
     except Exception:
         pass
 
@@ -155,9 +153,7 @@ class TestAddEdgeRelationshipRealNeo4j:
     """
 
     @pytest.mark.asyncio
-    async def test_merge_creates_relationship(
-        self, graphiti_client, neo4j_client, cleanup_test_nodes
-    ):
+    async def test_merge_creates_relationship(self, graphiti_client, neo4j_client, cleanup_test_nodes):
         """Verify MERGE Cypher actually creates a relationship in Neo4j."""
         from app.clients.graphiti_client_base import EdgeRelationship
 
@@ -175,9 +171,7 @@ class TestAddEdgeRelationshipRealNeo4j:
 
         # Verify in Neo4j
         query_result = await neo4j_client.run_query(
-            "MATCH ()-[r:CONNECTS_TO]->() "
-            "WHERE r.edge_id = $edge_id "
-            "RETURN r.edge_id as eid, r.label as label",
+            "MATCH ()-[r:CONNECTS_TO]->() WHERE r.edge_id = $edge_id RETURN r.edge_id as eid, r.label as label",
             edge_id="gap-test-edge-001",
         )
 
@@ -185,9 +179,7 @@ class TestAddEdgeRelationshipRealNeo4j:
         assert query_result[0]["eid"] == "gap-test-edge-001"
 
     @pytest.mark.asyncio
-    async def test_merge_idempotent(
-        self, graphiti_client, neo4j_client, cleanup_test_nodes
-    ):
+    async def test_merge_idempotent(self, graphiti_client, neo4j_client, cleanup_test_nodes):
         """Verify MERGE is idempotent — same edge twice doesn't duplicate."""
         from app.clients.graphiti_client_base import EdgeRelationship
 
@@ -205,18 +197,14 @@ class TestAddEdgeRelationshipRealNeo4j:
 
         # Should still be exactly 1 relationship
         query_result = await neo4j_client.run_query(
-            "MATCH ()-[r:CONNECTS_TO]->() "
-            "WHERE r.edge_id = $edge_id "
-            "RETURN count(r) as cnt",
+            "MATCH ()-[r:CONNECTS_TO]->() WHERE r.edge_id = $edge_id RETURN count(r) as cnt",
             edge_id="gap-test-edge-idem",
         )
 
         assert query_result[0]["cnt"] == 1
 
     @pytest.mark.asyncio
-    async def test_merge_stores_label_property(
-        self, graphiti_client, neo4j_client, cleanup_test_nodes
-    ):
+    async def test_merge_stores_label_property(self, graphiti_client, neo4j_client, cleanup_test_nodes):
         """Verify MERGE stores the edge label as a relationship property."""
         from app.clients.graphiti_client_base import EdgeRelationship
 
@@ -231,9 +219,7 @@ class TestAddEdgeRelationshipRealNeo4j:
         await graphiti_client.add_edge_relationship(relationship)
 
         query_result = await neo4j_client.run_query(
-            "MATCH ()-[r:CONNECTS_TO]->() "
-            "WHERE r.edge_id = $edge_id "
-            "RETURN r.label as label",
+            "MATCH ()-[r:CONNECTS_TO]->() WHERE r.edge_id = $edge_id RETURN r.label as label",
             edge_id="gap-test-edge-label",
         )
 
@@ -253,9 +239,7 @@ class TestConcurrentBulkSyncRealNeo4j:
     """
 
     @pytest.mark.asyncio
-    async def test_concurrent_sync_10_edges(
-        self, graphiti_client, neo4j_client, cleanup_test_nodes
-    ):
+    async def test_concurrent_sync_10_edges(self, graphiti_client, neo4j_client, cleanup_test_nodes):
         """Verify 10 edges synced concurrently all appear in Neo4j."""
         edges = [
             {
@@ -272,9 +256,7 @@ class TestConcurrentBulkSyncRealNeo4j:
             edges=edges,
         )
 
-        assert (
-            result["synced"] + result.get("skipped", 0) + result.get("failed", 0) == 10
-        )
+        assert result["synced"] + result.get("skipped", 0) + result.get("failed", 0) == 10
         assert result["synced"] >= 8  # Allow minor failures in concurrent mode
 
     @pytest.mark.asyncio
@@ -322,9 +304,7 @@ class TestAgentNeo4jCypherExecution:
     """
 
     @pytest.mark.asyncio
-    async def test_query_executes_without_error(
-        self, agent_service, neo4j_client, cleanup_test_nodes
-    ):
+    async def test_query_executes_without_error(self, agent_service, neo4j_client, cleanup_test_nodes):
         """Verify _query_neo4j_memories() executes without error on real Neo4j."""
         # Seed a test LearningMemory node
         await neo4j_client.run_query(
@@ -372,9 +352,7 @@ class TestRelevanceOrderingRealData:
     """
 
     @pytest.mark.asyncio
-    async def test_results_ordered_by_relevance(
-        self, agent_service, neo4j_client, cleanup_test_nodes
-    ):
+    async def test_results_ordered_by_relevance(self, agent_service, neo4j_client, cleanup_test_nodes):
         """Verify results come back ordered by relevance DESC."""
         # Seed nodes with different relevance scores
         for i, (concept, relevance) in enumerate(
@@ -409,14 +387,10 @@ class TestRelevanceOrderingRealData:
             idx_core = result.find("核心定理")
             idx_basic = result.find("基础概念")
             if idx_core >= 0 and idx_basic >= 0:
-                assert idx_core < idx_basic, (
-                    "核心定理 (relevance=0.95) should appear before 基础概念 (relevance=0.3)"
-                )
+                assert idx_core < idx_basic, "核心定理 (relevance=0.95) should appear before 基础概念 (relevance=0.3)"
 
     @pytest.mark.asyncio
-    async def test_limit_5_respected(
-        self, agent_service, neo4j_client, cleanup_test_nodes
-    ):
+    async def test_limit_5_respected(self, agent_service, neo4j_client, cleanup_test_nodes):
         """Verify LIMIT 5 is respected with more than 5 results."""
         # Seed 8 nodes
         for i in range(8):

@@ -61,19 +61,16 @@ class TestVerificationServiceDependencyInjection:
             # 但依赖注入机制本身应该正常工作
             if service._graphiti_client is not None:
                 # 验证注入的是正确类型
-                assert hasattr(
-                    service._graphiti_client, "search_verification_questions"
-                ), "GraphitiClient should have search_verification_questions method"
+                assert hasattr(service._graphiti_client, "search_verification_questions"), (
+                    "GraphitiClient should have search_verification_questions method"
+                )
                 assert hasattr(service._graphiti_client, "add_verification_question"), (
                     "GraphitiClient should have add_verification_question method"
                 )
             else:
                 # Graceful degradation: Graphiti 服务不可用时返回 None
                 # 这也是合法的依赖注入结果
-                pytest.skip(
-                    "GraphitiTemporalClient not available - "
-                    "Graphiti service may not be running"
-                )
+                pytest.skip("GraphitiTemporalClient not available - Graphiti service may not be running")
 
         finally:
             # Cleanup: 关闭 generator
@@ -101,16 +98,11 @@ class TestVerificationServiceDependencyInjection:
             service = await service_gen.__anext__()
 
             if service._graphiti_client is None:
-                pytest.skip(
-                    "GraphitiTemporalClient not available - "
-                    "Graphiti service may not be running"
-                )
+                pytest.skip("GraphitiTemporalClient not available - Graphiti service may not be running")
 
             # 使用实际存在的 search_verification_questions 方法
             try:
-                result = await service._graphiti_client.search_verification_questions(
-                    concept="测试概念", limit=5
-                )
+                result = await service._graphiti_client.search_verification_questions(concept="测试概念", limit=5)
                 # 验证返回类型是 list
                 assert isinstance(result, list), f"Expected list, got {type(result)}"
 
@@ -206,9 +198,7 @@ class TestMemoryServiceDependencyInjection:
         service._learning_memory = mock_learning_memory
 
         # 验证注入成功
-        assert service._learning_memory is mock_learning_memory, (
-            "LearningMemoryClient should be injected"
-        )
+        assert service._learning_memory is mock_learning_memory, "LearningMemoryClient should be injected"
 
 
 class TestRAGServiceDependencyInjection:
@@ -297,12 +287,8 @@ class TestDependencyChain:
 
             # 验证所有依赖都已注入（可能为 None 表示 graceful degradation）
             # 但属性应该存在
-            assert hasattr(service, "_rag_service"), (
-                "VerificationService should have _rag_service attribute"
-            )
-            assert hasattr(service, "_graphiti_client"), (
-                "VerificationService should have _graphiti_client attribute"
-            )
+            assert hasattr(service, "_rag_service"), "VerificationService should have _rag_service attribute"
+            assert hasattr(service, "_graphiti_client"), "VerificationService should have _graphiti_client attribute"
 
             # 验证核心服务已注入（RAG service 应该始终可用）
             assert service._rag_service is not None, "RAGService should be injected"
@@ -330,12 +316,8 @@ class TestDependencyChain:
 
             # 验证返回了有效的 client
             assert client is not None, "Neo4jClient should be returned"
-            assert hasattr(client, "run_query"), (
-                "Neo4jClient should have run_query method"
-            )
-            assert hasattr(client, "get_learning_history"), (
-                "Neo4jClient should have get_learning_history method"
-            )
+            assert hasattr(client, "run_query"), "Neo4jClient should have run_query method"
+            assert hasattr(client, "get_learning_history"), "Neo4jClient should have get_learning_history method"
 
         except Exception as e:
             # Neo4j 可能不可用

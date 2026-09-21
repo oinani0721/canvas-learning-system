@@ -135,9 +135,7 @@ async def get_canvas_service(
     except Exception as e:
         logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
 
-    service = CanvasService(
-        canvas_base_path=settings.canvas_base_path, memory_client=memory_client
-    )
+    service = CanvasService(canvas_base_path=settings.canvas_base_path, memory_client=memory_client)
     try:
         yield service
     finally:
@@ -205,15 +203,12 @@ async def get_agent_service(
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
             logger.info(
-                f"GeminiClient created: model={settings.AI_MODEL_NAME} (dynamic), "
-                f"provider={settings.AI_PROVIDER}"
+                f"GeminiClient created: model={settings.AI_MODEL_NAME} (dynamic), provider={settings.AI_PROVIDER}"
             )
         except Exception as e:
             logger.error(f"Failed to create GeminiClient: {e}")
     else:
-        logger.warning(
-            "AI_API_KEY not configured, AgentService will not have AI capabilities"
-        )
+        logger.warning("AI_API_KEY not configured, AgentService will not have AI capabilities")
 
     # Story 36.11: Inject LearningMemoryClient for memory fallback when Neo4j unavailable
     # S34 G-PIPE fix: 强制注入 — JSON file client, init failure = code bug
@@ -234,9 +229,7 @@ async def get_agent_service(
         memory_cache_maxsize=settings.AGENT_MEMORY_CACHE_MAXSIZE,
         memory_cache_ttl=settings.AGENT_MEMORY_CACHE_TTL,
     )
-    logger.debug(
-        "AgentService created with CanvasService, Neo4jClient, and LearningMemoryClient"
-    )
+    logger.debug("AgentService created with CanvasService, Neo4jClient, and LearningMemoryClient")
 
     try:
         yield service
@@ -381,9 +374,7 @@ async def get_context_enrichment_service(
 
 
 # Type alias for ContextEnrichmentService dependency
-ContextEnrichmentServiceDep = Annotated[
-    ContextEnrichmentService, Depends(get_context_enrichment_service)
-]
+ContextEnrichmentServiceDep = Annotated[ContextEnrichmentService, Depends(get_context_enrichment_service)]
 
 
 # =============================================================================
@@ -509,10 +500,7 @@ async def get_verification_service(
     if graphiti_client:
         logger.debug("GraphitiTemporalClient injected into VerificationService")
     else:
-        logger.warning(
-            "GraphitiTemporalClient not available - "
-            "verification question deduplication will be disabled"
-        )
+        logger.warning("GraphitiTemporalClient not available - verification question deduplication will be disabled")
 
     # Story 31.5: Get MemoryService for difficulty adaptation
     # Import from canonical singleton in memory_service.py (not endpoint)
@@ -546,9 +534,7 @@ async def get_verification_service(
             neo4j_client=neo4j_client,
             memory_client=vs_memory_client,
         )
-        logger.info(
-            "AgentService created for VerificationService AI integration (with memory_client)"
-        )
+        logger.info("AgentService created for VerificationService AI integration (with memory_client)")
     except Exception as e:
         logger.warning(f"AgentService not available for verification: {e}")
 
@@ -575,9 +561,7 @@ async def get_verification_service(
 
 
 # Type alias for VerificationService dependency
-VerificationServiceDep = Annotated[
-    VerificationService, Depends(get_verification_service)
-]
+VerificationServiceDep = Annotated[VerificationService, Depends(get_verification_service)]
 
 
 # =============================================================================
@@ -809,9 +793,7 @@ def get_neo4j_temporal_client():
         )
         return None
     except Exception as e:
-        logger.error(
-            f"Failed to initialize Neo4jTemporalClient: {type(e).__name__}: {e}"
-        )
+        logger.error(f"Failed to initialize Neo4jTemporalClient: {type(e).__name__}: {e}")
         return None
 
 
@@ -867,9 +849,7 @@ async def get_multimodal_service_dep(settings: SettingsDep) -> MultimodalService
 
             lancedb_client = _LDBClient()
             await lancedb_client.initialize()
-            logger.info(
-                "LanceDBClient created and initialized for MultimodalStore injection"
-            )
+            logger.info("LanceDBClient created and initialized for MultimodalStore injection")
         except Exception as e_ldb:
             logger.warning(f"LanceDBClient not available for MultimodalStore: {e_ldb}")
             lancedb_client = None
@@ -879,17 +859,12 @@ async def get_multimodal_service_dep(settings: SettingsDep) -> MultimodalService
             vector_dim=1024,  # Story 2.9 AC-3: bge-m3 1024d
         )
         if lancedb_client:
-            logger.info(
-                "MultimodalStore injected with LanceDB client — vector search enabled"
-            )
+            logger.info("MultimodalStore injected with LanceDB client — vector search enabled")
         else:
-            logger.warning(
-                "MultimodalStore injected without LanceDB client — vector search disabled"
-            )
+            logger.warning("MultimodalStore injected without LanceDB client — vector search disabled")
     except ImportError:
         logger.warning(
-            "MultimodalStore not available (agentic_rag not installed) — "
-            "using JSON fallback. Vector search disabled."
+            "MultimodalStore not available (agentic_rag not installed) — using JSON fallback. Vector search disabled."
         )
     except Exception as e:
         logger.warning(f"MultimodalStore creation failed: {e} — using JSON fallback")
@@ -947,16 +922,12 @@ def get_intelligent_grouping_service(
         IntelligentGroupingService: Grouping service instance
     """
     logger.debug("Creating IntelligentGroupingService instance")
-    canvas_base_path = (
-        str(settings.canvas_base_path) if settings.canvas_base_path else None
-    )
+    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
     return IntelligentGroupingService(canvas_base_path=canvas_base_path)
 
 
 # Type alias for IntelligentGroupingService dependency
-IntelligentGroupingServiceDep = Annotated[
-    IntelligentGroupingService, Depends(get_intelligent_grouping_service)
-]
+IntelligentGroupingServiceDep = Annotated[IntelligentGroupingService, Depends(get_intelligent_grouping_service)]
 
 
 # AgentRoutingEngine singleton
@@ -1017,9 +988,7 @@ async def build_batch_processing_deps():
             logger.error(f"Failed to create GeminiClient for batch processing: {e}")
 
     # 2. CanvasService with memory_client (same logic as get_canvas_service)
-    canvas_base_path = (
-        str(settings.canvas_base_path) if settings.canvas_base_path else None
-    )
+    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
     cs_memory_client = None
     try:
         from .services.memory_service import get_memory_service as _get_memory_svc
@@ -1041,9 +1010,7 @@ async def build_batch_processing_deps():
 
         learning_memory_client = get_learning_memory_client()
     except Exception as e:
-        logger.warning(
-            f"LearningMemoryClient not available for batch AgentService: {e}"
-        )
+        logger.warning(f"LearningMemoryClient not available for batch AgentService: {e}")
 
     agent_service = AgentService(
         gemini_client=gemini_client,
@@ -1065,9 +1032,7 @@ async def build_batch_processing_deps():
         routing_engine=routing_engine,
     )
 
-    logger.info(
-        "Batch processing deps built via dependencies.py (single source of truth)"
-    )
+    logger.info("Batch processing deps built via dependencies.py (single source of truth)")
     return batch_orchestrator, agent_service, canvas_service
 
 

@@ -331,19 +331,10 @@ class TestPhantomCodeCleanup:
         """AC-33.9.8: No set_batch_deps() references in comments."""
         from pathlib import Path
 
-        ep_file = (
-            Path(__file__).parent.parent.parent
-            / "app"
-            / "api"
-            / "v1"
-            / "endpoints"
-            / "intelligent_parallel.py"
-        )
+        ep_file = Path(__file__).parent.parent.parent / "app" / "api" / "v1" / "endpoints" / "intelligent_parallel.py"
         content = ep_file.read_text(encoding="utf-8")
 
-        assert "set_batch_deps" not in content, (
-            "Found 'set_batch_deps' reference in intelligent_parallel.py."
-        )
+        assert "set_batch_deps" not in content, "Found 'set_batch_deps' reference in intelligent_parallel.py."
 
 
 # =============================================================================

@@ -238,9 +238,7 @@ def record_error(
     category = get_error_category(code_value)
 
     # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
-    ERROR_COUNTER.labels(
-        error_code=str(code_value), category=category, component=component
-    ).inc()
+    ERROR_COUNTER.labels(error_code=str(code_value), category=category, component=component).inc()
 
     # Log the error
     log = logger.bind(error_code=code_value, category=category, component=component)
@@ -254,9 +252,7 @@ def record_error(
     )
 
 
-def record_retry_attempt(
-    error_code: ErrorCode | int, attempt: int, success: bool
-) -> None:
+def record_retry_attempt(error_code: ErrorCode | int, attempt: int, success: bool) -> None:
     """
     Record a retry attempt in Prometheus metrics.
 

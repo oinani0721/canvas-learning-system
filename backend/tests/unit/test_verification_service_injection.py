@@ -31,9 +31,7 @@ class TestVerificationServiceInjection:
         return service
 
     @pytest.mark.asyncio
-    async def test_verification_service_receives_graphiti_client(
-        self, mock_graphiti_client
-    ):
+    async def test_verification_service_receives_graphiti_client(self, mock_graphiti_client):
         """
         AC-31.A.1.1: VerificationService correctly receives graphiti_client.
 

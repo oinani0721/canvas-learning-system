@@ -248,9 +248,7 @@ class TestBatchEpisodesEndpoint:
         response = test_client.post("/api/v1/memory/episodes/batch", json=payload)
 
         # Then — Pydantic Field(max_length=50) triggers HTTP 422
-        assert response.status_code == 422, (
-            f"Expected 422 for >50 events, got {response.status_code}: {response.text}"
-        )
+        assert response.status_code == 422, f"Expected 422 for >50 events, got {response.status_code}: {response.text}"
 
     def test_p0_batch_exactly_50_events_accepted(self, test_client: TestClient):
         """
@@ -354,9 +352,7 @@ class TestTemporalEventNeo4jChain:
     """
 
     @pytest.mark.asyncio
-    async def test_p0_node_created_creates_canvas_node_relationship(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_p0_node_created_creates_canvas_node_relationship(self, memory_service, mock_neo4j):
         """
         [P0] Given a node_created event with metadata.node_text,
         When record_temporal_event() is called,
@@ -384,9 +380,7 @@ class TestTemporalEventNeo4jChain:
         )
 
     @pytest.mark.asyncio
-    async def test_p0_edge_created_creates_edge_relationship(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_p0_edge_created_creates_edge_relationship(self, memory_service, mock_neo4j):
         """
         [P0] Given an edge_created event with from_node/to_node in metadata,
         When record_temporal_event() is called,
@@ -421,9 +415,7 @@ class TestTemporalEventNeo4jChain:
         )
 
     @pytest.mark.asyncio
-    async def test_p0_node_updated_creates_canvas_node_relationship(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_p0_node_updated_creates_canvas_node_relationship(self, memory_service, mock_neo4j):
         """
         [P0] Given a node_updated event,
         When record_temporal_event() is called,
@@ -450,9 +442,7 @@ class TestTemporalEventNeo4jChain:
         )
 
     @pytest.mark.asyncio
-    async def test_p0_temporal_events_stored_in_memory_chronologically(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_p0_temporal_events_stored_in_memory_chronologically(self, memory_service, mock_neo4j):
         """
         [P0] Given multiple temporal events recorded in sequence,
         When inspecting memory_service._episodes,
@@ -495,9 +485,7 @@ class TestTemporalEventNeo4jChain:
         assert timestamps == sorted(timestamps)
 
     @pytest.mark.asyncio
-    async def test_p0_neo4j_write_failure_does_not_raise(
-        self, memory_service, mock_neo4j
-    ):
+    async def test_p0_neo4j_write_failure_does_not_raise(self, memory_service, mock_neo4j):
         """
         [P0] Given Neo4j connected but create_canvas_node_relationship raises,
         When record_temporal_event() is called,
@@ -661,9 +649,7 @@ class TestDependencyInjectionChain:
 
         mock_neo4j = _make_mock_neo4j_client()
         mock_lm = _make_mock_learning_memory_client()
-        with patch(
-            "app.services.memory_service.get_neo4j_client", return_value=mock_neo4j
-        ):
+        with patch("app.services.memory_service.get_neo4j_client", return_value=mock_neo4j):
             svc = MemoryService()
         svc._learning_memory = mock_lm
 
@@ -712,9 +698,7 @@ class TestDependencyInjectionChain:
         assert svc._memory_service is mock_memory
 
     @pytest.mark.asyncio
-    async def test_p1_memory_service_initialize_calls_neo4j_initialize(
-        self, mock_neo4j, mock_learning_memory
-    ):
+    async def test_p1_memory_service_initialize_calls_neo4j_initialize(self, mock_neo4j, mock_learning_memory):
         """
         [P1] Given a fresh MemoryService,
         When initialize() is called,

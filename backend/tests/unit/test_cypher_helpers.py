@@ -78,9 +78,7 @@ def test_inject_before_with_clause():
 
 def test_inject_before_set_clause():
     """MATCH (n) SET n.x = 1 → 注入到 SET 前."""
-    q, _ = cypher_with_group_filter(
-        "MATCH (n:Concept) SET n.modified = true", "vault:cs_61b"
-    )
+    q, _ = cypher_with_group_filter("MATCH (n:Concept) SET n.modified = true", "vault:cs_61b")
     assert "WHERE n.group_id = $group_id" in q
     assert q.index("WHERE") < q.index("SET")
 
@@ -120,9 +118,7 @@ def test_append_to_existing_where_with_and_keyword():
 
 def test_custom_node_alias():
     """node_alias='c' → c.group_id 而非 n.group_id."""
-    q, _ = cypher_with_group_filter(
-        "MATCH (c:Concept) RETURN c", "vault:cs_61b", node_alias="c"
-    )
+    q, _ = cypher_with_group_filter("MATCH (c:Concept) RETURN c", "vault:cs_61b", node_alias="c")
     assert "c.group_id = $group_id" in q
     assert "n.group_id" not in q
 
@@ -198,19 +194,14 @@ def test_allow_cross_vault_decorator_marks_function():
     def scan_all_group_ids():
         return "ok"
 
-    assert (
-        scan_all_group_ids._allow_cross_vault_reason
-        == "admin migration scans all vaults"
-    )
+    assert scan_all_group_ids._allow_cross_vault_reason == "admin migration scans all vaults"
     # Wrapper must remain the original callable (no wraps swap; pass-through).
     assert scan_all_group_ids() == "ok"
 
 
 def test_cypher_with_group_filter_returns_filtered_query():
     """Helper must (a) inject WHERE n.group_id = $group_id, (b) return params dict."""
-    q, params = cypher_with_group_filter(
-        "MATCH (n:Concept) RETURN n.id", "vault:cs_61b"
-    )
+    q, params = cypher_with_group_filter("MATCH (n:Concept) RETURN n.id", "vault:cs_61b")
     # (a) WHERE clause injected before RETURN
     assert "WHERE n.group_id = $group_id" in q
     assert q.index("WHERE") < q.index("RETURN")

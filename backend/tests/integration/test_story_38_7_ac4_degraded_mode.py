@@ -25,9 +25,7 @@ class TestAC4DegradedMode:
     """AC-4: Neo4j down -> JSON fallback for Canvas CRUD, dual-write, scoring."""
 
     @pytest.mark.asyncio
-    async def test_canvas_crud_writes_json_fallback_when_no_memory_client(
-        self, tmp_path
-    ):
+    async def test_canvas_crud_writes_json_fallback_when_no_memory_client(self, tmp_path):
         """
         [P0] Story 38.5 AC-1: When _memory_client is None and dual-write
         is enabled, Canvas CRUD events go to JSON fallback.
@@ -36,9 +34,7 @@ class TestAC4DegradedMode:
 
         canvas_dir = tmp_path / "canvases"
         canvas_dir.mkdir()
-        (canvas_dir / "test.canvas").write_text(
-            json.dumps({"nodes": [], "edges": []}), encoding="utf-8"
-        )
+        (canvas_dir / "test.canvas").write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
 
         svc = CanvasService(canvas_base_path=str(canvas_dir), memory_client=None)
         svc._fallback_file_path = tmp_path / "canvas_events_fallback.json"
@@ -67,9 +63,7 @@ class TestAC4DegradedMode:
 
         canvas_dir = tmp_path / "canvases"
         canvas_dir.mkdir()
-        (canvas_dir / "test.canvas").write_text(
-            json.dumps({"nodes": [], "edges": []}), encoding="utf-8"
-        )
+        (canvas_dir / "test.canvas").write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
 
         svc = CanvasService(canvas_base_path=str(canvas_dir), memory_client=None)
         svc._fallback_file_path = tmp_path / "canvas_events_fallback.json"
@@ -140,9 +134,7 @@ class TestAC4DegradedMode:
         """
         neo4j = make_mock_neo4j(fail_write=True)
         # Also make create_learning_relationship fail to test true degradation
-        neo4j.create_learning_relationship = AsyncMock(
-            side_effect=Exception("Neo4j connection refused")
-        )
+        neo4j.create_learning_relationship = AsyncMock(side_effect=Exception("Neo4j connection refused"))
         learning_mem = make_mock_learning_memory()
 
         ms = MemoryService(neo4j_client=neo4j)

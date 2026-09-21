@@ -91,9 +91,7 @@ def sample_canvas_data() -> Dict[str, Any]:
 @pytest.fixture
 def temp_canvas_file(sample_canvas_data: Dict[str, Any]) -> str:
     """Create a temporary Canvas file."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False, encoding="utf-8") as f:
         json.dump(sample_canvas_data, f)
         return f.name
 
@@ -188,9 +186,7 @@ def mock_rag_service() -> MagicMock:
 
 
 @pytest.fixture
-def verification_service(
-    mock_agent_service: MagicMock, mock_rag_service: MagicMock
-) -> VerificationService:
+def verification_service(mock_agent_service: MagicMock, mock_rag_service: MagicMock) -> VerificationService:
     """Create VerificationService with mock dependencies."""
     return VerificationService(
         rag_service=mock_rag_service,
@@ -224,9 +220,7 @@ class TestEndToEndVerificationFlow:
         4. Generate first question using Gemini
         """
         # Start session
-        result = await verification_service.start_session(
-            canvas_name="ml_concepts", canvas_path=temp_canvas_file
-        )
+        result = await verification_service.start_session(canvas_name="ml_concepts", canvas_path=temp_canvas_file)
 
         # Verify session created
         assert result["session_id"] is not None
@@ -261,9 +255,7 @@ class TestEndToEndVerificationFlow:
         4. Update progress and determine next action
         """
         # Start session
-        session = await verification_service.start_session(
-            canvas_name="ml_concepts", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="ml_concepts", canvas_path=temp_canvas_file)
 
         # Submit a detailed answer
         detailed_answer = (
@@ -301,9 +293,7 @@ class TestEndToEndVerificationFlow:
         This tests completing all concepts in a session.
         """
         # Start session
-        session = await verification_service.start_session(
-            canvas_name="ml_concepts", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="ml_concepts", canvas_path=temp_canvas_file)
 
         total_concepts = session["total_concepts"]
         session_id = session["session_id"]
@@ -340,17 +330,13 @@ class TestEndToEndVerificationFlow:
         2. RAG context passed to scoring agent
         """
         # Start session
-        session = await verification_service.start_session(
-            canvas_name="ml_concepts", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="ml_concepts", canvas_path=temp_canvas_file)
 
         # RAG should be called during question generation
         assert mock_rag_service.query.called
 
         # Submit answer
-        await verification_service.process_answer(
-            session_id=session["session_id"], user_answer="测试回答"
-        )
+        await verification_service.process_answer(session_id=session["session_id"], user_answer="测试回答")
 
         # RAG should be called again during scoring
         # (Called for both question generation and scoring context)
@@ -384,14 +370,10 @@ class TestEndToEndVerificationFlow:
         mock_agent_service.call_scoring = AsyncMock(return_value=low_score_result)
 
         # Start session
-        session = await verification_service.start_session(
-            canvas_name="ml_concepts", canvas_path=temp_canvas_file
-        )
+        session = await verification_service.start_session(canvas_name="ml_concepts", canvas_path=temp_canvas_file)
 
         # Submit a short answer
-        result = await verification_service.process_answer(
-            session_id=session["session_id"], user_answer="不太确定"
-        )
+        result = await verification_service.process_answer(session_id=session["session_id"], user_answer="不太确定")
 
         # Should get hint (score 35.0 < 60 threshold)
         assert result["action"] == "hint"
@@ -415,17 +397,13 @@ class TestPerformanceRequirements:
         # H2 fix: Use direct patching instead of importlib.reload to avoid
         # module-level class duplication and test isolation poisoning.
         with patch.object(vs_module, "USE_MOCK_VERIFICATION", True):
-            service = vs_module.VerificationService(
-                canvas_base_path=tempfile.gettempdir()
-            )
+            service = vs_module.VerificationService(canvas_base_path=tempfile.gettempdir())
 
             import time
 
             start = time.time()
 
-            await service.start_session(
-                canvas_name="test", canvas_path=temp_canvas_file
-            )
+            await service.start_session(canvas_name="test", canvas_path=temp_canvas_file)
 
             elapsed = time.time() - start
             # Should be very fast in mock mode

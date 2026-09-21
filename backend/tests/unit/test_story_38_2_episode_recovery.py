@@ -177,13 +177,9 @@ class TestEpisodeRecovery:
         assert memory_service._episodes[0]["episode_id"].startswith("recovered-0-")
 
     @pytest.mark.asyncio
-    async def test_recover_episodes_startup_log(
-        self, memory_service, mock_neo4j_client, caplog
-    ):
+    async def test_recover_episodes_startup_log(self, memory_service, mock_neo4j_client, caplog):
         """AC-2: Startup log shows 'recovered N episodes from Neo4j'."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            return_value=_make_episodes(3)
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=_make_episodes(3))
 
         with caplog.at_level(logging.INFO):
             await memory_service.initialize()
@@ -191,32 +187,21 @@ class TestEpisodeRecovery:
         assert "MemoryService: recovered 3 episodes from Neo4j" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_recover_neo4j_unavailable(
-        self, memory_service, mock_neo4j_client, caplog
-    ):
+    async def test_recover_neo4j_unavailable(self, memory_service, mock_neo4j_client, caplog):
         """AC-3: Neo4j unavailable → empty episodes + WARNING log."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=ConnectionError("Connection refused")
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(side_effect=ConnectionError("Connection refused"))
 
         with caplog.at_level(logging.WARNING):
             await memory_service.initialize()
 
         assert memory_service._episodes == []
         assert memory_service._episodes_recovered is False
-        assert (
-            "MemoryService: Neo4j unavailable, starting with empty history"
-            in caplog.text
-        )
+        assert "MemoryService: Neo4j unavailable, starting with empty history" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_new_episodes_during_degradation(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_new_episodes_during_degradation(self, memory_service, mock_neo4j_client):
         """AC-3: New episodes still appendable during degraded mode."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=ConnectionError("Connection refused")
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(side_effect=ConnectionError("Connection refused"))
         mock_neo4j_client.create_learning_relationship = AsyncMock(return_value=True)
 
         await memory_service.initialize()
@@ -235,9 +220,7 @@ class TestEpisodeRecovery:
         assert memory_service._episodes[0]["concept"] == "test concept"
 
     @pytest.mark.asyncio
-    async def test_recover_zero_episodes(
-        self, memory_service, mock_neo4j_client, caplog
-    ):
+    async def test_recover_zero_episodes(self, memory_service, mock_neo4j_client, caplog):
         """AC-2: Neo4j available but no episodes returns empty list + log."""
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[])
 
@@ -256,22 +239,16 @@ class TestLazyRecovery:
     """Task 3: Lazy recovery on first query."""
 
     @pytest.mark.asyncio
-    async def test_lazy_recovery_on_first_query(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_lazy_recovery_on_first_query(self, memory_service, mock_neo4j_client):
         """AC-3: Lazy recovery when Neo4j becomes available after failed startup."""
         # Simulate startup failure
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=ConnectionError("Connection refused")
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(side_effect=ConnectionError("Connection refused"))
         await memory_service.initialize()
         assert memory_service._episodes_recovered is False
 
         # Now Neo4j is available — get_learning_history will trigger lazy recovery
         recovered_episodes = _make_episodes(3)
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            return_value=recovered_episodes
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=recovered_episodes)
         # Main query returns empty to trigger fallback path
         mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])
 
@@ -284,9 +261,7 @@ class TestLazyRecovery:
     @pytest.mark.asyncio
     async def test_no_double_recovery(self, memory_service, mock_neo4j_client):
         """Recovery should not run twice if already recovered."""
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            return_value=_make_episodes(2)
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=_make_episodes(2))
         await memory_service.initialize()
 
         assert memory_service._episodes_recovered is True
@@ -308,9 +283,7 @@ class TestRecoveryIntegration:
     """Task 4: Integration tests for full recovery flow."""
 
     @pytest.mark.asyncio
-    async def test_full_restart_recovery_flow(
-        self, mock_neo4j_client, mock_learning_memory_client
-    ):
+    async def test_full_restart_recovery_flow(self, mock_neo4j_client, mock_learning_memory_client):
         """AC-1/AC-2: Full restart recovery — episodes survive across service instances."""
         # Session 1: Record events
         svc1 = MemoryService(
@@ -355,9 +328,7 @@ class TestRecoveryIntegration:
         assert svc2._episodes_recovered is True
 
     @pytest.mark.asyncio
-    async def test_degraded_startup_then_lazy_recovery(
-        self, mock_neo4j_client, mock_learning_memory_client
-    ):
+    async def test_degraded_startup_then_lazy_recovery(self, mock_neo4j_client, mock_learning_memory_client):
         """AC-3: Degraded startup → lazy recovery on first query."""
         svc = MemoryService(
             neo4j_client=mock_neo4j_client,
@@ -365,17 +336,13 @@ class TestRecoveryIntegration:
         svc._learning_memory = mock_learning_memory_client
 
         # Startup: Neo4j down
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            side_effect=ConnectionError("Connection refused")
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(side_effect=ConnectionError("Connection refused"))
         await svc.initialize()
         assert svc._episodes_recovered is False
         assert svc._episodes == []
 
         # First query: Neo4j recovered
-        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
-            return_value=_make_episodes(2)
-        )
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=_make_episodes(2))
         mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])
         await svc.get_learning_history(user_id="user-0")
 
@@ -396,9 +363,7 @@ class TestRecoveryScopeG41b:
     """
 
     @pytest.mark.asyncio
-    async def test_recovery_passes_active_vault_group_not_contextvar(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_recovery_passes_active_vault_group_not_contextvar(self, memory_service, mock_neo4j_client):
         """作用域必须来自 active vault, 不能被某次请求的板级 ContextVar 收窄。
 
         进程级 episode 缓存一旦按板级作用域装载并置 ``_episodes_recovered``,
@@ -427,12 +392,19 @@ class TestRecoveryScopeG41b:
         client = Neo4jClient(use_json_fallback=True, storage_path=tmp_path / "rec.json")
         await client.initialize()
         client._data["relationships"] = [
-            {"user_id": "u", "concept_name": "mine-root", "timestamp": "2026-01-01",
-             "group_id": _scope_physical()},
-            {"user_id": "u", "concept_name": "mine-board", "timestamp": "2026-01-02",
-             "group_id": _scope_physical("__board_x")},
-            {"user_id": "u", "concept_name": "theirs", "timestamp": "2026-01-03",
-             "group_id": _scope_physical("_other")},
+            {"user_id": "u", "concept_name": "mine-root", "timestamp": "2026-01-01", "group_id": _scope_physical()},
+            {
+                "user_id": "u",
+                "concept_name": "mine-board",
+                "timestamp": "2026-01-02",
+                "group_id": _scope_physical("__board_x"),
+            },
+            {
+                "user_id": "u",
+                "concept_name": "theirs",
+                "timestamp": "2026-01-03",
+                "group_id": _scope_physical("_other"),
+            },
             {"user_id": "u", "concept_name": "orphan", "timestamp": "2026-01-04"},
         ]
 
@@ -440,9 +412,7 @@ class TestRecoveryScopeG41b:
         await svc._recover_episodes_from_neo4j()
 
         got = {e["concept"] for e in svc._episodes}
-        assert got == {"mine-root", "mine-board"}, (
-            f"缺失(保召回红)/多出(零泄漏红): {sorted(got)}"
-        )
+        assert got == {"mine-root", "mine-board"}, f"缺失(保召回红)/多出(零泄漏红): {sorted(got)}"
         assert svc._episodes_recovered is True
 
     @pytest.mark.asyncio
@@ -466,15 +436,11 @@ class TestRecoveryScopeG41b:
         with pytest.raises(VaultScopeUnresolved):
             await memory_service._recover_episodes_from_neo4j()
 
-        assert memory_service._episodes_recovered is False, (
-            "配置断裂却标记成'已恢复' —— 之后永远不会再试"
-        )
+        assert memory_service._episodes_recovered is False, "配置断裂却标记成'已恢复' —— 之后永远不会再试"
         mock_neo4j_client.get_all_recent_episodes.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_unresolvable_scope_is_not_disguised_as_neo4j_down(
-        self, memory_service, mock_neo4j_client
-    ):
+    async def test_unresolvable_scope_is_not_disguised_as_neo4j_down(self, memory_service, mock_neo4j_client):
         """作用域不可信 → 上抛, **不得**被折算成"Neo4j 不可用 → 空历史"。
 
         后者会把配置断裂伪装成"这个用户没有学习记录"。``VaultScopeUnresolved``

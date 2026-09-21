@@ -207,9 +207,7 @@ async def test_physics_group_does_not_leak_math_neighbors(two_subject_graph):
         group_id="physics",
     )
 
-    neighbor_names = {
-        rec.get("name") for rec in ctx["tier2"]["neighbors"] if rec.get("name")
-    }
+    neighbor_names = {rec.get("name") for rec in ctx["tier2"]["neighbors"] if rec.get("name")}
 
     # Physics neighbors should be present.
     assert f"{prefix}先验概率" in neighbor_names
@@ -228,9 +226,7 @@ async def test_math_group_does_not_leak_physics_neighbors(two_subject_graph):
         group_id="math",
     )
 
-    neighbor_names = {
-        rec.get("name") for rec in ctx["tier2"]["neighbors"] if rec.get("name")
-    }
+    neighbor_names = {rec.get("name") for rec in ctx["tier2"]["neighbors"] if rec.get("name")}
 
     assert f"{prefix}概率测度" in neighbor_names
     assert f"{prefix}sigma代数" in neighbor_names
@@ -259,9 +255,7 @@ async def test_legacy_null_group_id_node_visible_from_any_group(two_subject_grap
         node_id=f"{prefix}legacy_anchor",
         group_id="physics",
     )
-    neighbor_names_physics = {
-        rec.get("name") for rec in ctx_physics["tier2"]["neighbors"] if rec.get("name")
-    }
+    neighbor_names_physics = {rec.get("name") for rec in ctx_physics["tier2"]["neighbors"] if rec.get("name")}
     assert f"{prefix}老邻居" in neighbor_names_physics
 
     # Same read under a math group context should also succeed —
@@ -270,7 +264,5 @@ async def test_legacy_null_group_id_node_visible_from_any_group(two_subject_grap
         node_id=f"{prefix}legacy_anchor",
         group_id="math",
     )
-    neighbor_names_math = {
-        rec.get("name") for rec in ctx_math["tier2"]["neighbors"] if rec.get("name")
-    }
+    neighbor_names_math = {rec.get("name") for rec in ctx_math["tier2"]["neighbors"] if rec.get("name")}
     assert f"{prefix}老邻居" in neighbor_names_math

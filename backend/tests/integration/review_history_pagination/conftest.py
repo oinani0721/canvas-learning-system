@@ -105,9 +105,7 @@ def make_real_review_service(
     return service
 
 
-def build_card_states_for_history(
-    count: int, canvas_prefix: str = "math"
-) -> Dict[str, Any]:
+def build_card_states_for_history(count: int, canvas_prefix: str = "math") -> Dict[str, Any]:
     """Build fake card state entries for get_history() to read.
 
     Uses fixed date (2025-06-15) for deterministic tests.
@@ -118,9 +116,7 @@ def build_card_states_for_history(
         review_date = base_date - timedelta(days=i % 5)
         key = f"{canvas_prefix}.canvas:concept_{i}"
         states[key] = {
-            "last_review": datetime(
-                review_date.year, review_date.month, review_date.day, 10, 0, 0
-            ).isoformat(),
+            "last_review": datetime(review_date.year, review_date.month, review_date.day, 10, 0, 0).isoformat(),
             "rating": (i % 4) + 1,
         }
     return states

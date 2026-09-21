@@ -254,11 +254,7 @@ async def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     query = ""
     if messages:
         last_msg = messages[-1]
-        query = (
-            last_msg.get("content", "")
-            if isinstance(last_msg, dict)
-            else getattr(last_msg, "content", "")
-        )
+        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
 
     # A9: Hybrid LLM → rule fallback (async — requires LangGraph 1.x async
     # conditional edge support, verified by test_langgraph_async_conditional_edge_smoke.py)
@@ -291,13 +287,9 @@ async def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     # Single query path (original behavior)
     try:
         sends = _build_sends_for_intent(intent, state)
-        logger.info(
-            f"[fan_out_retrieval] L1 routing: intent={intent}, channels={len(sends)}, query='{query[:50]}'"
-        )
+        logger.info(f"[fan_out_retrieval] L1 routing: intent={intent}, channels={len(sends)}, query='{query[:50]}'")
     except Exception as e:
-        logger.warning(
-            f"[fan_out_retrieval] L1 routing failed: {e}, falling back to all 5 channels"
-        )
+        logger.warning(f"[fan_out_retrieval] L1 routing failed: {e}, falling back to all 5 channels")
         sends = [
             Send("retrieve_graphiti", state),
             Send("retrieve_lancedb", state),
@@ -306,9 +298,7 @@ async def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
             Send("retrieve_vault_notes", state),
         ]
 
-    logger.debug(
-        f"[fan_out_retrieval] Created {len(sends)} Send objects for intent={intent}"
-    )
+    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects for intent={intent}")
     return sends
 
 
@@ -352,33 +342,27 @@ def route_after_quality_check(
 
     # Low quality and NOT yet degraded -> rewrite and retry
     if quality_grade == "low" and not safe_degradation:
-        logger.debug(
-            "[route_after_quality_check] -> rewrite_query (low quality, can retry)"
-        )
+        logger.debug("[route_after_quality_check] -> rewrite_query (low quality, can retry)")
         return "rewrite_query"
 
     # Phase 4: low + safe_degradation + NOT used -> one-shot CRAG deep research
     if quality_grade == "low" and safe_degradation and not deep_research_used:
         logger.info(
-            "[route_after_quality_check] -> deep_research_fallback "
-            "(CRAG one-shot: quality=low + safe_degradation)"
+            "[route_after_quality_check] -> deep_research_fallback (CRAG one-shot: quality=low + safe_degradation)"
         )
         return "deep_research_fallback"
 
     # Acceptable quality or safe degradation + already used fallback -> faithfulness check
     if safe_degradation and deep_research_used:
         logger.debug(
-            f"[route_after_quality_check] -> faithfulness_check "
-            f"(safe_degradation=True AND deep_research already used)"
+            f"[route_after_quality_check] -> faithfulness_check (safe_degradation=True AND deep_research already used)"
         )
     elif safe_degradation:
         logger.debug(
             f"[route_after_quality_check] -> faithfulness_check (safe_degradation=True after {rewrite_count} rewrites)"
         )
     else:
-        logger.debug(
-            f"[route_after_quality_check] -> faithfulness_check (quality acceptable: {quality_grade})"
-        )
+        logger.debug(f"[route_after_quality_check] -> faithfulness_check (quality acceptable: {quality_grade})")
     return "faithfulness_check"
 
 
@@ -412,11 +396,7 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        current_query = (
-            last_msg.get("content", "")
-            if isinstance(last_msg, dict)
-            else getattr(last_msg, "content", "")
-        )
+        current_query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
     else:
         current_query = ""
 
@@ -470,15 +450,11 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
             llm_rewrite_success = True
 
     except asyncio.TimeoutError:
-        logger.warning(
-            "[rewrite_query] LLM rewrite timed out (3s), using keyword fallback"
-        )
+        logger.warning("[rewrite_query] LLM rewrite timed out (3s), using keyword fallback")
     except ImportError:
         logger.warning("[rewrite_query] litellm not installed, using keyword fallback")
     except Exception as e:
-        logger.warning(
-            f"[rewrite_query] LLM rewrite failed: {e}, using keyword fallback"
-        )
+        logger.warning(f"[rewrite_query] LLM rewrite failed: {e}, using keyword fallback")
 
     # Fallback: jieba keyword extraction or simple expansion
     # Story 2-6 M6: `import jieba` does not auto-import `jieba.analyse`;

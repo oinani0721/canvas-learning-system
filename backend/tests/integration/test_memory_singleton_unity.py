@@ -36,9 +36,7 @@ class TestSingletonUnity:
         with patch.object(mem_module, "MemoryService") as MockCls:
             inst = AsyncMock()
             inst._initialized = False
-            inst.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst, "_initialized", True)
-            )
+            inst.initialize = AsyncMock(side_effect=lambda: setattr(inst, "_initialized", True))
             MockCls.return_value = inst
 
             svc1 = await mem_module.get_memory_service()
@@ -73,9 +71,7 @@ class TestSingletonUnity:
         """main.py imports get_memory_service from service layer."""
         from app.main import get_memory_service as main_get
 
-        assert main_get is mem_module.get_memory_service, (
-            "main.py must import get_memory_service from services"
-        )
+        assert main_get is mem_module.get_memory_service, "main.py must import get_memory_service from services"
 
     @pytest.mark.asyncio
     async def test_main_cleanup_uses_service_cleanup(self):
@@ -92,9 +88,7 @@ class TestSingletonUnity:
         with patch.object(mem_module, "MemoryService") as MockCls:
             inst = AsyncMock()
             inst._initialized = False
-            inst.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst, "_initialized", True)
-            )
+            inst.initialize = AsyncMock(side_effect=lambda: setattr(inst, "_initialized", True))
             MockCls.return_value = inst
 
             # Import from three different paths
@@ -134,9 +128,7 @@ class TestSingletonUnity:
         with patch.object(mem_module, "MemoryService") as MockCls:
             inst = AsyncMock()
             inst._initialized = False
-            inst.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst, "_initialized", True)
-            )
+            inst.initialize = AsyncMock(side_effect=lambda: setattr(inst, "_initialized", True))
             MockCls.return_value = inst
 
             svc1 = await mem_module.get_memory_service()
@@ -149,9 +141,7 @@ class TestSingletonUnity:
             # New instance should be created
             inst2 = AsyncMock()
             inst2._initialized = False
-            inst2.initialize = AsyncMock(
-                side_effect=lambda: setattr(inst2, "_initialized", True)
-            )
+            inst2.initialize = AsyncMock(side_effect=lambda: setattr(inst2, "_initialized", True))
             MockCls.return_value = inst2
 
             svc2 = await mem_module.get_memory_service()

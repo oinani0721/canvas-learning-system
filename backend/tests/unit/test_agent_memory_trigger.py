@@ -121,9 +121,7 @@ class TestAgentMemoryMapping:
             ("graphiti-memory-agent", AgentMemoryType.CONCEPT_REVIEWED),
         ],
     )
-    def test_get_memory_type_for_agent_returns_correct_type(
-        self, agent_name: str, expected_type: AgentMemoryType
-    ):
+    def test_get_memory_type_for_agent_returns_correct_type(self, agent_name: str, expected_type: AgentMemoryType):
         """Test that get_memory_type_for_agent returns correct type for each agent."""
         result = get_memory_type_for_agent(agent_name)
         assert result == expected_type
@@ -164,9 +162,7 @@ class TestTriggerMemoryWrite:
         return service
 
     @pytest.mark.asyncio
-    async def test_trigger_memory_write_calls_record_learning_episode(
-        self, mock_agent_service, wait_for_call
-    ):
+    async def test_trigger_memory_write_calls_record_learning_episode(self, mock_agent_service, wait_for_call):
         """Test that _trigger_memory_write calls record_learning_episode."""
         await mock_agent_service._trigger_memory_write(
             agent_type="scoring-agent",
@@ -220,9 +216,7 @@ class TestTriggerMemoryWrite:
         assert duration < 0.1, f"Method took {duration}s, expected < 0.1s"
 
     @pytest.mark.asyncio
-    async def test_trigger_memory_write_silent_degradation_on_timeout(
-        self, mock_agent_service
-    ):
+    async def test_trigger_memory_write_silent_degradation_on_timeout(self, mock_agent_service):
         """Test silent degradation when memory write times out (AC-30.4.3)."""
 
         # Make record_learning_episode take longer than 100ms timeout
@@ -250,15 +244,11 @@ class TestTriggerMemoryWrite:
         # No exception should be raised - silent degradation
 
     @pytest.mark.asyncio
-    async def test_trigger_memory_write_silent_degradation_on_exception(
-        self, mock_agent_service
-    ):
+    async def test_trigger_memory_write_silent_degradation_on_exception(self, mock_agent_service):
         """Test silent degradation when memory write raises exception (AC-30.4.3)."""
 
         # Make record_learning_episode raise an exception
-        mock_agent_service.record_learning_episode = AsyncMock(
-            side_effect=Exception("Database connection failed")
-        )
+        mock_agent_service.record_learning_episode = AsyncMock(side_effect=Exception("Database connection failed"))
 
         # Should not raise exception
         await mock_agent_service._trigger_memory_write(
@@ -274,9 +264,7 @@ class TestTriggerMemoryWrite:
         # No exception should be raised - silent degradation
 
     @pytest.mark.asyncio
-    async def test_trigger_memory_write_passes_all_parameters(
-        self, mock_agent_service, wait_for_call
-    ):
+    async def test_trigger_memory_write_passes_all_parameters(self, mock_agent_service, wait_for_call):
         """Test that all parameters are passed to record_learning_episode."""
         await mock_agent_service._trigger_memory_write(
             agent_type="scoring-agent",
@@ -308,9 +296,7 @@ class TestAllAgentsTriggerMemoryWrite:
         """Test that each agent has a valid AgentMemoryType assigned."""
         memory_type = get_memory_type_for_agent(agent_name)
         assert memory_type is not None, f"Agent {agent_name} has no memory type"
-        assert isinstance(memory_type, AgentMemoryType), (
-            f"Agent {agent_name} memory type is not AgentMemoryType"
-        )
+        assert isinstance(memory_type, AgentMemoryType), f"Agent {agent_name} memory type is not AgentMemoryType"
 
     def test_memory_types_align_with_schema(self):
         """Test that all memory types align with temporal-event.schema.json."""

@@ -122,16 +122,12 @@ class RequestCache:
             if key in self._cache:
                 timestamp, _ = self._cache[key]
                 if time.time() - timestamp < self.ttl:
-                    logger.warning(
-                        f"[Story 12.H.5] Duplicate request detected: key={key[:16]}..."
-                    )
+                    logger.warning(f"[Story 12.H.5] Duplicate request detected: key={key[:16]}...")
                     return True
                 else:
                     # Entry has expired, remove it
                     del self._cache[key]
-                    logger.debug(
-                        f"[Story 12.H.5] Expired cache entry removed: key={key[:16]}..."
-                    )
+                    logger.debug(f"[Story 12.H.5] Expired cache entry removed: key={key[:16]}...")
             return False
 
     def mark_in_progress(self, key: str, data: Any = None) -> None:
@@ -149,9 +145,7 @@ class RequestCache:
         """
         with self._lock:
             self._cache[key] = (time.time(), data)
-            logger.debug(
-                f"[Story 12.H.5] Request marked in progress: key={key[:16]}..."
-            )
+            logger.debug(f"[Story 12.H.5] Request marked in progress: key={key[:16]}...")
 
     def mark_completed(self, key: str) -> None:
         """
@@ -171,9 +165,7 @@ class RequestCache:
                 _, data = self._cache[key]
                 # Refresh timestamp to start new TTL window
                 self._cache[key] = (time.time(), data)
-                logger.debug(
-                    f"[Story 12.H.5] Request marked completed: key={key[:16]}..."
-                )
+                logger.debug(f"[Story 12.H.5] Request marked completed: key={key[:16]}...")
 
     def remove(self, key: str) -> None:
         """
@@ -190,9 +182,7 @@ class RequestCache:
         with self._lock:
             if key in self._cache:
                 del self._cache[key]
-                logger.debug(
-                    f"[Story 12.H.5] Request removed from cache: key={key[:16]}..."
-                )
+                logger.debug(f"[Story 12.H.5] Request removed from cache: key={key[:16]}...")
 
     def _maybe_cleanup(self) -> None:
         """
@@ -212,16 +202,12 @@ class RequestCache:
 
         with self._lock:
             self._last_cleanup = now
-            expired_keys = [
-                k for k, (ts, _) in self._cache.items() if now - ts >= self.ttl
-            ]
+            expired_keys = [k for k, (ts, _) in self._cache.items() if now - ts >= self.ttl]
             for k in expired_keys:
                 del self._cache[k]
 
             if expired_keys:
-                logger.debug(
-                    f"[Story 12.H.5] Cleaned up {len(expired_keys)} expired cache entries"
-                )
+                logger.debug(f"[Story 12.H.5] Cleaned up {len(expired_keys)} expired cache entries")
 
     def clear(self) -> None:
         """

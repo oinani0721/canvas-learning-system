@@ -135,26 +135,18 @@ def track_memory_query(memory_type: str, operation: str) -> Generator[None, None
         yield
 
         # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
-        MEMORY_QUERIES.labels(
-            memory_type=memory_type, operation=operation, status="success"
-        ).inc()
+        MEMORY_QUERIES.labels(memory_type=memory_type, operation=operation, status="success").inc()
 
-        log.debug(
-            "memory_metrics.query_success", duration_s=time.perf_counter() - start
-        )
+        log.debug("memory_metrics.query_success", duration_s=time.perf_counter() - start)
 
     except Exception as e:
         # ✅ Verified from ADR-009:59-87 (ErrorCode体系)
         error_type = type(e).__name__
 
         # ✅ Verified from Context7:/prometheus/client_python (Counter.labels().inc())
-        MEMORY_ERRORS.labels(
-            memory_type=memory_type, operation=operation, error_type=error_type
-        ).inc()
+        MEMORY_ERRORS.labels(memory_type=memory_type, operation=operation, error_type=error_type).inc()
 
-        MEMORY_QUERIES.labels(
-            memory_type=memory_type, operation=operation, status="error"
-        ).inc()
+        MEMORY_QUERIES.labels(memory_type=memory_type, operation=operation, status="error").inc()
 
         log.error(
             "memory_metrics.query_error",
@@ -170,9 +162,7 @@ def track_memory_query(memory_type: str, operation: str) -> Generator[None, None
         duration = time.perf_counter() - start
 
         # ✅ Verified from Context7:/prometheus/client_python (Histogram.labels().observe())
-        MEMORY_QUERY_LATENCY.labels(
-            memory_type=memory_type, operation=operation
-        ).observe(duration)
+        MEMORY_QUERY_LATENCY.labels(memory_type=memory_type, operation=operation).observe(duration)
 
 
 def record_memory_query(
@@ -202,21 +192,15 @@ def record_memory_query(
         >>> record_memory_query("lancedb", "write", "error", 0.1, "ConnectionError")
     """
     # Record query count
-    MEMORY_QUERIES.labels(
-        memory_type=memory_type, operation=operation, status=status
-    ).inc()
+    MEMORY_QUERIES.labels(memory_type=memory_type, operation=operation, status=status).inc()
 
     # Record query latency
     if duration_s > 0:
-        MEMORY_QUERY_LATENCY.labels(
-            memory_type=memory_type, operation=operation
-        ).observe(duration_s)
+        MEMORY_QUERY_LATENCY.labels(memory_type=memory_type, operation=operation).observe(duration_s)
 
     # Record error if applicable
     if status == "error" and error_type:
-        MEMORY_ERRORS.labels(
-            memory_type=memory_type, operation=operation, error_type=error_type
-        ).inc()
+        MEMORY_ERRORS.labels(memory_type=memory_type, operation=operation, error_type=error_type).inc()
 
     logger.debug(
         "memory_metrics.manual_record",

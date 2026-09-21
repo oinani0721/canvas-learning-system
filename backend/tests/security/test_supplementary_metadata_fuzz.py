@@ -77,9 +77,7 @@ def _quarantine_material_with(
 
 
 def _xml_for(material: dict) -> str:
-    return format_supplementary_xml(
-        {"materials": [material], "degraded": False, "reason": None}
-    )
+    return format_supplementary_xml({"materials": [material], "degraded": False, "reason": None})
 
 
 def _assert_verbatim_absent(payload: str, xml_out: str, field: str) -> None:

@@ -23,28 +23,21 @@ ENTITY_TYPES: Dict[str, dict] = {
         "name_prefix": "Misconception",
         "source_description": "misconception-record",
         "keywords": {"知识", "概念", "理论", "定义", "不理解", "不懂"},
-        "body_template": (
-            "[Topic: {topic}] 误解内容: {error} | 正确理解: {correct} | 来源: {source}"
-        ),
+        "body_template": ("[Topic: {topic}] 误解内容: {error} | 正确理解: {correct} | 来源: {source}"),
     },
     "ProblemTrap": {
         "name_prefix": "ProblemTrap",
         "source_description": "problem-trap-record",
         "keywords": {"题", "逻辑", "误区", "做题", "错", "陷阱"},
         "body_template": (
-            "[Topic: {topic}] [Problem: {problem}] "
-            "错误做法: {wrong} | 正确做法: {correct} | "
-            "关键区别: {insight}"
+            "[Topic: {topic}] [Problem: {problem}] 错误做法: {wrong} | 正确做法: {correct} | 关键区别: {insight}"
         ),
     },
     "LogicalFallacy": {
         "name_prefix": "LogicalFallacy",
         "source_description": "logical-fallacy-record",
         "keywords": {"推理", "谬误", "因果"},
-        "body_template": (
-            "[Topic: {topic}] 错误推理: {flawed} | "
-            "为什么错: {why} | 正确推理: {correct}"
-        ),
+        "body_template": ("[Topic: {topic}] 错误推理: {flawed} | 为什么错: {why} | 正确推理: {correct}"),
     },
     "GuidedThinking": {
         "name_prefix": "GuidedThinking",
@@ -60,27 +53,21 @@ ENTITY_TYPES: Dict[str, dict] = {
         "name_prefix": "Concept",
         "source_description": "concept-record",
         "keywords": set(),
-        "body_template": (
-            "[Topic: {topic}] 概念: {concept} | 定义: {definition} | 关联: {relations}"
-        ),
+        "body_template": ("[Topic: {topic}] 概念: {concept} | 定义: {definition} | 关联: {relations}"),
     },
     "Problem": {
         "name_prefix": "Problem",
         "source_description": "problem-record",
         "keywords": set(),
         "body_template": (
-            "[Topic: {topic}] [Problem: {problem_id}] "
-            "题型: {type} | 难度: {difficulty} | 考点: {key_points}"
+            "[Topic: {topic}] [Problem: {problem_id}] 题型: {type} | 难度: {difficulty} | 考点: {key_points}"
         ),
     },
     "Topic": {
         "name_prefix": "Topic",
         "source_description": "topic-record",
         "keywords": set(),
-        "body_template": (
-            "[Topic: {topic}] 子主题: {subtopics} | "
-            "权重: {weight} | 常见问题: {common_issues}"
-        ),
+        "body_template": ("[Topic: {topic}] 子主题: {subtopics} | 权重: {weight} | 常见问题: {common_issues}"),
     },
     "MasteryUpdate": {
         "name_prefix": "MasteryUpdate",
@@ -96,11 +83,7 @@ ENTITY_TYPES: Dict[str, dict] = {
         "name_prefix": "SelfAssessment",
         "source_description": "self-assessment-record",
         "keywords": set(),
-        "body_template": (
-            "[Topic: {topic}] 概念: {concept} | "
-            "颜色: {color} | 自评值: {value} | "
-            "AI评分: {ai_score}"
-        ),
+        "body_template": ("[Topic: {topic}] 概念: {concept} | 颜色: {color} | 自评值: {value} | AI评分: {ai_score}"),
     },
     "ColorTransition": {
         "name_prefix": "ColorTransition",
@@ -119,18 +102,13 @@ ENTITY_TYPES: Dict[str, dict] = {
         "name_prefix": "LearningTip",
         "source_description": "learning-tip-record",
         "keywords": set(),
-        "body_template": (
-            "[Topic: {topic}] Tip: {title} | 内容: {content} | Tags: {tags}"
-        ),
+        "body_template": ("[Topic: {topic}] Tip: {title} | 内容: {content} | Tags: {tags}"),
     },
     "CalloutAnnotation": {
         "name_prefix": "CalloutAnnotation",
         "source_description": "callout-annotation-record",
         "keywords": set(),
-        "body_template": (
-            "[Topic: {topic}] Tag: {tag} | 理解度: {understanding} | "
-            "内容: {content} | 节点: {node_id}"
-        ),
+        "body_template": ("[Topic: {topic}] Tag: {tag} | 理解度: {understanding} | 内容: {content} | 节点: {node_id}"),
     },
 }
 

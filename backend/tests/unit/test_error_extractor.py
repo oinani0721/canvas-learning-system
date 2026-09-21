@@ -42,9 +42,7 @@ async def test_extract_empty_messages_returns_empty():
 async def test_extract_no_errors_returns_empty():
     """LLM 返回 [] (对话无错误) → 空 list (AC #5)."""
     extractor = ErrorExtractor()
-    with patch.object(
-        extractor, "_llm_extract", new=AsyncMock(return_value=[])
-    ):
+    with patch.object(extractor, "_llm_extract", new=AsyncMock(return_value=[])):
         messages = [
             DialogMessage(role="user", content="什么是特征值?"),
             DialogMessage(role="assistant", content="特征值是 ..."),
@@ -67,9 +65,7 @@ async def test_extract_with_errors_parses_correctly():
             "context": "对话第 4 轮",
         },
     ]
-    with patch.object(
-        extractor, "_llm_extract", new=AsyncMock(return_value=raw_errors)
-    ):
+    with patch.object(extractor, "_llm_extract", new=AsyncMock(return_value=raw_errors)):
         messages = [DialogMessage(role="user", content="...")]
         result = await extractor.extract_errors_from_dialog(messages, "节点/X.md")
 
@@ -89,9 +85,7 @@ async def test_extract_filters_empty_descriptions():
         {"description": "  ", "context": "..."},  # 空白描述, 应过滤
         {"description": "真错误", "context": "ctx"},
     ]
-    with patch.object(
-        extractor, "_llm_extract", new=AsyncMock(return_value=raw_errors)
-    ):
+    with patch.object(extractor, "_llm_extract", new=AsyncMock(return_value=raw_errors)):
         messages = [DialogMessage(role="user", content="...")]
         result = await extractor.extract_errors_from_dialog(messages, "x")
 
@@ -179,9 +173,7 @@ async def test_extract_and_classify_full_pipeline():
         context="对话第 3 轮",
         confidence=0.82,
         legacy_remedy=extractor._classifier.__class__.__module__  # placeholder
-        and __import__(
-            "app.graphiti.entity_types", fromlist=["RemedyStrategy"]
-        ).RemedyStrategy.DISCRIMINATION_TRANSFER,
+        and __import__("app.graphiti.entity_types", fromlist=["RemedyStrategy"]).RemedyStrategy.DISCRIMINATION_TRANSFER,
         pedagogy_remedies=[
             __import__(
                 "app.graphiti.entity_types", fromlist=["RemedyStrategy"]
@@ -190,29 +182,30 @@ async def test_extract_and_classify_full_pipeline():
         sub_tags=[],
     )
 
-    with patch.object(
-        extractor,
-        "_llm_extract",
-        new=AsyncMock(
-            return_value=[
-                {
-                    "description": "学生不能迁移定义",
-                    "context": "对话第 3 轮",
-                }
-            ]
+    with (
+        patch.object(
+            extractor,
+            "_llm_extract",
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "description": "学生不能迁移定义",
+                        "context": "对话第 3 轮",
+                    }
+                ]
+            ),
         ),
-    ), patch.object(
-        extractor._classifier,
-        "classify_with_pedagogy",
-        new=AsyncMock(return_value=fake_classified),
+        patch.object(
+            extractor._classifier,
+            "classify_with_pedagogy",
+            new=AsyncMock(return_value=fake_classified),
+        ),
     ):
         messages = [
             DialogMessage(role="user", content="特征值?"),
             DialogMessage(role="assistant", content="..."),
         ]
-        result = await extractor.extract_and_classify(
-            messages, node_id="节点/X.md", session_id="sess1"
-        )
+        result = await extractor.extract_and_classify(messages, node_id="节点/X.md", session_id="sess1")
 
     assert len(result) == 1
     assert isinstance(result[0], ClassifiedError)
@@ -226,12 +219,13 @@ async def test_extract_and_classify_no_errors_returns_empty():
     extractor = ErrorExtractor()
     classifier_mock = AsyncMock()
 
-    with patch.object(
-        extractor, "_llm_extract", new=AsyncMock(return_value=[])
-    ), patch.object(
-        extractor._classifier,
-        "classify_with_pedagogy",
-        new=classifier_mock,
+    with (
+        patch.object(extractor, "_llm_extract", new=AsyncMock(return_value=[])),
+        patch.object(
+            extractor._classifier,
+            "classify_with_pedagogy",
+            new=classifier_mock,
+        ),
     ):
         result = await extractor.extract_and_classify(
             [DialogMessage(role="user", content="x")],
@@ -280,12 +274,13 @@ async def test_extract_and_classify_continues_on_classify_failure():
             raise result
         return result
 
-    with patch.object(
-        extractor, "_llm_extract", new=AsyncMock(return_value=raw_errors)
-    ), patch.object(
-        extractor._classifier,
-        "classify_with_pedagogy",
-        side_effect=_mock_classify,
+    with (
+        patch.object(extractor, "_llm_extract", new=AsyncMock(return_value=raw_errors)),
+        patch.object(
+            extractor._classifier,
+            "classify_with_pedagogy",
+            side_effect=_mock_classify,
+        ),
     ):
         result = await extractor.extract_and_classify(
             [DialogMessage(role="user", content="x")],

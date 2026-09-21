@@ -299,9 +299,7 @@ class TestSubmitAnswer:
     def test_submit_answer_invalid_session_returns_404(self, client_with_mock_vs):
         """404 when session_id doesn't exist."""
         client, mock_svc = client_with_mock_vs
-        mock_svc.process_answer = AsyncMock(
-            side_effect=ValueError("Session not found: nonexistent")
-        )
+        mock_svc.process_answer = AsyncMock(side_effect=ValueError("Session not found: nonexistent"))
 
         response = client.post(
             "/api/v1/review/session/nonexistent/answer",

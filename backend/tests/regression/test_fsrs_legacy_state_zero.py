@@ -175,9 +175,7 @@ def test_real_new_card_serializes_state_one():
 def test_cardstate_dataclass_never_defaults_or_reads_zero():
     """Codex MEDIUM: CardState 公共序列器默认值与 from_dict 读侧同规则。"""
     assert CardState(concept="c", canvas_file="f.canvas").state == 1
-    restored = CardState.from_dict(
-        {"concept": "c", "canvas_file": "f.canvas", "state": 0}
-    )
+    restored = CardState.from_dict({"concept": "c", "canvas_file": "f.canvas", "state": 0})
     assert restored.state == 1
     assert CardState.from_dict({"concept": "c", "canvas_file": "f.canvas"}).state == 1
 
@@ -207,9 +205,7 @@ assert cs.state == 1, f"fallback card_to_state 兜底产出 {cs.state}"
 assert json.loads(cs.card_data).get("state", 1) != 0
 print("FALLBACK-OK")
 """ % str(Path(__file__).parent.parent.parent / "lib")
-    r = subprocess.run(
-        [sys.executable, "-c", probe], capture_output=True, text=True, timeout=60
-    )
+    r = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, r.stderr[-800:]
     assert "FALLBACK-OK" in r.stdout
 
@@ -256,12 +252,7 @@ def test_bridge_legacy_full_frontmatter_zero_and_null_params():
 
 def test_bridge_legacy_zero_state_with_positive_params_kept():
     """矛盾形状（state:0 + 正 stability）: 正参数保留参与真实调度。"""
-    fm = (
-        "fsrs_due: 2026-08-24T00:00:00Z\n"
-        "fsrs_state: 0\n"
-        "fsrs_stability: 3.5\n"
-        "fsrs_difficulty: 5.0"
-    )
+    fm = "fsrs_due: 2026-08-24T00:00:00Z\nfsrs_state: 0\nfsrs_stability: 3.5\nfsrs_difficulty: 5.0"
     out = fb.review(fb.fields_from_frontmatter(fm), 2.0 / 3, False, NOW)
     assert int(out["fsrs_state"]) >= 1
     assert float(out["fsrs_stability"]) > 0

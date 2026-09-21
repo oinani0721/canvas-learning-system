@@ -116,20 +116,14 @@ class TestMultimodalResultItemModel:
         from app.api.v1.endpoints.rag import MultimodalResultItem
 
         # 有效分数
-        item = MultimodalResultItem(
-            id="test", media_type="image", path="/test.png", relevance_score=0.5
-        )
+        item = MultimodalResultItem(id="test", media_type="image", path="/test.png", relevance_score=0.5)
         assert item.relevance_score == 0.5
 
         # 边界值
-        item_min = MultimodalResultItem(
-            id="test", media_type="image", path="/test.png", relevance_score=0.0
-        )
+        item_min = MultimodalResultItem(id="test", media_type="image", path="/test.png", relevance_score=0.0)
         assert item_min.relevance_score == 0.0
 
-        item_max = MultimodalResultItem(
-            id="test", media_type="image", path="/test.png", relevance_score=1.0
-        )
+        item_max = MultimodalResultItem(id="test", media_type="image", path="/test.png", relevance_score=1.0)
         assert item_max.relevance_score == 1.0
 
     def test_multimodal_result_item_media_type_enum(self):
@@ -138,9 +132,7 @@ class TestMultimodalResultItemModel:
 
         # 有效媒体类型
         for media_type in ["image", "pdf", "audio", "video"]:
-            item = MultimodalResultItem(
-                id="test", media_type=media_type, path="/test", relevance_score=0.5
-            )
+            item = MultimodalResultItem(id="test", media_type=media_type, path="/test", relevance_score=0.5)
             assert item.media_type == media_type
 
     def test_rag_query_response_has_multimodal_results(self):
@@ -165,9 +157,7 @@ class TestMultimodalRetrieverWiring:
 
         assert callable(multimodal_retrieval_node)
 
-    def test_multimodal_retrieval_node_extracts_query_from_messages(
-        self, sample_rag_state
-    ):
+    def test_multimodal_retrieval_node_extracts_query_from_messages(self, sample_rag_state):
         """测试节点从messages提取查询"""
         from agentic_rag.retrievers.multimodal_retriever import (
             _extract_query_from_state,
@@ -209,9 +199,7 @@ class TestMultimodalRetrieverWiring:
         assert "multimodal_latency_ms" in result
 
     @pytest.mark.asyncio
-    async def test_multimodal_retrieval_node_returns_correct_structure(
-        self, sample_rag_state
-    ):
+    async def test_multimodal_retrieval_node_returns_correct_structure(self, sample_rag_state):
         """测试节点返回正确的结构"""
         from agentic_rag.retrievers import multimodal_retrieval_node
 
@@ -248,9 +236,7 @@ class TestThumbnailPopulation:
         }
 
         # 模拟节点的结果格式化
-        thumbnail = raw_result.get(
-            "thumbnail_path", raw_result.get("content_preview", "")
-        )
+        thumbnail = raw_result.get("thumbnail_path", raw_result.get("content_preview", ""))
         assert thumbnail == "data:image/png;base64,abc123"
 
     def test_thumbnail_fallback_to_content_preview(self):
@@ -264,9 +250,7 @@ class TestThumbnailPopulation:
         }
 
         # 没有thumbnail_path时使用content_preview
-        thumbnail = raw_result.get(
-            "thumbnail_path", raw_result.get("content_preview", "")
-        )
+        thumbnail = raw_result.get("thumbnail_path", raw_result.get("content_preview", ""))
         assert thumbnail == "/thumbnails/test_thumb.png"
 
     def test_endpoint_maps_thumbnail_correctly(self):

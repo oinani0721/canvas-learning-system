@@ -32,17 +32,11 @@ class DistillMessage(BaseModel):
 class DistillRequest(BaseModel):
     """Request body for conversation distillation."""
 
-    messages: list[DistillMessage] = Field(
-        ..., min_length=1, description="Conversation messages to distill"
-    )
+    messages: list[DistillMessage] = Field(..., min_length=1, description="Conversation messages to distill")
     # CARD-G2-2 (2026-08-28): 加 vault_id (推荐); raw group_id 降级为
     # deprecated legacy 输入, 不再直通持久化链 (Codex round-1 HIGH-8)。
-    vault_id: Optional[str] = Field(
-        default=None, description="Vault 身份 (推荐必填; 与 active vault 不一致时 409)"
-    )
-    group_id: Optional[str] = Field(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id"
-    )
+    vault_id: Optional[str] = Field(default=None, description="Vault 身份 (推荐必填; 与 active vault 不一致时 409)")
+    group_id: Optional[str] = Field(default=None, deprecated=True, description="Deprecated — 改用 vault_id")
 
 
 class DistillResponse(BaseModel):
@@ -62,9 +56,7 @@ class DistillResponse(BaseModel):
     description="Distill a conversation into summary, tips, errors, and Q&A highlights. "
     "Results are persisted to MemoryService for future Edge-based inheritance.",
 )
-async def distill_conversation(
-    node_id: str, request: DistillRequest
-) -> DistillResponse:
+async def distill_conversation(node_id: str, request: DistillRequest) -> DistillResponse:
     """Distill a conversation and persist results for Edge inheritance.
 
     Called by frontend after a dialogue session ends. The distillation result
@@ -79,12 +71,11 @@ async def distill_conversation(
     # active vault。解析在 try 之外 (409 不得被宽 except 吞成 success=false)。
     from app.core.vault_scope import resolve_vault_group_id
 
-    group_id = resolve_vault_group_id(
-        request.vault_id, legacy_group_id=request.group_id
-    )
+    group_id = resolve_vault_group_id(request.vault_id, legacy_group_id=request.group_id)
 
     try:
         from app.services.conversation_distiller import ConversationDistiller
+
         messages = [{"role": m.role, "content": m.content} for m in request.messages]
 
         distiller = ConversationDistiller()

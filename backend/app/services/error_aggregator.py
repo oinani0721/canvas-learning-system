@@ -145,9 +145,7 @@ CREATE TABLE IF NOT EXISTS qa_error_logs (
 );
 """
 
-_CREATE_INDEX = (
-    "CREATE INDEX IF NOT EXISTS idx_error_logs_created ON qa_error_logs(created_at);"
-)
+_CREATE_INDEX = "CREATE INDEX IF NOT EXISTS idx_error_logs_created ON qa_error_logs(created_at);"
 
 _INSERT_ERROR = """
 INSERT INTO qa_error_logs (category, error_type, source_module, stack_summary, created_at)
@@ -228,9 +226,7 @@ class ErrorAggregator:
         except (OSError, aiosqlite.Error) as e:
             logger.error(f"[Story 7.4] Failed to persist error log: {e}")
 
-        logger.debug(
-            f"[Story 7.4] Error recorded: category={category} type={error_type}"
-        )
+        logger.debug(f"[Story 7.4] Error recorded: category={category} type={error_type}")
 
         return category
 
@@ -258,9 +254,7 @@ class ErrorAggregator:
             last_30d=counts_30d,
         )
 
-    async def _count_since(
-        self, db: aiosqlite.Connection, since: datetime
-    ) -> ErrorCategoryCounts:
+    async def _count_since(self, db: aiosqlite.Connection, since: datetime) -> ErrorCategoryCounts:
         """Count errors by category since a given timestamp."""
         since_iso = since.isoformat()
         cursor = await db.execute(_COUNT_BY_CATEGORY, (since_iso,))

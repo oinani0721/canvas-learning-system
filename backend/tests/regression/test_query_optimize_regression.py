@@ -101,9 +101,7 @@ class TestQueryOptimizeRegression:
         content = prompt_registry.get("query_optimize")
         assert "{{user_intent}}" in content, "Missing {{user_intent}} placeholder"
         assert "{{user_prompt}}" in content, "Missing {{user_prompt}} placeholder"
-        assert "{{original_queries}}" in content, (
-            "Missing {{original_queries}} placeholder"
-        )
+        assert "{{original_queries}}" in content, "Missing {{original_queries}} placeholder"
 
     def test_replay_format_compliance(
         self,
@@ -134,10 +132,8 @@ class TestQueryOptimizeRegression:
             )
 
         compliance_rate = compliant_count / len(scenarios)
-        assert compliance_rate >= 0.90, (
-            "JSON format compliance {v:.4f} below 90 percent threshold".format(
-                v=compliance_rate,
-            )
+        assert compliance_rate >= 0.90, "JSON format compliance {v:.4f} below 90 percent threshold".format(
+            v=compliance_rate,
         )
 
     def test_replay_query_diversity(
@@ -155,10 +151,8 @@ class TestQueryOptimizeRegression:
                 diverse_count += 1
 
         diversity_rate = diverse_count / len(scenarios)
-        assert diversity_rate >= 0.80, (
-            "Query diversity rate {v:.4f} below 80 percent threshold".format(
-                v=diversity_rate,
-            )
+        assert diversity_rate >= 0.80, "Query diversity rate {v:.4f} below 80 percent threshold".format(
+            v=diversity_rate,
         )
 
     def test_replay_count_compliance(
@@ -179,10 +173,8 @@ class TestQueryOptimizeRegression:
                 count_ok += 1
 
         count_rate = count_ok / len(scenarios)
-        assert count_rate >= 0.80, (
-            "Count compliance {v:.4f} below 80 percent threshold".format(
-                v=count_rate,
-            )
+        assert count_rate >= 0.80, "Count compliance {v:.4f} below 80 percent threshold".format(
+            v=count_rate,
         )
 
     def test_generate_report(

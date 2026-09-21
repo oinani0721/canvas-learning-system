@@ -37,9 +37,7 @@ class TestAC31A21_Neo4jQueryPriority:
                 "user_id": "u1",
             }
         ]
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(return_value=neo4j_data)
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(return_value=neo4j_data))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
@@ -93,11 +91,7 @@ class TestAC31A21_Neo4jQueryPriority:
     @pytest.mark.asyncio
     async def test_fallback_to_memory_on_neo4j_exception(self):
         """When Neo4j raises exception, fall back to in-memory data."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(
-                side_effect=Exception("Neo4j connection refused")
-            )
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(side_effect=Exception("Neo4j connection refused")))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
@@ -119,9 +113,7 @@ class TestAC31A21_Neo4jQueryPriority:
     @pytest.mark.asyncio
     async def test_fallback_logs_warning_on_neo4j_failure(self, caplog):
         """AC-31.A.2.1: Fallback must log a warning."""
-        mock_neo4j = _make_neo4j_mock(
-            get_learning_history=AsyncMock(side_effect=ConnectionError("timeout"))
-        )
+        mock_neo4j = _make_neo4j_mock(get_learning_history=AsyncMock(side_effect=ConnectionError("timeout")))
         service = _make_service(mock_neo4j)
         await service.initialize()
 
@@ -129,8 +121,7 @@ class TestAC31A21_Neo4jQueryPriority:
             await service.get_learning_history(user_id="u1")
 
         assert any(
-            "Neo4j query failed" in record.message and "falling back" in record.message
-            for record in caplog.records
+            "Neo4j query failed" in record.message and "falling back" in record.message for record in caplog.records
         ), "Should log warning about Neo4j failure and fallback"
 
     @pytest.mark.asyncio

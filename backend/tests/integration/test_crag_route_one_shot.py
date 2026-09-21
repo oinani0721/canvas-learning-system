@@ -129,6 +129,4 @@ def test_deep_research_then_faithfulness_exits_cleanly():
         "deep_research_used": True,
     }
     next_route = route_after_quality_check(state_round2)
-    assert next_route == "faithfulness_check", (
-        "After one-shot deep_research, router must not re-enter fallback"
-    )
+    assert next_route == "faithfulness_check", "After one-shot deep_research, router must not re-enter fallback"

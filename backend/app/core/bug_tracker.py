@@ -52,12 +52,8 @@ class BugRecord(BaseModel):
     request_params: dict = Field(default_factory=dict, description="Request parameters")
     stack_trace: Optional[str] = Field(default=None, description="Full stack trace")
     user_action: Optional[str] = Field(default=None, description="User action description")
-    request_id: Optional[str] = Field(
-        default=None, description="Correlation request ID from middleware"
-    )
-    story_id: Optional[str] = Field(
-        default=None, description="BMAD Story ID for traceability (e.g., '30.23')"
-    )
+    request_id: Optional[str] = Field(default=None, description="Correlation request ID from middleware")
+    story_id: Optional[str] = Field(default=None, description="BMAD Story ID for traceability (e.g., '30.23')")
 
 
 class BugTracker:
@@ -163,9 +159,7 @@ class BugTracker:
             )
         except OSError as write_error:
             # Don't fail the request if bug logging fails
-            logger.error(
-                "bug_log_write_failed", bug_id=bug_id, write_error=str(write_error)
-            )
+            logger.error("bug_log_write_failed", bug_id=bug_id, write_error=str(write_error))
 
         return bug_id
 

@@ -229,10 +229,7 @@ class TestThreeStageAssessment:
         summary = get_calibration_summary(records)
 
         assert summary.stage == 3
-        assert (
-            summary.quadrant_distribution[CalibrationQuadrant.MISCONCEPTION.value]
-            == 1.0
-        )
+        assert summary.quadrant_distribution[CalibrationQuadrant.MISCONCEPTION.value] == 1.0
         assert summary.signed_bias > 0  # Overconfident
         assert summary.absolute_bias > 0
         assert summary.calibration_rating == CalibrationRating.OVER_CONFIDENT
@@ -249,17 +246,13 @@ class TestCalibrationRating:
     def test_insufficient_data_below_10(self):
         """< 10 records → INSUFFICIENT_DATA regardless of bias."""
         assert compute_calibration_rating(0.5, 9) == CalibrationRating.INSUFFICIENT_DATA
-        assert (
-            compute_calibration_rating(-0.5, 5) == CalibrationRating.INSUFFICIENT_DATA
-        )
+        assert compute_calibration_rating(-0.5, 5) == CalibrationRating.INSUFFICIENT_DATA
         assert compute_calibration_rating(0.0, 0) == CalibrationRating.INSUFFICIENT_DATA
 
     def test_well_calibrated_boundary(self):
         """|signed_bias| < 0.15 → WELL_CALIBRATED."""
         assert compute_calibration_rating(0.14, 20) == CalibrationRating.WELL_CALIBRATED
-        assert (
-            compute_calibration_rating(-0.14, 20) == CalibrationRating.WELL_CALIBRATED
-        )
+        assert compute_calibration_rating(-0.14, 20) == CalibrationRating.WELL_CALIBRATED
         assert compute_calibration_rating(0.0, 10) == CalibrationRating.WELL_CALIBRATED
 
     def test_over_confident_boundary(self):
@@ -294,9 +287,7 @@ class TestCalibrationRating:
         assert CALIBRATION_BIAS_THRESHOLD == 0.15
         assert compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD + 0.001, 20) == CalibrationRating.WELL_CALIBRATED
         assert compute_calibration_rating(-CALIBRATION_BIAS_THRESHOLD, 20) == CalibrationRating.UNDER_CONFIDENT
-        assert (
-            compute_calibration_rating(-0.16, 20) == CalibrationRating.UNDER_CONFIDENT
-        )
+        assert compute_calibration_rating(-0.16, 20) == CalibrationRating.UNDER_CONFIDENT
         assert compute_calibration_rating(-0.5, 30) == CalibrationRating.UNDER_CONFIDENT
 
 

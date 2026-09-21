@@ -38,9 +38,7 @@ def mock_memory_client():
 @pytest.fixture
 def canvas_service_with_memory(mock_memory_client, tmp_path):
     """Create CanvasService with mock memory client."""
-    return CanvasService(
-        canvas_base_path=str(tmp_path), memory_client=mock_memory_client
-    )
+    return CanvasService(canvas_base_path=str(tmp_path), memory_client=mock_memory_client)
 
 
 @pytest.fixture
@@ -81,9 +79,7 @@ def sample_canvas_with_edges():
 def sample_canvas_no_edges():
     """Sample canvas data without edges."""
     return {
-        "nodes": [
-            {"id": "node-1", "type": "text", "text": "Concept A", "x": 0, "y": 0}
-        ],
+        "nodes": [{"id": "node-1", "type": "text", "text": "Concept A", "x": 0, "y": 0}],
         "edges": [],
     }
 
@@ -180,9 +176,7 @@ class TestSyncAllEdgesToNeo4j:
         assert result["failed_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_sync_all_edges_concurrent_execution(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path
-    ):
+    async def test_sync_all_edges_concurrent_execution(self, canvas_service_with_memory, mock_memory_client, tmp_path):
         """AC-5: Verify edges are synced concurrently."""
         # Create canvas with many edges
         nodes = [
@@ -195,10 +189,7 @@ class TestSyncAllEdgesToNeo4j:
             }
             for i in range(20)
         ]
-        edges = [
-            {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"}
-            for i in range(19)
-        ]
+        edges = [{"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"} for i in range(19)]
 
         canvas_data = {"nodes": nodes, "edges": edges}
         canvas_path = tmp_path / "concurrent.canvas"
@@ -231,9 +222,7 @@ class TestSyncAllEdgesToNeo4j:
         assert max_concurrent <= 12, f"Expected max 12 concurrent, got {max_concurrent}"
 
     @pytest.mark.asyncio
-    async def test_sync_all_edges_without_memory_client(
-        self, tmp_path, sample_canvas_with_edges
-    ):
+    async def test_sync_all_edges_without_memory_client(self, tmp_path, sample_canvas_with_edges):
         """Verify graceful degradation when memory client is None."""
         service = CanvasService(canvas_base_path=str(tmp_path), memory_client=None)
         canvas_path = tmp_path / "no_memory.canvas"
@@ -252,9 +241,7 @@ class TestConcurrentSyncWithGather:
     """AC-36.4.5: Verify sync_all_edges_to_neo4j uses asyncio.gather for concurrency."""
 
     @pytest.mark.asyncio
-    async def test_sync_uses_asyncio_gather(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path
-    ):
+    async def test_sync_uses_asyncio_gather(self, canvas_service_with_memory, mock_memory_client, tmp_path):
         """AC-36.4.5: Verify asyncio.gather is called for concurrent edge sync."""
         # Create canvas with 3 edges
         canvas_data = {
@@ -268,10 +255,7 @@ class TestConcurrentSyncWithGather:
                 }
                 for i in range(4)
             ],
-            "edges": [
-                {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"}
-                for i in range(3)
-            ],
+            "edges": [{"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"} for i in range(3)],
         }
         canvas_path = tmp_path / "gather_test.canvas"
         canvas_path.write_text(json.dumps(canvas_data))
@@ -287,17 +271,11 @@ class TestConcurrentSyncWithGather:
             gather_task_count = len(coros)
             return await original_gather(*coros, **kwargs)
 
-        with patch(
-            "app.services.canvas_service.asyncio.gather", side_effect=tracked_gather
-        ):
-            result = await canvas_service_with_memory.sync_all_edges_to_neo4j(
-                "gather_test"
-            )
+        with patch("app.services.canvas_service.asyncio.gather", side_effect=tracked_gather):
+            result = await canvas_service_with_memory.sync_all_edges_to_neo4j("gather_test")
 
         assert gather_called, "asyncio.gather should be called for concurrent sync"
-        assert gather_task_count == 3, (
-            f"Expected 3 tasks in gather, got {gather_task_count}"
-        )
+        assert gather_task_count == 3, f"Expected 3 tasks in gather, got {gather_task_count}"
         assert result["synced_count"] == 3
 
 
@@ -366,9 +344,7 @@ class TestPerformance:
     """Performance tests (AC-7)."""
 
     @pytest.mark.asyncio
-    async def test_100_edges_under_5_seconds(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path
-    ):
+    async def test_100_edges_under_5_seconds(self, canvas_service_with_memory, mock_memory_client, tmp_path):
         """AC-7: Verify 100 edges sync in < 5 seconds."""
         # Create canvas with 100 edges
         nodes = [
@@ -381,10 +357,7 @@ class TestPerformance:
             }
             for i in range(101)
         ]
-        edges = [
-            {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"}
-            for i in range(100)
-        ]
+        edges = [{"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i + 1}"} for i in range(100)]
 
         canvas_data = {"nodes": nodes, "edges": edges}
         canvas_path = tmp_path / "performance.canvas"

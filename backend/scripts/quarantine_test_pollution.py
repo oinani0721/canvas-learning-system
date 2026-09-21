@@ -78,13 +78,11 @@ async def main() -> int:
         q=QUARANTINE_GROUP,
     )
     rel_edges = await client.run_query(
-        f"MATCH (n)-[r]-() WHERE {NODE_PREDICATE} AND r.group_id <> $q "
-        "RETURN type(r) AS t, count(DISTINCT r) AS c",
+        f"MATCH (n)-[r]-() WHERE {NODE_PREDICATE} AND r.group_id <> $q RETURN type(r) AS t, count(DISTINCT r) AS c",
         q=QUARANTINE_GROUP,
     )
     junk_edges = await client.run_query(
-        f"MATCH ()-[r]->() WHERE {EDGE_PREDICATE} AND r.group_id <> $q "
-        "RETURN type(r) AS t, left(r.fact, 40) AS fact",
+        f"MATCH ()-[r]->() WHERE {EDGE_PREDICATE} AND r.group_id <> $q RETURN type(r) AS t, left(r.fact, 40) AS fact",
         q=QUARANTINE_GROUP,
     )
 
@@ -127,10 +125,7 @@ async def main() -> int:
         "RETURN count(n) AS c",
         q=QUARANTINE_GROUP,
     )
-    print(
-        f"\n✅ 迁出完成: 节点 {n1[0]['c']}, 关联边 {e1[0]['c']}, 垃圾边 {e2[0]['c']} "
-        f"→ {QUARANTINE_GROUP}"
-    )
+    print(f"\n✅ 迁出完成: 节点 {n1[0]['c']}, 关联边 {e1[0]['c']}, 垃圾边 {e2[0]['c']} → {QUARANTINE_GROUP}")
     return 0
 
 

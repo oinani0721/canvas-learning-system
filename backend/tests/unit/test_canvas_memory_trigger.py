@@ -36,9 +36,7 @@ from tests.conftest import simulate_async_delay
 def temp_canvas_dir(tmp_path):
     """Create temporary directory with a test canvas file."""
     canvas_data = {
-        "nodes": [
-            {"id": "node1", "type": "text", "text": "Test Node 1", "x": 100, "y": 100}
-        ],
+        "nodes": [{"id": "node1", "type": "text", "text": "Test Node 1", "x": 100, "y": 100}],
         "edges": [],
     }
     canvas_file = tmp_path / "test-canvas.canvas"
@@ -146,9 +144,7 @@ class TestAddNodeMemoryTrigger:
     """Test add_node() triggers node_created memory event."""
 
     @pytest.mark.asyncio
-    async def test_add_node_triggers_memory_event(
-        self, canvas_service_with_memory, mock_memory_client, wait_for_call
-    ):
+    async def test_add_node_triggers_memory_event(self, canvas_service_with_memory, mock_memory_client, wait_for_call):
         """Test that add_node triggers node_created memory event (AC-30.5.1)."""
         # Act
         result = await canvas_service_with_memory.add_node(
@@ -310,9 +306,7 @@ class TestAsyncNonBlocking:
 
         # Act - time the operation
         start = time.time()
-        result = await service.add_node(
-            "test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0}
-        )
+        result = await service.add_node("test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0})
         elapsed = time.time() - start
 
         # Assert - CRUD should complete much faster than 1 second
@@ -334,9 +328,7 @@ class TestSilentDegradation:
         """Test that memory write failure doesn't block CRUD response."""
         # Create a failing memory client
         failing_memory_client = AsyncMock()
-        failing_memory_client.record_temporal_event = AsyncMock(
-            side_effect=Exception("Neo4j connection failed")
-        )
+        failing_memory_client.record_temporal_event = AsyncMock(side_effect=Exception("Neo4j connection failed"))
 
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
@@ -345,9 +337,7 @@ class TestSilentDegradation:
         )
 
         # Act - should not raise despite memory failure
-        result = await service.add_node(
-            "test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0}
-        )
+        result = await service.add_node("test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0})
 
         # Assert - CRUD still succeeds
         assert result["id"] is not None
@@ -372,9 +362,7 @@ class TestSilentDegradation:
         )
 
         # Act - should not raise despite timeout
-        result = await service.add_node(
-            "test-canvas", {"type": "text", "text": "Test Timeout", "x": 0, "y": 0}
-        )
+        result = await service.add_node("test-canvas", {"type": "text", "text": "Test Timeout", "x": 0, "y": 0})
 
         # Assert - CRUD still succeeds
         assert result["id"] is not None
@@ -390,9 +378,7 @@ class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     @pytest.mark.asyncio
-    async def test_multiple_consecutive_operations(
-        self, canvas_service_with_memory, mock_memory_client, wait_for_call
-    ):
+    async def test_multiple_consecutive_operations(self, canvas_service_with_memory, mock_memory_client, wait_for_call):
         """Test multiple CRUD operations trigger correct events."""
         # Add node
         node1 = await canvas_service_with_memory.add_node(
@@ -400,9 +386,7 @@ class TestEdgeCases:
         )
 
         # Update node
-        await canvas_service_with_memory.update_node(
-            "test-canvas", "node1", {"color": "3"}
-        )
+        await canvas_service_with_memory.update_node("test-canvas", "node1", {"color": "3"})
 
         # Add another node
         node2 = await canvas_service_with_memory.add_node(
@@ -425,9 +409,7 @@ class TestEdgeCases:
         self, canvas_service_with_memory, mock_memory_client, wait_for_call
     ):
         """Test that session_id is correctly passed to memory events."""
-        await canvas_service_with_memory.add_node(
-            "test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0}
-        )
+        await canvas_service_with_memory.add_node("test-canvas", {"type": "text", "text": "Test", "x": 0, "y": 0})
 
         await wait_for_call(mock_memory_client.record_temporal_event)
 

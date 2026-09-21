@@ -102,9 +102,7 @@ class PromptTemplate:
             ctx_check = check_input(context)
             if ctx_check.is_blocked:
                 context = SAFETY_BLOCK_INPUT_MESSAGE
-            messages.append(
-                {"role": "user", "content": f"Reference context:\n---\n{context}\n---"}
-            )
+            messages.append({"role": "user", "content": f"Reference context:\n---\n{context}\n---"})
         messages.append({"role": "user", "content": user_input})
         if assistant_prefix:
             messages.append({"role": "assistant", "content": assistant_prefix})
@@ -148,9 +146,7 @@ DIRECT_INJECTION_PATTERNS = [
         "role_override:new_instructions",
     ),
     (
-        re.compile(
-            r"(system|assistant)\s*:\s*(you\s+must|new\s+task|override)", re.IGNORECASE
-        ),
+        re.compile(r"(system|assistant)\s*:\s*(you\s+must|new\s+task|override)", re.IGNORECASE),
         0.90,
         "role_override:system_prefix",
     ),
@@ -283,15 +279,11 @@ OUTPUT_ROLE_OVERRIDE_PATTERNS = [
         "dangerous_output:code_execution",
     ),
     (
-        re.compile(
-            r"(os\.system|subprocess\.(run|call|Popen)|exec\(|eval\()", re.IGNORECASE
-        ),
+        re.compile(r"(os\.system|subprocess\.(run|call|Popen)|exec\(|eval\()", re.IGNORECASE),
         "dangerous_output:system_command",
     ),
     (
-        re.compile(
-            r"(curl|wget|fetch)\s+https?://.*\|\s*(bash|sh|python)", re.IGNORECASE
-        ),
+        re.compile(r"(curl|wget|fetch)\s+https?://.*\|\s*(bash|sh|python)", re.IGNORECASE),
         "dangerous_output:remote_code_execution",
     ),
     (
@@ -336,23 +328,16 @@ def _try_decode_rot13(text):
 def check_input(text):
     """Layer 2: Check user input for prompt injection patterns."""
     if not INJECTION_GUARD_ENABLED:
-        return InjectionCheckResult(
-            risk_score=0.0, is_blocked=False, details="Guard disabled"
-        )
+        return InjectionCheckResult(risk_score=0.0, is_blocked=False, details="Guard disabled")
     if not text or not text.strip():
-        return InjectionCheckResult(
-            risk_score=0.0, is_blocked=False, details="Empty input"
-        )
+        return InjectionCheckResult(risk_score=0.0, is_blocked=False, details="Empty input")
 
     start_time = time.perf_counter()
     max_score = 0.0
     matched = list()
 
     all_patterns = (
-        DIRECT_INJECTION_PATTERNS
-        + CHINESE_INJECTION_PATTERNS
-        + DELIMITER_PATTERNS
-        + INDIRECT_INJECTION_PATTERNS
+        DIRECT_INJECTION_PATTERNS + CHINESE_INJECTION_PATTERNS + DELIMITER_PATTERNS + INDIRECT_INJECTION_PATTERNS
     )
     for pattern, score, label in all_patterns:
         if pattern.search(text):
@@ -436,10 +421,7 @@ def _sanitize_output(output, violations):
     sanitized = sanitized.replace(SYSTEM_BOUNDARY_MARKER, "")
     has_dangerous = any(v.startswith("dangerous_output:") for v in violations)
     if has_dangerous:
-        sanitized = (
-            "[Safety Notice: Potentially unsafe content has been filtered.]\n\n"
-            + sanitized
-        )
+        sanitized = "[Safety Notice: Potentially unsafe content has been filtered.]\n\n" + sanitized
         sanitized = re.sub(
             r"<script[^>]*>.*?</script>",
             "[removed: script content]",
@@ -463,9 +445,7 @@ def _log_injection_detection(result, input_text, latency_ms):
     input without leaking any content.
     """
     try:
-        input_sha256 = hashlib.sha256(
-            input_text.encode("utf-8", errors="ignore")
-        ).hexdigest()
+        input_sha256 = hashlib.sha256(input_text.encode("utf-8", errors="ignore")).hexdigest()
         struct_logger.warning(
             "injection_detection",
             check_type="prompt_injection",

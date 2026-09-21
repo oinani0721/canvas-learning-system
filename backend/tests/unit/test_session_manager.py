@@ -60,9 +60,7 @@ class TestSessionCreation:
     @pytest.mark.asyncio
     async def test_session_creation_returns_uuid(self, session_manager):
         """Test that session creation returns a valid UUID4."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=10
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=10)
 
         assert session_id is not None
         assert len(session_id) == 36  # UUID4 format: 8-4-4-4-12
@@ -73,9 +71,7 @@ class TestSessionCreation:
         """Test that multiple sessions get unique IDs."""
         session_ids = []
         for _ in range(10):
-            session_id = await session_manager.create_session(
-                canvas_path="test.canvas", node_count=5
-            )
+            session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
             session_ids.append(session_id)
 
         # All IDs should be unique
@@ -103,9 +99,7 @@ class TestSessionCreation:
     @pytest.mark.asyncio
     async def test_session_creation_defaults(self, session_manager):
         """Test session creation default values."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
 
         session = await session_manager.get_session(session_id)
 
@@ -157,13 +151,9 @@ class TestStateMachine:
     @pytest.mark.asyncio
     async def test_transition_pending_to_running(self, session_manager):
         """Test transitioning from PENDING to RUNNING."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
 
-        session = await session_manager.transition_state(
-            session_id, SessionStatus.RUNNING
-        )
+        session = await session_manager.transition_state(session_id, SessionStatus.RUNNING)
 
         assert session.status == SessionStatus.RUNNING
         assert session.started_at is not None
@@ -171,14 +161,10 @@ class TestStateMachine:
     @pytest.mark.asyncio
     async def test_transition_running_to_completed(self, session_manager):
         """Test transitioning from RUNNING to COMPLETED."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
         await session_manager.transition_state(session_id, SessionStatus.RUNNING)
 
-        session = await session_manager.transition_state(
-            session_id, SessionStatus.COMPLETED
-        )
+        session = await session_manager.transition_state(session_id, SessionStatus.COMPLETED)
 
         assert session.status == SessionStatus.COMPLETED
         assert session.completed_at is not None
@@ -186,9 +172,7 @@ class TestStateMachine:
     @pytest.mark.asyncio
     async def test_transition_running_to_failed_with_error(self, session_manager):
         """Test transitioning to FAILED with error message."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
         await session_manager.transition_state(session_id, SessionStatus.RUNNING)
 
         session = await session_manager.transition_state(
@@ -202,9 +186,7 @@ class TestStateMachine:
     @pytest.mark.asyncio
     async def test_invalid_transition_raises_error(self, session_manager):
         """Test that invalid transitions raise InvalidStateTransitionError."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
 
         with pytest.raises(InvalidStateTransitionError) as exc_info:
             await session_manager.transition_state(session_id, SessionStatus.COMPLETED)
@@ -216,9 +198,7 @@ class TestStateMachine:
     async def test_transition_nonexistent_session(self, session_manager):
         """Test that transitioning a nonexistent session raises error."""
         with pytest.raises(SessionNotFoundError):
-            await session_manager.transition_state(
-                "nonexistent-id", SessionStatus.RUNNING
-            )
+            await session_manager.transition_state("nonexistent-id", SessionStatus.RUNNING)
 
 
 # =============================================================================
@@ -232,9 +212,7 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_update_progress(self, session_manager):
         """Test updating progress percentage (AC:7)."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=10
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=10)
         await session_manager.transition_state(session_id, SessionStatus.RUNNING)
 
         session = await session_manager.update_progress(session_id, 50.0)
@@ -244,9 +222,7 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_update_progress_clamps_to_0_100(self, session_manager):
         """Test that progress is clamped to 0-100 range."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=10
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=10)
         await session_manager.transition_state(session_id, SessionStatus.RUNNING)
 
         # Test clamping to max
@@ -260,9 +236,7 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_progress_update_not_allowed_in_pending(self, session_manager):
         """Test that progress update is ignored in PENDING state."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=10
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=10)
 
         session = await session_manager.update_progress(session_id, 50.0)
 
@@ -272,9 +246,7 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_add_node_result_success(self, session_manager):
         """Test adding a successful node result (AC:8)."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=2
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=2)
 
         now = datetime.now()
         session = await session_manager.add_node_result(
@@ -296,9 +268,7 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_add_node_result_failed(self, session_manager):
         """Test adding a failed node result."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=2
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=2)
 
         session = await session_manager.add_node_result(
             session_id=session_id,
@@ -314,9 +284,7 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_add_node_result_auto_progress(self, session_manager):
         """Test that adding node results auto-calculates progress."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=4
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=4)
 
         await session_manager.add_node_result(session_id, "node-1", "success")
         session = await session_manager.add_node_result(session_id, "node-2", "success")
@@ -327,9 +295,7 @@ class TestProgressTracking:
     @pytest.mark.asyncio
     async def test_get_session_status_dict(self, session_manager):
         """Test getting session status as dictionary."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
 
         status_dict = await session_manager.get_session_status(session_id)
 
@@ -350,9 +316,7 @@ class TestSessionCleanup:
     @pytest.mark.asyncio
     async def test_session_not_expired_within_timeout(self, session_manager):
         """Test that session is not expired within timeout period."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
         session = await session_manager.get_session(session_id)
 
         assert not session_manager.is_session_expired(session)
@@ -360,9 +324,7 @@ class TestSessionCleanup:
     @pytest.mark.asyncio
     async def test_session_expired_after_timeout(self, session_manager):
         """Test that session is expired after timeout period (30 minutes)."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=5
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=5)
         session = await session_manager.get_session(session_id)
 
         # Mock the session's updated_at to be 31 minutes ago
@@ -374,12 +336,8 @@ class TestSessionCleanup:
     async def test_cleanup_expired_sessions(self, session_manager):
         """Test cleanup removes expired sessions."""
         # Create sessions
-        session_id_1 = await session_manager.create_session(
-            canvas_path="test1.canvas", node_count=5
-        )
-        session_id_2 = await session_manager.create_session(
-            canvas_path="test2.canvas", node_count=5
-        )
+        session_id_1 = await session_manager.create_session(canvas_path="test1.canvas", node_count=5)
+        session_id_2 = await session_manager.create_session(canvas_path="test2.canvas", node_count=5)
 
         # Make one session expired by modifying its updated_at
         async with session_manager._session_lock:
@@ -426,9 +384,7 @@ class TestConcurrentAccess:
         """Test concurrent session creation is thread-safe."""
 
         async def create_session(index):
-            return await session_manager.create_session(
-                canvas_path=f"test{index}.canvas", node_count=index
-            )
+            return await session_manager.create_session(canvas_path=f"test{index}.canvas", node_count=index)
 
         # Create 20 sessions concurrently
         tasks = [create_session(i) for i in range(20)]
@@ -445,9 +401,7 @@ class TestConcurrentAccess:
     @pytest.mark.asyncio
     async def test_concurrent_progress_updates(self, session_manager):
         """Test concurrent progress updates are thread-safe."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=100
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=100)
         await session_manager.transition_state(session_id, SessionStatus.RUNNING)
 
         async def update_progress(progress):
@@ -465,9 +419,7 @@ class TestConcurrentAccess:
     @pytest.mark.asyncio
     async def test_concurrent_node_results(self, session_manager):
         """Test concurrent node result additions are thread-safe."""
-        session_id = await session_manager.create_session(
-            canvas_path="test.canvas", node_count=50
-        )
+        session_id = await session_manager.create_session(canvas_path="test.canvas", node_count=50)
 
         async def add_result(node_index):
             await session_manager.add_node_result(

@@ -114,9 +114,7 @@ def test_mode_deep_accepted_by_request_model(client):
             "/api/v1/chat/enrich-context",
             json=_payload(mode="deep", user_question="什么是 admissibility"),
         )
-    assert resp.status_code == 200, (
-        f"deep mode 应被接受，实际 {resp.status_code}: {resp.text[:200]}"
-    )
+    assert resp.status_code == 200, f"deep mode 应被接受，实际 {resp.status_code}: {resp.text[:200]}"
 
 
 def test_mode_invalid_rejected_by_pydantic(client):
@@ -183,12 +181,8 @@ def test_mode_deep_uses_top_k_30_and_hard_cap_20(client):
     assert resp.status_code == 200
     mock_search.assert_awaited_once()
     call_kwargs = mock_search.await_args.kwargs
-    assert call_kwargs["top_k_max"] == 30, (
-        f"deep mode 应用 top_k_max=30，实际 {call_kwargs['top_k_max']}"
-    )
-    assert call_kwargs["hard_cap"] == 20, (
-        f"deep mode 应用 hard_cap=20，实际 {call_kwargs['hard_cap']}"
-    )
+    assert call_kwargs["top_k_max"] == 30, f"deep mode 应用 top_k_max=30，实际 {call_kwargs['top_k_max']}"
+    assert call_kwargs["hard_cap"] == 20, f"deep mode 应用 hard_cap=20，实际 {call_kwargs['hard_cap']}"
 
 
 def test_mode_answer_keeps_top_k_20_and_hard_cap_15(client):
@@ -216,9 +210,7 @@ def test_mode_answer_keeps_top_k_20_and_hard_cap_15(client):
     assert call_kwargs["top_k_max"] == 20, (
         f"answer mode 应保持 top_k_max=20（不被 deep 影响），实际 {call_kwargs['top_k_max']}"
     )
-    assert call_kwargs["hard_cap"] == 15, (
-        f"answer mode 应保持 hard_cap=15，实际 {call_kwargs['hard_cap']}"
-    )
+    assert call_kwargs["hard_cap"] == 15, f"answer mode 应保持 hard_cap=15，实际 {call_kwargs['hard_cap']}"
 
 
 # ─────────────────────────────────────────────────────────────

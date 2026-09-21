@@ -35,9 +35,7 @@ class ExamSessionResponse(BaseModel):
     id: str
     source_board_id: str = ""
     source_board_name: str = ""
-    mode: str = Field(
-        default="comprehensive", description="point-to-point | comprehensive | mixed"
-    )
+    mode: str = Field(default="comprehensive", description="point-to-point | comprehensive | mixed")
     status: str = Field(default="completed", description="in-progress | completed")
     nodes_examined: int = 0
     mastery_change_summary: str = ""
@@ -56,9 +54,7 @@ class TargetingMaterialItem(BaseModel):
     """T4 方案 A — 单条跨节点素材 (邻居节点的当前态错误)。"""
 
     source_node: str = Field(description="错误来源节点 id")
-    relation_reason: str = Field(
-        description="用户增殖时写的关联原因 (CANVAS_EDGE.label)"
-    )
+    relation_reason: str = Field(description="用户增殖时写的关联原因 (CANVAS_EDGE.label)")
     kind: str = Field(default="error", description="素材种类 (v1 仅 error)")
     text: str = Field(description="错误描述原文")
 
@@ -67,9 +63,7 @@ class TargetingMaterialRequest(BaseModel):
     """T4 方案 A — 素材请求 (skill 经 curl 调用, 带 X-CLS-Internal-Key)。"""
 
     node_id: str = Field(..., min_length=1, description="被考察节点 id (文件 basename)")
-    vault_id: str = Field(
-        ..., min_length=1, description="Multi-vault 隔离必填 (D16/C-3)"
-    )
+    vault_id: str = Field(..., min_length=1, description="Multi-vault 隔离必填 (D16/C-3)")
     subject_id: Optional[str] = Field(default=None)
     budget_chars: int = Field(default=1200, ge=100, le=8000)
 
@@ -89,18 +83,14 @@ class TargetingMaterialResponse(BaseModel):
 
 @exam_sessions_router.get("/exam_sessions", response_model=ExamSessionListResponse)
 async def list_exam_sessions(
-    board_id: Optional[str] = Query(
-        default=None, description="Filter by source board ID"
-    ),
+    board_id: Optional[str] = Query(default=None, description="Filter by source board ID"),
     vault_id: Optional[str] = Query(
         default=None,
         min_length=1,
         description="Multi-vault P0-2 (Wave-5 Stage B) — 推荐必填. 注入 ContextVar 防跨 vault 会话串库.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """
     List all exam sessions, optionally filtered by source board ID.
@@ -114,9 +104,7 @@ async def list_exam_sessions(
     # (409 fail-closed + 双缺失推导 active vault, 语义见其 docstring)。
     from app.core.vault_scope import resolve_vault_group_id
 
-    resolved_group_id = resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     # 透传到 Cypher params
     # T1 统一 (2026-07-10): 物理层 group_id 单一 __ 格式（ContextVar 保持逻辑冒号格式不变）
     group_id = to_physical_group_id(resolved_group_id)

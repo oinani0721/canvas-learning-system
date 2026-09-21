@@ -67,18 +67,12 @@ class GradeRequest(BaseModel):
         le=4,
         description="Student response grade (1=Forgot, 2=Struggled, 3=Correct, 4=Fluent)",
     )
-    topic: str = Field(
-        default="", description="Topic category (optional, for new concepts)"
-    )
-    name: str = Field(
-        default="", description="Display name (optional, for new concepts)"
-    )
+    topic: str = Field(default="", description="Topic category (optional, for new concepts)")
+    name: str = Field(default="", description="Display name (optional, for new concepts)")
 
 
 class OverrideRequest(BaseModel):
-    level: str = Field(
-        ..., description="Override level: shaky/developing/proficient/mastered"
-    )
+    level: str = Field(..., description="Override level: shaky/developing/proficient/mastered")
     reason: str = Field(default="", description="Optional reason for override")
 
 
@@ -91,16 +85,12 @@ class SelfAssessRequest(BaseModel):
 
 
 class GraphitiSyncRequest(BaseModel):
-    concept_name: str = Field(
-        ..., description="Concept name from Graphiti episode (e.g. 'A* optimality')"
-    )
+    concept_name: str = Field(..., description="Concept name from Graphiti episode (e.g. 'A* optimality')")
     signal: str = Field(
         ...,
         description="Signal type: misconception, problem_trap, guided_thinking_correct",
     )
-    severity: float = Field(
-        default=0.15, ge=0.0, le=1.0, description="Adjustment magnitude"
-    )
+    severity: float = Field(default=0.15, ge=0.0, le=1.0, description="Adjustment magnitude")
     topic: str = Field(default="", description="Topic category (optional)")
 
 
@@ -135,9 +125,7 @@ async def get_batch_mastery(
     Returns concepts array with effective_proficiency, mastery_level, etc.
     Also returns topic_summary with aggregated proficiency per topic.
     """
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     engine = _get_engine()
     store = _get_store()
 
@@ -160,9 +148,7 @@ async def get_batch_mastery(
         import json
         from pathlib import Path
 
-        config_path = (
-            Path(__file__).parent.parent.parent.parent.parent / "mastery_config.json"
-        )
+        config_path = Path(__file__).parent.parent.parent.parent.parent / "mastery_config.json"
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
                 exam_weights = json.load(f).get("topic_exam_weights", {})
@@ -194,9 +180,7 @@ async def get_board_mastery(
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 泄漏.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """
     Get mastery data for all nodes on a specific canvas board (Story 5.2 Task 7).
@@ -225,11 +209,7 @@ async def get_board_mastery(
         # has_exam_record: node has been graded at least once (AutoSCORE)
         has_exam_record = concept.interaction_count > 0
         # has_interaction: user has engaged with this node (any activity)
-        has_interaction = (
-            has_exam_record
-            or concept.override_value is not None
-            or concept.self_assess_value is not None
-        )
+        has_interaction = has_exam_record or concept.override_value is not None or concept.self_assess_value is not None
 
         # effective_proficiency: null when never examined (matches frontend expectation)
         eff_raw = engine.effective_proficiency(concept)
@@ -272,9 +252,7 @@ async def record_grade(
         description="Multi-vault P0-2 — 推荐必填. 注入 ContextVar 防跨 vault 泄漏.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """
     Record a student interaction grade (1-4) and update BKT + FSRS.
@@ -285,9 +263,7 @@ async def record_grade(
       3 = Correct (answered and explained)
       4 = Fluent (fluent explanation with connections)
     """
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     engine = _get_engine()
     store = _get_store()
 
@@ -315,9 +291,7 @@ async def set_override(
         description="Multi-vault P0-2 — 推荐必填.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """
     Set explicit mastery override from Sidebar (weight=0.8).
@@ -327,22 +301,16 @@ async def set_override(
     """
     valid_levels = {"shaky", "developing", "proficient", "mastered"}
     if req.level not in valid_levels:
-        raise HTTPException(
-            400, f"Invalid level '{req.level}'. Must be one of: {valid_levels}"
-        )
+        raise HTTPException(400, f"Invalid level '{req.level}'. Must be one of: {valid_levels}")
 
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     engine = _get_engine()
     store = _get_store()
 
     concept = await store.get_or_create_concept(concept_id, group_id=resolved_group_id)
     concept = engine.set_override(concept, req.level, req.reason)
     await store.save_concept(concept, resolved_group_id)
-    await store.record_override_event(
-        concept_id, req.level, req.reason, resolved_group_id
-    )
+    await store.record_override_event(concept_id, req.level, req.reason, resolved_group_id)
 
     return engine.concept_to_response(concept)
 
@@ -357,9 +325,7 @@ async def self_assess(
         description="Multi-vault P0-2 — 推荐必填.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """
     Record implicit self-assessment from Canvas color change (weight=0.5).
@@ -372,9 +338,7 @@ async def self_assess(
       "5" (Cyan)   -> 0.90 (student thinks mastered)
       "6" (Purple) -> 0.40 (student thinks weak)
     """
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     engine = _get_engine()
     store = _get_store()
 
@@ -399,14 +363,10 @@ async def reset_override(
         description="Multi-vault P0-2 — 推荐必填.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """Reset override to model-computed value."""
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     engine = _get_engine()
     store = _get_store()
 
@@ -429,9 +389,7 @@ async def knowledge_graph_sync(
         description="Multi-vault P0-2 — 推荐必填.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """
     Bridge: Graphiti misconception/ProblemTrap → mastery penalty.
@@ -451,9 +409,7 @@ async def knowledge_graph_sync(
             f"Invalid signal type: {req.signal}. Must be: misconception, problem_trap, guided_thinking_correct",
         )
 
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     engine = _get_engine()
     store = _get_store()
 
@@ -505,9 +461,7 @@ async def record_calibration_endpoint(
         description="Multi-vault P0-2 — 推荐必填.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """Record a calibration data point (self_confidence + actual_performance).
 
@@ -520,9 +474,7 @@ async def record_calibration_endpoint(
       - Lucky: unsure + correct
       - Unlearned: unsure + wrong
     """
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     store = _get_store()
 
     cal_record = record_calibration(
@@ -553,9 +505,7 @@ async def get_calibration_summary_endpoint(
         description="Multi-vault P0-2 — 推荐必填.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """Get calibration summary for a concept node.
 
@@ -564,9 +514,7 @@ async def get_calibration_summary_endpoint(
       Stage 2 (10-20 records): Preliminary trends + signed_bias
       Stage 3 (20+ records): Full report + absolute_bias + rating
     """
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     store = _get_store()
 
     records = await store.get_calibration_records(concept_id, resolved_group_id)
@@ -583,9 +531,7 @@ async def get_dangerous_nodes_endpoint(
         description="Multi-vault P0-2 — 推荐必填.",
     ),
     subject_id: Optional[str] = Query(default=None),
-    group_id: Optional[str] = Query(
-        default=None, deprecated=True, description="Deprecated — 改用 vault_id."
-    ),
+    group_id: Optional[str] = Query(default=None, deprecated=True, description="Deprecated — 改用 vault_id."),
 ):
     """List all nodes with MISCONCEPTION quadrant records.
 
@@ -593,9 +539,7 @@ async def get_dangerous_nodes_endpoint(
     (the most dangerous learning blind spots). Used for exam question
     prioritization.
     """
-    resolved_group_id = _resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = _resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     store = _get_store()
     node_ids = await store.get_dangerous_nodes(resolved_group_id)
 

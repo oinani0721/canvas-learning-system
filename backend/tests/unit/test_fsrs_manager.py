@@ -123,8 +123,7 @@ class TestCardCreation:
         assert due is not None
         margin = timedelta(seconds=5)
         assert before - margin <= due <= after + margin, (
-            f"Card should be due immediately. due={due}, "
-            f"window=[{before - margin}, {after + margin}]"
+            f"Card should be due immediately. due={due}, window=[{before - margin}, {after + margin}]"
         )
 
 
@@ -196,9 +195,7 @@ class TestRetrievability:
         retrievability = fsrs_manager.get_retrievability(reviewed_card)
 
         # Assert
-        assert 0.0 <= retrievability <= 1.0, (
-            f"Retrievability must be in [0.0, 1.0], got {retrievability}"
-        )
+        assert 0.0 <= retrievability <= 1.0, f"Retrievability must be in [0.0, 1.0], got {retrievability}"
 
     def test_get_retrievability_high_for_fresh_card(self, fsrs_manager, reviewed_card):
         """Test retrievability is high for freshly reviewed card."""
@@ -207,9 +204,7 @@ class TestRetrievability:
 
         # Assert
         # Freshly reviewed card should have high retrievability (close to 1.0)
-        assert retrievability >= 0.9, (
-            f"Fresh card retrievability should be >= 0.9, got {retrievability}"
-        )
+        assert retrievability >= 0.9, f"Fresh card retrievability should be >= 0.9, got {retrievability}"
 
 
 # ==========================================================
@@ -239,10 +234,7 @@ class TestDueDate:
         due_date = fsrs_manager.get_due_date(updated_card)
 
         # Assert — due date must be strictly after the pre-review timestamp
-        assert due_date > before, (
-            f"Due date should be in the future after review. "
-            f"due={due_date}, before={before}"
-        )
+        assert due_date > before, f"Due date should be in the future after review. due={due_date}, before={before}"
 
 
 # ==========================================================
@@ -307,9 +299,7 @@ class TestCardStateConversion:
     def test_card_to_state_conversion(self, fsrs_manager, reviewed_card):
         """Test Card to CardState conversion."""
         # Act
-        state = fsrs_manager.card_to_state(
-            reviewed_card, concept="test_concept", canvas_file="test.canvas"
-        )
+        state = fsrs_manager.card_to_state(reviewed_card, concept="test_concept", canvas_file="test.canvas")
 
         # Assert
         assert isinstance(state, CardState)
@@ -323,9 +313,7 @@ class TestCardStateConversion:
     def test_state_to_card_conversion(self, fsrs_manager, reviewed_card):
         """Test CardState to Card conversion."""
         # Arrange
-        state = fsrs_manager.card_to_state(
-            reviewed_card, concept="test_concept", canvas_file="test.canvas"
-        )
+        state = fsrs_manager.card_to_state(reviewed_card, concept="test_concept", canvas_file="test.canvas")
 
         # Act
         restored_card = fsrs_manager.state_to_card(state)
@@ -343,9 +331,7 @@ class TestCardStateConversion:
         original_stability = reviewed_card.stability if FSRS_AVAILABLE else 0
 
         # Act
-        state = fsrs_manager.card_to_state(
-            reviewed_card, concept="roundtrip_test", canvas_file="test.canvas"
-        )
+        state = fsrs_manager.card_to_state(reviewed_card, concept="roundtrip_test", canvas_file="test.canvas")
         restored_card = fsrs_manager.state_to_card(state)
 
         # Assert
@@ -384,9 +370,7 @@ class TestRatingConversion:
         rating = get_rating_from_score(score)
 
         # Assert
-        assert rating == expected_rating, (
-            f"Score {score} should map to Rating {expected_rating}, got {rating}"
-        )
+        assert rating == expected_rating, f"Score {score} should map to Rating {expected_rating}, got {rating}"
 
 
 # ==========================================================
@@ -404,9 +388,7 @@ class TestFSRSAlgorithmOutput:
 
         # Assert
         if FSRS_AVAILABLE:
-            assert updated_card.stability > 0, (
-                "Stability must be positive after first review"
-            )
+            assert updated_card.stability > 0, "Stability must be positive after first review"
 
     def test_interval_increases_with_consecutive_good_ratings(self, fsrs_manager):
         """Test that Easy rating produces higher stability than Good rating."""
@@ -425,8 +407,7 @@ class TestFSRSAlgorithmOutput:
         if FSRS_AVAILABLE:
             # Easy rating should produce higher stability than Good
             assert card_easy.stability >= card_good.stability, (
-                f"Easy stability ({card_easy.stability}) should be >= "
-                f"Good stability ({card_good.stability})"
+                f"Easy stability ({card_easy.stability}) should be >= Good stability ({card_good.stability})"
             )
             # Both should be positive
             assert card_good.stability > 0
@@ -458,9 +439,7 @@ class TestFSRSAlgorithmOutput:
         initial_ret = fsrs_manager.get_retrievability(card)
 
         # Assert initial is high
-        assert initial_ret >= 0.9, (
-            f"Initial retrievability should be >= 0.9, got {initial_ret}"
-        )
+        assert initial_ret >= 0.9, f"Initial retrievability should be >= 0.9, got {initial_ret}"
 
 
 # ==========================================================

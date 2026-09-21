@@ -57,9 +57,7 @@ def test_parse_strips_markdown_fences():
 
 
 def test_parse_falls_back_on_malformed_json():
-    result = _parse_deep_research_response(
-        "not json at all", max_queries=6, fallback_query="original"
-    )
+    result = _parse_deep_research_response("not json at all", max_queries=6, fallback_query="original")
     assert result == ["original"]
 
 
@@ -159,9 +157,7 @@ async def test_fallback_sets_deep_research_used_true_on_success():
     }
     runtime = _make_runtime({"deep_research_enabled": True})
 
-    reply = _make_llm_reply(
-        '{"plan": "split", "queries": ["photosynthesis definition", "chlorophyll role"]}'
-    )
+    reply = _make_llm_reply('{"plan": "split", "queries": ["photosynthesis definition", "chlorophyll role"]}')
 
     async def _mock_acompletion(**_kwargs):
         return reply
@@ -211,9 +207,7 @@ async def test_fallback_respects_timeout():
         "original_query": "timeout test",
         "messages": [{"role": "user", "content": "timeout test"}],
     }
-    runtime = _make_runtime(
-        {"deep_research_enabled": True, "deep_research_timeout_s": 0.05}
-    )
+    runtime = _make_runtime({"deep_research_enabled": True, "deep_research_timeout_s": 0.05})
 
     async def _slow_acompletion(**_kwargs):
         await asyncio.sleep(1.0)  # much longer than 0.05s timeout
@@ -271,9 +265,7 @@ async def test_fallback_caps_queries_at_configured_max():
         "original_query": "many queries",
         "messages": [{"role": "user", "content": "many queries"}],
     }
-    runtime = _make_runtime(
-        {"deep_research_enabled": True, "deep_research_max_queries": 3}
-    )
+    runtime = _make_runtime({"deep_research_enabled": True, "deep_research_max_queries": 3})
 
     reply = _make_llm_reply('{"queries": ["q1", "q2", "q3", "q4", "q5", "q6", "q7"]}')
 

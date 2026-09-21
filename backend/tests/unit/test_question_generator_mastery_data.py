@@ -149,12 +149,8 @@ async def test_effective_proficiency_from_fusion(
     # effective_proficiency_with_fallback_info (which returns (eff, bool))
     # instead of the old effective_proficiency. The cached eff is piped into
     # mastery_level_from_proficiency and mastery_label_from_level.
-    engine_mock.effective_proficiency_with_fallback_info.assert_called_once_with(
-        studied_concept
-    )
-    engine_mock.mastery_level_from_proficiency.assert_called_once_with(
-        0.85, studied_concept
-    )
+    engine_mock.effective_proficiency_with_fallback_info.assert_called_once_with(studied_concept)
+    engine_mock.mastery_level_from_proficiency.assert_called_once_with(0.85, studied_concept)
     engine_mock.mastery_label_from_level.assert_called_once_with(3)
     engine_mock.get_retrievability.assert_called_once_with(studied_concept)
     # The old un-cached variants must NOT be called by _get_mastery_data — calling
@@ -297,12 +293,7 @@ def test_no_getattr_volatile_pattern_in_get_mastery_data() -> None:
     This is a regression guard. If a future refactor reintroduces the broken pattern,
     this test fails immediately at the source level (no runtime needed).
     """
-    qg_path = (
-        Path(__file__).parent.parent.parent
-        / "app"
-        / "services"
-        / "question_generator.py"
-    )
+    qg_path = Path(__file__).parent.parent.parent / "app" / "services" / "question_generator.py"
     src = qg_path.read_text(encoding="utf-8")
 
     # Locate _get_mastery_data function body (heuristic: function def to next 'async def')
@@ -482,8 +473,7 @@ def test_mastery_level_from_proficiency_matches_mastery_level() -> None:
         )
         actual = engine.mastery_level_from_proficiency(eff, concept)
         assert actual == expected, (
-            f"For eff={eff}, interactions={interactions}, fluent={fluent}: "
-            f"expected level={expected}, got {actual}"
+            f"For eff={eff}, interactions={interactions}, fluent={fluent}: expected level={expected}, got {actual}"
         )
 
 
@@ -495,9 +485,7 @@ def test_mastery_label_from_level_matches_mastery_label_lookup() -> None:
     engine = MasteryEngine(load_mastery_config())
 
     for level in range(5):
-        assert engine.mastery_label_from_level(level) == MASTERY_LABELS.get(
-            level, "Unknown"
-        )
+        assert engine.mastery_label_from_level(level) == MASTERY_LABELS.get(level, "Unknown")
     # Out-of-range levels return "Unknown"
     assert engine.mastery_label_from_level(99) == "Unknown"
 
@@ -546,9 +534,7 @@ async def test_fusion_fallback_propagates_to_mastery_degraded(
     assert result["mastery_level"] == 1
     assert result["mastery_label"] == "Shaky"
     # Engine helper was called exactly once
-    engine_mock.effective_proficiency_with_fallback_info.assert_called_once_with(
-        studied_concept
-    )
+    engine_mock.effective_proficiency_with_fallback_info.assert_called_once_with(studied_concept)
 
 
 @pytest.mark.asyncio

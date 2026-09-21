@@ -356,9 +356,7 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
             else:
                 # HIGH-7: 请求要了跨学科但 Neo4j 不可用 = 覆盖面收窄, 不是
                 # 「本来就只有这个学科」——如实记为通道降级。
-                channel_errors["lancedb_cross_subject"] = (
-                    "neo4j unavailable — cross-subject expansion skipped"
-                )
+                channel_errors["lancedb_cross_subject"] = "neo4j unavailable — cross-subject expansion skipped"
         except ImportError as e:
             logger.debug("[retrieve_lancedb] cross_subject_bridge not available, searching current subject only")
             channel_errors["lancedb_cross_subject"] = f"ImportError: {e}"
@@ -468,9 +466,7 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
         # HIGH-7: **保留已获得的部分结果** —— 原实现无条件清空, 前一个
         # subject 已检索到的结果会被后一个 subject 的异常连坐抹掉,
         # 上层因此看到「空」而非「部分」。
-        logger.warning(
-            f"[retrieve_lancedb] Fallback triggered (保留 {len(lancedb_results)} 条已获结果): {e}"
-        )
+        logger.warning(f"[retrieve_lancedb] Fallback triggered (保留 {len(lancedb_results)} 条已获结果): {e}")
         channel_errors["lancedb"] = f"{type(e).__name__}: {e}"
 
     latency_ms = (time.perf_counter() - start_time) * 1000
@@ -633,9 +629,7 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
     # 其余键 (如 lancedb_cross_subject) 是覆盖面收窄, 只降 degraded。
     _PRIMARY_CHANNELS = ("graphiti", "lancedb")
     primary_failed = {k for k in ch_errors if k in _PRIMARY_CHANNELS}
-    primary_healthy = [
-        c for c in _PRIMARY_CHANNELS if c not in primary_failed
-    ]
+    primary_healthy = [c for c in _PRIMARY_CHANNELS if c not in primary_failed]
     reason_text = "; ".join(f"{k}: {v}" for k, v in sorted(ch_errors.items()))
 
     if ch_errors and total_results == 0 and not primary_healthy:

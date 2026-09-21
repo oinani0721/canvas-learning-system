@@ -178,9 +178,7 @@ class TestSpecialCharacterGroupId:
 
         malicious_group_id = "<script>'; DROP TABLE users;--"
 
-        await client.get_review_suggestions(
-            user_id="test_user", limit=5, group_id=malicious_group_id
-        )
+        await client.get_review_suggestions(user_id="test_user", limit=5, group_id=malicious_group_id)
 
         # 判据分两层（Codex round-3 LOW 与 round-4 LOW 各推了一次）：
         #   A 层「每一次调用都必须成立」的安全不变量 —— 防「先发一条把恶意串拼进文本的
@@ -219,8 +217,7 @@ class TestSpecialCharacterGroupId:
                 f"group 过滤。kwargs={sorted(all_kwargs)} query={query_str!r}"
             )
             assert all_kwargs["group_id"] == expected_physical, (
-                f"group_id 未物理化或绑错组。got={all_kwargs['group_id']!r} "
-                f"want={expected_physical!r}"
+                f"group_id 未物理化或绑错组。got={all_kwargs['group_id']!r} want={expected_physical!r}"
             )
             assert all_kwargs["group_prefix"] == expected_physical + "__", (
                 f"group_prefix 应为物理组 + '__' 定界符。got={all_kwargs['group_prefix']!r}"
@@ -235,9 +232,7 @@ class TestSpecialCharacterGroupId:
             #  但注入面又回来了。）
             for _k, _v in all_kwargs.items():
                 if isinstance(_v, str) and _v:
-                    assert _v not in query_str, (
-                        f"参数 {_k} 的值被拼进了查询文本，应作为绑定参数传递"
-                    )
+                    assert _v not in query_str, f"参数 {_k} 的值被拼进了查询文本，应作为绑定参数传递"
 
             # ⚠️ 上面那条只覆盖**还留在 kwargs 里**的值，于是「把值内联进文本 + 同时把该参数
             # 从 kwargs 删掉」能整个绕开它（检查集合跟着缩小）。round-2 我用「钉死期望参数集」
@@ -266,9 +261,7 @@ class TestSpecialCharacterGroupId:
             #   现行生产查询里没有任何注释标记与字符串字面量，故本启发式在当前形态下不误报；
             #   要根治需要 Cypher 解析器，超出本卡范围，登记不修。
             _stripped = re.sub(r"/\*.*?\*/", " ", query_str, flags=re.S)
-            _query_no_comments = "\n".join(
-                line.split("//", 1)[0] for line in _stripped.splitlines()
-            )
+            _query_no_comments = "\n".join(line.split("//", 1)[0] for line in _stripped.splitlines())
             for _k in all_kwargs:
                 assert f"${_k}" in _query_no_comments, (
                     f"参数 {_k} 传进了 kwargs 却没有对应的 ${_k} 占位符（已排除注释），"
@@ -323,16 +316,18 @@ class TestSpecialCharacterGroupId:
             #    截断后 `_expr` 变空串、误报（round-8 MEDIUM）。
             # ⚠️ `(?<!\$)` 不可省：`$limit` 里的 "limit" 前面是 `$`（非词字符），`\b` 照样成立，
             #    不排除会把 `LIMIT $limit` 当成两个子句（本车道自测时被真实生产查询红出来）。
-            _scan = re.sub(r"`[^`]*`", " ", _query_no_comments)   # 反引号标识符挖空
+            _scan = re.sub(r"`[^`]*`", " ", _query_no_comments)  # 反引号标识符挖空
             # ⚠️ `}` 不能一律当边界（round-9 MEDIUM）：`LIMIT size(keys({})) + $limit` 里的
             #    `}` 是 **map 字面量**的收尾，把它当边界会在空 map 处截断 ⇒ 误报合法分页。
             #    改为跟踪**花括号深度**：只有让深度低于子句起点的 `}`（即收掉外层子查询）才算边界。
             # ⚠️ `FOREACH` 也要进边界集（round-9 MEDIUM）：`WITH e LIMIT 5 FOREACH (v IN [$limit] …)`
             #    里外层的 `$limit` 会被算进内层分页片段。
-            _CLAUSE = (r"LIMIT|SKIP|RETURN|ORDER|WITH|MATCH|WHERE|UNION|CALL|UNWIND"
-                       r"|CREATE|MERGE|DELETE|SET|FOREACH|DETACH|REMOVE")
+            _CLAUSE = (
+                r"LIMIT|SKIP|RETURN|ORDER|WITH|MATCH|WHERE|UNION|CALL|UNWIND"
+                r"|CREATE|MERGE|DELETE|SET|FOREACH|DETACH|REMOVE"
+            )
             for _m in re.finditer(r"(?<!\$)\b(LIMIT|SKIP)\b", _scan, flags=re.I):
-                _rest = _scan[_m.end():]
+                _rest = _scan[_m.end() :]
                 _kw = re.search(rf"(?<!\$)\b(?:{_CLAUSE})\b", _rest, flags=re.I)
                 _end = _kw.start() if _kw else len(_rest)
                 _depth = 0
@@ -340,7 +335,7 @@ class TestSpecialCharacterGroupId:
                     if _ch == "{":
                         _depth += 1
                     elif _ch == "}":
-                        if _depth == 0:      # 收掉的是子句外层的 `{`（子查询）⇒ 才是边界
+                        if _depth == 0:  # 收掉的是子句外层的 `{`（子查询）⇒ 才是边界
                             _end = _i
                             break
                         _depth -= 1
@@ -355,11 +350,7 @@ class TestSpecialCharacterGroupId:
         # 「恰好四个」会把它误判成没有主查询。本车道送 round-8 前自测抓到
         # （负控 ⑤ `SKIP $skip` 期望 PASS 实测 FAIL）。
         # 少绑仍会红——那正是「内联 + 删参数」要挡的形态。
-        scoped_calls = [
-            c
-            for c in client.run_query.call_args_list
-            if EXPECTED_BOUND_PARAMS <= set(c.kwargs or {})
-        ]
+        scoped_calls = [c for c in client.run_query.call_args_list if EXPECTED_BOUND_PARAMS <= set(c.kwargs or {})]
         assert scoped_calls, (
             "没有任何一次 run_query 带完整的作用域参数集 "
             f"{sorted(EXPECTED_BOUND_PARAMS)}；各次 kwargs="
@@ -370,6 +361,7 @@ class TestSpecialCharacterGroupId:
         # ⚠️ 同源盲区（Codex round-1 MEDIUM，已登记不修）：expected_physical 与生产走**同一个**
         # to_physical_group_id，若该 helper 恒返回同一个串，两边同步变化、本条发现不了。
         # 独立重实现物理化规则 = 在测试里复制一份生产逻辑，且本卡禁改 backend/app。
+
 
 # ============================================================================
 # AC-30.24.5: Unicode concept name test
@@ -532,9 +524,7 @@ class TestShutdownDataSafety:
         svc.neo4j = MagicMock()
         svc.neo4j.stats = {"initialized": True}
         # Simulate Neo4j unreachable — all writes raise
-        svc.neo4j.record_episode = AsyncMock(
-            side_effect=ConnectionError("Neo4j unreachable")
-        )
+        svc.neo4j.record_episode = AsyncMock(side_effect=ConnectionError("Neo4j unreachable"))
 
         events = [
             {
@@ -547,9 +537,7 @@ class TestShutdownDataSafety:
             for i in range(5)
         ]
 
-        with patch(
-            "app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file
-        ):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file):
             result = await svc.record_batch_learning_events(events)
 
         # All 5 writes should fail
@@ -579,15 +567,11 @@ class TestShutdownDataSafety:
 
         failed_writes_file = tmp_path / "failed_writes.jsonl"
 
-        with patch(
-            "app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file
-        ):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file):
             await svc.cleanup()
 
         # Verify failed_writes.jsonl was created (must NOT be conditional)
-        assert failed_writes_file.exists(), (
-            "failed_writes.jsonl was not created by cleanup()"
-        )
+        assert failed_writes_file.exists(), "failed_writes.jsonl was not created by cleanup()"
         lines = failed_writes_file.read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 5
         for line in lines:
@@ -618,14 +602,10 @@ class TestShutdownDataSafety:
 
         failed_writes_file = tmp_path / "failed_writes.jsonl"
 
-        with patch(
-            "app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file
-        ):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", failed_writes_file):
             await svc.cleanup()
 
-        assert failed_writes_file.exists(), (
-            "failed_writes.jsonl was not created by cleanup()"
-        )
+        assert failed_writes_file.exists(), "failed_writes.jsonl was not created by cleanup()"
         lines = failed_writes_file.read_text(encoding="utf-8").strip().split("\n")
         record = json.loads(lines[0])
         assert record["episode_id"] == "ep_test_001"
@@ -659,9 +639,7 @@ class TestVaultVerifyExitCode:
     )
     def test_verify_script_exists(self):
         """verify-vault.mjs script must exist."""
-        assert self.VERIFY_SCRIPT.exists(), (
-            f"verify script not found: {self.VERIFY_SCRIPT}"
-        )
+        assert self.VERIFY_SCRIPT.exists(), f"verify script not found: {self.VERIFY_SCRIPT}"
 
     def _run_verify(self, env_override: dict, timeout: int = 10):
         """Helper: run verify-vault.mjs with UTF-8 encoding (Windows emits emoji)."""

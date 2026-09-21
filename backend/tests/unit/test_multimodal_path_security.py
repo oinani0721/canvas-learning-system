@@ -118,9 +118,7 @@ class TestUploadFilePathTraversal:
         with patch.object(
             service,
             "_validate_safe_path",
-            side_effect=MultimodalServiceError(
-                "Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"
-            ),
+            side_effect=MultimodalServiceError("Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"),
         ) as mock_validate:
             with pytest.raises(MultimodalServiceError, match="path traversal"):
                 await service.upload_file(
@@ -142,9 +140,7 @@ class TestUploadFilePathTraversal:
             call_order.append("validate")
             return original_validate(path)
 
-        with patch.object(
-            service, "_validate_safe_path", side_effect=tracking_validate
-        ):
+        with patch.object(service, "_validate_safe_path", side_effect=tracking_validate):
             with patch("builtins.open", create=True) as mock_open:
                 mock_open.return_value.__enter__ = MagicMock()
                 mock_open.return_value.__exit__ = MagicMock(return_value=False)
@@ -176,9 +172,7 @@ class TestUploadFromUrlPathTraversal:
         with patch.object(
             service,
             "_validate_safe_path",
-            side_effect=MultimodalServiceError(
-                "Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"
-            ),
+            side_effect=MultimodalServiceError("Invalid file path: path traversal detected", "PATH_TRAVERSAL_ERROR"),
         ) as mock_validate:
             # Mock httpx response
             mock_response = MagicMock()
@@ -231,9 +225,7 @@ class TestRealDefenseChain:
             service._validate_safe_path(evil_path)
 
     @pytest.mark.asyncio
-    async def test_upload_file_real_chain_safe_filename_generated(
-        self, service, tmp_storage
-    ):
+    async def test_upload_file_real_chain_safe_filename_generated(self, service, tmp_storage):
         """
         Real defense chain: upload_file with malicious filename
         generates a safe unique filename, so _validate_safe_path passes.
@@ -268,8 +260,7 @@ class TestRealDefenseChain:
         # _generate_unique_filename replaced the filename
         validated_path = call_log[0][1]
         assert ".." not in validated_path, (
-            f"_generate_unique_filename should have sanitized the path, "
-            f"but got: {validated_path}"
+            f"_generate_unique_filename should have sanitized the path, but got: {validated_path}"
         )
 
     def test_generate_unique_filename_strips_path_components(self, service):

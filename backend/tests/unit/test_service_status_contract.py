@@ -36,15 +36,11 @@ class TestEnumValueDomain:
         from agentic_rag.state import CanvasRAGState
 
         hints = typing.get_type_hints(CanvasRAGState, include_extras=True)
-        assert "retrieval_status" in hints, (
-            "CanvasRAGState 缺 retrieval_status 字段 (G4-2 加性字段)"
-        )
+        assert "retrieval_status" in hints, "CanvasRAGState 缺 retrieval_status 字段 (G4-2 加性字段)"
         annotated = hints["retrieval_status"]
         # Annotated[Optional[Literal[...]], desc] → 剥到 Literal args
         inner = typing.get_args(annotated)[0]  # Optional[Literal[...]]
-        literal = next(
-            a for a in typing.get_args(inner) if typing.get_origin(a) is typing.Literal
-        )
+        literal = next(a for a in typing.get_args(inner) if typing.get_origin(a) is typing.Literal)
         assert set(typing.get_args(literal)) == set(SERVICE_STATUS_VALUES), (
             f"Literal 镜像漂移: {typing.get_args(literal)} != {SERVICE_STATUS_VALUES}"
         )
@@ -145,18 +141,10 @@ class TestMaxSeverity:
             max_severity()
 
     def test_severity_order(self):
+        assert max_severity(ServiceStatus.OK, ServiceStatus.EMPTY) is ServiceStatus.EMPTY
+        assert max_severity(ServiceStatus.EMPTY, ServiceStatus.DEGRADED) is ServiceStatus.DEGRADED
         assert (
-            max_severity(ServiceStatus.OK, ServiceStatus.EMPTY)
-            is ServiceStatus.EMPTY
-        )
-        assert (
-            max_severity(ServiceStatus.EMPTY, ServiceStatus.DEGRADED)
-            is ServiceStatus.DEGRADED
-        )
-        assert (
-            max_severity(
-                ServiceStatus.OK, ServiceStatus.UNAVAILABLE, ServiceStatus.DEGRADED
-            )
+            max_severity(ServiceStatus.OK, ServiceStatus.UNAVAILABLE, ServiceStatus.DEGRADED)
             is ServiceStatus.UNAVAILABLE
         )
 
@@ -169,32 +157,17 @@ class TestFoldOverallStatus:
     """
 
     def test_failure_with_results_is_degraded(self):
-        assert (
-            fold_overall_status(has_results=True, failed_sources=1, healthy_sources=0)
-            is ServiceStatus.DEGRADED
-        )
+        assert fold_overall_status(has_results=True, failed_sources=1, healthy_sources=0) is ServiceStatus.DEGRADED
 
     def test_failure_without_results_but_healthy_source_is_degraded(self):
         """另一个源健康地查到 0 条 —— 检索系统没挂, 只是这一路缺了。"""
-        assert (
-            fold_overall_status(has_results=False, failed_sources=1, healthy_sources=1)
-            is ServiceStatus.DEGRADED
-        )
+        assert fold_overall_status(has_results=False, failed_sources=1, healthy_sources=1) is ServiceStatus.DEGRADED
 
     def test_all_sources_failed_no_results_is_unavailable(self):
-        assert (
-            fold_overall_status(has_results=False, failed_sources=2, healthy_sources=0)
-            is ServiceStatus.UNAVAILABLE
-        )
+        assert fold_overall_status(has_results=False, failed_sources=2, healthy_sources=0) is ServiceStatus.UNAVAILABLE
 
     def test_clean_with_results_is_ok(self):
-        assert (
-            fold_overall_status(has_results=True, failed_sources=0, healthy_sources=2)
-            is ServiceStatus.OK
-        )
+        assert fold_overall_status(has_results=True, failed_sources=0, healthy_sources=2) is ServiceStatus.OK
 
     def test_clean_without_results_is_empty(self):
-        assert (
-            fold_overall_status(has_results=False, failed_sources=0, healthy_sources=2)
-            is ServiceStatus.EMPTY
-        )
+        assert fold_overall_status(has_results=False, failed_sources=0, healthy_sources=2) is ServiceStatus.EMPTY

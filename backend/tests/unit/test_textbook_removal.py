@@ -20,34 +20,18 @@ class TestTextbookFilesRemoved:
 
     def test_textbook_context_service_deleted(self):
         """textbook_context_service.py must not exist."""
-        path = (
-            Path(__file__).parent.parent.parent
-            / "app"
-            / "services"
-            / "textbook_context_service.py"
-        )
+        path = Path(__file__).parent.parent.parent / "app" / "services" / "textbook_context_service.py"
         assert not path.exists(), f"Expected deleted: {path}"
 
     def test_textbook_endpoint_deleted(self):
         """textbook.py endpoint must not exist."""
-        path = (
-            Path(__file__).parent.parent.parent
-            / "app"
-            / "api"
-            / "v1"
-            / "endpoints"
-            / "textbook.py"
-        )
+        path = Path(__file__).parent.parent.parent / "app" / "api" / "v1" / "endpoints" / "textbook.py"
         assert not path.exists(), f"Expected deleted: {path}"
 
     def test_textbook_retriever_deleted(self):
         """textbook_retriever.py in agentic_rag must not exist."""
         path = (
-            Path(__file__).parent.parent.parent.parent
-            / "src"
-            / "agentic_rag"
-            / "retrievers"
-            / "textbook_retriever.py"
+            Path(__file__).parent.parent.parent.parent / "src" / "agentic_rag" / "retrievers" / "textbook_retriever.py"
         )
         assert not path.exists(), f"Expected deleted: {path}"
 
@@ -93,9 +77,7 @@ class TestTextbookImportsRemoved:
         source = Path(router_mod.__file__).read_text()
         assert "textbook_router" not in source
         assert "textbook" not in source.lower() or "textbook" not in [
-            line.strip()
-            for line in source.split("\n")
-            if "import" in line and "textbook" in line.lower()
+            line.strip() for line in source.split("\n") if "import" in line and "textbook" in line.lower()
         ]
 
     def test_agents_rag_source_map_no_textbook(self):

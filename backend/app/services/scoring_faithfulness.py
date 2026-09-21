@@ -156,12 +156,8 @@ class ScoringFaithfulnessResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "evidence_grounding_score": self._round_or_none(
-                self.evidence_grounding_score, 4
-            ),
-            "score_consistency_score": self._round_or_none(
-                self.score_consistency_score, 4
-            ),
+            "evidence_grounding_score": self._round_or_none(self.evidence_grounding_score, 4),
+            "score_consistency_score": self._round_or_none(self.score_consistency_score, 4),
             "faithfulness_score": self._round_or_none(self.faithfulness_score, 4),
             "faithfulness_passed": self.faithfulness_passed,
             "low_confidence_dimensions": self.low_confidence_dimensions,
@@ -203,9 +199,7 @@ class ScoringFaithfulnessChecker:
 
     def __init__(self) -> None:
         self._grounding_prompt = self._load_prompt("faithfulness_evidence_grounding.md")
-        self._consistency_prompt = self._load_prompt(
-            "faithfulness_score_consistency.md"
-        )
+        self._consistency_prompt = self._load_prompt("faithfulness_score_consistency.md")
 
     @staticmethod
     def _load_prompt(filename: str) -> str:
@@ -237,9 +231,7 @@ class ScoringFaithfulnessChecker:
             EvidenceGroundingResult with per-evidence GROUNDED/UNGROUNDED verdicts.
         """
         if not evidence_points:
-            return EvidenceGroundingResult(
-                verifications=list(), grounded_count=0, total_count=0
-            )
+            return EvidenceGroundingResult(verifications=list(), grounded_count=0, total_count=0)
 
         import litellm
 
@@ -272,9 +264,7 @@ class ScoringFaithfulnessChecker:
             parsed = _parse_json_response(cast(str, content))
             verifications = parsed.get("verifications", list())
 
-            grounded = sum(
-                1 for v in verifications if v.get("verdict", "").upper() == "GROUNDED"
-            )
+            grounded = sum(1 for v in verifications if v.get("verdict", "").upper() == "GROUNDED")
 
             return EvidenceGroundingResult(
                 verifications=verifications,
@@ -319,9 +309,7 @@ class ScoringFaithfulnessChecker:
             ScoreConsistencyResult with per-dimension CONSISTENT/INCONSISTENT.
         """
         if not rubric_scores:
-            return ScoreConsistencyResult(
-                checks=list(), consistent_count=0, total_count=0
-            )
+            return ScoreConsistencyResult(checks=list(), consistent_count=0, total_count=0)
 
         import litellm
 
@@ -356,9 +344,7 @@ class ScoringFaithfulnessChecker:
             parsed = _parse_json_response(cast(str, content))
             checks = parsed.get("consistency_checks", list())
 
-            consistent = sum(
-                1 for c in checks if c.get("verdict", "").upper() == "CONSISTENT"
-            )
+            consistent = sum(1 for c in checks if c.get("verdict", "").upper() == "CONSISTENT")
 
             return ScoreConsistencyResult(
                 checks=checks,
@@ -434,21 +420,15 @@ class ScoringFaithfulnessChecker:
                 }
 
         # Stage 1: Evidence grounding
-        grounding = await self.verify_evidence_grounding(
-            evidence_points, conversation_segment
-        )
+        grounding = await self.verify_evidence_grounding(evidence_points, conversation_segment)
 
         # Stage 2: Score-evidence consistency
-        consistency = await self.verify_score_evidence_consistency(
-            rubric_scores, evidence_points
-        )
+        consistency = await self.verify_score_evidence_consistency(rubric_scores, evidence_points)
 
         # Vacuous-true fix: aggregate only non-None sub-scores. When BOTH are
         # None, combined is None and we treat the check as not_applicable
         # (faithfulness_passed=True so the scoring pipeline doesn't block).
-        sub_scores: List[float] = [
-            s for s in (grounding.score, consistency.score) if s is not None
-        ]
+        sub_scores: List[float] = [s for s in (grounding.score, consistency.score) if s is not None]
         not_applicable_checks: List[str] = []
         if grounding.score is None:
             not_applicable_checks.append("evidence_grounding")

@@ -41,9 +41,7 @@ class EdgeRationaleCreate(BaseModel):
         ...,
         description="Extracted relationship type (e.g. '是前提条件', '是特殊情况', '相互对比')",
     )
-    rationale_text: str = Field(
-        ..., description="User's original explanation of the relationship"
-    )
+    rationale_text: str = Field(..., description="User's original explanation of the relationship")
     confidence: float = Field(
         ...,
         ge=0.0,
@@ -74,9 +72,7 @@ class EdgeRationaleCreate(BaseModel):
         min_length=1,
         description="Wave-5 Stage B — 推荐必填. Plugin inferVaultId. Edge rationale per-vault 双写.",
     )
-    subject_id: Optional[str] = Field(
-        default=None, description="可选 vault 内学科二级 namespace."
-    )
+    subject_id: Optional[str] = Field(default=None, description="可选 vault 内学科二级 namespace.")
     group_id: Optional[str] = Field(
         default=None,
         deprecated=True,

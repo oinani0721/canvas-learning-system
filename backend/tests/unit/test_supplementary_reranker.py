@@ -27,9 +27,7 @@ class TestTypeWeights:
             ("raw_notes", 0.6),
         ]
         for source_type, weight in expected:
-            assert TYPE_WEIGHTS[source_type] == pytest.approx(weight), (
-                f"type weight mismatch for {source_type}"
-            )
+            assert TYPE_WEIGHTS[source_type] == pytest.approx(weight), f"type weight mismatch for {source_type}"
         # Strictly descending
         values = [TYPE_WEIGHTS[t] for t, _ in expected]
         assert values == sorted(values, reverse=True)
@@ -160,10 +158,7 @@ class TestRerank:
     def test_top_k_truncates(self):
         from app.services.supplementary_reranker import rerank
 
-        materials = [
-            {"score": 0.9, "source_type": "lecture_notes", "title": f"T{i:02d}"}
-            for i in range(10)
-        ]
+        materials = [{"score": 0.9, "source_type": "lecture_notes", "title": f"T{i:02d}"} for i in range(10)]
         result = rerank(materials, top_k=5)
         assert len(result) == 5
         # Top-5 应是字典序最前 5（T00..T04），所有 rerank_score 相同
@@ -172,10 +167,7 @@ class TestRerank:
     def test_top_k_none_returns_all(self):
         from app.services.supplementary_reranker import rerank
 
-        materials = [
-            {"score": 0.9, "source_type": "lecture_notes", "title": f"T{i}"}
-            for i in range(7)
-        ]
+        materials = [{"score": 0.9, "source_type": "lecture_notes", "title": f"T{i}"} for i in range(7)]
         result = rerank(materials, top_k=None)
         assert len(result) == 7
 
@@ -536,10 +528,7 @@ class TestFilterThreshold:
         """T3.9+T3.10 顺序: 先过滤后截断 — 高质量 #6 不会被低质量 #5 挤掉."""
         from app.services.supplementary_reranker import rerank
 
-        materials = [
-            {"score": 0.9, "source_type": "lecture_notes", "title": f"good-{i}"}
-            for i in range(5)
-        ]
+        materials = [{"score": 0.9, "source_type": "lecture_notes", "title": f"good-{i}"} for i in range(5)]
         # 加一个 marginal #6,在 filter 前 top_k=5 会截掉它,但过滤 0.42 阈值
         # 让 #6 通过 (它是 lecture_notes × 0.9 = 0.9)
         materials.append(
@@ -555,10 +544,7 @@ class TestFilterThreshold:
     def test_top_k_applied_after_filter(self):
         from app.services.supplementary_reranker import rerank
 
-        materials = [
-            {"score": 0.9, "source_type": "lecture_notes", "title": f"hit-{i}"}
-            for i in range(10)
-        ]
+        materials = [{"score": 0.9, "source_type": "lecture_notes", "title": f"hit-{i}"} for i in range(10)]
         # P0-B (2026-05-12): min_keep=0 关闭 floor, 测试 top_k 截断行为.
         result = rerank(materials, min_score_threshold=0.42, top_k=3, min_keep=0)
         assert len(result) == 3
@@ -663,9 +649,7 @@ class TestFilterFloor:
         from app.services.supplementary_reranker import rerank
 
         # 全部 note × 0.5 = 0.35 < 0.42, 默认 min_keep=3 → floor 触发
-        materials = [
-            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)
-        ]
+        materials = [{"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)]
         result = rerank(materials, min_score_threshold=0.42)
         # floor 触发 → 不删, 5 条全保留
         assert len(result) == 5
@@ -696,9 +680,7 @@ class TestFilterFloor:
         """显式 min_keep=0 关闭 floor, 保留原 filter 语义."""
         from app.services.supplementary_reranker import rerank
 
-        materials = [
-            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)
-        ]
+        materials = [{"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)]
         result = rerank(materials, min_score_threshold=0.42, min_keep=0)
         # min_keep=0 → 全删, 返回空
         assert len(result) == 0
@@ -709,9 +691,7 @@ class TestFilterFloor:
 
         # 100 条都过 filter 但只剩 5 条? 我们要构造 80%+ kill 的场景:
         # 100 条 note × 0.5 = 0.35 < 0.42 全部不过 → kill_ratio=100% → floor
-        materials = [
-            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(20)
-        ]
+        materials = [{"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(20)]
         result = rerank(materials, min_score_threshold=0.42, min_keep=1)
         # n_post=0, n_pre=20, kill_ratio=100% > 80% → floor
         assert len(result) == 20  # 全保留
@@ -721,10 +701,7 @@ class TestFilterFloor:
         """floor 触发后仍走 top_k 截断."""
         from app.services.supplementary_reranker import rerank
 
-        materials = [
-            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i:02d}"}
-            for i in range(10)
-        ]
+        materials = [{"score": 0.5, "source_type": "image_ocr", "title": f"n{i:02d}"} for i in range(10)]
         result = rerank(materials, min_score_threshold=0.42, top_k=5)
         assert len(result) == 5
         assert result[0].get("filter_floor_triggered") is True
@@ -806,9 +783,7 @@ class TestFilterFloorTaintExclusion:
         """无 taint 字段 (向后兼容) → 视为 clean, floor 保留."""
         from app.services.supplementary_reranker import rerank
 
-        materials = [
-            {"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)
-        ]
+        materials = [{"score": 0.5, "source_type": "image_ocr", "title": f"n{i}"} for i in range(5)]
         result = rerank(materials, min_score_threshold=0.42, min_keep=3)
         # 无 taint 字段视为 clean → floor 保留全部 5 条
         assert len(result) == 5

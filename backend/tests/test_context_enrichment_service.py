@@ -175,12 +175,10 @@ class TestContextEnrichmentWithGraphiti:
     ):
         """Test that enrichment includes Graphiti relations (AC4)."""
         # Act
-        result = (
-            await context_enrichment_service_with_graphiti.enrich_with_adjacent_nodes(
-                canvas_name="离散数学",
-                node_id="node1",
-                include_graphiti=True,
-            )
+        result = await context_enrichment_service_with_graphiti.enrich_with_adjacent_nodes(
+            canvas_name="离散数学",
+            node_id="node1",
+            include_graphiti=True,
         )
 
         # Assert
@@ -197,19 +195,14 @@ class TestContextEnrichmentWithGraphiti:
     ):
         """Test Graphiti context is formatted correctly (AC4)."""
         # Act
-        result = (
-            await context_enrichment_service_with_graphiti.enrich_with_adjacent_nodes(
-                canvas_name="离散数学",
-                node_id="node1",
-                include_graphiti=True,
-            )
+        result = await context_enrichment_service_with_graphiti.enrich_with_adjacent_nodes(
+            canvas_name="离散数学",
+            node_id="node1",
+            include_graphiti=True,
         )
 
         # Assert - enriched_context should include Graphiti section
-        assert (
-            "历史学习记忆" in result.enriched_context
-            or "Graphiti Relations" in result.enriched_context
-        )
+        assert "历史学习记忆" in result.enriched_context or "Graphiti Relations" in result.enriched_context
         assert "逆否命题" in result.enriched_context
 
     @pytest.mark.asyncio
@@ -271,9 +264,7 @@ class TestContextEnrichmentWithGraphiti:
 
         mock_graphiti = MagicMock(spec=LearningMemoryClient)
         mock_graphiti.initialize = AsyncMock(return_value=True)
-        mock_graphiti.search_memories = AsyncMock(
-            side_effect=Exception("Graphiti connection error")
-        )
+        mock_graphiti.search_memories = AsyncMock(side_effect=Exception("Graphiti connection error"))
 
         service = ContextEnrichmentService(
             canvas_service=mock_canvas_service,

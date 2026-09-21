@@ -81,9 +81,7 @@ class GoogleProvider(BaseProvider):
             self._client = genai.Client(api_key=self.config.api_key)
             self._initialized = True
 
-            logger.info(
-                f"Google provider {self.name} initialized: model={self.config.model}"
-            )
+            logger.info(f"Google provider {self.name} initialized: model={self.config.model}")
             return True
 
         except Exception as e:
@@ -157,9 +155,7 @@ class GoogleProvider(BaseProvider):
             output_tokens = 0
             if hasattr(response, "usage_metadata"):
                 input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
-                output_tokens = getattr(
-                    response.usage_metadata, "candidates_token_count", 0
-                )
+                output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
 
             await self.update_health(success=True, latency_ms=latency_ms)
 
@@ -269,16 +265,11 @@ class GoogleProvider(BaseProvider):
             output_tokens = 0
             if hasattr(response, "usage_metadata"):
                 input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
-                output_tokens = getattr(
-                    response.usage_metadata, "candidates_token_count", 0
-                )
+                output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
 
             await self.update_health(success=True, latency_ms=latency_ms)
 
-            logger.info(
-                f"Google multimodal completion successful: "
-                f"images={len(images)}, latency={latency_ms:.0f}ms"
-            )
+            logger.info(f"Google multimodal completion successful: images={len(images)}, latency={latency_ms:.0f}ms")
 
             return ProviderResponse(
                 text=response_text,

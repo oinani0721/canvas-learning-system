@@ -13,9 +13,7 @@ from hypothesis import Phase, settings
 from app.main import app
 
 # Load schema filtered to health endpoint only
-schema = schemathesis.openapi.from_asgi("/api/v1/openapi.json", app).include(
-    path="/api/v1/health"
-)
+schema = schemathesis.openapi.from_asgi("/api/v1/openapi.json", app).include(path="/api/v1/health")
 
 
 @schema.parametrize()

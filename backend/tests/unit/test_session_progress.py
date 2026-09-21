@@ -77,12 +77,7 @@ class TestSessionProgressModels:
         assert progress.purple_count == 1
         assert progress.red_count == 1
         # Total completed should match sum of colors
-        total_colors = (
-            progress.green_count
-            + progress.yellow_count
-            + progress.purple_count
-            + progress.red_count
-        )
+        total_colors = progress.green_count + progress.yellow_count + progress.purple_count + progress.red_count
         assert total_colors == progress.completed_concepts
 
     def test_mastery_percentage_calculation(self):

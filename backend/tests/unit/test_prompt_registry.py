@@ -142,9 +142,7 @@ class TestPromptRegistryLoading:
         """File without required metadata raises PromptLoadError."""
         prompts_dir = tmp_path / "prompts"
         prompts_dir.mkdir()
-        (prompts_dir / "bad_v1.md").write_text(
-            "# No metadata\nJust content.", encoding="utf-8"
-        )
+        (prompts_dir / "bad_v1.md").write_text("# No metadata\nJust content.", encoding="utf-8")
         registry = PromptRegistry(prompts_dir=prompts_dir)
         with pytest.raises(PromptLoadError, match="Missing metadata"):
             registry.load_all()
@@ -293,9 +291,7 @@ class TestPromptRegistryRollback:
         loaded_registry.set_active_version("sample", 1)
         assert loaded_registry.get_active_version("sample") == 1
 
-    def test_set_active_nonexistent_version_raises(
-        self, loaded_registry: PromptRegistry
-    ):
+    def test_set_active_nonexistent_version_raises(self, loaded_registry: PromptRegistry):
         """Pinning nonexistent version raises PromptLoadError."""
         with pytest.raises(PromptLoadError, match="Cannot set active version"):
             loaded_registry.set_active_version("sample", 99)

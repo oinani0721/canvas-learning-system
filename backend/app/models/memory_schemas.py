@@ -103,9 +103,7 @@ class LearningEpisodeResponse(BaseModel):
     status: str = Field(..., description="状态")
 
     model_config = ConfigDict(
-        json_schema_extra={
-            "example": {"episode_id": "episode-a1b2c3d4e5f67890", "status": "created"}
-        }
+        json_schema_extra={"example": {"episode_id": "episode-a1b2c3d4e5f67890", "status": "created"}}
     )
 
 
@@ -247,9 +245,7 @@ class ConceptHistoryResponse(BaseModel):
     retrieval_status: Optional[ServiceStatus] = Field(
         default=None, description="检索四态 (G4-2 统一枚举); null=本次未产出状态"
     )
-    retrieval_status_reason: Optional[str] = Field(
-        default=None, description="故障说明 — degraded/unavailable 时非空"
-    )
+    retrieval_status_reason: Optional[str] = Field(default=None, description="故障说明 — degraded/unavailable 时非空")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -425,9 +421,7 @@ class BatchEpisodesRequest(BaseModel):
     [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.10]
     """
 
-    events: List[BatchEventItem] = Field(
-        ..., max_length=50, description="批量事件列表(最多50个)"
-    )
+    events: List[BatchEventItem] = Field(..., max_length=50, description="批量事件列表(最多50个)")
     # CARD-G2-2 (2026-08-28): 批量写入此前零 vault 解析 — 缓存 episode 不含
     # group, Neo4j fallback 落 vault:default 而 Graphiti 按 active vault 构组,
     # 形成跨存储 split-brain (Codex round-1 BLOCKER-4)。加性可选字段。
@@ -481,9 +475,7 @@ class BatchEpisodesResponse(BaseModel):
     success: bool = Field(..., description="整体操作是否成功")
     processed: int = Field(..., ge=0, description="成功处理的事件数量")
     failed: int = Field(..., ge=0, description="处理失败的事件数量")
-    errors: List[BatchErrorItem] = Field(
-        default_factory=list, description="错误详情列表"
-    )
+    errors: List[BatchErrorItem] = Field(default_factory=list, description="错误详情列表")
     timestamp: str = Field(..., description="响应时间戳")
 
     model_config = ConfigDict(
@@ -574,9 +566,7 @@ class ReviewSuggestionsResponse(BaseModel):
     信封化只动顶层容器。
     """
 
-    items: List[ReviewSuggestionResponse] = Field(
-        default_factory=list, description="复习建议列表 (原裸数组的内容)"
-    )
+    items: List[ReviewSuggestionResponse] = Field(default_factory=list, description="复习建议列表 (原裸数组的内容)")
     retrieval_status: Optional[ServiceStatus] = Field(
         default=None,
         description=(
@@ -584,9 +574,7 @@ class ReviewSuggestionsResponse(BaseModel):
             "与 empty (真的没有待复习概念) 是两回事。"
         ),
     )
-    retrieval_status_reason: Optional[str] = Field(
-        default=None, description="故障说明 — degraded/unavailable 时非空"
-    )
+    retrieval_status_reason: Optional[str] = Field(default=None, description="故障说明 — degraded/unavailable 时非空")
 
     model_config = ConfigDict(
         json_schema_extra={

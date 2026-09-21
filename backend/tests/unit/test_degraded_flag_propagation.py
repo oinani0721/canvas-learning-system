@@ -71,9 +71,7 @@ def temp_canvas_dir(tmp_path: Path) -> Path:
         "edges": [],
     }
     canvas_file = tmp_path / "test.canvas"
-    canvas_file.write_text(
-        json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
     return tmp_path
 
 
@@ -129,9 +127,7 @@ class TestDegradedFlagPropagation:
     """
 
     @pytest.mark.asyncio
-    async def test_degraded_true_when_agent_unavailable(
-        self, verification_service_no_agent: VerificationService
-    ):
+    async def test_degraded_true_when_agent_unavailable(self, verification_service_no_agent: VerificationService):
         """AC-31.10.1 后端前置: Agent 不可用时 degraded=True.
 
         触发路径: _do_scoring_agent_call() → self._agent_service is None
@@ -146,9 +142,7 @@ class TestDegradedFlagPropagation:
         assert result["degraded"] is True
 
     @pytest.mark.asyncio
-    async def test_degraded_false_when_agent_succeeds(
-        self, verification_service_with_agent: VerificationService
-    ):
+    async def test_degraded_false_when_agent_succeeds(self, verification_service_with_agent: VerificationService):
         """AC-31.10.2 后端前置: Agent 正常时 degraded=False.
 
         触发路径: _do_scoring_agent_call() → call_scoring() returns success
@@ -163,9 +157,7 @@ class TestDegradedFlagPropagation:
         assert result["degraded"] is False
 
     @pytest.mark.asyncio
-    async def test_degraded_true_when_agent_timeout(
-        self, verification_service_timeout: VerificationService
-    ):
+    async def test_degraded_true_when_agent_timeout(self, verification_service_timeout: VerificationService):
         """AC-31.10.3 后端前置: Agent 超时时 degraded=True.
 
         触发路径: _evaluate_answer_with_scoring_agent()
@@ -194,9 +186,7 @@ class TestDegradedResponseFormat:
     """
 
     @pytest.mark.asyncio
-    async def test_degraded_response_has_required_fields(
-        self, verification_service_no_agent: VerificationService
-    ):
+    async def test_degraded_response_has_required_fields(self, verification_service_no_agent: VerificationService):
         """降级响应包含前端 ScoringResultPanel 需要的 score, degraded, action 字段."""
         session = await verification_service_no_agent.start_session(
             canvas_name="test",
@@ -214,9 +204,7 @@ class TestDegradedResponseFormat:
         assert 0 <= result["score"] <= 100
 
     @pytest.mark.asyncio
-    async def test_degraded_score_is_reasonable(
-        self, verification_service_no_agent: VerificationService
-    ):
+    async def test_degraded_score_is_reasonable(self, verification_service_no_agent: VerificationService):
         """降级评分 fail-closed：分数与答案长度**无关**，恒为中性 0.0.
 
         契约演进 d0824e90 (2026-04-06, FR-KG-04 P1-4 安全整改)：
@@ -235,9 +223,7 @@ class TestDegradedResponseFormat:
         session_short = await verification_service_no_agent.start_session(
             canvas_name="test",
         )
-        result_short = await verification_service_no_agent.process_answer(
-            session_short["session_id"], "短"
-        )
+        result_short = await verification_service_no_agent.process_answer(session_short["session_id"], "短")
 
         # 长答案 (> 100 chars)
         session_long = await verification_service_no_agent.start_session(
@@ -245,8 +231,7 @@ class TestDegradedResponseFormat:
         )
         result_long = await verification_service_no_agent.process_answer(
             session_long["session_id"],
-            "这是一个非常详细和完整的回答，涵盖了微积分基本定理的所有核心要素和推导过程，包括连续性条件和极限定义"
-            * 3,
+            "这是一个非常详细和完整的回答，涵盖了微积分基本定理的所有核心要素和推导过程，包括连续性条件和极限定义" * 3,
         )
 
         assert result_short["degraded"] is True

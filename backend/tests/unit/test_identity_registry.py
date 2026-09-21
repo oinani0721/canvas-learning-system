@@ -89,12 +89,8 @@ async def test_ensure_creates_node_when_absent(capture):
 async def test_ensure_reuses_existing_node(capture):
     store, saved = capture
     driver = object()
-    u1 = await IdentityRegistry.ensure_entity_node(
-        driver=driver, node_id="recursion", sanitized_group_id="vault__g"
-    )
-    u2 = await IdentityRegistry.ensure_entity_node(
-        driver=driver, node_id="recursion", sanitized_group_id="vault__g"
-    )
+    u1 = await IdentityRegistry.ensure_entity_node(driver=driver, node_id="recursion", sanitized_group_id="vault__g")
+    u2 = await IdentityRegistry.ensure_entity_node(driver=driver, node_id="recursion", sanitized_group_id="vault__g")
     assert u1 == u2
     assert len(saved) == 1  # 第二次复用, 不再 save
 
@@ -115,9 +111,5 @@ async def test_ensure_generates_embedding_when_embedder_given(capture):
 
 async def test_ensure_skips_embedding_without_embedder(capture):
     store, saved = capture
-    await IdentityRegistry.ensure_entity_node(
-        driver=object(), node_id="recursion", sanitized_group_id="vault__g"
-    )
-    assert (
-        saved[0].name_embedding is None
-    )  # 无 embedder → 不生成 (一期 exact-read 可用)
+    await IdentityRegistry.ensure_entity_node(driver=object(), node_id="recursion", sanitized_group_id="vault__g")
+    assert saved[0].name_embedding is None  # 无 embedder → 不生成 (一期 exact-read 可用)

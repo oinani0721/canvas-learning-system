@@ -39,9 +39,8 @@ import pytest as _pytest
 def _pin_active_vault_for_g44(monkeypatch):
     import app.config as app_config_mod
 
-    monkeypatch.setattr(
-        app_config_mod, "get_current_vault_id", lambda: "v_active", raising=True
-    )
+    monkeypatch.setattr(app_config_mod, "get_current_vault_id", lambda: "v_active", raising=True)
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Fixtures

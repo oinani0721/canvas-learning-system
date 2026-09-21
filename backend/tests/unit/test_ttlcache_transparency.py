@@ -16,9 +16,7 @@ class TestTTLCacheTransparency:
         """AC-31.A.7.1: 启动时输出 WARNING 日志声明存储模式"""
         from app.services.verification_service import VerificationService
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             svc = VerificationService(canvas_base_path="/tmp")
 
         assert "IN-MEMORY TTLCache" in caplog.text
@@ -33,9 +31,7 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.get_progress("nonexistent-session-id")
 
@@ -48,9 +44,7 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.process_answer("nonexistent-session-id", "test answer")
 
@@ -63,9 +57,7 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.pause_session("nonexistent-session-id")
 
@@ -78,9 +70,7 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.resume_session("nonexistent-session-id")
 
@@ -93,9 +83,7 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.end_session("nonexistent-session-id")
 
@@ -108,9 +96,7 @@ class TestTTLCacheTransparency:
 
         svc = VerificationService(canvas_base_path="/tmp")
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             with pytest.raises(ValueError, match="Session not found"):
                 await svc.skip_concept("nonexistent-session-id")
 
@@ -179,9 +165,7 @@ class TestTTLCacheTransparency:
         )
         svc._progress[session_id] = progress
 
-        with caplog.at_level(
-            logging.WARNING, logger="app.services.verification_service"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.services.verification_service"):
             result = await svc.get_progress(session_id)
 
         # Should NOT contain expiry warning for existing sessions

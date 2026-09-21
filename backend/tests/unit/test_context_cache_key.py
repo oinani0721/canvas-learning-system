@@ -59,9 +59,7 @@ def test_same_node_different_group_isolated():
     assert _get_cached("physics:n1") == physics_payload
     assert _get_cached("math:n1") == math_payload
     # Critical regression guard: physics must NOT see math's neighbors.
-    assert (
-        _get_cached("physics:n1")["tier2"]["neighbors"][0]["name"] == "physics_neighbor"
-    )
+    assert _get_cached("physics:n1")["tier2"]["neighbors"][0]["name"] == "physics_neighbor"
 
 
 # ---------------------------------------------------------------------------

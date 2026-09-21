@@ -40,9 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Storage path for learning memories (LearningMemoryClient - independent)
-LEARNING_MEMORY_PATH = (
-    Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
-)
+LEARNING_MEMORY_PATH = Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
 
 # Re-export EdgeRelationship for backward compatibility
 __all__ = [
@@ -164,8 +162,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             # This handles both real Neo4j and JSON fallback mode
             success = await self._neo4j.create_edge_relationship(
                 canvas_path=relationship.canvas_path,
-                edge_id=relationship.edge_id
-                or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
+                edge_id=relationship.edge_id or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
                 from_node_id=relationship.from_node_id,
                 to_node_id=relationship.to_node_id,
                 edge_label=relationship.edge_label,
@@ -179,9 +176,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                 )
             else:
                 self._error_count += 1
-                logger.warning(
-                    f"Graphiti edge sync failed: {relationship.entity1} --> {relationship.entity2}"
-                )
+                logger.warning(f"Graphiti edge sync failed: {relationship.entity1} --> {relationship.entity2}")
 
             return success
 
@@ -232,9 +227,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                 return ft_results
             # 空结果可能 index 不存在 OR 真无命中 — fallback CONTAINS 兜底
         except Exception as e:
-            logger.debug(
-                f"[Patch 3] fulltext search_nodes failed, falling back to CONTAINS: {e}"
-            )
+            logger.debug(f"[Patch 3] fulltext search_nodes failed, falling back to CONTAINS: {e}")
 
         try:
             # Build Cypher query based on filters
@@ -261,9 +254,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                 " OR n.concept CONTAINS $searchTerm)"
             )
             if where_clauses:
-                combined_where = (
-                    f"WHERE {' AND '.join(where_clauses)} AND {text_search}"
-                )
+                combined_where = f"WHERE {' AND '.join(where_clauses)} AND {text_search}"
             else:
                 combined_where = f"WHERE {text_search}"
 
@@ -333,11 +324,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
         # 安全转义 Lucene 保留字符 (+ - && || ! ( ) { } [ ] ^ " ~ * ? : \ /)
         # 简单策略: 加引号 → 整体 phrase match
         escaped = query.replace('"', '\\"')
-        lucene_query = (
-            f'"{escaped}"'
-            if any(c in query for c in '+-&|!(){}[]^"~*?:\\/')
-            else escaped
-        )
+        lucene_query = f'"{escaped}"' if any(c in query for c in '+-&|!(){}[]^"~*?:\\/') else escaped
 
         post_filters = []
         params: Dict[str, Any] = {"searchTerm": lucene_query, "limit": limit}
@@ -449,9 +436,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             logger.warning(f"get_related_memories failed: {e}")
             return []
 
-    async def add_episode_for_edge(
-        self, canvas_name: str, edge: Dict[str, Any]
-    ) -> bool:
+    async def add_episode_for_edge(self, canvas_name: str, edge: Dict[str, Any]) -> bool:
         """
         Add an episode record for an edge (historical tracking).
 
@@ -483,9 +468,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             logger.warning(f"add_episode_for_edge failed: {e}")
             return False
 
-    async def sync_canvas_edges(
-        self, canvas_name: str, edges: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    async def sync_canvas_edges(self, canvas_name: str, edges: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Sync all edges from a Canvas to Graphiti.
 
@@ -535,16 +518,13 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                             result["failed"] += 1
 
                 logger.info(
-                    f"Canvas edge sync complete for {canvas_name}: "
-                    f"{result['synced']} synced, {result['failed']} failed"
+                    f"Canvas edge sync complete for {canvas_name}: {result['synced']} synced, {result['failed']} failed"
                 )
 
         except asyncio.TimeoutError:
             result["timeout"] = True
             result["skipped"] = len(edges) - result["synced"] - result["failed"]
-            logger.warning(
-                f"Canvas edge sync timeout for {canvas_name} after {self._timeout_ms}ms"
-            )
+            logger.warning(f"Canvas edge sync timeout for {canvas_name} after {self._timeout_ms}ms")
         except (RuntimeError, ConnectionError) as e:
             result["error"] = str(e)
             logger.error(f"Canvas edge sync error: {e}")
@@ -687,9 +667,7 @@ def get_neo4j_edge_client(
     return _client_instance
 
 
-def get_legacy_edge_client(
-    timeout_ms: int = 2000, enabled: bool = True
-) -> Neo4jEdgeClientAdapter:
+def get_legacy_edge_client(timeout_ms: int = 2000, enabled: bool = True) -> Neo4jEdgeClientAdapter:
     """
     DEPRECATED: Get Neo4jEdgeClient with legacy signature.
 
@@ -762,9 +740,7 @@ class LearningMemoryClient:
     [Source: docs/prd/sprint-change-proposal-20251208.md - Phase 4]
     """
 
-    def __init__(
-        self, storage_path: Optional[Path] = None, max_search_results: int = 5
-    ):
+    def __init__(self, storage_path: Optional[Path] = None, max_search_results: int = 5):
         """
         Initialize LearningMemoryClient.
 
@@ -794,9 +770,7 @@ class LearningMemoryClient:
             if self._storage_path.exists():
                 with open(self._storage_path, "r", encoding="utf-8") as f:
                     self._data = json.load(f)
-                logger.info(
-                    f"Loaded {len(self._data.get('memories', []))} learning memories"
-                )
+                logger.info(f"Loaded {len(self._data.get('memories', []))} learning memories")
             else:
                 self._data = {
                     "memories": [],
@@ -819,9 +793,7 @@ class LearningMemoryClient:
         try:
             from app.utils.atomic_io import atomic_write_json_async
 
-            await atomic_write_json_async(
-                self._storage_path, self._data, indent=2, ensure_ascii=False
-            )
+            await atomic_write_json_async(self._storage_path, self._data, indent=2, ensure_ascii=False)
         except (OSError, IOError, TypeError) as e:
             logger.error(f"Failed to save learning memories: {e}")
 
@@ -853,9 +825,7 @@ class LearningMemoryClient:
             self._data["memories"].append(memory_data)
             await self._save_data()
 
-            logger.info(
-                f"Added learning episode: {memory.canvas_name}/{memory.concept}"
-            )
+            logger.info(f"Added learning episode: {memory.canvas_name}/{memory.concept}")
             return True
         except (OSError, IOError, TypeError, ValueError) as e:
             logger.error(f"Failed to add learning episode: {e}")
@@ -916,21 +886,15 @@ class LearningMemoryClient:
                 concept_words = set(concept.split())
                 understanding_words = set(understanding.split())
 
-                concept_overlap = len(query_words & concept_words) / max(
-                    len(query_words), 1
-                )
-                understanding_overlap = len(query_words & understanding_words) / max(
-                    len(query_words), 1
-                )
+                concept_overlap = len(query_words & concept_words) / max(len(query_words), 1)
+                understanding_overlap = len(query_words & understanding_words) / max(len(query_words), 1)
                 relevance = max(concept_overlap * 0.7, understanding_overlap * 0.5)
 
             if relevance > 0.1:
                 results.append({**memory, "relevance": relevance})
 
         # Sort by relevance (descending) and timestamp (recent first)
-        results.sort(
-            key=lambda x: (-x["relevance"], x.get("timestamp", "")), reverse=False
-        )
+        results.sort(key=lambda x: (-x["relevance"], x.get("timestamp", "")), reverse=False)
 
         return results[:max_results]
 
@@ -963,9 +927,7 @@ class LearningMemoryClient:
         results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         return results[:limit]
 
-    def format_for_context(
-        self, memories: List[Dict[str, Any]], max_chars: int = 1000
-    ) -> str:
+    def format_for_context(self, memories: List[Dict[str, Any]], max_chars: int = 1000) -> str:
         """
         Format memories for inclusion in Agent context.
 
@@ -983,10 +945,7 @@ class LearningMemoryClient:
         total_chars = len(parts[0])
 
         for memory in memories:
-            entry = (
-                f"[{memory.get('timestamp', 'unknown')[:10]}] "
-                f"{memory.get('concept', '未知概念')}"
-            )
+            entry = f"[{memory.get('timestamp', 'unknown')[:10]}] {memory.get('concept', '未知概念')}"
 
             # Add score if available
             if memory.get("score") is not None:
@@ -995,11 +954,7 @@ class LearningMemoryClient:
             # Add brief understanding if available
             understanding = memory.get("user_understanding", "")
             if understanding:
-                preview = (
-                    understanding[:100] + "..."
-                    if len(understanding) > 100
-                    else understanding
-                )
+                preview = understanding[:100] + "..." if len(understanding) > 100 else understanding
                 entry += f"\n  理解: {preview}"
 
             if total_chars + len(entry) + 1 > max_chars:
@@ -1021,9 +976,7 @@ class LearningMemoryClient:
 
     async def cleanup(self) -> None:
         """Cleanup client resources."""
-        logger.debug(
-            f"LearningMemoryClient cleanup: {self.stats['total_memories']} memories"
-        )
+        logger.debug(f"LearningMemoryClient cleanup: {self.stats['total_memories']} memories")
         self._initialized = False
 
 

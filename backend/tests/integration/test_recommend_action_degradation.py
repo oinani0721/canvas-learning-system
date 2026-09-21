@@ -54,9 +54,7 @@ def _make_mock_memory_service(*, fail_history: bool = False):
     """
     mock = AsyncMock()
     if fail_history:
-        mock.get_learning_history = AsyncMock(
-            side_effect=RuntimeError("Memory service unavailable (test)")
-        )
+        mock.get_learning_history = AsyncMock(side_effect=RuntimeError("Memory service unavailable (test)"))
     else:
         mock.get_learning_history = AsyncMock(
             return_value={
@@ -180,9 +178,7 @@ class TestRecommendActionDegradation:
 
             # RecommendActionResponse schema 必需字段
             assert "action" in data
-            assert (
-                "agent" in data or data.get("action") == "next"
-            )  # agent=null for "next"
+            assert "agent" in data or data.get("action") == "next"  # agent=null for "next"
             assert "reason" in data
             assert "priority" in data
             assert "review_suggested" in data

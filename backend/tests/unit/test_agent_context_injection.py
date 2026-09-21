@@ -51,9 +51,7 @@ class TestGraphitiSearchDelegation:
     处置 = 改指新名，断言语义不变。[CARD-RED-C2]"""
 
     @pytest.mark.asyncio
-    async def test_search_calls_learning_memory_service(
-        self, enrichment_service, mock_learning_memory_service
-    ):
+    async def test_search_calls_learning_memory_service(self, enrichment_service, mock_learning_memory_service):
         """AC-36.7.2: _search_learning_relations calls graphiti_service.search_memories()."""
         mock_learning_memory_service.search_memories = AsyncMock(
             return_value=[
@@ -76,9 +74,7 @@ class TestGraphitiSearchDelegation:
         assert len(results) == 1
 
     @pytest.mark.asyncio
-    async def test_search_returns_empty_without_learning_memory_service(
-        self, mock_canvas_service
-    ):
+    async def test_search_returns_empty_without_learning_memory_service(self, mock_canvas_service):
         """AC-36.7.2: Returns empty list when graphiti_service is None."""
         service = ContextEnrichmentService(
             canvas_service=mock_canvas_service,
@@ -94,9 +90,7 @@ class TestRelevanceSorting:
     """AC-36.7.3: Verify results sorted by relevance, top 5."""
 
     @pytest.mark.asyncio
-    async def test_search_limits_to_top_5(
-        self, enrichment_service, mock_learning_memory_service
-    ):
+    async def test_search_limits_to_top_5(self, enrichment_service, mock_learning_memory_service):
         """AC-36.7.3: Search passes limit=5 to graphiti_service."""
         mock_learning_memory_service.search_memories = AsyncMock(return_value=[])
 
@@ -107,9 +101,7 @@ class TestRelevanceSorting:
         assert call_kwargs["limit"] == 5
 
     @pytest.mark.asyncio
-    async def test_search_graceful_on_exception(
-        self, enrichment_service, mock_learning_memory_service
-    ):
+    async def test_search_graceful_on_exception(self, enrichment_service, mock_learning_memory_service):
         """AC-36.7.3: Returns empty list on dependency failure (graceful degradation).
 
         契约演进（a9304c69, 2026-03-29 S35 except 精确化）：本方法的重试/降级分支由
@@ -118,20 +110,14 @@ class TestRelevanceSorting:
         不在元组内 ⇒ 按现行契约**应当传播**，旧断言必红。对齐 = mock 改成元组内
         现实形态（连接超时），降级语义照旧验证。[CARD-RED-C2]
         """
-        mock_learning_memory_service.search_memories = AsyncMock(
-            side_effect=asyncio.TimeoutError("Connection failed")
-        )
+        mock_learning_memory_service.search_memories = AsyncMock(side_effect=asyncio.TimeoutError("Connection failed"))
 
-        results = await enrichment_service._search_learning_relations(
-            query="test query"
-        )
+        results = await enrichment_service._search_learning_relations(query="test query")
 
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_search_propagates_unexpected_exception(
-        self, enrichment_service, mock_learning_memory_service
-    ):
+    async def test_search_propagates_unexpected_exception(self, enrichment_service, mock_learning_memory_service):
         """S35 契约的反向锚：元组外的异常必须传播，不得静默吞成空列表。
 
         a9304c69 把降级分支收窄为 (RuntimeError, asyncio.TimeoutError,
@@ -139,9 +125,7 @@ class TestRelevanceSorting:
         「无相关记忆」，静默掩盖缺陷。若有人改回 ``except Exception``，本条翻红。
         [CARD-RED-C2]
         """
-        mock_learning_memory_service.search_memories = AsyncMock(
-            side_effect=TypeError("bug: None is not iterable")
-        )
+        mock_learning_memory_service.search_memories = AsyncMock(side_effect=TypeError("bug: None is not iterable"))
 
         with pytest.raises(TypeError):
             await enrichment_service._search_learning_relations(query="q")

@@ -155,9 +155,7 @@ class TestAC31A22_Neo4jClientMethod_Real:
 
             assert len(results) >= 1
             user_ids = [r.get("user_id") for r in results]
-            assert all(uid == user1 for uid in user_ids), (
-                f"Expected only user {user1}, got user_ids: {user_ids}"
-            )
+            assert all(uid == user1 for uid in user_ids), f"Expected only user {user1}, got user_ids: {user_ids}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -223,15 +221,11 @@ class TestAC31A22_Neo4jClientMethod_Real:
                 group_id=f"{prefix}physics-001",
             )
 
-            results = await client.get_learning_history(
-                user_id=user_id, group_id=f"{prefix}math-001"
-            )
+            results = await client.get_learning_history(user_id=user_id, group_id=f"{prefix}math-001")
 
             assert len(results) >= 1
             for r in results:
-                assert r["group_id"] == f"{prefix}math-001", (
-                    f"Expected group_id {prefix}math-001, got {r['group_id']}"
-                )
+                assert r["group_id"] == f"{prefix}math-001", f"Expected group_id {prefix}math-001, got {r['group_id']}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -277,16 +271,10 @@ class TestAC31A22_Neo4jClientMethod_Real:
 
             assert len(results) >= 1
             concepts = [r["concept"] for r in results]
-            assert any("Current" in c for c in concepts), (
-                f"Expected 'Current' in results, got: {concepts}"
-            )
+            assert any("Current" in c for c in concepts), f"Expected 'Current' in results, got: {concepts}"
             # Old and Future should NOT appear
-            assert not any("Old" in c for c in concepts), (
-                f"Old record should be filtered out, got: {concepts}"
-            )
-            assert not any("Future" in c for c in concepts), (
-                f"Future record should be filtered out, got: {concepts}"
-            )
+            assert not any("Old" in c for c in concepts), f"Old record should be filtered out, got: {concepts}"
+            assert not any("Future" in c for c in concepts), f"Future record should be filtered out, got: {concepts}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -312,9 +300,7 @@ class TestAC31A22_Neo4jClientMethod_Real:
 
             results = await client.get_learning_history(user_id=user_id, limit=3)
 
-            assert len(results) == 3, (
-                f"Expected 3 results with limit=3, got {len(results)}"
-            )
+            assert len(results) == 3, f"Expected 3 results with limit=3, got {len(results)}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -424,9 +410,7 @@ class TestAC31A22_Neo4jClientMethod_Real:
 
             assert len(results) >= 1
             concepts = [r["concept"] for r in results]
-            assert f"{prefix}CypherTest" in concepts, (
-                f"Cypher query should return inserted data, got: {concepts}"
-            )
+            assert f"{prefix}CypherTest" in concepts, f"Cypher query should return inserted data, got: {concepts}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
@@ -438,13 +422,9 @@ class TestAC31A22_Neo4jClientMethod_Real:
         try:
             await client.initialize()
 
-            results = await client.get_learning_history(
-                user_id=f"{prefix}nonexistent_user_xyz"
-            )
+            results = await client.get_learning_history(user_id=f"{prefix}nonexistent_user_xyz")
 
-            assert results == [], (
-                f"Expected empty list for nonexistent user, got: {results}"
-            )
+            assert results == [], f"Expected empty list for nonexistent user, got: {results}"
         finally:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()

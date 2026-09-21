@@ -112,9 +112,7 @@ def atomic_write_json(
         TypeError: data 不可 JSON 序列化.
         OSError: 文件 IO 失败.
     """
-    serialized = json.dumps(
-        data, indent=indent, ensure_ascii=ensure_ascii, default=default
-    )
+    serialized = json.dumps(data, indent=indent, ensure_ascii=ensure_ascii, default=default)
     atomic_write_text(file_path, serialized)
 
 

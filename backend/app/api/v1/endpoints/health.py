@@ -115,9 +115,7 @@ async def health_check(
     try:
         from app.api.v1.endpoints.intelligent_parallel import _deps_initialized
 
-        components["batch_orchestrator"] = (
-            "ok" if _deps_initialized else "not_initialized"
-        )
+        components["batch_orchestrator"] = "ok" if _deps_initialized else "not_initialized"
     except Exception:
         components["batch_orchestrator"] = "unavailable"
 
@@ -240,9 +238,7 @@ async def get_metrics() -> PlainTextResponse:
     # ✅ Verified from Context7:/prometheus/client_python (generate_latest returns bytes)
     metrics_output = generate_latest()
 
-    return PlainTextResponse(
-        content=metrics_output.decode("utf-8"), media_type=CONTENT_TYPE_LATEST
-    )
+    return PlainTextResponse(content=metrics_output.decode("utf-8"), media_type=CONTENT_TYPE_LATEST)
 
 
 @router.get(
@@ -632,27 +628,13 @@ async def full_health_check(
 class Neo4jHealthChecks(BaseModel):
     """Neo4j健康检查详情."""
 
-    neo4j_enabled: Optional[bool] = Field(
-        default=None, description="Neo4j是否在配置中启用"
-    )
-    neo4j_connection: Optional[bool] = Field(
-        default=None, description="Neo4j Bolt连接是否成功"
-    )
-    driver_initialized: Optional[bool] = Field(
-        default=None, description="Neo4j AsyncGraphDatabase driver是否已初始化"
-    )
-    database_accessible: Optional[bool] = Field(
-        default=None, description="目标数据库是否可访问 (RETURN 1 测试通过)"
-    )
-    uri: Optional[str] = Field(
-        default=None, description="Neo4j连接URI (仅在healthy时返回)"
-    )
-    reason: Optional[str] = Field(
-        default=None, description="降级或不健康状态的原因说明"
-    )
-    error: Optional[str] = Field(
-        default=None, description="错误信息 (仅在unhealthy时返回)"
-    )
+    neo4j_enabled: Optional[bool] = Field(default=None, description="Neo4j是否在配置中启用")
+    neo4j_connection: Optional[bool] = Field(default=None, description="Neo4j Bolt连接是否成功")
+    driver_initialized: Optional[bool] = Field(default=None, description="Neo4j AsyncGraphDatabase driver是否已初始化")
+    database_accessible: Optional[bool] = Field(default=None, description="目标数据库是否可访问 (RETURN 1 测试通过)")
+    uri: Optional[str] = Field(default=None, description="Neo4j连接URI (仅在healthy时返回)")
+    reason: Optional[str] = Field(default=None, description="降级或不健康状态的原因说明")
+    error: Optional[str] = Field(default=None, description="错误信息 (仅在unhealthy时返回)")
 
 
 class Neo4jHealthResponse(BaseModel):
@@ -663,13 +645,9 @@ class Neo4jHealthResponse(BaseModel):
     [Source: docs/stories/30.1.story.md - AC 4]
     """
 
-    status: str = Field(
-        description="整体健康状态: healthy=Neo4j连接正常, degraded=Neo4j已禁用, unhealthy=连接失败"
-    )
+    status: str = Field(description="整体健康状态: healthy=Neo4j连接正常, degraded=Neo4j已禁用, unhealthy=连接失败")
     checks: Neo4jHealthChecks = Field(description="各项检查结果")
-    cached: bool = Field(
-        default=False, description="是否为缓存结果 (缓存TTL: 30秒, 参考ADR-007)"
-    )
+    cached: bool = Field(default=False, description="是否为缓存结果 (缓存TTL: 30秒, 参考ADR-007)")
     timestamp: datetime = Field(description="检查时间戳 (ISO 8601格式)")
 
 
@@ -736,9 +714,7 @@ async def _test_neo4j_connection() -> bool:
         raise RuntimeError("Neo4j driver not initialized")
 
     try:
-        async with _cached_neo4j_driver.session(
-            database=settings.neo4j_database
-        ) as session:
+        async with _cached_neo4j_driver.session(database=settings.neo4j_database) as session:
             result = await session.run("RETURN 1 as test")
             await result.consume()
         return True
@@ -845,9 +821,7 @@ async def check_neo4j_health(
         logger.info("Neo4j is disabled in configuration")
         return Neo4jHealthResponse(
             status="degraded",
-            checks=Neo4jHealthChecks(
-                neo4j_enabled=False, reason="Neo4j is disabled in configuration"
-            ),
+            checks=Neo4jHealthChecks(neo4j_enabled=False, reason="Neo4j is disabled in configuration"),
             cached=False,
             timestamp=datetime.now(timezone.utc),
         )
@@ -869,9 +843,7 @@ async def check_neo4j_health(
         latency_ms = (time.time() - start_time) * 1000
 
         logger.debug("Neo4j connection healthy")
-        memory_logger.info(
-            f"HEALTH_CHECK_SUCCESS | latency={latency_ms:.2f}ms | uri={settings.neo4j_uri}"
-        )
+        memory_logger.info(f"HEALTH_CHECK_SUCCESS | latency={latency_ms:.2f}ms | uri={settings.neo4j_uri}")
         return Neo4jHealthResponse(
             status="healthy",
             checks=Neo4jHealthChecks(
@@ -887,9 +859,7 @@ async def check_neo4j_health(
 
     except asyncio.TimeoutError:
         logger.warning("Neo4j connection timeout (>30000ms)")
-        memory_logger.error(
-            f"HEALTH_CHECK_TIMEOUT | timeout=30s | uri={settings.neo4j_uri}"
-        )
+        memory_logger.error(f"HEALTH_CHECK_TIMEOUT | timeout=30s | uri={settings.neo4j_uri}")
         # Reset driver after timeout to avoid stale connection state
         global _cached_neo4j_driver, _neo4j_driver_uri
         if _cached_neo4j_driver is not None:
@@ -913,14 +883,10 @@ async def check_neo4j_health(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Neo4j connection failed: {error_msg}")
-        memory_logger.error(
-            f"HEALTH_CHECK_FAILED | error={error_msg} | uri={settings.neo4j_uri}"
-        )
+        memory_logger.error(f"HEALTH_CHECK_FAILED | error={error_msg} | uri={settings.neo4j_uri}")
         return Neo4jHealthResponse(
             status="unhealthy",
-            checks=Neo4jHealthChecks(
-                neo4j_enabled=True, neo4j_connection=False, error=error_msg
-            ),
+            checks=Neo4jHealthChecks(neo4j_enabled=True, neo4j_connection=False, error=error_msg),
             cached=False,
             timestamp=datetime.now(timezone.utc),
         )
@@ -944,9 +910,7 @@ class KnowledgeGraphHealthResponse(BaseModel):
     graph_stats: Optional[Dict[str, Any]] = Field(
         default=None, description="图统计信息: node_count, edge_count, episode_count"
     )
-    last_episode_timestamp: Optional[str] = Field(
-        default=None, description="最近episode的时间戳"
-    )
+    last_episode_timestamp: Optional[str] = Field(default=None, description="最近episode的时间戳")
     error: Optional[str] = Field(default=None, description="错误信息(仅error时存在)")
 
 
@@ -1028,9 +992,7 @@ async def check_knowledge_graph_health(
         health_ok = await neo4j_client.health_check()
 
         if not health_ok:
-            return KnowledgeGraphHealthResponse(
-                status="error", error="Graphiti unavailable: Neo4j not connected"
-            )
+            return KnowledgeGraphHealthResponse(status="error", error="Graphiti unavailable: Neo4j not connected")
 
         stats = neo4j_client.stats
 
@@ -1049,9 +1011,7 @@ async def check_knowledge_graph_health(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Graphiti health check failed: {error_msg}")
-        return KnowledgeGraphHealthResponse(
-            status="error", error=f"Graphiti client error: {error_msg}"
-        )
+        return KnowledgeGraphHealthResponse(status="error", error=f"Graphiti client error: {error_msg}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1072,9 +1032,7 @@ class LanceDBHealthResponse(BaseModel):
     status: str = Field(description="状态: ok=正常, error=不可用")
     table_count: Optional[int] = Field(default=None, description="向量表数量")
     total_vectors: Optional[int] = Field(default=None, description="向量总数")
-    embedding_model: Optional[str] = Field(
-        default=None, description="使用的Embedding模型名称"
-    )
+    embedding_model: Optional[str] = Field(default=None, description="使用的Embedding模型名称")
     error: Optional[str] = Field(default=None, description="错误信息(仅error时存在)")
 
 
@@ -1173,16 +1131,12 @@ async def check_lancedb_health(
 
     except ImportError:
         logger.warning("LanceDB not installed")
-        return LanceDBHealthResponse(
-            status="error", error="LanceDB library not installed"
-        )
+        return LanceDBHealthResponse(status="error", error="LanceDB library not installed")
 
     except Exception as e:
         error_msg = str(e)
         logger.error(f"LanceDB health check failed: {error_msg}")
-        return LanceDBHealthResponse(
-            status="error", error=f"LanceDB error: {error_msg}"
-        )
+        return LanceDBHealthResponse(status="error", error=f"LanceDB error: {error_msg}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1268,15 +1222,9 @@ class StorageBackendStatus(BaseModel):
 
     name: str = Field(description="Storage backend name: neo4j, mcp, json")
     status: str = Field(description="Status: ok or error")
-    latency_ms: Optional[float] = Field(
-        default=None, description="Health check latency in ms"
-    )
-    error: Optional[str] = Field(
-        default=None, description="Error message if status=error"
-    )
-    details: Optional[Dict[str, Any]] = Field(
-        default=None, description="Additional details"
-    )
+    latency_ms: Optional[float] = Field(default=None, description="Health check latency in ms")
+    error: Optional[str] = Field(default=None, description="Error message if status=error")
+    details: Optional[Dict[str, Any]] = Field(default=None, description="Additional details")
 
 
 class Neo4jConnectionPool(BaseModel):
@@ -1285,21 +1233,15 @@ class Neo4jConnectionPool(BaseModel):
     active: int = Field(default=0, description="Active connections")
     idle: int = Field(default=0, description="Idle connections")
     max_size: int = Field(default=50, description="Maximum pool size")
-    utilization_percent: float = Field(
-        default=0.0, description="Pool utilization percentage"
-    )
+    utilization_percent: float = Field(default=0.0, description="Pool utilization percentage")
 
 
 class LatencyMetrics(BaseModel):
     """Latency metrics for storage health checks."""
 
     p95_ms: float = Field(description="P95 latency in milliseconds")
-    p50_ms: Optional[float] = Field(
-        default=None, description="P50 (median) latency in ms"
-    )
-    sample_count: Optional[int] = Field(
-        default=None, description="Number of samples in window"
-    )
+    p50_ms: Optional[float] = Field(default=None, description="P50 (median) latency in ms")
+    sample_count: Optional[int] = Field(default=None, description="Number of samples in window")
     window_seconds: int = Field(description="Statistics window in seconds")
 
 
@@ -1314,27 +1256,15 @@ class StorageHealthResponse(BaseModel):
     status: str = Field(
         description="Overall status: healthy=all backends ok, degraded=some error, unhealthy=critical (neo4j) error"
     )
-    storage_backends: List[StorageBackendStatus] = Field(
-        description="Status of each storage backend"
-    )
-    connection_pool: Dict[str, Neo4jConnectionPool] = Field(
-        default_factory=dict, description="Connection pool status"
-    )
-    latency_metrics: LatencyMetrics = Field(
-        description="Latency metrics from health checks"
-    )
+    storage_backends: List[StorageBackendStatus] = Field(description="Status of each storage backend")
+    connection_pool: Dict[str, Neo4jConnectionPool] = Field(default_factory=dict, description="Connection pool status")
+    latency_metrics: LatencyMetrics = Field(description="Latency metrics from health checks")
     cached: bool = Field(description="Whether this is a cached response")
-    cache_ttl_remaining_seconds: int = Field(
-        default=0, description="Remaining cache TTL in seconds"
-    )
+    cache_ttl_remaining_seconds: int = Field(default=0, description="Remaining cache TTL in seconds")
     timestamp: datetime = Field(description="Health check timestamp")
     # Story 36.12 AC-36.12.6: Failure counters for observability
-    edge_sync_failures: int = Field(
-        default=0, description="Total edge sync failures since last reset"
-    )
-    dual_write_failures: int = Field(
-        default=0, description="Total dual-write failures since last reset"
-    )
+    edge_sync_failures: int = Field(default=0, description="Total edge sync failures since last reset")
+    dual_write_failures: int = Field(default=0, description="Total dual-write failures since last reset")
 
 
 def _aggregate_storage_status(
@@ -1381,9 +1311,7 @@ async def _check_mcp_health() -> StorageBackendStatus:
         # Check if MCP is configured
         mcp_enabled = getattr(settings, "mcp_enabled", True)
         if not mcp_enabled:
-            return StorageBackendStatus(
-                name="mcp", status="error", error="MCP is disabled in configuration"
-            )
+            return StorageBackendStatus(name="mcp", status="error", error="MCP is disabled in configuration")
 
         # For MCP health, we check if the graphiti-memory MCP server is running
         # by attempting a simple operation with timeout
@@ -1403,9 +1331,7 @@ async def _check_mcp_health() -> StorageBackendStatus:
                     timeout=0.5,
                 )
             latency_ms = (time.time() - start_time) * 1000
-            return StorageBackendStatus(
-                name="mcp", status="ok", latency_ms=round(latency_ms, 2)
-            )
+            return StorageBackendStatus(name="mcp", status="ok", latency_ms=round(latency_ms, 2))
         else:
             # MCP endpoint not configured, assume available via Claude MCP tools
             latency_ms = (time.time() - start_time) * 1000
@@ -1432,9 +1358,7 @@ async def _check_mcp_health() -> StorageBackendStatus:
         )
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
-        return StorageBackendStatus(
-            name="mcp", status="error", latency_ms=round(latency_ms, 2), error=str(e)
-        )
+        return StorageBackendStatus(name="mcp", status="error", latency_ms=round(latency_ms, 2), error=str(e))
 
 
 async def _check_json_health() -> StorageBackendStatus:
@@ -1471,9 +1395,7 @@ async def _check_json_health() -> StorageBackendStatus:
 
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
-        return StorageBackendStatus(
-            name="json", status="error", latency_ms=round(latency_ms, 2), error=str(e)
-        )
+        return StorageBackendStatus(name="json", status="error", latency_ms=round(latency_ms, 2), error=str(e))
 
 
 async def _check_neo4j_for_storage() -> StorageBackendStatus:
@@ -1487,9 +1409,7 @@ async def _check_neo4j_for_storage() -> StorageBackendStatus:
         from app.config import settings
 
         if not settings.neo4j_enabled:
-            return StorageBackendStatus(
-                name="neo4j", status="error", error="Neo4j is disabled in configuration"
-            )
+            return StorageBackendStatus(name="neo4j", status="error", error="Neo4j is disabled in configuration")
 
         # Ensure driver is initialized and test connection
         await _ensure_neo4j_driver()
@@ -1513,9 +1433,7 @@ async def _check_neo4j_for_storage() -> StorageBackendStatus:
         )
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
-        return StorageBackendStatus(
-            name="neo4j", status="error", latency_ms=round(latency_ms, 2), error=str(e)
-        )
+        return StorageBackendStatus(name="neo4j", status="error", latency_ms=round(latency_ms, 2), error=str(e))
 
 
 def _get_neo4j_pool_stats() -> Neo4jConnectionPool:
@@ -1528,9 +1446,7 @@ def _get_neo4j_pool_stats() -> Neo4jConnectionPool:
 
     if _cached_neo4j_driver is None:
         # Return empty pool stats when driver not initialized
-        return Neo4jConnectionPool(
-            active=0, idle=0, max_size=50, utilization_percent=0.0
-        )
+        return Neo4jConnectionPool(active=0, idle=0, max_size=50, utilization_percent=0.0)
 
     try:
         # Neo4j Python driver doesn't expose pool stats directly
@@ -1549,9 +1465,7 @@ def _get_neo4j_pool_stats() -> Neo4jConnectionPool:
             utilization_percent=round(1 / max_pool_size * 100, 2),
         )
     except Exception:
-        return Neo4jConnectionPool(
-            active=0, idle=0, max_size=50, utilization_percent=0.0
-        )
+        return Neo4jConnectionPool(active=0, idle=0, max_size=50, utilization_percent=0.0)
 
 
 @router.get(
@@ -1698,11 +1612,7 @@ async def check_storage_health(
     for i, result in enumerate(backends):
         backend_names = ["neo4j", "mcp", "json"]
         if isinstance(result, Exception):
-            storage_backends.append(
-                StorageBackendStatus(
-                    name=backend_names[i], status="error", error=str(result)
-                )
-            )
+            storage_backends.append(StorageBackendStatus(name=backend_names[i], status="error", error=str(result)))
         else:
             storage_backends.append(result)
 
@@ -1750,9 +1660,7 @@ async def check_storage_health(
     _storage_health_cache = response.model_dump()
     _storage_health_cache_time = time.time()
 
-    logger.debug(
-        f"Storage health check completed: {overall_status} ({total_latency_ms:.1f}ms)"
-    )
+    logger.debug(f"Storage health check completed: {overall_status} ({total_latency_ms:.1f}ms)")
     return response
 
 

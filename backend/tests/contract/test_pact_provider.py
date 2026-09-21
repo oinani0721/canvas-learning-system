@@ -32,12 +32,7 @@ PROVIDER_NAME = "Canvas-Backend"
 CONSUMER_NAME = "Canvas-Frontend"
 
 # Pact 文件目录（本地开发使用）
-PACT_DIR = (
-    Path(__file__).parent.parent.parent.parent
-    / "canvas-progress-tracker"
-    / "obsidian-plugin"
-    / "pacts"
-)
+PACT_DIR = Path(__file__).parent.parent.parent.parent / "canvas-progress-tracker" / "obsidian-plugin" / "pacts"
 
 # Pact Broker 配置（CI/CD 使用）
 PACT_BROKER_URL = os.environ.get("PACT_BROKER_URL", "")
@@ -206,9 +201,7 @@ class ProviderStateMiddleware:
                 "related_concept_id": "concept-math",
                 "created_at": datetime(2026, 1, 1, 12, 0, 0),
                 "description": "数学公式推导图解",
-                "metadata": MultimodalMetadataSchema(
-                    file_size=2048, mime_type="image/png"
-                ),
+                "metadata": MultimodalMetadataSchema(file_size=2048, mime_type="image/png"),
                 "thumbnail_path": None,
             },
             {
@@ -218,9 +211,7 @@ class ProviderStateMiddleware:
                 "related_concept_id": "concept-physics",
                 "created_at": datetime(2026, 1, 2, 12, 0, 0),
                 "description": "物理力学讲义",
-                "metadata": MultimodalMetadataSchema(
-                    file_size=4096, mime_type="application/pdf"
-                ),
+                "metadata": MultimodalMetadataSchema(file_size=4096, mime_type="application/pdf"),
                 "thumbnail_path": None,
             },
         ]
@@ -322,9 +313,7 @@ class TestPactProviderVerification:
                 provider_states_setup_url=f"{provider_url}/_pact/provider-states",
             )
 
-            assert result == 0, (
-                f"Pact verification failed for {pact_file.name}:\n{output}"
-            )
+            assert result == 0, f"Pact verification failed for {pact_file.name}:\n{output}"
 
     @pytest.mark.skipif(not PACT_BROKER_URL, reason="PACT_BROKER_URL not configured")
     def test_verify_pacts_from_broker(self, verifier, provider_url):

@@ -44,9 +44,7 @@ def test_local_builds_openai_embedder_with_base_url(monkeypatch):
     from graphiti_core.embedder.openai import OpenAIEmbedder
 
     monkeypatch.setenv("EMBEDDER_PROVIDER", "local")
-    monkeypatch.setenv(
-        "LOCAL_EMBEDDER_BASE_URL", "http://host.docker.internal:11434/v1"
-    )
+    monkeypatch.setenv("LOCAL_EMBEDDER_BASE_URL", "http://host.docker.internal:11434/v1")
     monkeypatch.setenv("LOCAL_EMBEDDER_MODEL", "bge-m3")
     e = ef.build_embedder()
     assert isinstance(e, OpenAIEmbedder)

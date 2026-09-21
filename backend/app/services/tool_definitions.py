@@ -14,8 +14,7 @@ from google.genai import types
 search_vault_notes_decl = types.FunctionDeclaration(
     name="search_vault_notes",
     description=(
-        "搜索 Obsidian Vault 中的笔记，返回与查询语义最相关的笔记片段及来源。"
-        "适用于查找学习材料、讲义内容、概念解释等。"
+        "搜索 Obsidian Vault 中的笔记，返回与查询语义最相关的笔记片段及来源。适用于查找学习材料、讲义内容、概念解释等。"
     ),
     parameters_json_schema={
         "type": "object",
@@ -38,10 +37,7 @@ search_vault_notes_decl = types.FunctionDeclaration(
 # ─────────────────────────────────────────────────
 search_knowledge_graph_decl = types.FunctionDeclaration(
     name="search_knowledge_graph",
-    description=(
-        "搜索知识图谱中的概念、误解记录、错题记录等实体。"
-        "适用于查找学生的历史错误、易混淆概念、学习薄弱点。"
-    ),
+    description=("搜索知识图谱中的概念、误解记录、错题记录等实体。适用于查找学生的历史错误、易混淆概念、学习薄弱点。"),
     parameters_json_schema={
         "type": "object",
         "properties": {
@@ -72,10 +68,7 @@ search_knowledge_graph_decl = types.FunctionDeclaration(
 # ─────────────────────────────────────────────────
 get_note_content_decl = types.FunctionDeclaration(
     name="get_note_content",
-    description=(
-        "读取指定笔记文件的内容（全部或指定行范围）。"
-        "当搜索结果中发现相关笔记但需要更多上下文时使用。"
-    ),
+    description=("读取指定笔记文件的内容（全部或指定行范围）。当搜索结果中发现相关笔记但需要更多上下文时使用。"),
     parameters_json_schema={
         "type": "object",
         "properties": {

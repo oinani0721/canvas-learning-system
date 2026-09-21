@@ -54,10 +54,7 @@ def _kill_stale_process(port: int) -> bool:
     if sys.platform == "win32":
         try:
             # netstat -ano | findstr :PORT
-            result = subprocess.run(
-                ["netstat", "-ano"],
-                capture_output=True, text=True, timeout=5
-            )
+            result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=5)
             pids = set()
             for line in result.stdout.splitlines():
                 if f":{port}" in line and "LISTENING" in line:
@@ -72,10 +69,7 @@ def _kill_stale_process(port: int) -> bool:
 
             for pid in pids:
                 print(f"  Killing stale process PID {pid} on port {port}...")
-                subprocess.run(
-                    ["taskkill", "/F", "/PID", pid],
-                    capture_output=True, timeout=5
-                )
+                subprocess.run(["taskkill", "/F", "/PID", pid], capture_output=True, timeout=5)
             return True
         except Exception as e:
             print(f"  Warning: Failed to kill stale process: {e}")
@@ -83,10 +77,7 @@ def _kill_stale_process(port: int) -> bool:
     else:
         # Unix: lsof + kill
         try:
-            result = subprocess.run(
-                ["lsof", "-ti", f":{port}"],
-                capture_output=True, text=True, timeout=5
-            )
+            result = subprocess.run(["lsof", "-ti", f":{port}"], capture_output=True, text=True, timeout=5)
             pids = result.stdout.strip().split("\n")
             for pid in pids:
                 if pid.strip().isdigit():
@@ -99,14 +90,8 @@ def _kill_stale_process(port: int) -> bool:
 
 def main():
     """Main entry point for the server startup script."""
-    parser = argparse.ArgumentParser(
-        description="Canvas Learning System Backend Server"
-    )
-    parser.add_argument(
-        "--host",
-        default="127.0.0.1",
-        help="Host to bind to (default: 127.0.0.1)"
-    )
+    parser = argparse.ArgumentParser(description="Canvas Learning System Backend Server")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
     parser.add_argument(
         "--port",
         type=int,
@@ -115,18 +100,12 @@ def main():
             "Port to bind to (default: 8001 — 与 plugin DEFAULT_BACKEND_URL "
             "+ docker-compose API_PORT 对齐). "
             "Story 2.5.X/Y UAT 标准配置."
-        )
+        ),
     )
     parser.add_argument(
-        "--reload",
-        action="store_true",
-        help="Enable auto-reload (auto-enabled when DEBUG=True in .env)"
+        "--reload", action="store_true", help="Enable auto-reload (auto-enabled when DEBUG=True in .env)"
     )
-    parser.add_argument(
-        "--no-reload",
-        action="store_true",
-        help="Force disable auto-reload even in DEBUG mode"
-    )
+    parser.add_argument("--no-reload", action="store_true", help="Force disable auto-reload even in DEBUG mode")
 
     args = parser.parse_args()
 
@@ -147,6 +126,7 @@ def main():
         if _kill_stale_process(args.port):
             print(f"[OK] Stale process cleared. Proceeding with startup.")
             import time
+
             time.sleep(1)  # Brief pause for port release
         else:
             print(f"[!] Could not clear port {args.port}. Server may fail to bind.")
@@ -170,8 +150,8 @@ def main():
         # Watch all relevant directories (not just backend/)
         project_root = str(backend_dir.parent)
         uvicorn_kwargs["reload_dirs"] = [
-            str(backend_dir),                          # backend/app/**/*.py
-            str(backend_dir.parent / "src"),            # src/ (agentic_rag, ebbinghaus, etc.)
+            str(backend_dir),  # backend/app/**/*.py
+            str(backend_dir.parent / "src"),  # src/ (agentic_rag, ebbinghaus, etc.)
             str(backend_dir.parent / ".claude" / "agents"),  # agent prompt templates
         ]
         # Watch .py + .env + .md (agent templates)

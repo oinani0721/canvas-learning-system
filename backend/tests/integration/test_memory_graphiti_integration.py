@@ -103,12 +103,7 @@ class TestMemoryGraphitiIntegration:
             await wait_for_condition(
                 lambda: (
                     temp_storage_path.exists()
-                    and len(
-                        json.loads(temp_storage_path.read_text(encoding="utf-8")).get(
-                            "memories", []
-                        )
-                    )
-                    >= 1
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
                 ),
                 timeout=3.0,
                 description="JSON file written with at least 1 learning memory",
@@ -131,9 +126,7 @@ class TestMemoryGraphitiIntegration:
         assert memory["score"] == 85.0
 
     @pytest.mark.asyncio
-    async def test_learning_memory_client_unavailable_graceful_degradation(
-        self, mock_neo4j_client, wait_for_call
-    ):
+    async def test_learning_memory_client_unavailable_graceful_degradation(self, mock_neo4j_client, wait_for_call):
         """
         Task 5.2: Test LearningMemoryClient unavailable scenario (graceful degradation).
 
@@ -142,9 +135,7 @@ class TestMemoryGraphitiIntegration:
         # Arrange
         failing_client = AsyncMock()
         failing_client.initialize = AsyncMock(return_value=False)
-        failing_client.add_learning_episode = AsyncMock(
-            side_effect=Exception("Storage unavailable")
-        )
+        failing_client.add_learning_episode = AsyncMock(side_effect=Exception("Storage unavailable"))
 
         service = MemoryService(
             neo4j_client=mock_neo4j_client,
@@ -206,12 +197,7 @@ class TestMemoryGraphitiIntegration:
             await wait_for_condition(
                 lambda: (
                     temp_storage_path.exists()
-                    and len(
-                        json.loads(temp_storage_path.read_text(encoding="utf-8")).get(
-                            "memories", []
-                        )
-                    )
-                    >= 1
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
                 ),
                 timeout=3.0,
                 description="JSON file written with at least 1 learning memory",
@@ -229,9 +215,7 @@ class TestMemoryGraphitiIntegration:
         assert "concept" in memory
 
         # Optional fields per LearningMemory schema
-        assert (
-            "user_understanding" in memory or memory.get("user_understanding") is None
-        )
+        assert "user_understanding" in memory or memory.get("user_understanding") is None
         assert "score" in memory
         assert "agent_feedback" in memory
         assert "timestamp" in memory
@@ -280,12 +264,7 @@ class TestMemoryGraphitiIntegration:
             await wait_for_condition(
                 lambda: (
                     temp_storage_path.exists()
-                    and len(
-                        json.loads(temp_storage_path.read_text(encoding="utf-8")).get(
-                            "memories", []
-                        )
-                    )
-                    >= 3
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 3
                 ),
                 timeout=5.0,
                 description="All 3 learning memories written to JSON",
@@ -333,12 +312,7 @@ class TestMemoryGraphitiIntegration:
             await wait_for_condition(
                 lambda: (
                     temp_storage_path.exists()
-                    and len(
-                        json.loads(temp_storage_path.read_text(encoding="utf-8")).get(
-                            "memories", []
-                        )
-                    )
-                    >= 1
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
                 ),
                 timeout=3.0,
                 description="JSON file written with temporal event memory",
@@ -394,12 +368,7 @@ class TestMemoryGraphitiIntegration:
             await wait_for_condition(
                 lambda: (
                     temp_storage_path.exists()
-                    and len(
-                        json.loads(temp_storage_path.read_text(encoding="utf-8")).get(
-                            "memories", []
-                        )
-                    )
-                    >= 5
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 5
                 ),
                 timeout=5.0,
                 description="All 5 concurrent learning memories written to JSON",
@@ -445,12 +414,7 @@ class TestMemoryGraphitiIntegration:
             await wait_for_condition(
                 lambda: (
                     temp_storage_path.exists()
-                    and len(
-                        json.loads(temp_storage_path.read_text(encoding="utf-8")).get(
-                            "memories", []
-                        )
-                    )
-                    >= 1
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
                 ),
                 timeout=3.0,
                 description="JSON file written with Chinese content",

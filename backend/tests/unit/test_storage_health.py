@@ -43,9 +43,7 @@ class TestStatusAggregation:
     def test_neo4j_error_returns_unhealthy(self):
         """✅ AC-36.10.5: Neo4j error → status="unhealthy" (critical)."""
         backends = [
-            StorageBackendStatus(
-                name="neo4j", status="error", error="Connection refused"
-            ),
+            StorageBackendStatus(name="neo4j", status="error", error="Connection refused"),
             StorageBackendStatus(name="mcp", status="ok", latency_ms=120),
             StorageBackendStatus(name="json", status="ok", latency_ms=5),
         ]
@@ -67,9 +65,7 @@ class TestStatusAggregation:
         backends = [
             StorageBackendStatus(name="neo4j", status="ok", latency_ms=45),
             StorageBackendStatus(name="mcp", status="ok", latency_ms=120),
-            StorageBackendStatus(
-                name="json", status="error", error="Permission denied"
-            ),
+            StorageBackendStatus(name="json", status="error", error="Permission denied"),
         ]
         result = _aggregate_storage_status(backends)
         assert result == "degraded"
@@ -79,9 +75,7 @@ class TestStatusAggregation:
         backends = [
             StorageBackendStatus(name="neo4j", status="ok", latency_ms=45),
             StorageBackendStatus(name="mcp", status="error", error="Timeout"),
-            StorageBackendStatus(
-                name="json", status="error", error="Permission denied"
-            ),
+            StorageBackendStatus(name="json", status="error", error="Permission denied"),
         ]
         result = _aggregate_storage_status(backends)
         assert result == "degraded"
@@ -89,13 +83,9 @@ class TestStatusAggregation:
     def test_all_backends_error_with_neo4j_returns_unhealthy(self):
         """✅ AC-36.10.5: All errors including Neo4j → status="unhealthy"."""
         backends = [
-            StorageBackendStatus(
-                name="neo4j", status="error", error="Connection refused"
-            ),
+            StorageBackendStatus(name="neo4j", status="error", error="Connection refused"),
             StorageBackendStatus(name="mcp", status="error", error="Timeout"),
-            StorageBackendStatus(
-                name="json", status="error", error="Permission denied"
-            ),
+            StorageBackendStatus(name="json", status="error", error="Permission denied"),
         ]
         result = _aggregate_storage_status(backends)
         assert result == "unhealthy"
@@ -287,9 +277,7 @@ class TestGracefulDegradation:
         with patch("app.config.settings") as mock_settings:
             mock_settings.json_data_dir = "/nonexistent/path"
             with patch("pathlib.Path.exists", return_value=False):
-                with patch(
-                    "pathlib.Path.mkdir", side_effect=PermissionError("Access denied")
-                ):
+                with patch("pathlib.Path.mkdir", side_effect=PermissionError("Access denied")):
                     result = await _check_json_health()
                     assert result.name == "json"
                     assert result.status == "error"

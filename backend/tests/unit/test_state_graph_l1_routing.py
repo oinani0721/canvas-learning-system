@@ -37,9 +37,7 @@ from agentic_rag.state_graph import fan_out_retrieval
 # ============================================================================
 
 
-def _state_with_query(
-    query: str, multi_queries: list[str] | None = None
-) -> dict[str, Any]:
+def _state_with_query(query: str, multi_queries: list[str] | None = None) -> dict[str, Any]:
     """Build a minimal CanvasRAGState-compatible dict for testing."""
     return {
         "messages": [{"role": "user", "content": query}],
@@ -261,9 +259,7 @@ class TestFanOutMultiQuerySharedRouting:
 
         # 3 variants × 5 channels (knowledge_point intent) = 15 sends
         dests = _extract_destinations(sends)
-        assert len(dests) == 15, (
-            "Got %d sends, expected 15 (3 variants × 5 channels)" % len(dests)
-        )
+        assert len(dests) == 15, "Got %d sends, expected 15 (3 variants × 5 channels)" % len(dests)
 
 
 # ============================================================================

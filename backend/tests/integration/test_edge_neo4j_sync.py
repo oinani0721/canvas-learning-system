@@ -84,9 +84,7 @@ def sample_canvas_file(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_edge_appears_in_neo4j_after_add_edge(
-    canvas_service, memory_service, sample_canvas_file, neo4j_client
-):
+async def test_edge_appears_in_neo4j_after_add_edge(canvas_service, memory_service, sample_canvas_file, neo4j_client):
     """
     AC-5: Verify edge relationship created in Neo4j after Canvas add_edge().
 
@@ -191,9 +189,7 @@ async def test_canvas_operation_succeeds_without_neo4j(tmp_path):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_multiple_edges_sync_concurrently(
-    canvas_service, memory_service, sample_canvas_file, neo4j_client
-):
+async def test_multiple_edges_sync_concurrently(canvas_service, memory_service, sample_canvas_file, neo4j_client):
     """
     Verify multiple edges can be synced concurrently without issues.
     """
@@ -258,9 +254,7 @@ async def test_multiple_edges_sync_concurrently(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_edge_sync_with_chinese_canvas_path(
-    memory_service, tmp_path, neo4j_client
-):
+async def test_edge_sync_with_chinese_canvas_path(memory_service, tmp_path, neo4j_client):
     """
     Verify edge sync works with Chinese characters in canvas path.
     """
@@ -280,9 +274,7 @@ async def test_edge_sync_with_chinese_canvas_path(
     canvas_path = chinese_dir / "测试.canvas"
     canvas_path.write_text(json.dumps(canvas_data), encoding="utf-8")
 
-    service = CanvasService(
-        canvas_base_path=str(tmp_path), memory_client=memory_service
-    )
+    service = CanvasService(canvas_base_path=str(tmp_path), memory_client=memory_service)
 
     # Act: Add edge to Chinese-named canvas
     result = await service.add_edge(
@@ -292,10 +284,7 @@ async def test_edge_sync_with_chinese_canvas_path(
 
     # Wait for edge to be written to canvas file
     await wait_for_condition(
-        lambda: (
-            len(json.loads(canvas_path.read_text(encoding="utf-8")).get("edges", []))
-            >= 1
-        ),
+        lambda: len(json.loads(canvas_path.read_text(encoding="utf-8")).get("edges", [])) >= 1,
         timeout=5.0,
         description="Edge written to Chinese-named canvas file",
     )

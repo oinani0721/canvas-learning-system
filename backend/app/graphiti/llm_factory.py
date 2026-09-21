@@ -112,8 +112,7 @@ def build_llm_client(google_api_key: str = "", llm_model: str = "") -> Any:
         base_url = os.getenv("GRAPHITI_LLM_BASE_URL") or _LOCAL_LLM_DEFAULT_BASE_URL
         model = os.getenv("GRAPHITI_LLM_MODEL") or "qwen3.5-35b-a3b-q4_k_s"
         logger.info(
-            "[Graphiti-LLM] provider=local model=%s base_url=%s "
-            "(⛔ 须已通过 schema canary — fail-closed 契约)",
+            "[Graphiti-LLM] provider=local model=%s base_url=%s (⛔ 须已通过 schema canary — fail-closed 契约)",
             model,
             base_url,
         )
@@ -150,13 +149,10 @@ def build_cross_encoder(google_api_key: str = "", llm_model: str = "") -> Any:
         # 暴露 /v1/rerank 端点。用自研适配器直连 rerank 协议。
         from app.graphiti.rerank_client import LlamaServerRerankerClient
 
-        base_url = (
-            os.getenv("GRAPHITI_RERANKER_BASE_URL") or _LOCAL_RERANK_DEFAULT_BASE_URL
-        )
+        base_url = os.getenv("GRAPHITI_RERANKER_BASE_URL") or _LOCAL_RERANK_DEFAULT_BASE_URL
         model = os.getenv("GRAPHITI_RERANKER_MODEL") or "bge-reranker-v2-m3"
         logger.info(
-            "[Graphiti-Reranker] provider=local model=%s base_url=%s "
-            "(llama-server --rerank, /v1/rerank 协议适配器)",
+            "[Graphiti-Reranker] provider=local model=%s base_url=%s (llama-server --rerank, /v1/rerank 协议适配器)",
             model,
             base_url,
         )

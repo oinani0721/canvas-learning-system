@@ -861,9 +861,7 @@ def test_dead_letter_store_does_not_concatenate_onto_dangling_tail(bounded_dead_
             parsed.append(json.loads(ln))
         except json.JSONDecodeError:
             pass
-    assert len(parsed) == 1 and parsed[0].get("episode_body_sha256"), (
-        f"新记录没有成为一条可解析的行: {raw!r}"
-    )
+    assert len(parsed) == 1 and parsed[0].get("episode_body_sha256"), f"新记录没有成为一条可解析的行: {raw!r}"
 
 
 def test_write_dead_letter_does_not_concatenate_onto_dangling_tail(tmp_path):

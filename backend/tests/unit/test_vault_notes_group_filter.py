@@ -40,9 +40,7 @@ def _make_row(row_id: str, subject_id: str | None = None, nested_json: bool = Fa
     """
     metadata: dict = {}
     if nested_json and subject_id is not None:
-        metadata["metadata_json"] = json.dumps(
-            {"subject_id": subject_id, "file_path": f"{row_id}.md"}
-        )
+        metadata["metadata_json"] = json.dumps({"subject_id": subject_id, "file_path": f"{row_id}.md"})
     elif subject_id is not None:
         metadata["subject_id"] = subject_id
     return {

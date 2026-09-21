@@ -16,9 +16,7 @@ def test_extract_single_tip():
 
 def test_extract_multiline_callout():
     md = "> [!question]+ 为什么递归要终止\n> 因为否则栈会爆\n> 第二行"
-    assert extract_callouts(md) == [
-        ("question", "", "为什么递归要终止\n因为否则栈会爆\n第二行", "")
-    ]
+    assert extract_callouts(md) == [("question", "", "为什么递归要终止\n因为否则栈会爆\n第二行", "")]
 
 
 def test_extract_error_callout():
@@ -48,13 +46,7 @@ def test_empty_callout_dropped():
 
 def test_extract_stable_annotation_id():
     """P0 (A+-prime): 标题行 %%cb-xxx%% → 提取为第 4 元, 不污染正文/标题。"""
-    md = (
-        "* > [!tips]+ 💡 Tips %%cb-lq9x2k3p%%\n"
-        "> - [x] 🤔 模糊\n"
-        ">\n"
-        "> 一个代理是实体\n"
-        "> ✍️ 我的理解：还不太懂\n"
-    )
+    md = "* > [!tips]+ 💡 Tips %%cb-lq9x2k3p%%\n> - [x] 🤔 模糊\n>\n> 一个代理是实体\n> ✍️ 我的理解：还不太懂\n"
     result = extract_callouts(md)
     assert len(result) == 1
     ctype, understanding, body, ann_id = result[0]
@@ -119,15 +111,9 @@ async def test_execute_calls_writers(tmp_path, monkeypatch):
     async def spy_rel(driver, embedder, **kw):
         written["relation"].append(kw)
 
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_callout", spy_callout
-    )
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_error", spy_error
-    )
-    monkeypatch.setattr(
-        "app.services.graphiti_structured_writer.write_relation_reason", spy_rel
-    )
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_callout", spy_callout)
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_error", spy_error)
+    monkeypatch.setattr("app.services.graphiti_structured_writer.write_relation_reason", spy_rel)
 
     stats = await backfill_vault(str(vault), object(), None, "vault:g", execute=True)
     assert stats["failed"] == 0
@@ -168,12 +154,6 @@ def test_extract_list_nested_tips_plural():
 
 
 def test_extract_two_adjacent_list_nested_callouts():
-    md = (
-        "* > [!tips]+ 💡 Tips\n"
-        "> ✍️ 我的理解：A\n"
-        "* 中间正文行\n"
-        "* > [!tips]+ 💡 Tips\n"
-        "> ✍️ 我的理解：B\n"
-    )
+    md = "* > [!tips]+ 💡 Tips\n> ✍️ 我的理解：A\n* 中间正文行\n* > [!tips]+ 💡 Tips\n> ✍️ 我的理解：B\n"
     result = extract_callouts(md)
     assert [b for _, _, b, _ in result] == ["✍️ 我的理解：A", "✍️ 我的理解：B"]

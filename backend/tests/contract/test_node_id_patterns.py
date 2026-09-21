@@ -115,9 +115,7 @@ class TestNodeIdPatternValidation:
         """Invalid IDs should raise ValidationError."""
         with pytest.raises(ValidationError) as exc_info:
             NodeRead(id=node_id, type="text", x=0, y=0, width=100, height=100)
-        assert "id" in str(exc_info.value), (
-            f"Expected ID validation error for: {reason}"
-        )
+        assert "id" in str(exc_info.value), f"Expected ID validation error for: {reason}"
 
     # =========================================================================
     # Edge Cases
@@ -148,12 +146,7 @@ class TestNodeIdPatternConsistency:
         from pathlib import Path
 
         # Read JSON Schema
-        schema_path = (
-            Path(__file__).parent.parent.parent.parent
-            / "specs"
-            / "data"
-            / "canvas-node.schema.json"
-        )
+        schema_path = Path(__file__).parent.parent.parent.parent / "specs" / "data" / "canvas-node.schema.json"
         with open(schema_path, "r", encoding="utf-8") as f:
             json_schema = json.load(f)
 

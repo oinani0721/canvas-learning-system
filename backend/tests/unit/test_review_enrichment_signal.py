@@ -80,7 +80,7 @@ class TestWeightConfigSchemaSignal:
         }
         config = WeightConfig(**weight_config_dict)
         dumped = config.model_dump()
-        assert dumped == weight_config_dict, (
-            "Dict round-trip lost data. Original: %s, After model_dump: %s"
-            % (weight_config_dict, dumped)
+        assert dumped == weight_config_dict, "Dict round-trip lost data. Original: %s, After model_dump: %s" % (
+            weight_config_dict,
+            dumped,
         )

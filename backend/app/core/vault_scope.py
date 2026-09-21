@@ -176,14 +176,11 @@ def resolve_vault_scope(
             )
         # 归一到稳定 ID: 请求可能用目录名/display name 命中别名, 但落库
         # group 必须恒为稳定 ID, 否则同一 vault 因入口不同分裂成两个桶。
-        derived = build_vault_group_id(
-            active_vault, subject_id=subject_id, canvas_path=canvas_path
-        )
+        derived = build_vault_group_id(active_vault, subject_id=subject_id, canvas_path=canvas_path)
         source = "request-vault"
     elif legacy_group_id and legacy_group_id.strip():
         logger.warning(
-            "vault_scope: vault_id missing, falling back to deprecated "
-            "group_id=%s. Update caller to pass vault_id.",
+            "vault_scope: vault_id missing, falling back to deprecated group_id=%s. Update caller to pass vault_id.",
             legacy_group_id,
         )
         derived = canonical_group_id(legacy_group_id)
@@ -196,9 +193,7 @@ def resolve_vault_scope(
             "vault_scope: both vault_id and group_id missing, deriving "
             "ACTIVE vault group (fail-closed, no DEFAULT_GROUP_ID fallback)"
         )
-        derived = build_vault_group_id(
-            active_vault, subject_id=subject_id, canvas_path=canvas_path
-        )
+        derived = build_vault_group_id(active_vault, subject_id=subject_id, canvas_path=canvas_path)
         source = "active-vault"
 
     _inject(derived)
@@ -443,8 +438,7 @@ def require_read_group(group_id: Optional[str] = None, *, context: str) -> str:
         if resolved and resolved.strip():
             return _validate_scope_shape(resolved, context=context, explicit=True)
         raise VaultScopeUnresolved(
-            f"read scope unresolved [context: {context}]: explicit group_id "
-            f"{group_id!r} canonicalized to empty"
+            f"read scope unresolved [context: {context}]: explicit group_id {group_id!r} canonicalized to empty"
         )
 
     # ⚠️ Codex round-3 (2026-08-30) — **来源必须可分辨**。此前这里直接调
@@ -465,9 +459,7 @@ def require_read_group(group_id: Optional[str] = None, *, context: str) -> str:
 
     ctx = get_current_subject_id()
     if ctx and ctx != DEFAULT_SUBJECT_ID:
-        return _validate_scope_shape(
-            canonical_group_id(ctx), context=context, explicit=True
-        )
+        return _validate_scope_shape(canonical_group_id(ctx), context=context, explicit=True)
 
     try:
         resolved = default_vault_group_id()
@@ -486,9 +478,7 @@ def require_read_group(group_id: Optional[str] = None, *, context: str) -> str:
     return _validate_scope_shape(resolved, context=context, explicit=False)
 
 
-def _validate_scope_shape(
-    group_id: str, *, context: str, explicit: bool
-) -> str:
+def _validate_scope_shape(group_id: str, *, context: str, explicit: bool) -> str:
     """作用域形状校验 — Codex round-1 H-1 / M-4 整改 (2026-08-30)。
 
     只检查"非空"不够, 有两类**看似有值实为无效**的作用域会把配置故障伪装成
@@ -593,9 +583,7 @@ def _default_is_configured() -> bool:
         return False
 
 
-def read_scope_params(
-    group_id: Optional[str] = None, *, context: str
-) -> Dict[str, str]:
+def read_scope_params(group_id: Optional[str] = None, *, context: str) -> Dict[str, str]:
     """读侧 Cypher 的 group 绑定参数 (物理格式 + 前缀锚)。
 
     与 :func:`read_group_filter` 成对使用::
@@ -676,6 +664,4 @@ def group_in_read_scope(candidate: Optional[str], scope: Optional[str]) -> bool:
 
     cand_phys = to_physical_group_id(str(candidate).strip())
     scope_phys = to_physical_group_id(str(scope).strip())
-    return cand_phys == scope_phys or cand_phys.startswith(
-        scope_phys + _PHYSICAL_SEPARATOR
-    )
+    return cand_phys == scope_phys or cand_phys.startswith(scope_phys + _PHYSICAL_SEPARATOR)

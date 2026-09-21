@@ -118,9 +118,7 @@ async def require_internal_api_key(
     # ChatGPT-DR-2026-05-13 P0-2: previous "auto-allow on DEBUG=True" was fail-open.
     # Now requires (a) ALLOW_UNSAFE_DEV_AUTH_BYPASS=true env AND (b) loopback client.
     if not configured_key and debug_mode:
-        bypass_env = (
-            os.environ.get("ALLOW_UNSAFE_DEV_AUTH_BYPASS") or ""
-        ).lower() == "true"
+        bypass_env = (os.environ.get("ALLOW_UNSAFE_DEV_AUTH_BYPASS") or "").lower() == "true"
         client_host = request.client.host if request.client else None
         is_loopback = client_host in {"127.0.0.1", "::1"}
 
@@ -153,9 +151,7 @@ async def require_internal_api_key(
 
     # Branch 3: configured key, request missing the header → 403
     if not provided_key:
-        logger.warning(
-            "X-CLS-Internal-Key header missing (auth_reject); rejecting request"
-        )
+        logger.warning("X-CLS-Internal-Key header missing (auth_reject); rejecting request")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid internal API key",
@@ -163,10 +159,7 @@ async def require_internal_api_key(
 
     # Branch 4: configured key, header value does not match → 403
     if provided_key != configured_key:
-        logger.warning(
-            "Provided X-CLS-Internal-Key does not match configured key "
-            "(auth_reject); rejecting request"
-        )
+        logger.warning("Provided X-CLS-Internal-Key does not match configured key (auth_reject); rejecting request")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid internal API key",
@@ -226,8 +219,7 @@ async def verify_websocket_internal_key(websocket) -> bool:
     # Branch 1: prod + 无 key → close 1011
     if not configured_key and not debug_mode:
         logger.error(
-            "WebSocket: INTERNAL_API_KEY env var empty in production "
-            "(ws_auth_fail_closed); rejecting connection"
+            "WebSocket: INTERNAL_API_KEY env var empty in production (ws_auth_fail_closed); rejecting connection"
         )
         await websocket.close(
             code=WS_CLOSE_SERVER_ERROR,
@@ -238,16 +230,13 @@ async def verify_websocket_internal_key(websocket) -> bool:
     # Branch 2: dev + 无 key → 允许 + warn
     if not configured_key and debug_mode:
         logger.warning(
-            "WebSocket: INTERNAL_API_KEY not configured but DEBUG=True; "
-            "allowing connection (ws_auth_dev_bypass)"
+            "WebSocket: INTERNAL_API_KEY not configured but DEBUG=True; allowing connection (ws_auth_dev_bypass)"
         )
         return True
 
     # Branch 3: 已配 key, 客户端无 token → close 1008
     if not provided_token:
-        logger.warning(
-            "WebSocket: query param '%s' missing (ws_auth_reject)", WS_TOKEN_QUERY_NAME
-        )
+        logger.warning("WebSocket: query param '%s' missing (ws_auth_reject)", WS_TOKEN_QUERY_NAME)
         await websocket.close(
             code=WS_CLOSE_POLICY_VIOLATION,
             reason="Missing auth token",
@@ -256,9 +245,7 @@ async def verify_websocket_internal_key(websocket) -> bool:
 
     # Branch 4: 已配 key, token 不匹配 → close 1008
     if provided_token != configured_key:
-        logger.warning(
-            "WebSocket: provided token does not match configured key (ws_auth_reject)"
-        )
+        logger.warning("WebSocket: provided token does not match configured key (ws_auth_reject)")
         await websocket.close(
             code=WS_CLOSE_POLICY_VIOLATION,
             reason="Invalid auth token",

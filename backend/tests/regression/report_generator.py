@@ -132,23 +132,17 @@ class RegressionReportGenerator:
         for metric_name, threshold_value in thresholds.items():
             actual = aggregate_metrics.get(metric_name)
             if actual is None:
-                gate_failures.append(
-                    f"{metric_name}: metric not reported (threshold={threshold_value})"
-                )
+                gate_failures.append(f"{metric_name}: metric not reported (threshold={threshold_value})")
                 continue
 
             # For "max_" prefixed metrics, the actual must be <= threshold
             if metric_name.startswith("max_"):
                 if actual > threshold_value:
-                    gate_failures.append(
-                        f"{metric_name}: {actual:.3f} > {threshold_value:.3f} (EXCEEDED)"
-                    )
+                    gate_failures.append(f"{metric_name}: {actual:.3f} > {threshold_value:.3f} (EXCEEDED)")
             else:
                 # For rate/recall/accuracy metrics, actual must be >= threshold
                 if actual < threshold_value:
-                    gate_failures.append(
-                        f"{metric_name}: {actual:.3f} < {threshold_value:.3f} (BELOW THRESHOLD)"
-                    )
+                    gate_failures.append(f"{metric_name}: {actual:.3f} < {threshold_value:.3f} (BELOW THRESHOLD)")
 
         gate_passed = len(gate_failures) == 0
 
@@ -168,9 +162,7 @@ class RegressionReportGenerator:
         """Format the report as a human-readable terminal table."""
         lines = list()
         lines.append("=" * 72)
-        lines.append(
-            f"  PROMPT REGRESSION REPORT: {report.prompt_name} v{report.prompt_version}"
-        )
+        lines.append(f"  PROMPT REGRESSION REPORT: {report.prompt_name} v{report.prompt_version}")
         lines.append(f"  Hash: {report.prompt_hash[:16]}...")
         lines.append(f"  Time: {report.timestamp}")
         lines.append("=" * 72)
@@ -220,10 +212,7 @@ class RegressionReportGenerator:
     def save_report(self, report: RegressionReport, output_dir: Path) -> Path:
         """Save report as JSON file."""
         output_dir.mkdir(parents=True, exist_ok=True)
-        filename = (
-            f"regression_{report.prompt_name}_v{report.prompt_version}"
-            f"_{report.timestamp[:10]}.json"
-        )
+        filename = f"regression_{report.prompt_name}_v{report.prompt_version}_{report.timestamp[:10]}.json"
         path = output_dir / filename
         path.write_text(report.to_json(), encoding="utf-8")
         logger.info("[ReportGenerator] Report saved to %s", path)

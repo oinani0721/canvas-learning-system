@@ -137,9 +137,7 @@ class VaultInitService:
             try:
                 community_installed = json.loads(community_plugins_file.read_text())
             except (json.JSONDecodeError, OSError):
-                logger.warning(
-                    "community_plugins_parse_error", path=str(community_plugins_file)
-                )
+                logger.warning("community_plugins_parse_error", path=str(community_plugins_file))
 
         for plugin_id, display_name, hint in REQUIRED_COMMUNITY_PLUGINS:
             results.append(

@@ -129,11 +129,7 @@ class TestStory306ColorChangeEvents:
         await memory_service.record_batch_learning_events(events)
 
         # Find the stored episode
-        stored = [
-            ep
-            for ep in memory_service._episodes
-            if ep.get("node_id") == "node-meta-test"
-        ]
+        stored = [ep for ep in memory_service._episodes if ep.get("node_id") == "node-meta-test"]
         assert len(stored) == 1
         assert stored[0]["metadata"]["old_color"] == "0"
         assert stored[0]["metadata"]["new_color"] == "6"
@@ -161,9 +157,7 @@ class TestStory306ColorChangeEvents:
         assert r2["processed"] == 1  # still counted as processed
 
         # But only 1 episode stored
-        matching = [
-            ep for ep in memory_service._episodes if ep.get("node_id") == "node-dup"
-        ]
+        matching = [ep for ep in memory_service._episodes if ep.get("node_id") == "node-dup"]
         assert len(matching) == 1
 
     @pytest.mark.asyncio
@@ -185,9 +179,7 @@ class TestStory306ColorChangeEvents:
         assert result["processed"] == 1
         assert result["success"] is True
 
-        stored = [
-            ep for ep in memory_service._episodes if ep.get("node_id") == "node-removed"
-        ]
+        stored = [ep for ep in memory_service._episodes if ep.get("node_id") == "node-removed"]
         assert len(stored) == 1
         assert stored[0]["metadata"]["old_color"] == "6"
 
@@ -196,12 +188,8 @@ class TestStory306ColorChangeEvents:
         """
         AC-30.6.5: 3 color_changed + 2 color_removed -> all 5 succeed.
         """
-        events = [
-            _color_event(event_type="color_changed", node_id=f"cc-{i}")
-            for i in range(3)
-        ] + [
-            _color_event(event_type="color_removed", node_id=f"cr-{i}")
-            for i in range(2)
+        events = [_color_event(event_type="color_changed", node_id=f"cc-{i}") for i in range(3)] + [
+            _color_event(event_type="color_removed", node_id=f"cr-{i}") for i in range(2)
         ]
 
         result = await memory_service.record_batch_learning_events(events)

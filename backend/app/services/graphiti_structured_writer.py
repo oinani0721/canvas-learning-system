@@ -36,9 +36,7 @@ from app.graphiti.identity_registry import IdentityRegistry
 logger = logging.getLogger(__name__)
 
 
-async def _preserved_times(
-    driver: Any, edge_uuid: str, occurred_at: datetime
-) -> tuple[datetime, datetime]:
+async def _preserved_times(driver: Any, edge_uuid: str, occurred_at: datetime) -> tuple[datetime, datetime]:
     """create-or-preserve (P3/A4 2026-06-26): 边已存在则保留其 (created_at, valid_at),
     否则用 occurred_at。
 
@@ -67,9 +65,7 @@ def _deterministic_edge_uuid(kind: str, node_key: str, gid: str, fact: str) -> s
     return str(uuid5(NAMESPACE_DNS, f"{kind}:{node_key}:{gid}:{fact_hash}"))
 
 
-def canonical_callout_fact(
-    callout_type: str, understanding: Optional[str], body: str
-) -> str:
+def canonical_callout_fact(callout_type: str, understanding: Optional[str], body: str) -> str:
     """三通道统一的批注存储格式 (去重修复 2026-06-13)。
 
     此前即时上报/停笔同步/启动回填各自包装 ("Tip:…|Content:…" /
@@ -93,9 +89,7 @@ def _identity_first_line(text: str) -> str:
     return text
 
 
-async def _save_edge_with_embedding(
-    edge: EntityEdge, driver: Any, embedder: Optional[Any]
-) -> EntityEdge:
+async def _save_edge_with_embedding(edge: EntityEdge, driver: Any, embedder: Optional[Any]) -> EntityEdge:
     """D8: save() 纯持久化不自动 embed, 必须在此显式生成 fact_embedding。"""
     if embedder is not None:
         await edge.generate_embedding(embedder)
@@ -121,9 +115,7 @@ async def _self_loop_edge(
     同一批注的版本演进 (选中→续写全文) MERGE 原地升级, 不并排存多条。
     """
     gid = sanitize_group_id_for_graphiti(group_id)  # C-3 边界 sanitize
-    node_uuid = await IdentityRegistry.ensure_entity_node(
-        driver, node_id, gid, embedder=embedder
-    )
+    node_uuid = await IdentityRegistry.ensure_entity_node(driver, node_id, gid, embedder=embedder)
     edge_uuid = _deterministic_edge_uuid(name, node_id, gid, identity_text or fact)
     # P3 (A4): 边已存在则保留原始时间, 防回填覆写真实事件时间
     created_at, valid_at = await _preserved_times(driver, edge_uuid, occurred_at)
@@ -252,12 +244,8 @@ async def write_relation_reason(
 ) -> EntityEdge:
     """节点增殖原因 → 真实 src→tgt 边 (fact=用户写的"为什么拉出/连接")。"""
     gid = sanitize_group_id_for_graphiti(group_id)
-    su = await IdentityRegistry.ensure_entity_node(
-        driver, source_node_id, gid, embedder=embedder
-    )
-    tu = await IdentityRegistry.ensure_entity_node(
-        driver, target_node_id, gid, embedder=embedder
-    )
+    su = await IdentityRegistry.ensure_entity_node(driver, source_node_id, gid, embedder=embedder)
+    tu = await IdentityRegistry.ensure_entity_node(driver, target_node_id, gid, embedder=embedder)
     edge_uuid = _deterministic_edge_uuid(
         relation_type or "RelatedTo",
         f"{source_node_id}->{target_node_id}",

@@ -52,9 +52,7 @@ class TestCreateFsrsManagerFactory:
 
         with (
             patch("app.services.review_service.FSRS_AVAILABLE", True),
-            patch(
-                "app.services.review_service.FSRSManager", return_value=mock_mgr
-            ) as mock_cls,
+            patch("app.services.review_service.FSRSManager", return_value=mock_mgr) as mock_cls,
         ):
             result = create_fsrs_manager(settings)
 
@@ -123,9 +121,7 @@ class TestCreateFsrsManagerFactory:
 
         with (
             patch("app.services.review_service.FSRS_AVAILABLE", True),
-            patch(
-                "app.services.review_service.FSRSManager", return_value=mock_mgr
-            ) as mock_cls,
+            patch("app.services.review_service.FSRSManager", return_value=mock_mgr) as mock_cls,
         ):
             create_fsrs_manager(settings)
 
@@ -158,9 +154,7 @@ class TestReviewServiceInitFactory:
         from app.services.review_service import ReviewService
 
         auto_mgr = MagicMock()
-        with patch(
-            "app.services.review_service.create_fsrs_manager", return_value=auto_mgr
-        ):
+        with patch("app.services.review_service.create_fsrs_manager", return_value=auto_mgr):
             svc = ReviewService(
                 canvas_service=MagicMock(),
                 task_manager=MagicMock(),
@@ -173,9 +167,7 @@ class TestReviewServiceInitFactory:
         """When fsrs_manager=None and factory returns None (USE_FSRS=False), no FSRS."""
         from app.services.review_service import ReviewService
 
-        with patch(
-            "app.services.review_service.create_fsrs_manager", return_value=None
-        ):
+        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
             svc = ReviewService(
                 canvas_service=MagicMock(),
                 task_manager=MagicMock(),
@@ -183,7 +175,4 @@ class TestReviewServiceInitFactory:
             )
         assert svc._fsrs_manager is None
         assert svc._fsrs_init_ok is False
-        assert (
-            "unavailable" in svc._fsrs_init_reason
-            or "disabled" in svc._fsrs_init_reason
-        )
+        assert "unavailable" in svc._fsrs_init_reason or "disabled" in svc._fsrs_init_reason

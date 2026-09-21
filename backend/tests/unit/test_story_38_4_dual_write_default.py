@@ -66,7 +66,10 @@ class TestAC1SafeDefault:
             )
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(strict=True, reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）")
+    @pytest.mark.xfail(
+        strict=True,
+        reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）",
+    )
     async def test_startup_log_dual_write_enabled_default(self, caplog):
         """
         [P1] Startup log shows "Dual-write: enabled (default)" when enabled
@@ -77,11 +80,7 @@ class TestAC1SafeDefault:
         from app.main import lifespan
 
         # Remove env var to simulate fresh install (AC-1: no .env customization)
-        env_without_dw = {
-            k: v
-            for k, v in os.environ.items()
-            if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"
-        }
+        env_without_dw = {k: v for k, v in os.environ.items() if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"}
 
         with (
             patch("app.main.get_default_monitor") as mock_monitor,
@@ -119,11 +118,8 @@ class TestAC1SafeDefault:
                     pass
 
             log_messages = [r.message for r in caplog.records]
-            assert any(
-                "Dual-write: enabled (default)" in msg for msg in log_messages
-            ), (
-                f"Expected startup log 'Dual-write: enabled (default)' not found. "
-                f"Got logs: {log_messages}"
+            assert any("Dual-write: enabled (default)" in msg for msg in log_messages), (
+                f"Expected startup log 'Dual-write: enabled (default)' not found. Got logs: {log_messages}"
             )
 
 
@@ -148,7 +144,10 @@ class TestAC2ExplicitDisable:
             assert settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE is False
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(strict=True, reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）")
+    @pytest.mark.xfail(
+        strict=True,
+        reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）",
+    )
     async def test_startup_log_dual_write_disabled_explicit(self, caplog):
         """
         [P1] Startup log shows "Dual-write: disabled (explicit configuration)" when disabled.
@@ -193,16 +192,16 @@ class TestAC2ExplicitDisable:
                     pass
 
             log_messages = [r.message for r in caplog.records]
-            assert any(
-                "Dual-write: disabled (explicit configuration)" in msg
-                for msg in log_messages
-            ), (
+            assert any("Dual-write: disabled (explicit configuration)" in msg for msg in log_messages), (
                 f"Expected startup log 'Dual-write: disabled (explicit configuration)' not found. "
                 f"Got logs: {log_messages}"
             )
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(strict=True, reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）")
+    @pytest.mark.xfail(
+        strict=True,
+        reason="59586af1(2026-03-26 refactor(phase2): delete fake bridge/JSON dual-write code, replaced by GraphitiEpisodeWorker) 删掉了 main.py 里 JSON dual-write 的启动日志（现全文已无 Dual-write 字样），本用例断言的那条日志不再存在；836d0986(2026-03-31) 又删掉了 set_session_validator，使本用例在 patch 入口即 AttributeError。设置项 ENABLE_GRAPHITI_JSON_DUAL_WRITE 本身仍在（config.py:477，canvas_service.py:267/:360 仍消费），故不是整条能力消失，只是「启动期播报」这一面被撤。等价覆盖缺口（GraphitiEpisodeWorker 路径的开关可见性）交接 CARD-STORY-38-4-DUALWRITE-RETIREMENT（台账登记）",
+    )
     async def test_warning_log_data_loss_risk_when_disabled(self, caplog):
         """
         [P1] WARNING log emitted when dual-write is disabled.
@@ -247,12 +246,8 @@ class TestAC2ExplicitDisable:
                 async with lifespan(app):
                     pass
 
-            warning_messages = [
-                r.message for r in caplog.records if r.levelno >= logging.WARNING
-            ]
-            assert any(
-                "JSON fallback is disabled" in msg for msg in warning_messages
-            ), (
+            warning_messages = [r.message for r in caplog.records if r.levelno >= logging.WARNING]
+            assert any("JSON fallback is disabled" in msg for msg in warning_messages), (
                 f"Expected WARNING 'JSON fallback is disabled. Neo4j outage will cause data loss.' "
                 f"not found. Got warnings: {warning_messages}"
             )

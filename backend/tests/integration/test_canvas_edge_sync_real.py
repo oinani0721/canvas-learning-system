@@ -254,9 +254,7 @@ class TestAddEdgeWithNeo4jSyncReal:
                 )
                 return len(rows) > 0
 
-            await _wait_for_condition(
-                _edge_in_neo4j, timeout=5.0, description="edge persisted to Neo4j"
-            )
+            await _wait_for_condition(_edge_in_neo4j, timeout=5.0, description="edge persisted to Neo4j")
 
             # Verify canvas file also updated
             updated_canvas = json.loads(canvas_path.read_text())
@@ -314,9 +312,7 @@ class TestAddEdgeWithNeo4jSyncReal:
             elapsed = time.monotonic() - start
 
             # add_edge should complete quickly (fire-and-forget sync)
-            assert elapsed < 1.0, (
-                f"add_edge took {elapsed}s, should be < 1.0s (fire-and-forget)"
-            )
+            assert elapsed < 1.0, f"add_edge took {elapsed}s, should be < 1.0s (fire-and-forget)"
             assert result["fromNode"] == f"{prefix}node-1"
 
             # Give background task time to complete for cleanup

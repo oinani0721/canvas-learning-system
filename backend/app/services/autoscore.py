@@ -249,9 +249,7 @@ class AutoScorer:
             result.faithfulness_details = faith_result.to_dict()
             result.verified = faith_result.faithfulness_passed
         except Exception as faith_err:
-            logger.warning(
-                f"[Story 6.9] Scoring faithfulness check failed (non-fatal): {faith_err}"
-            )
+            logger.warning(f"[Story 6.9] Scoring faithfulness check failed (non-fatal): {faith_err}")
             # On failure, default to verified=True (don't block scoring pipeline)
 
         logger.info(
@@ -262,9 +260,7 @@ class AutoScorer:
 
         return result
 
-    async def _extract_evidence(
-        self, question_text: str, student_answer: str
-    ) -> Dict[str, Any]:
+    async def _extract_evidence(self, question_text: str, student_answer: str) -> Dict[str, Any]:
         """Stage 1: Extract evidence from student response.
 
         Independent LLM call to avoid bias in scoring stage.
@@ -342,9 +338,7 @@ class AutoScorer:
                 "all_evidence": [f"Evidence extraction failed: {e}"],
             }
 
-    async def _score_with_rubric(
-        self, evidence: Dict[str, Any], sample_index: int
-    ) -> Dict[str, int]:
+    async def _score_with_rubric(self, evidence: Dict[str, Any], sample_index: int) -> Dict[str, int]:
         """Stage 2: Score on 4-dimension rubric (single sample).
 
         Each call is independent with temperature > 0 for diversity.
@@ -409,21 +403,15 @@ class AutoScorer:
                     score = 0
                 dimension_scores[dim] = max(0, min(3, score))
 
-            logger.debug(
-                f"[Story 6.4] Rubric sample {sample_index}: {dimension_scores}"
-            )
+            logger.debug(f"[Story 6.4] Rubric sample {sample_index}: {dimension_scores}")
             return dimension_scores
 
         except Exception as e:
-            logger.error(
-                f"[Story 6.4] Stage 2 rubric scoring failed (sample {sample_index}): {e}"
-            )
+            logger.error(f"[Story 6.4] Stage 2 rubric scoring failed (sample {sample_index}): {e}")
             # Conservative scoring on failure
             return dict.fromkeys(RUBRIC_DIMENSIONS, 1)
 
-    def _majority_vote(
-        self, samples: List[Dict[str, int]]
-    ) -> tuple[Dict[str, int], List[str]]:
+    def _majority_vote(self, samples: List[Dict[str, int]]) -> tuple[Dict[str, int], List[str]]:
         """Apply majority vote across 3 samples per dimension.
 
         Story 6.4 AC-3: If max-min > 1 for any dimension, mark as low-confidence.

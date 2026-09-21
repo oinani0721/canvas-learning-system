@@ -52,9 +52,7 @@ class TestStorageHealthEndpoint:
             elapsed_ms = (time.time() - start) * 1000
 
             assert response.status_code == 200
-            assert elapsed_ms < 500, (
-                f"Response time {elapsed_ms:.1f}ms exceeds 500ms threshold"
-            )
+            assert elapsed_ms < 500, f"Response time {elapsed_ms:.1f}ms exceeds 500ms threshold"
 
     @pytest.mark.asyncio
     async def test_storage_backends_array_structure(self):
@@ -184,9 +182,7 @@ class TestStatusAggregationIntegration:
             backends = data["storage_backends"]
 
             # Check consistency
-            neo4j_ok = any(
-                b["name"] == "neo4j" and b["status"] == "ok" for b in backends
-            )
+            neo4j_ok = any(b["name"] == "neo4j" and b["status"] == "ok" for b in backends)
             all_ok = all(b["status"] == "ok" for b in backends)
 
             if all_ok:

@@ -104,9 +104,7 @@ def difficulty_map_mixed():
             average_score=65.0,
             sample_size=3,
             question_type=QuestionType.VERIFICATION,
-            forgetting_status=ForgettingStatus(
-                needs_review=True, decay_percentage=35.0
-            ),
+            forgetting_status=ForgettingStatus(needs_review=True, decay_percentage=35.0),
             is_mastered=False,
         ),
     }
@@ -121,16 +119,12 @@ class TestGetDifficultyData:
     """Tests for _get_difficulty_data() function."""
 
     @pytest.mark.asyncio
-    async def test_normal_path_returns_difficulty_map(
-        self, sample_nodes, mock_score_history_medium
-    ):
+    async def test_normal_path_returns_difficulty_map(self, sample_nodes, mock_score_history_medium):
         """Normal path: memory service returns scores, difficulty map is built."""
         from app.api.v1.endpoints.review import _get_difficulty_data
 
         mock_memory = AsyncMock()
-        mock_memory.get_concept_score_history = AsyncMock(
-            return_value=mock_score_history_medium
-        )
+        mock_memory.get_concept_score_history = AsyncMock(return_value=mock_score_history_medium)
 
         with patch(
             "app.services.memory_service.get_memory_service",
@@ -177,9 +171,7 @@ class TestGetDifficultyData:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_partial_failure_returns_partial_map(
-        self, sample_nodes, mock_score_history_medium
-    ):
+    async def test_partial_failure_returns_partial_map(self, sample_nodes, mock_score_history_medium):
         """Some nodes fail → partial map returned for successful nodes."""
         from app.api.v1.endpoints.review import _get_difficulty_data
 
@@ -203,16 +195,12 @@ class TestGetDifficultyData:
         assert "node_3" in result
 
     @pytest.mark.asyncio
-    async def test_empty_scores_not_included(
-        self, sample_nodes, mock_score_history_empty
-    ):
+    async def test_empty_scores_not_included(self, sample_nodes, mock_score_history_empty):
         """Nodes with empty score history are excluded from map."""
         from app.api.v1.endpoints.review import _get_difficulty_data
 
         mock_memory = AsyncMock()
-        mock_memory.get_concept_score_history = AsyncMock(
-            return_value=mock_score_history_empty
-        )
+        mock_memory.get_concept_score_history = AsyncMock(return_value=mock_score_history_empty)
 
         with patch(
             "app.services.memory_service.get_memory_service",
@@ -251,17 +239,12 @@ class TestMasteryFiltering:
         filtered = [
             n
             for n in sample_nodes
-            if not (
-                n.get("id") in difficulty_map_mixed
-                and difficulty_map_mixed[n.get("id")].is_mastered
-            )
+            if not (n.get("id") in difficulty_map_mixed and difficulty_map_mixed[n.get("id")].is_mastered)
         ]
         assert len(filtered) == 2
         assert all(n["id"] != "node_2" for n in filtered)
 
-    def test_no_filter_when_skip_mastered_false(
-        self, sample_nodes, difficulty_map_mixed
-    ):
+    def test_no_filter_when_skip_mastered_false(self, sample_nodes, difficulty_map_mixed):
         """skip_mastered=False keeps all nodes."""
         # No filtering applied
         assert len(sample_nodes) == 3
@@ -295,11 +278,7 @@ class TestMasteryFiltering:
                 is_mastered=True,
             ),
         }
-        filtered = [
-            n
-            for n in nodes
-            if not (n.get("id") in diff_map and diff_map[n.get("id")].is_mastered)
-        ]
+        filtered = [n for n in nodes if not (n.get("id") in diff_map and diff_map[n.get("id")].is_mastered)]
         assert len(filtered) == 0
 
 
@@ -315,9 +294,7 @@ class TestDifficultyEnhancedQuestionText:
         """EASY → breakthrough template with 🔴."""
         from app.api.v1.endpoints.review import _get_difficulty_enhanced_question_text
 
-        result = _get_difficulty_enhanced_question_text(
-            "线性代数基础", "4", "node_1", difficulty_map_mixed
-        )
+        result = _get_difficulty_enhanced_question_text("线性代数基础", "4", "node_1", difficulty_map_mixed)
         assert "🔴" in result
         assert "突破型" in result
         assert "线性代数基础" in result
@@ -326,9 +303,7 @@ class TestDifficultyEnhancedQuestionText:
         """HARD → application template with 🔵."""
         from app.api.v1.endpoints.review import _get_difficulty_enhanced_question_text
 
-        result = _get_difficulty_enhanced_question_text(
-            "矩阵乘法", "3", "node_2", difficulty_map_mixed
-        )
+        result = _get_difficulty_enhanced_question_text("矩阵乘法", "3", "node_2", difficulty_map_mixed)
         assert "🔵" in result
         assert "应用型" in result
 
@@ -337,9 +312,7 @@ class TestDifficultyEnhancedQuestionText:
         from app.api.v1.endpoints.review import _get_difficulty_enhanced_question_text
 
         # node_3 is MEDIUM in difficulty_map_mixed
-        result = _get_difficulty_enhanced_question_text(
-            "特征值分解", "4", "node_3", difficulty_map_mixed
-        )
+        result = _get_difficulty_enhanced_question_text("特征值分解", "4", "node_3", difficulty_map_mixed)
         assert "🟣" in result
         assert "验证型" in result
 
@@ -348,18 +321,14 @@ class TestDifficultyEnhancedQuestionText:
         from app.api.v1.endpoints.review import _get_difficulty_enhanced_question_text
 
         # node_3 has forgetting_status.needs_review=True
-        result = _get_difficulty_enhanced_question_text(
-            "特征值分解", "4", "node_3", difficulty_map_mixed
-        )
+        result = _get_difficulty_enhanced_question_text("特征值分解", "4", "node_3", difficulty_map_mixed)
         assert "⚠️ 检测到遗忘趋势" in result
 
     def test_no_difficulty_data_red_fallback(self):
         """No difficulty data, red node → original 🔴 template."""
         from app.api.v1.endpoints.review import _get_difficulty_enhanced_question_text
 
-        result = _get_difficulty_enhanced_question_text(
-            "概念X", "4", "unknown_node", None
-        )
+        result = _get_difficulty_enhanced_question_text("概念X", "4", "unknown_node", None)
         assert "🔴 突破型问题" in result
         assert "概念X" in result
 
@@ -367,9 +336,7 @@ class TestDifficultyEnhancedQuestionText:
         """No difficulty data, purple node → original 🟣 template."""
         from app.api.v1.endpoints.review import _get_difficulty_enhanced_question_text
 
-        result = _get_difficulty_enhanced_question_text(
-            "概念Y", "3", "unknown_node", None
-        )
+        result = _get_difficulty_enhanced_question_text("概念Y", "3", "unknown_node", None)
         assert "🟣 检验型问题" in result
         assert "概念Y" in result
 
@@ -377,9 +344,7 @@ class TestDifficultyEnhancedQuestionText:
         """Node ID not in difficulty map → falls back to color-based template."""
         from app.api.v1.endpoints.review import _get_difficulty_enhanced_question_text
 
-        result = _get_difficulty_enhanced_question_text(
-            "新概念", "4", "node_999", difficulty_map_mixed
-        )
+        result = _get_difficulty_enhanced_question_text("新概念", "4", "node_999", difficulty_map_mixed)
         assert "🔴 突破型问题" in result
 
 
@@ -392,9 +357,7 @@ class TestAIQuestionDifficultyInjection:
     """Tests for difficulty context injection into AI question generation."""
 
     @pytest.mark.asyncio
-    async def test_difficulty_context_in_prompt(
-        self, sample_nodes, difficulty_map_mixed
-    ):
+    async def test_difficulty_context_in_prompt(self, sample_nodes, difficulty_map_mixed):
         """Difficulty data is injected into AI prompt nodes_data."""
         captured_prompt = {}
 
@@ -413,15 +376,11 @@ class TestAIQuestionDifficultyInjection:
         # get_settings is imported at module level from app.core.config
         from app.api.v1.endpoints import review as review_mod
 
-        original_get_settings = (
-            review_mod.get_settings if hasattr(review_mod, "get_settings") else None
-        )
+        original_get_settings = review_mod.get_settings if hasattr(review_mod, "get_settings") else None
 
         with (
             patch.object(review_mod, "_ai_question_available", True),
-            patch.object(
-                review_mod, "get_settings", return_value=mock_settings, create=True
-            ),
+            patch.object(review_mod, "get_settings", return_value=mock_settings, create=True),
             patch.object(review_mod, "GeminiClient", create=True),
             patch.object(review_mod, "AgentService", create=True) as mock_agent_cls,
         ):
@@ -435,9 +394,7 @@ class TestAIQuestionDifficultyInjection:
             prompt_data = json.loads(captured_prompt["prompt"])
             nodes_in_prompt = prompt_data.get("nodes", [])
             # node_1 is EASY in difficulty_map_mixed
-            node_1_data = next(
-                (n for n in nodes_in_prompt if n["id"] == "node_1"), None
-            )
+            node_1_data = next((n for n in nodes_in_prompt if n["id"] == "node_1"), None)
             if node_1_data:
                 assert node_1_data.get("difficulty_level") == "easy"
                 assert node_1_data.get("question_type_hint") == "breakthrough"
@@ -463,9 +420,7 @@ class TestAIQuestionDifficultyInjection:
 
         with (
             patch.object(review_mod, "_ai_question_available", True),
-            patch.object(
-                review_mod, "get_settings", return_value=mock_settings, create=True
-            ),
+            patch.object(review_mod, "get_settings", return_value=mock_settings, create=True),
             patch.object(review_mod, "GeminiClient", create=True),
             patch.object(review_mod, "AgentService", create=True) as mock_agent_cls,
         ):

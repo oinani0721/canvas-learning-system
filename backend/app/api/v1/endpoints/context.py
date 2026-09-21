@@ -176,9 +176,7 @@ context_router = APIRouter()
             "description": "Learning context (JSON or Markdown)",
             "content": {
                 "application/json": {},
-                "text/plain": {
-                    "example": "## 当前节点：贝叶斯定理\n### 精通度\n- BKT掌握概率: 0.45"
-                },
+                "text/plain": {"example": "## 当前节点：贝叶斯定理\n### 精通度\n- BKT掌握概率: 0.45"},
             },
         }
     },
@@ -198,9 +196,7 @@ async def get_node_context_endpoint(
             "Context 注入 per-vault — Neo4j mastery + Memory tips."
         ),
     ),
-    subject_id: Optional[str] = Query(
-        default=None, description="可选 vault 内学科二级 namespace."
-    ),
+    subject_id: Optional[str] = Query(default=None, description="可选 vault 内学科二级 namespace."),
     group_id: Optional[str] = Query(
         default=None,
         deprecated=True,
@@ -222,9 +218,7 @@ async def get_node_context_endpoint(
         vault_id: Wave-5 Stage B — multi-vault isolation namespace (推荐必填).
         group_id: Deprecated — Subject isolation namespace.
     """
-    resolved_group_id = resolve_vault_group_id(
-        vault_id, subject_id=subject_id, legacy_group_id=group_id
-    )
+    resolved_group_id = resolve_vault_group_id(vault_id, subject_id=subject_id, legacy_group_id=group_id)
     from app.services.learning_context_service import (
         format_as_markdown,
         get_node_context,
@@ -245,9 +239,7 @@ async def get_node_context_endpoint(
     # Return Markdown if requested
     if format and format.lower() == "markdown":
         md_text = format_as_markdown(cached)
-        return PlainTextResponse(
-            content=md_text, media_type="text/plain; charset=utf-8"
-        )
+        return PlainTextResponse(content=md_text, media_type="text/plain; charset=utf-8")
 
     # Default: return JSON via Pydantic model
     return _dict_to_response(cached)

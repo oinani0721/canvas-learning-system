@@ -31,9 +31,7 @@ from app.services.scoring_faithfulness import (
 
 def test_grounding_score_is_none_when_no_evidence():
     """Empty evidence list must NOT produce vacuous 1.0."""
-    result = EvidenceGroundingResult(
-        verifications=list(), grounded_count=0, total_count=0
-    )
+    result = EvidenceGroundingResult(verifications=list(), grounded_count=0, total_count=0)
 
     assert result.score is None
     assert result.status == "not_applicable"
@@ -103,9 +101,7 @@ async def test_full_check_excludes_not_applicable_from_combined():
     """When grounding is not_applicable, combined = consistency only."""
     checker = ScoringFaithfulnessChecker()
 
-    grounding_na = EvidenceGroundingResult(
-        verifications=list(), grounded_count=0, total_count=0
-    )  # score=None
+    grounding_na = EvidenceGroundingResult(verifications=list(), grounded_count=0, total_count=0)  # score=None
     consistency_ok = ScoreConsistencyResult(
         checks=[{"dimension": "concept", "verdict": "CONSISTENT"}],
         consistent_count=1,
@@ -134,9 +130,7 @@ async def test_full_check_excludes_not_applicable_from_combined():
                 new_callable=_mock.AsyncMock,
                 return_value=consistency_ok,
             ):
-                result = await checker.run_full_check(
-                    autoscore_result, "Student response text"
-                )
+                result = await checker.run_full_check(autoscore_result, "Student response text")
 
     assert result.faithfulness_score == 1.0  # average of [1.0] (None excluded)
     assert result.evidence_grounding_score is None
@@ -151,12 +145,8 @@ async def test_full_check_both_not_applicable_returns_none():
     """When BOTH sub-checks are not_applicable, combined = None and passed=True."""
     checker = ScoringFaithfulnessChecker()
 
-    grounding_na = EvidenceGroundingResult(
-        verifications=list(), grounded_count=0, total_count=0
-    )
-    consistency_na = ScoreConsistencyResult(
-        checks=list(), consistent_count=0, total_count=0
-    )
+    grounding_na = EvidenceGroundingResult(verifications=list(), grounded_count=0, total_count=0)
+    consistency_na = ScoreConsistencyResult(checks=list(), consistent_count=0, total_count=0)
 
     autoscore_result = _mock.MagicMock()
     autoscore_result.evidence_points = list()

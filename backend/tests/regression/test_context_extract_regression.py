@@ -57,9 +57,7 @@ def _compute_extraction_recall(
     expected_types = set(expected.get("expected_error_types", list()))
     if expected_types:
         total_checks += 1
-        actual_types = {
-            e.get("error_type") for e in actual_response.get("errors", list())
-        }
+        actual_types = {e.get("error_type") for e in actual_response.get("errors", list())}
         if expected_types.issubset(actual_types):
             checks_passed += 1
 
@@ -141,9 +139,7 @@ class TestContextExtractRegression:
         for et in VALID_ERROR_TYPES:
             assert et in content, "Missing error type: " + et
 
-    def test_prompt_contains_extraction_categories(
-        self, prompt_registry: PromptRegistry
-    ):
+    def test_prompt_contains_extraction_categories(self, prompt_registry: PromptRegistry):
         """Verify prompt defines all 3 extraction categories."""
         content = prompt_registry.get("context_extract")
         categories = ["Tips", "\u5173\u952e\u95ee\u7b54", "\u9519\u8bef"]
@@ -186,9 +182,7 @@ class TestContextExtractRegression:
             )
 
         avg_recall = total_recall / len(scenarios)
-        assert avg_recall >= 0.85, (
-            "Extraction recall {v:.4f} below 85 percent threshold".format(v=avg_recall)
-        )
+        assert avg_recall >= 0.85, "Extraction recall {v:.4f} below 85 percent threshold".format(v=avg_recall)
 
     def test_replay_classification_accuracy(
         self,
@@ -204,11 +198,7 @@ class TestContextExtractRegression:
             total_accuracy += accuracy
 
         avg_accuracy = total_accuracy / len(scenarios)
-        assert avg_accuracy >= 0.80, (
-            "Classification accuracy {v:.4f} below 80 percent threshold".format(
-                v=avg_accuracy
-            )
-        )
+        assert avg_accuracy >= 0.80, "Classification accuracy {v:.4f} below 80 percent threshold".format(v=avg_accuracy)
 
     def test_replay_evidence_present(
         self,
@@ -218,9 +208,7 @@ class TestContextExtractRegression:
         scenarios = context_extract_baselines.load_all()
         for scenario in scenarios:
             has_evidence = _check_evidence_present(scenario["replay_response"])
-            assert has_evidence, (
-                "Missing evidence in scenario: " + scenario["scenario_id"]
-            )
+            assert has_evidence, "Missing evidence in scenario: " + scenario["scenario_id"]
 
     def test_generate_report(
         self,

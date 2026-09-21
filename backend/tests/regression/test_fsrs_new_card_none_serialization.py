@@ -57,9 +57,7 @@ def review_service(tmp_path, monkeypatch):
     """
     import app.services.review_service as rs_module
 
-    monkeypatch.setattr(
-        rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json"
-    )
+    monkeypatch.setattr(rs_module, "_CARD_STATES_FILE", tmp_path / "fsrs_card_states.json")
 
     from app.services.background_task_manager import BackgroundTaskManager
     from app.services.canvas_service import CanvasService
@@ -141,9 +139,7 @@ async def test_schedule_review_new_card_uses_fsrs_not_ebbinghaus(review_service)
     """崩溃点 3: 新卡走 FSRS 主路径, 不因日志格式化 None 崩溃而静默降级。"""
     concept_id = f"card-a1-schedule-{uuid.uuid4().hex}"
 
-    result = await review_service.schedule_review(
-        "card-a1-canvas", concept_id=concept_id
-    )
+    result = await review_service.schedule_review("card-a1-canvas", concept_id=concept_id)
 
     assert result["algorithm"] == "fsrs-4.5", (
         "新卡必须走 FSRS-4.5; algorithm==ebbinghaus-fallback 说明 "

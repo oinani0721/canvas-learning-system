@@ -133,9 +133,7 @@ class SubjectResolver:
             self.config = SubjectMappingConfig(
                 mappings=mappings,
                 category_rules=raw_config.get("category_rules", {}),
-                defaults=raw_config.get(
-                    "defaults", {"subject": "general", "category": "general"}
-                ),
+                defaults=raw_config.get("defaults", {"subject": "general", "category": "general"}),
             )
 
             # Update skip directories
@@ -198,9 +196,7 @@ class SubjectResolver:
         from app.core.subject_config import build_vault_group_id, sanitize_subject_name
 
         def _make_group_id(subject: str) -> str:
-            base = build_vault_group_id(
-                _vid, subject_id=subject
-            )  # vault:<vid>:<subject>
+            base = build_vault_group_id(_vid, subject_id=subject)  # vault:<vid>:<subject>
             return f"{base}:{sanitize_subject_name(canvas_name)}"
 
         # 1. Manual override (highest priority)
@@ -241,11 +237,7 @@ class SubjectResolver:
             )
 
         # 4. Default values
-        defaults = (
-            self.config.defaults
-            if self.config
-            else {"subject": "general", "category": "general"}
-        )
+        defaults = self.config.defaults if self.config else {"subject": "general", "category": "general"}
         subject = defaults.get("subject", "general")
         category = defaults.get("category", "general")
 
@@ -303,10 +295,7 @@ class SubjectResolver:
 
         for rule in self.config.mappings:
             if self._match_pattern(normalized_path, rule.pattern):
-                logger.debug(
-                    f"Config match: {normalized_path} → "
-                    f"{rule.pattern} → ({rule.subject}, {rule.category})"
-                )
+                logger.debug(f"Config match: {normalized_path} → {rule.pattern} → ({rule.subject}, {rule.category})")
                 return (rule.subject, rule.category)
 
         return None
@@ -334,10 +323,7 @@ class SubjectResolver:
             return fnmatch.fnmatch(path.lower(), pattern.lower())
 
         # Exact prefix match
-        return (
-            path.lower().startswith(pattern.lower() + "/")
-            or path.lower() == pattern.lower()
-        )
+        return path.lower().startswith(pattern.lower() + "/") or path.lower() == pattern.lower()
 
     def _infer_from_path(self, normalized_path: str) -> Optional[Tuple[str, str]]:
         """
@@ -460,8 +446,7 @@ class SubjectResolver:
             # Build YAML structure
             yaml_data: Dict[str, Any] = {
                 "mappings": [
-                    {"pattern": m.pattern, "subject": m.subject, "category": m.category}
-                    for m in new_config.mappings
+                    {"pattern": m.pattern, "subject": m.subject, "category": m.category} for m in new_config.mappings
                 ],
                 "category_rules": new_config.category_rules,
                 "defaults": new_config.defaults,
@@ -516,9 +501,7 @@ class SubjectResolver:
                 return self.update_config(self.config)
 
         # Add new mapping
-        new_rule = SubjectMappingRule(
-            pattern=pattern, subject=subject, category=category
-        )
+        new_rule = SubjectMappingRule(pattern=pattern, subject=subject, category=category)
         self.config.mappings.append(new_rule)
 
         return self.update_config(self.config)
@@ -540,9 +523,7 @@ class SubjectResolver:
             return False
 
         original_count = len(self.config.mappings)
-        self.config.mappings = [
-            m for m in self.config.mappings if m.pattern.lower() != pattern.lower()
-        ]
+        self.config.mappings = [m for m in self.config.mappings if m.pattern.lower() != pattern.lower()]
 
         if len(self.config.mappings) < original_count:
             return self.update_config(self.config)

@@ -272,9 +272,7 @@ class TestAlertManager:
         assert not alert_manager._running
 
     @pytest.mark.asyncio
-    async def test_alert_manager_stop_when_not_running(
-        self, alert_manager: AlertManager
-    ):
+    async def test_alert_manager_stop_when_not_running(self, alert_manager: AlertManager):
         """Test AlertManager handles stop when not running."""
         assert not alert_manager._running
         # Should not raise
@@ -425,6 +423,4 @@ class TestAlertManagerAlerts:
         # Verify alerts were stored
         assert len(alert_manager._active_alerts) == 3
         assert "alert-0" in alert_manager._active_alerts
-        assert (
-            alert_manager._active_alerts["alert-2"].severity == AlertSeverity.CRITICAL
-        )
+        assert alert_manager._active_alerts["alert-2"].severity == AlertSeverity.CRITICAL

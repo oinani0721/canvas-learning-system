@@ -129,9 +129,7 @@ def _extract_relationship_type(fm: dict[str, Any], target_slug: str) -> str | No
     return info[0] if info else None
 
 
-def _extract_relationship_info(
-    fm: dict[str, Any], target_slug: str
-) -> tuple[str | None, str | None]:
+def _extract_relationship_info(fm: dict[str, Any], target_slug: str) -> tuple[str | None, str | None]:
     """Story 2.2+2.9 T5.2 — 从 frontmatter relationships[] 提取关系 type + evidence.
 
     relationships 期望格式：
@@ -178,9 +176,7 @@ def _normalize_target_slug(node_path: str) -> str:
 # Phase 1.7+ (2026-05-03 ChatGPT 对抗审查 P0#5 fix):
 # 旧 regex `(?P<body>(?:^[ ]{0,3}>.*\n?)*)` 贪婪匹配下一个 callout header,
 # 把相邻 callout 吞进上一个的 body. 改用 line scanner (O(n), 无 backtracking).
-_CALLOUT_HEADER_PATTERN = re.compile(
-    r"^[ ]{0,3}>[ ]?\[!(?P<kind>[\w/-]+)\][+-]?[ \t]*(?P<title>.*)$"
-)
+_CALLOUT_HEADER_PATTERN = re.compile(r"^[ ]{0,3}>[ ]?\[!(?P<kind>[\w/-]+)\][+-]?[ \t]*(?P<title>.*)$")
 _QUOTE_PREFIX_PATTERN = re.compile(r"^[ ]{0,3}>")
 _FRONTMATTER_PATTERN = re.compile(r"^\ufeff?---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 
@@ -412,9 +408,7 @@ async def enrich_from_wikilink_graph(
         loop = asyncio.get_event_loop()
         future = loop.run_in_executor(None, service.get_neighbors, node_path, max_hops)
         try:
-            raw_neighbors: list[NeighborNote] = await asyncio.wait_for(
-                future, timeout=timeout_ms / 1000.0
-            )
+            raw_neighbors: list[NeighborNote] = await asyncio.wait_for(future, timeout=timeout_ms / 1000.0)
         except asyncio.TimeoutError:
             elapsed = (time.monotonic() - start) * 1000
             logger.warning(

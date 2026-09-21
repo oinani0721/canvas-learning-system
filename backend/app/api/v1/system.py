@@ -78,9 +78,7 @@ async def _check_neo4j(settings: Settings) -> ComponentStatus:
                 result = await session.run("RETURN 1 AS n")
                 record = await result.single()
                 if record and record["n"] == 1:
-                    return ComponentStatus(
-                        name="neo4j", status="healthy", message="Bolt connection OK"
-                    )
+                    return ComponentStatus(name="neo4j", status="healthy", message="Bolt connection OK")
                 return ComponentStatus(
                     name="neo4j",
                     status="unhealthy",
@@ -99,9 +97,7 @@ async def _check_ollama(settings: Settings) -> ComponentStatus:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(f"{settings.OLLAMA_HOST}/api/tags")
             if resp.status_code == 200:
-                return ComponentStatus(
-                    name="ollama", status="healthy", message="API reachable"
-                )
+                return ComponentStatus(name="ollama", status="healthy", message="API reachable")
             return ComponentStatus(
                 name="ollama",
                 status="unhealthy",
@@ -109,9 +105,7 @@ async def _check_ollama(settings: Settings) -> ComponentStatus:
             )
     except Exception as exc:
         logger.warning("Ollama health check failed: %s", exc)
-        return ComponentStatus(
-            name="ollama", status="unhealthy", message=str(exc)[:200]
-        )
+        return ComponentStatus(name="ollama", status="unhealthy", message=str(exc)[:200])
 
 
 async def _check_lancedb(settings: Settings) -> ComponentStatus:
@@ -122,10 +116,7 @@ async def _check_lancedb(settings: Settings) -> ComponentStatus:
         # → 健康检查恒 degraded 误报。env 缺省时保留旧路径兼容裸跑。
         import os as _os
 
-        lancedb_dir = Path(
-            _os.environ.get("LANCEDB_DATA_PATH")
-            or str(Path(settings.CANVAS_BASE_PATH) / ".lancedb")
-        )
+        lancedb_dir = Path(_os.environ.get("LANCEDB_DATA_PATH") or str(Path(settings.CANVAS_BASE_PATH) / ".lancedb"))
         if lancedb_dir.exists() and lancedb_dir.is_dir():
             return ComponentStatus(
                 name="lancedb",
@@ -141,9 +132,7 @@ async def _check_lancedb(settings: Settings) -> ComponentStatus:
         )
     except Exception as exc:
         logger.warning("LanceDB health check failed: %s", exc)
-        return ComponentStatus(
-            name="lancedb", status="unhealthy", message=str(exc)[:200]
-        )
+        return ComponentStatus(name="lancedb", status="unhealthy", message=str(exc)[:200])
 
 
 @router.get("/health")
@@ -240,9 +229,7 @@ async def _check_fastapi() -> ComponentStatus:
             message=f"Only {route_count} routes (expected 50+)",
         )
     except Exception as exc:
-        return ComponentStatus(
-            name="fastapi", status="unhealthy", message=str(exc)[:200]
-        )
+        return ComponentStatus(name="fastapi", status="unhealthy", message=str(exc)[:200])
 
 
 async def _check_mcp() -> ComponentStatus:
@@ -337,9 +324,7 @@ _FIX_HINTS = {
 }
 
 
-async def _probe_with_timeout(
-    name: str, coro, fix_hint: str, timeout: float = 5.0
-) -> ComponentHealth:
+async def _probe_with_timeout(name: str, coro, fix_hint: str, timeout: float = 5.0) -> ComponentHealth:
     start = time.monotonic()
     try:
         result = await asyncio.wait_for(coro, timeout=timeout)
@@ -383,9 +368,7 @@ def _aggregate_status(
     components: list[ComponentHealth],
 ) -> Literal["ready", "degraded", "unavailable"]:
     statuses = {c.status for c in components}
-    core_unavailable = any(
-        c.status == "unavailable" and c.name in _CORE_COMPONENTS for c in components
-    )
+    core_unavailable = any(c.status == "unavailable" and c.name in _CORE_COMPONENTS for c in components)
     if core_unavailable:
         return "unavailable"
     if "unavailable" in statuses or "degraded" in statuses:
@@ -494,9 +477,7 @@ async def setup_wizard(
 
     vault = Path(request.vault_path).resolve()
     if str(vault) in ("/", "/etc", "/usr", "/var", "/tmp", "/System"):
-        raise HTTPException(
-            status_code=400, detail=f"拒绝在系统目录初始化 vault: {vault}"
-        )
+        raise HTTPException(status_code=400, detail=f"拒绝在系统目录初始化 vault: {vault}")
     if ".." in request.vault_path:
         raise HTTPException(status_code=400, detail="vault_path 不能包含 '..'")
 
@@ -528,9 +509,7 @@ async def setup_wizard(
                 for p in plugins
             ],
             "backend": backend_checks,
-            "overall_status": "ready"
-            if (vault_ok and plugins_ok and backend_ok)
-            else "not_ready",
+            "overall_status": "ready" if (vault_ok and plugins_ok and backend_ok) else "not_ready",
         },
         "meta": {"timestamp": now},
     }
@@ -585,26 +564,16 @@ class ErrorStats(BaseModel):
     """
 
     total: int = Field(default=0, description="Total error count")
-    by_type: Dict[str, int] = Field(
-        default_factory=dict, description="Error count by category"
-    )
+    by_type: Dict[str, int] = Field(default_factory=dict, description="Error count by category")
 
 
 class LLMStatsData(BaseModel):
     """LLM statistics data payload."""
 
-    summary: LLMStatsSummary = Field(
-        default_factory=LLMStatsSummary, description="Aggregated summary"
-    )
-    by_task: list[TaskTypeStats] = Field(
-        default_factory=list, description="Per-task-type breakdown"
-    )
-    by_day: list[DayStats] = Field(
-        default_factory=list, description="Per-day breakdown"
-    )
-    errors: ErrorStats = Field(
-        default_factory=ErrorStats, description="Error statistics"
-    )
+    summary: LLMStatsSummary = Field(default_factory=LLMStatsSummary, description="Aggregated summary")
+    by_task: list[TaskTypeStats] = Field(default_factory=list, description="Per-task-type breakdown")
+    by_day: list[DayStats] = Field(default_factory=list, description="Per-day breakdown")
+    errors: ErrorStats = Field(default_factory=ErrorStats, description="Error statistics")
 
 
 class LLMStatsMeta(BaseModel):
@@ -667,12 +636,8 @@ def _compute_period_range(
                 detail="start_date and end_date are required for custom period",
             )
         try:
-            start = datetime.strptime(start_date, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc
-            )
-            end = datetime.strptime(end_date, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc, hour=23, minute=59, second=59
-            )
+            start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc, hour=23, minute=59, second=59)
         except ValueError as exc:
             raise HTTPException(
                 status_code=400,
@@ -811,9 +776,7 @@ class _SystemModelConfigRequest(BaseModel):
     dependencies=[Depends(require_internal_api_key)],
     responses={
         403: {"description": "Invalid internal API key"},
-        503: {
-            "description": "Internal API key not configured (production fail-closed)"
-        },
+        503: {"description": "Internal API key not configured (production fail-closed)"},
     },
 )
 async def update_model_config(body: _SystemModelConfigRequest) -> dict:
@@ -878,9 +841,7 @@ async def update_model_config(body: _SystemModelConfigRequest) -> dict:
     dependencies=[Depends(require_internal_api_key)],
     responses={
         403: {"description": "Invalid internal API key"},
-        503: {
-            "description": "Internal API key not configured (production fail-closed)"
-        },
+        503: {"description": "Internal API key not configured (production fail-closed)"},
     },
 )
 async def test_llm_connection(config: _ModelTaskConfigRequest) -> dict:
@@ -960,17 +921,13 @@ async def test_llm_connection(config: _ModelTaskConfigRequest) -> dict:
 class AnnotationRequestBody(BaseModel):
     """Request body for annotation submission (Story 7.4 AC-3)."""
 
-    annotation: str = Field(
-        ..., description="Annotation value: 'correct' | 'incorrect' | 'partial'"
-    )
+    annotation: str = Field(..., description="Annotation value: 'correct' | 'incorrect' | 'partial'")
 
 
 class UpdateExtractionRequestBody(BaseModel):
     """Request body for updating extraction content (Story 5.8 AC-4)."""
 
-    extracted_content: str = Field(
-        ..., min_length=1, description="Updated extracted content"
-    )
+    extracted_content: str = Field(..., min_length=1, description="Updated extracted content")
 
 
 @router.get(
@@ -1110,9 +1067,7 @@ async def get_extraction_records(
 @router.post(
     "/extraction-records/{record_id}/annotate",
     summary="Submit human annotation for extraction record",
-    description=(
-        "Mark an extraction record as correct, incorrect, or partial. (Story 7.4 AC-3)"
-    ),
+    description=("Mark an extraction record as correct, incorrect, or partial. (Story 7.4 AC-3)"),
     tags=["System"],
 )
 async def annotate_extraction_record(
@@ -1149,9 +1104,7 @@ async def annotate_extraction_record(
 @router.patch(
     "/extraction-records/{record_id}",
     summary="Update extraction record content",
-    description=(
-        "Edit the extracted_content of a record. Used for correcting LLM extraction errors. (Story 5.8 AC-4)"
-    ),
+    description=("Edit the extracted_content of a record. Used for correcting LLM extraction errors. (Story 5.8 AC-4)"),
     tags=["System"],
 )
 async def update_extraction_record(
@@ -1220,9 +1173,7 @@ async def delete_extraction_record(
 @router.delete(
     "/extraction-records/{record_id}/annotation",
     summary="Reset annotation for an extraction record",
-    description=(
-        "Clears the annotation and annotated_at fields, allowing re-annotation. (Story 5.8 AC-2)"
-    ),
+    description=("Clears the annotation and annotated_at fields, allowing re-annotation. (Story 5.8 AC-2)"),
     tags=["System"],
 )
 async def reset_extraction_annotation(

@@ -346,9 +346,7 @@ class TestDebugAgentResponseLogging:
         # 验证日志中不包含 "[Story 12.G.1]" 前缀的 debug 条目
         debug_logs = [r for r in caplog.records if r.levelname == "DEBUG"]
         story_logs = [r for r in debug_logs if "[Story 12.G.1]" in r.message]
-        assert len(story_logs) == 0, (
-            "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
-        )
+        assert len(story_logs) == 0, "DEBUG_AGENT_RESPONSE=False 时不应输出 Story 12.G.1 日志"
 
     def test_config_has_debug_agent_response_field(self, monkeypatch):
         """测试配置类包含 DEBUG_AGENT_RESPONSE 字段 (AC 4)"""
@@ -363,9 +361,7 @@ class TestDebugAgentResponseLogging:
 
         # 验证字段存在
         settings = Settings(_env_file=None)
-        assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), (
-            "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
-        )
+        assert hasattr(settings, "DEBUG_AGENT_RESPONSE"), "Settings 应该有 DEBUG_AGENT_RESPONSE 字段"
 
         # 验证默认值为 False
         assert settings.DEBUG_AGENT_RESPONSE is False, "默认值应为 False"
@@ -375,7 +371,5 @@ class TestDebugAgentResponseLogging:
         from app.config import Settings
 
         settings = Settings()
-        assert hasattr(settings, "debug_agent_response"), (
-            "Settings 应该有 debug_agent_response 属性"
-        )
+        assert hasattr(settings, "debug_agent_response"), "Settings 应该有 debug_agent_response 属性"
         assert settings.debug_agent_response == settings.DEBUG_AGENT_RESPONSE

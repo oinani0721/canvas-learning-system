@@ -88,18 +88,14 @@ class TestMultiReviewProgress:
     """Test cases for multi-review progress tracking."""
 
     @pytest.mark.asyncio
-    async def test_multi_review_returns_all_sessions(
-        self, review_service, sample_review_history
-    ):
+    async def test_multi_review_returns_all_sessions(self, review_service, sample_review_history):
         """
         AC1: Endpoint returns all verification canvases for original.
 
         [Source: docs/stories/24.4.story.md#AC1]
         """
         # Mock the query method
-        review_service._query_review_sessions_from_memory = AsyncMock(
-            return_value=sample_review_history
-        )
+        review_service._query_review_sessions_from_memory = AsyncMock(return_value=sample_review_history)
 
         result = await review_service.get_multi_review_progress("离散数学.canvas")
 
@@ -109,17 +105,13 @@ class TestMultiReviewProgress:
         assert result["reviews"][0]["mode"] == "targeted"  # Most recent first
 
     @pytest.mark.asyncio
-    async def test_pass_rate_trend_calculation(
-        self, review_service, sample_review_history
-    ):
+    async def test_pass_rate_trend_calculation(self, review_service, sample_review_history):
         """
         AC2: Pass rate trend data is chart-ready.
 
         [Source: docs/stories/24.4.story.md#AC2]
         """
-        review_service._query_review_sessions_from_memory = AsyncMock(
-            return_value=sample_review_history
-        )
+        review_service._query_review_sessions_from_memory = AsyncMock(return_value=sample_review_history)
 
         result = await review_service.get_multi_review_progress("离散数学.canvas")
 
@@ -131,17 +123,13 @@ class TestMultiReviewProgress:
         assert trend[2]["pass_rate"] == 0.9
 
     @pytest.mark.asyncio
-    async def test_overall_progress_up_trend(
-        self, review_service, sample_review_history
-    ):
+    async def test_overall_progress_up_trend(self, review_service, sample_review_history):
         """
         AC4: Overall progress correctly identifies upward trend.
 
         [Source: docs/stories/24.4.story.md#AC4]
         """
-        review_service._query_review_sessions_from_memory = AsyncMock(
-            return_value=sample_review_history
-        )
+        review_service._query_review_sessions_from_memory = AsyncMock(return_value=sample_review_history)
 
         result = await review_service.get_multi_review_progress("离散数学.canvas")
 
@@ -175,9 +163,7 @@ class TestMultiReviewProgress:
             },
         ]
 
-        review_service._query_review_sessions_from_memory = AsyncMock(
-            return_value=stable_history
-        )
+        review_service._query_review_sessions_from_memory = AsyncMock(return_value=stable_history)
 
         result = await review_service.get_multi_review_progress("test.canvas")
 
@@ -210,17 +196,13 @@ class TestMultiReviewProgress:
             },
         ]
 
-        review_service._query_review_sessions_from_memory = AsyncMock(
-            return_value=down_history
-        )
+        review_service._query_review_sessions_from_memory = AsyncMock(return_value=down_history)
 
         result = await review_service.get_multi_review_progress("test.canvas")
 
         overall = result["trends"]["overall_progress"]
         assert overall["trend_direction"] == "down"
-        assert (
-            round(overall["progress_rate"], 2) == -0.3
-        )  # 0.5 - 0.8 (rounded for floating point precision)
+        assert round(overall["progress_rate"], 2) == -0.3  # 0.5 - 0.8 (rounded for floating point precision)
 
     @pytest.mark.asyncio
     async def test_no_history_returns_404(self, review_service):
@@ -252,9 +234,7 @@ class TestMultiReviewProgress:
             }
         ]
 
-        review_service._query_review_sessions_from_memory = AsyncMock(
-            return_value=single_history
-        )
+        review_service._query_review_sessions_from_memory = AsyncMock(return_value=single_history)
 
         result = await review_service.get_multi_review_progress("test.canvas")
 
@@ -264,9 +244,7 @@ class TestMultiReviewProgress:
         assert result["trends"]["overall_progress"]["progress_rate"] == 0.0
 
     @pytest.mark.asyncio
-    async def test_graphiti_client_unavailable(
-        self, mock_canvas_service, mock_task_manager
-    ):
+    async def test_graphiti_client_unavailable(self, mock_canvas_service, mock_task_manager):
         """
         Test graceful degradation when Graphiti client is not available.
         """
@@ -289,9 +267,7 @@ class TestTrendAnalysisCalculation:
         result = review_service._calculate_trend_analysis([])
         assert result is None
 
-    def test_calculate_trend_with_multiple_reviews(
-        self, review_service, sample_review_history
-    ):
+    def test_calculate_trend_with_multiple_reviews(self, review_service, sample_review_history):
         """Test trend calculation with multiple review sessions."""
         result = review_service._calculate_trend_analysis(sample_review_history)
 
@@ -300,9 +276,7 @@ class TestTrendAnalysisCalculation:
         assert "overall_progress" in result
         assert len(result["pass_rate_trend"]) == 3
 
-    def test_pass_rate_trend_chronological_order(
-        self, review_service, sample_review_history
-    ):
+    def test_pass_rate_trend_chronological_order(self, review_service, sample_review_history):
         """Test that pass_rate_trend is in chronological order (oldest to newest)."""
         result = review_service._calculate_trend_analysis(sample_review_history)
 
@@ -350,9 +324,7 @@ class TestGraphitiQueryIntegration:
     """Test Graphiti query integration with mocked client."""
 
     @pytest.mark.asyncio
-    async def test_query_review_history_filters_verification_canvases(
-        self, review_service
-    ):
+    async def test_query_review_history_filters_verification_canvases(self, review_service):
         """
         Test that query correctly filters for verification canvas pattern.
         """
@@ -388,9 +360,7 @@ class TestGraphitiQueryIntegration:
             "app.clients.graphiti_client.get_learning_memory_client",
             return_value=mock_memory_client,
         ):
-            result = await review_service._query_review_history_from_memory(
-                "离散数学.canvas"
-            )
+            result = await review_service._query_review_history_from_memory("离散数学.canvas")
 
         # _query_review_history_from_memory returns raw history records (no filtering)
         # Filtering/aggregation is done by _query_review_sessions_from_memory
@@ -440,9 +410,7 @@ class TestGraphitiQueryIntegration:
             "app.clients.graphiti_client.get_learning_memory_client",
             return_value=mock_memory_client,
         ):
-            result = await review_service._query_review_history_from_memory(
-                "test.canvas"
-            )
+            result = await review_service._query_review_history_from_memory("test.canvas")
 
         # _query_review_history_from_memory returns raw records, not aggregated
         assert len(result) == 4  # All 4 records returned as-is

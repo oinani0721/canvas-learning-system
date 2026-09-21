@@ -76,9 +76,7 @@ class TestBuildEnrichedContextWithFileNodes:
         assert "oral explanation of the concept" in result
         assert "[目标节点" in result
 
-    def test_file_node_content_in_adjacent_parent(
-        self, mock_canvas_service, test_vault
-    ):
+    def test_file_node_content_in_adjacent_parent(self, mock_canvas_service, test_vault):
         """Adjacent FILE node content is included as parent."""
         mock_canvas_service.canvas_base_path = str(test_vault)
 
@@ -101,11 +99,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "y": 100,
         }
 
-        adjacent_nodes = [
-            AdjacentNode(
-                node=parent_file_node, relation="parent", edge_label="explains"
-            )
-        ]
+        adjacent_nodes = [AdjacentNode(node=parent_file_node, relation="parent", edge_label="explains")]
 
         result = service._build_enriched_context(target_node, adjacent_nodes)
 
@@ -136,11 +130,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "y": 200,
         }
 
-        adjacent_nodes = [
-            AdjacentNode(
-                node=child_file_node, relation="child", edge_label="detailed_by"
-            )
-        ]
+        adjacent_nodes = [AdjacentNode(node=child_file_node, relation="child", edge_label="detailed_by")]
 
         result = service._build_enriched_context(target_node, adjacent_nodes)
 
@@ -233,9 +223,7 @@ class TestBuildEnrichedContextWithFileNodes:
             "y": 100,
         }
 
-        adjacent_nodes = [
-            AdjacentNode(node=missing_file_node, relation="parent", edge_label="ref")
-        ]
+        adjacent_nodes = [AdjacentNode(node=missing_file_node, relation="parent", edge_label="ref")]
 
         # Should not raise exception
         result = service._build_enriched_context(target_node, adjacent_nodes)
@@ -288,9 +276,7 @@ class TestEnrichWithAdjacentNodesFileSupport:
 
         service = ContextEnrichmentService(canvas_service=mock_canvas_service)
 
-        result = await service.enrich_with_adjacent_nodes(
-            canvas_name="test_canvas", node_id="file_node_1"
-        )
+        result = await service.enrich_with_adjacent_nodes(canvas_name="test_canvas", node_id="file_node_1")
 
         # The enriched context should contain file content
         assert "Oral Explanation" in result.enriched_context

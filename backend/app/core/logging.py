@@ -119,9 +119,7 @@ def _configure_stdlib_handler(level: int) -> None:
     so emoji and Unicode characters do not crash on Windows GBK terminals.
     """
     # UTF-8 wrapping for stdout (Story 12.I.1)
-    utf8_stdout = io.TextIOWrapper(
-        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
-    )
+    utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True)
 
     formatter = structlog.stdlib.ProcessorFormatter(
         # Run shared processors on records that did NOT originate from structlog.
@@ -150,9 +148,7 @@ def _configure_stdlib_handler(level: int) -> None:
 # ───────────────────────────────────────────────────────────────────────────
 
 
-def setup_logging(
-    log_level: str = "INFO", log_format: Optional[str] = None
-) -> logging.Logger:
+def setup_logging(log_level: str = "INFO", log_format: Optional[str] = None) -> logging.Logger:
     """
     Configure application-wide logging (backwards-compat wrapper).
 

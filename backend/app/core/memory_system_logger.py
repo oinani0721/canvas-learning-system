@@ -72,9 +72,7 @@ memory_logger = setup_memory_system_logger()
 # 便捷函数
 def log_neo4j_init(uri: str, pool_size: int, timeout: float):
     """记录 Neo4j 初始化"""
-    memory_logger.info(
-        f"NEO4J_INIT | uri={uri} | pool_size={pool_size} | timeout={timeout}s"
-    )
+    memory_logger.info(f"NEO4J_INIT | uri={uri} | pool_size={pool_size} | timeout={timeout}s")
 
 
 def log_neo4j_auth_failed(uri: str, error: str):
@@ -87,14 +85,10 @@ def log_neo4j_connection_failed(uri: str, error: str):
     memory_logger.error(f"NEO4J_CONNECTION_FAILED | uri={uri} | error={error}")
 
 
-def log_neo4j_health_check(
-    status: str, latency_ms: Optional[float] = None, error: Optional[str] = None
-):
+def log_neo4j_health_check(status: str, latency_ms: Optional[float] = None, error: Optional[str] = None):
     """记录 Neo4j 健康检查结果"""
     if status == "success":
-        memory_logger.info(
-            f"NEO4J_HEALTH_CHECK | status=SUCCESS | latency={latency_ms:.2f}ms"
-        )
+        memory_logger.info(f"NEO4J_HEALTH_CHECK | status=SUCCESS | latency={latency_ms:.2f}ms")
     else:
         memory_logger.warning(f"NEO4J_HEALTH_CHECK | status=FAILED | error={error}")
 
@@ -111,9 +105,7 @@ def log_neo4j_query_failed(query: str, error: str):
     memory_logger.error(f"NEO4J_QUERY_FAILED | query={query_preview} | error={error}")
 
 
-def log_lancedb_status(
-    status: str, path: Optional[str] = None, error: Optional[str] = None
-):
+def log_lancedb_status(status: str, path: Optional[str] = None, error: Optional[str] = None):
     """记录 LanceDB 状态"""
     if error:
         memory_logger.warning(f"LANCEDB_STATUS | status={status} | error={error}")

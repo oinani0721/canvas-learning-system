@@ -304,9 +304,7 @@ class MarkdownImageExtractor:
 
         return refs
 
-    def filter_by_extension(
-        self, refs: List[ImageReference], extensions: Optional[set] = None
-    ) -> List[ImageReference]:
+    def filter_by_extension(self, refs: List[ImageReference], extensions: Optional[set] = None) -> List[ImageReference]:
         """按文件扩展名过滤图片引用
 
         Args:

@@ -128,9 +128,7 @@ class ArchiveManager:
                     last_archived_at=meta.get("archived_at"),
                 )
             if self._archive_log:
-                logger.info(
-                    f"[Story 3.8] Restored {len(self._archive_log)} archive markers from Graphiti"
-                )
+                logger.info(f"[Story 3.8] Restored {len(self._archive_log)} archive markers from Graphiti")
         except (
             RuntimeError,
             ConnectionError,
@@ -165,9 +163,7 @@ class ArchiveManager:
             oldest_msg_time = self._get_oldest_message_time(messages)
 
             now = datetime.now(timezone.utc)
-            current_tier = self._determine_current_tier(
-                oldest_msg_time, estimated_tokens, now
-            )
+            current_tier = self._determine_current_tier(oldest_msg_time, estimated_tokens, now)
 
             if current_tier == ArchiveTier.HOT:
                 # No archiving needed
@@ -207,14 +203,10 @@ class ArchiveManager:
                 asyncio.TimeoutError,
                 ValueError,
             ) as e:
-                logger.warning(
-                    f"[Story 3.8] Batch archive failed for node {node_id}: {e}"
-                )
+                logger.warning(f"[Story 3.8] Batch archive failed for node {node_id}: {e}")
 
         if results:
-            logger.info(
-                f"[Story 3.8] Batch archive: {len(results)}/{len(batch)} nodes archived"
-            )
+            logger.info(f"[Story 3.8] Batch archive: {len(results)}/{len(batch)} nodes archived")
 
         return results
 
@@ -263,9 +255,7 @@ class ArchiveManager:
 
         return ArchiveTier.HOT
 
-    async def _archive_to_warm(
-        self, node_id: str, messages: List[Dict[str, Any]]
-    ) -> ArchiveStatus:
+    async def _archive_to_warm(self, node_id: str, messages: List[Dict[str, Any]]) -> ArchiveStatus:
         """
         Archive conversation from Hot to Warm tier.
 
@@ -327,9 +317,7 @@ class ArchiveManager:
         self._archive_log[node_id] = status
         return status
 
-    async def _archive_to_cold(
-        self, node_id: str, messages: List[Dict[str, Any]]
-    ) -> ArchiveStatus:
+    async def _archive_to_cold(self, node_id: str, messages: List[Dict[str, Any]]) -> ArchiveStatus:
         """
         Archive conversation from Warm to Cold tier.
 
@@ -369,9 +357,7 @@ class ArchiveManager:
                     node_id=node_id,
                     group_id=effective_group_id,
                 )
-                has_structured = bool(
-                    result.tips or result.errors or result.qa_highlights
-                )
+                has_structured = bool(result.tips or result.errors or result.qa_highlights)
             except Exception as e:
                 logger.warning(f"[Story 3.8] Distillation for Cold archive failed: {e}")
         else:
@@ -431,9 +417,7 @@ class ArchiveManager:
                 )
 
             for error in result.errors or []:
-                description = (
-                    error.description if hasattr(error, "description") else str(error)
-                )
+                description = error.description if hasattr(error, "description") else str(error)
                 error_type = error.error_type if hasattr(error, "error_type") else None
                 await validator.store_record(
                     source_session_id=session_id,
@@ -456,20 +440,12 @@ class ArchiveManager:
                     extraction_type="key_qa",
                 )
 
-            total = (
-                len(result.tips or [])
-                + len(result.errors or [])
-                + len(result.qa_highlights or [])
-            )
+            total = len(result.tips or []) + len(result.errors or []) + len(result.qa_highlights or [])
             if total > 0:
-                logger.info(
-                    f"[Story 5.8] Stored {total} extraction records for node {node_id}"
-                )
+                logger.info(f"[Story 5.8] Stored {total} extraction records for node {node_id}")
 
         except (RuntimeError, ConnectionError, AttributeError, ValueError) as e:
-            logger.warning(
-                f"[Story 5.8] Failed to store extraction records for {node_id}: {e}"
-            )
+            logger.warning(f"[Story 5.8] Failed to store extraction records for {node_id}: {e}")
 
     async def _get_node_messages(self, node_id: str) -> List[Dict[str, Any]]:
         """
@@ -506,9 +482,7 @@ class ArchiveManager:
                 if not isinstance(item, dict):
                     continue
                 # Filter for conversation-type episodes by checking node_id match
-                ep_node_id = item.get("node_id") or item.get("metadata", {}).get(
-                    "node_id", ""
-                )
+                ep_node_id = item.get("node_id") or item.get("metadata", {}).get("node_id", "")
                 if ep_node_id != node_id:
                     continue
                 # Skip archive markers to avoid re-processing
@@ -562,9 +536,7 @@ class ArchiveManager:
 
             await memory_svc.record_knowledge_entity(
                 event_type="archive_marker",
-                content=(
-                    f"Archived {len(messages)} messages for node {node_id} to {tier} tier"
-                ),
+                content=(f"Archived {len(messages)} messages for node {node_id} to {tier} tier"),
                 metadata={
                     "node_id": node_id,
                     "tier": tier,
@@ -617,9 +589,7 @@ class ArchiveManager:
             # Fallback: conservative estimate (2 chars/token for mixed CJK+Latin)
             return len(full_text) // 2
 
-    def _get_oldest_message_time(
-        self, messages: List[Dict[str, Any]]
-    ) -> Optional[datetime]:
+    def _get_oldest_message_time(self, messages: List[Dict[str, Any]]) -> Optional[datetime]:
         """
         Get the timestamp of the oldest message.
 

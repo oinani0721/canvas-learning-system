@@ -91,9 +91,7 @@ def mock_grouping_service():
         "app.services.intelligent_grouping_service.IntelligentGroupingService.analyze_canvas",
         new_callable=AsyncMock,
     ) as mock_analyze:
-        mock_analyze.side_effect = lambda canvas_path, **kwargs: _make_analyze_response(
-            canvas_path
-        )
+        mock_analyze.side_effect = lambda canvas_path, **kwargs: _make_analyze_response(canvas_path)
         yield mock_analyze
 
 
@@ -107,9 +105,7 @@ def mock_agent_service_call():
     mock_result = MagicMock()
     mock_result.success = True
     mock_result.content = "Generated analysis content"
-    mock_result.file_path = (
-        None  # Service generates path from canvas_path + node_id + agent_type
-    )
+    mock_result.file_path = None  # Service generates path from canvas_path + node_id + agent_type
     mock_result.error = None
 
     async def _slow_agent(*args, **kwargs):
@@ -128,9 +124,7 @@ def mock_agent_service_call():
 @pytest.fixture
 async def async_client():
     """Provide async client for integration tests."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
 
@@ -190,9 +184,7 @@ class TestFullWorkflow:
         assert confirm_data["status"] == "pending"
 
         # Step 3: Check progress
-        progress_response = await async_client.get(
-            f"/api/v1/canvas/intelligent-parallel/{session_id}"
-        )
+        progress_response = await async_client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
 
         assert progress_response.status_code == 200
         progress_data = progress_response.json()
@@ -233,9 +225,7 @@ class TestFullWorkflow:
         session_id = confirm_response.json()["session_id"]
 
         # Check progress - session should exist
-        progress_response = await async_client.get(
-            f"/api/v1/canvas/intelligent-parallel/{session_id}"
-        )
+        progress_response = await async_client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
 
         assert progress_response.status_code == 200
 
@@ -272,9 +262,7 @@ class TestCancellationWorkflow:
                 {
                     "group_id": analyze_data["groups"][0]["group_id"],
                     "agent_type": analyze_data["groups"][0]["recommended_agent"],
-                    "node_ids": [
-                        n["node_id"] for n in analyze_data["groups"][0]["nodes"]
-                    ],
+                    "node_ids": [n["node_id"] for n in analyze_data["groups"][0]["nodes"]],
                 }
             ]
 
@@ -288,18 +276,14 @@ class TestCancellationWorkflow:
             session_id = confirm_response.json()["session_id"]
 
             # Cancel session (still pending because background is blocked)
-            cancel_response = await async_client.post(
-                f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}"
-            )
+            cancel_response = await async_client.post(f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}")
 
             assert cancel_response.status_code == 200
             cancel_data = cancel_response.json()
             assert cancel_data["success"] is True
 
             # Verify status is cancelled
-            progress_response = await async_client.get(
-                f"/api/v1/canvas/intelligent-parallel/{session_id}"
-            )
+            progress_response = await async_client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
 
             assert progress_response.status_code == 200
             assert progress_response.json()["status"] == "cancelled"
@@ -337,14 +321,10 @@ class TestCancellationWorkflow:
             session_id = confirm_response.json()["session_id"]
 
             # First cancel
-            await async_client.post(
-                f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}"
-            )
+            await async_client.post(f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}")
 
             # Second cancel should fail
-            second_cancel = await async_client.post(
-                f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}"
-            )
+            second_cancel = await async_client.post(f"/api/v1/canvas/intelligent-parallel/cancel/{session_id}")
 
             assert second_cancel.status_code == 409
 
@@ -415,18 +395,14 @@ class TestWorkflowErrorHandling:
     """Integration tests for error handling across workflow."""
 
     @pytest.mark.asyncio
-    async def test_invalid_canvas_throughout_workflow(
-        self, async_client, mock_grouping_service
-    ):
+    async def test_invalid_canvas_throughout_workflow(self, async_client, mock_grouping_service):
         """
         Test that nonexistent canvas returns 404 at each step.
         """
         from app.services.intelligent_grouping_service import CanvasNotFoundError
 
         # Override mock to raise CanvasNotFoundError for nonexistent canvas
-        mock_grouping_service.side_effect = CanvasNotFoundError(
-            "Canvas file 'nonexistent.canvas' not found"
-        )
+        mock_grouping_service.side_effect = CanvasNotFoundError("Canvas file 'nonexistent.canvas' not found")
 
         # Analyze with nonexistent canvas
         analyze_response = await async_client.post(
@@ -441,15 +417,11 @@ class TestWorkflowErrorHandling:
         Test that invalid session ID returns 404.
         """
         # Get progress with invalid session
-        progress_response = await async_client.get(
-            "/api/v1/canvas/intelligent-parallel/invalid-session-id"
-        )
+        progress_response = await async_client.get("/api/v1/canvas/intelligent-parallel/invalid-session-id")
         assert progress_response.status_code == 404
 
         # Cancel invalid session
-        cancel_response = await async_client.post(
-            "/api/v1/canvas/intelligent-parallel/cancel/invalid-session-id"
-        )
+        cancel_response = await async_client.post("/api/v1/canvas/intelligent-parallel/cancel/invalid-session-id")
         assert cancel_response.status_code == 404
 
 
@@ -496,9 +468,7 @@ class TestMultipleSessions:
 
         # Verify each session can be queried independently
         for session_id in session_ids:
-            response = await async_client.get(
-                f"/api/v1/canvas/intelligent-parallel/{session_id}"
-            )
+            response = await async_client.get(f"/api/v1/canvas/intelligent-parallel/{session_id}")
             assert response.status_code == 200
             assert response.json()["session_id"] == session_id
 
@@ -537,18 +507,12 @@ class TestMultipleSessions:
                 sessions.append(confirm_response.json()["session_id"])
 
             # Cancel first session
-            await async_client.post(
-                f"/api/v1/canvas/intelligent-parallel/cancel/{sessions[0]}"
-            )
+            await async_client.post(f"/api/v1/canvas/intelligent-parallel/cancel/{sessions[0]}")
 
             # Verify first session is cancelled
-            first_response = await async_client.get(
-                f"/api/v1/canvas/intelligent-parallel/{sessions[0]}"
-            )
+            first_response = await async_client.get(f"/api/v1/canvas/intelligent-parallel/{sessions[0]}")
             assert first_response.json()["status"] == "cancelled"
 
             # Verify second session is still pending
-            second_response = await async_client.get(
-                f"/api/v1/canvas/intelligent-parallel/{sessions[1]}"
-            )
+            second_response = await async_client.get(f"/api/v1/canvas/intelligent-parallel/{sessions[1]}")
             assert second_response.json()["status"] == "pending"

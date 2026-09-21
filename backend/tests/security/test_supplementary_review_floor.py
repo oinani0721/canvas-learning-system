@@ -109,9 +109,7 @@ def test_review_material_must_not_leak_instruction_prefix() -> None:
 
     # Assemble XML — even if a tainted material had reached format
     # (defense-in-depth), W3-1 redaction must scrub the injection prefix.
-    xml_out = format_supplementary_xml(
-        {"materials": reranked, "degraded": False, "reason": None}
-    )
+    xml_out = format_supplementary_xml({"materials": reranked, "degraded": False, "reason": None})
 
     assert INJECTION_PREFIX not in xml_out, (
         "Injection prefix leaked into supplementary XML despite review taint + "

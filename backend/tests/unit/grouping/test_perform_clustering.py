@@ -24,9 +24,7 @@ class TestPerformClustering:
     instead of fragile manual save/delete/restore patterns.
     """
 
-    def test_perform_clustering_import_error(
-        self, service: IntelligentGroupingService, mock_canvas_utils_fail
-    ):
+    def test_perform_clustering_import_error(self, service: IntelligentGroupingService, mock_canvas_utils_fail):
         """
         Test ClusteringFailedError is raised when CanvasBusinessLogic import fails.
 
@@ -64,9 +62,7 @@ class TestPerformClustering:
             )
         assert "Not enough nodes with color '3'" in str(exc_info.value)
 
-    def test_perform_clustering_success(
-        self, service: IntelligentGroupingService, mock_canvas_utils_success
-    ):
+    def test_perform_clustering_success(self, service: IntelligentGroupingService, mock_canvas_utils_success):
         """
         Test successful clustering execution.
 
@@ -122,9 +118,7 @@ class TestPerformClustering:
 
         mock_logic = MagicMock()
         mock_logic.canvas_data = mock_canvas_data
-        mock_logic.cluster_canvas_nodes = MagicMock(
-            side_effect=ValueError("节点数量不足 for clustering")
-        )
+        mock_logic.cluster_canvas_nodes = MagicMock(side_effect=ValueError("节点数量不足 for clustering"))
         mock_canvas_utils_success(mock_logic)
 
         with pytest.raises(InsufficientNodesError):
@@ -147,18 +141,14 @@ class TestPerformClustering:
 
         mock_logic = MagicMock()
         mock_logic.canvas_data = mock_canvas_data
-        mock_logic.cluster_canvas_nodes = MagicMock(
-            side_effect=ValueError("Some other error")
-        )
+        mock_logic.cluster_canvas_nodes = MagicMock(side_effect=ValueError("Some other error"))
         mock_canvas_utils_success(mock_logic)
 
         with pytest.raises(ClusteringFailedError) as exc_info:
             service._perform_clustering(Path("/test/canvas.canvas"), "3", None, 2)
         assert "Clustering failed" in str(exc_info.value)
 
-    def test_perform_clustering_generic_exception(
-        self, service: IntelligentGroupingService, mock_canvas_utils_success
-    ):
+    def test_perform_clustering_generic_exception(self, service: IntelligentGroupingService, mock_canvas_utils_success):
         """
         Test generic Exception from clustering is converted to ClusteringFailedError.
 
@@ -173,9 +163,7 @@ class TestPerformClustering:
 
         mock_logic = MagicMock()
         mock_logic.canvas_data = mock_canvas_data
-        mock_logic.cluster_canvas_nodes = MagicMock(
-            side_effect=RuntimeError("Unexpected error")
-        )
+        mock_logic.cluster_canvas_nodes = MagicMock(side_effect=RuntimeError("Unexpected error"))
         mock_canvas_utils_success(mock_logic)
 
         with pytest.raises(ClusteringFailedError) as exc_info:
@@ -254,9 +242,7 @@ class TestResourceWarning:
     """Tests for resource warning generation."""
 
     @pytest.mark.asyncio
-    async def test_resource_warning_large_nodes(
-        self, service: IntelligentGroupingService
-    ):
+    async def test_resource_warning_large_nodes(self, service: IntelligentGroupingService):
         """Test resource warning is generated for large node counts."""
         large_result = {
             "clusters": [
@@ -264,9 +250,7 @@ class TestResourceWarning:
                     "id": f"cluster-{i}",
                     "label": f"Group {i}",
                     "nodes": [f"node-{i * 10 + j}" for j in range(10)],
-                    "node_texts": {
-                        f"node-{i * 10 + j}": f"Text {j}" for j in range(10)
-                    },
+                    "node_texts": {f"node-{i * 10 + j}": f"Text {j}" for j in range(10)},
                     "confidence": 0.8,
                     "top_keywords": ["概念"],
                 }
@@ -281,9 +265,7 @@ class TestResourceWarning:
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=large_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=large_result):
                 result = await service.analyze_canvas("test.canvas")
 
         assert result.resource_warning is not None
@@ -299,9 +281,7 @@ class TestResourceWarning:
             mock_path.exists.return_value = True
             mock_resolve.return_value = mock_path
 
-            with patch.object(
-                service, "_perform_clustering", return_value=mock_clustering_result
-            ):
+            with patch.object(service, "_perform_clustering", return_value=mock_clustering_result):
                 result = await service.analyze_canvas("test.canvas")
 
         assert result.resource_warning is None

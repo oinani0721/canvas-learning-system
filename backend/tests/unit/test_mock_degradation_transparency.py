@@ -166,9 +166,7 @@ def verification_service(
 
 
 @pytest.fixture
-def verification_service_no_agent(
-    mock_canvas_service: MagicMock, mock_rag_service: MagicMock
-) -> VerificationService:
+def verification_service_no_agent(mock_canvas_service: MagicMock, mock_rag_service: MagicMock) -> VerificationService:
     """Create VerificationService without agent_service (simulates DI failure)."""
     return VerificationService(
         rag_service=mock_rag_service,
@@ -193,9 +191,7 @@ def mock_canvas_data():
 @pytest.fixture
 def temp_canvas_file(mock_canvas_data):
     """Create a temporary Canvas file."""
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".canvas", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".canvas", delete=False, encoding="utf-8") as f:
         json.dump(mock_canvas_data, f)
         yield f.name
     os.unlink(f.name)
@@ -203,9 +199,7 @@ def temp_canvas_file(mock_canvas_data):
 
 async def _create_session_and_get_sid(service, temp_canvas_file):
     """Helper to create a session and return session_id."""
-    result = await service.start_session(
-        canvas_name="test_canvas", canvas_path=temp_canvas_file
-    )
+    result = await service.start_session(canvas_name="test_canvas", canvas_path=temp_canvas_file)
     return result["session_id"]
 
 
@@ -218,9 +212,7 @@ class TestMockScoringWarningLogs:
     """AC-31.A.8.1: All mock scoring paths log WARNING with [DEGRADED SCORING]."""
 
     @pytest.mark.asyncio
-    async def test_mock_mode_logs_warning(
-        self, verification_service, temp_canvas_file, caplog
-    ):
+    async def test_mock_mode_logs_warning(self, verification_service, temp_canvas_file, caplog):
         """Mock mode (USE_MOCK_VERIFICATION=true) outputs WARNING."""
         sid = await _create_session_and_get_sid(verification_service, temp_canvas_file)
 
@@ -234,14 +226,10 @@ class TestMockScoringWarningLogs:
         assert any("DEGRADED SCORING" in r.message for r in caplog.records)
         assert any("mock_mode_enabled" in r.message for r in caplog.records)
         # FR-KG-04 P1-4: fail-closed 设计 — 不再按长度判分
-        assert any(
-            "mastery state will NOT be updated" in r.message for r in caplog.records
-        )
+        assert any("mastery state will NOT be updated" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
-    async def test_agent_timeout_logs_warning(
-        self, verification_service, temp_canvas_file, caplog
-    ):
+    async def test_agent_timeout_logs_warning(self, verification_service, temp_canvas_file, caplog):
         """Agent timeout outputs WARNING with agent_timeout reason."""
         sid = await _create_session_and_get_sid(verification_service, temp_canvas_file)
 
@@ -249,9 +237,7 @@ class TestMockScoringWarningLogs:
             raise asyncio.TimeoutError()
 
         with (
-            patch.object(
-                verification_service, "_do_scoring_agent_call", side_effect=slow_call
-            ),
+            patch.object(verification_service, "_do_scoring_agent_call", side_effect=slow_call),
             caplog.at_level(logging.WARNING),
         ):
             await verification_service.process_answer(sid, "这是一个测试回答" * 5)
@@ -260,9 +246,7 @@ class TestMockScoringWarningLogs:
         assert any("agent_timeout" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
-    async def test_agent_exception_logs_warning(
-        self, verification_service, temp_canvas_file, caplog
-    ):
+    async def test_agent_exception_logs_warning(self, verification_service, temp_canvas_file, caplog):
         """Agent exception outputs WARNING with agent_exception reason."""
         sid = await _create_session_and_get_sid(verification_service, temp_canvas_file)
 
@@ -270,9 +254,7 @@ class TestMockScoringWarningLogs:
             raise RuntimeError("Connection refused")
 
         with (
-            patch.object(
-                verification_service, "_do_scoring_agent_call", side_effect=failing_call
-            ),
+            patch.object(verification_service, "_do_scoring_agent_call", side_effect=failing_call),
             caplog.at_level(logging.WARNING),
         ):
             await verification_service.process_answer(sid, "这是一个测试回答" * 5)
@@ -281,13 +263,9 @@ class TestMockScoringWarningLogs:
         assert any("agent_exception" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
-    async def test_agent_unavailable_logs_warning(
-        self, verification_service_no_agent, temp_canvas_file, caplog
-    ):
+    async def test_agent_unavailable_logs_warning(self, verification_service_no_agent, temp_canvas_file, caplog):
         """Agent unavailable (agent_service=None) outputs WARNING."""
-        sid = await _create_session_and_get_sid(
-            verification_service_no_agent, temp_canvas_file
-        )
+        sid = await _create_session_and_get_sid(verification_service_no_agent, temp_canvas_file)
 
         with caplog.at_level(logging.WARNING):
             await verification_service_no_agent.process_answer(sid, "测试回答" * 5)
@@ -305,9 +283,7 @@ class TestDegradedResponseFields:
     """AC-31.A.8.2: degraded=True responses include reason and warning."""
 
     @pytest.mark.asyncio
-    async def test_degraded_response_includes_reason_mock_mode(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_degraded_response_includes_reason_mock_mode(self, verification_service, temp_canvas_file):
         """Mock mode response has degraded_reason='mock_mode_enabled'."""
         sid = await _create_session_and_get_sid(verification_service, temp_canvas_file)
 
@@ -321,13 +297,9 @@ class TestDegradedResponseFields:
         assert "不更新掌握度" in result["degraded_warning"]
 
     @pytest.mark.asyncio
-    async def test_degraded_response_includes_reason_unavailable(
-        self, verification_service_no_agent, temp_canvas_file
-    ):
+    async def test_degraded_response_includes_reason_unavailable(self, verification_service_no_agent, temp_canvas_file):
         """Agent unavailable response has degraded_reason='agent_unavailable'."""
-        sid = await _create_session_and_get_sid(
-            verification_service_no_agent, temp_canvas_file
-        )
+        sid = await _create_session_and_get_sid(verification_service_no_agent, temp_canvas_file)
         result = await verification_service_no_agent.process_answer(sid, "测试回答" * 5)
 
         assert result["degraded"] is True
@@ -337,9 +309,7 @@ class TestDegradedResponseFields:
         assert "不更新掌握度" in result["degraded_warning"]
 
     @pytest.mark.asyncio
-    async def test_normal_response_no_degradation_fields(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_normal_response_no_degradation_fields(self, verification_service, temp_canvas_file):
         """Normal AI scoring response has no degradation markers."""
         sid = await _create_session_and_get_sid(verification_service, temp_canvas_file)
 
@@ -350,9 +320,7 @@ class TestDegradedResponseFields:
         assert result["degraded_warning"] is None
 
     @pytest.mark.asyncio
-    async def test_degraded_reason_enum_values(
-        self, verification_service, temp_canvas_file
-    ):
+    async def test_degraded_reason_enum_values(self, verification_service, temp_canvas_file):
         """All degraded_reason values are from the expected enum."""
         valid_reasons = {
             "mock_mode_enabled",
@@ -380,9 +348,7 @@ class TestMockEvaluateDocstring:
     FR-KG-04 P1-4: Updated to verify fail-closed design (was: character-length scoring).
     """
 
-    def test_docstring_exists_and_explains_fail_closed_design(
-        self, verification_service
-    ):
+    def test_docstring_exists_and_explains_fail_closed_design(self, verification_service):
         """Docstring explains fail-closed neutral return design."""
         doc = verification_service._mock_evaluate_answer.__doc__
         assert doc is not None
@@ -450,9 +416,7 @@ class TestFourTupleReturn:
         async def slow_call(*args, **kwargs):
             raise asyncio.TimeoutError()
 
-        with patch.object(
-            verification_service, "_do_scoring_agent_call", side_effect=slow_call
-        ):
+        with patch.object(verification_service, "_do_scoring_agent_call", side_effect=slow_call):
             result = await verification_service._evaluate_answer_with_scoring_agent(
                 concept="微积分",
                 user_answer="这是一个测试" * 10,
@@ -471,9 +435,7 @@ class TestFourTupleReturn:
         async def failing_call(*args, **kwargs):
             raise RuntimeError("Test error")
 
-        with patch.object(
-            verification_service, "_do_scoring_agent_call", side_effect=failing_call
-        ):
+        with patch.object(verification_service, "_do_scoring_agent_call", side_effect=failing_call):
             result = await verification_service._evaluate_answer_with_scoring_agent(
                 concept="微积分",
                 user_answer="这是一个测试" * 10,
@@ -486,16 +448,12 @@ class TestFourTupleReturn:
         assert reason == "agent_exception"
 
     @pytest.mark.asyncio
-    async def test_agent_unavailable_returns_four_tuple(
-        self, verification_service_no_agent
-    ):
+    async def test_agent_unavailable_returns_four_tuple(self, verification_service_no_agent):
         """Agent unavailable returns (quality, score, True, 'agent_unavailable')."""
-        result = (
-            await verification_service_no_agent._evaluate_answer_with_scoring_agent(
-                concept="微积分",
-                user_answer="这是一个测试" * 10,
-                canvas_name="test_canvas",
-            )
+        result = await verification_service_no_agent._evaluate_answer_with_scoring_agent(
+            concept="微积分",
+            user_answer="这是一个测试" * 10,
+            canvas_name="test_canvas",
         )
 
         assert len(result) == 4
@@ -549,13 +507,9 @@ class TestFailClosedDegradedScoring:
         assert score == 0.0
 
     @pytest.mark.asyncio
-    async def test_degraded_mode_does_not_update_mastery_counts(
-        self, verification_service_no_agent, temp_canvas_file
-    ):
+    async def test_degraded_mode_does_not_update_mastery_counts(self, verification_service_no_agent, temp_canvas_file):
         """In degraded mode, _advance_concept must NOT increment color counts."""
-        sid = await _create_session_and_get_sid(
-            verification_service_no_agent, temp_canvas_file
-        )
+        sid = await _create_session_and_get_sid(verification_service_no_agent, temp_canvas_file)
 
         # Capture progress before
         progress_before = verification_service_no_agent._progress[sid]
@@ -583,13 +537,9 @@ class TestFailClosedDegradedScoring:
         assert progress_after.purple_count == purple_before
 
     @pytest.mark.asyncio
-    async def test_degraded_mode_still_advances_to_next_concept(
-        self, verification_service_no_agent, temp_canvas_file
-    ):
+    async def test_degraded_mode_still_advances_to_next_concept(self, verification_service_no_agent, temp_canvas_file):
         """In degraded mode, completed_concepts MUST still advance to avoid blocking UX."""
-        sid = await _create_session_and_get_sid(
-            verification_service_no_agent, temp_canvas_file
-        )
+        sid = await _create_session_and_get_sid(verification_service_no_agent, temp_canvas_file)
 
         progress_before = verification_service_no_agent._progress[sid]
         completed_before = progress_before.completed_concepts
@@ -616,9 +566,7 @@ class TestPathTraversalHardening:
 
     def test_resolve_rejects_dotdot_in_canvas_name(self, verification_service):
         """canvas_name with '..' must be rejected."""
-        result = verification_service._resolve_safe_canvas_path(
-            "../../etc/passwd", None
-        )
+        result = verification_service._resolve_safe_canvas_path("../../etc/passwd", None)
         assert result is None
 
     def test_resolve_rejects_absolute_canvas_name(self, verification_service):
@@ -631,9 +579,7 @@ class TestPathTraversalHardening:
         result = verification_service._resolve_safe_canvas_path("test\0.canvas", None)
         assert result is None
 
-    def test_resolve_rejects_canvas_path_outside_base(
-        self, verification_service, tmp_path
-    ):
+    def test_resolve_rejects_canvas_path_outside_base(self, verification_service, tmp_path):
         """canvas_path that resolves outside _canvas_base_path must be rejected."""
         # Pin base to a fresh subdirectory inside tmp_path to ensure we have
         # control over what's "inside" vs "outside" the base.
@@ -654,9 +600,7 @@ class TestPathTraversalHardening:
         result = verification_service._resolve_safe_canvas_path("evil", evil)
         assert result is None
 
-    def test_resolve_accepts_valid_relative_canvas_name(
-        self, verification_service, tmp_path
-    ):
+    def test_resolve_accepts_valid_relative_canvas_name(self, verification_service, tmp_path):
         """Normal canvas_name with subfolder should resolve safely."""
         verification_service._canvas_base_path = str(tmp_path)
         # Create a fake canvas file inside base
@@ -681,9 +625,7 @@ class TestPathTraversalHardening:
         assert not result.endswith(".canvas.canvas")
 
     @pytest.mark.asyncio
-    async def test_extract_concepts_rejects_traversal_falls_back(
-        self, verification_service_no_agent
-    ):
+    async def test_extract_concepts_rejects_traversal_falls_back(self, verification_service_no_agent):
         """End-to-end: canvas_name with traversal returns fallback concepts.
 
         REGRESSION for P0-3: Previously the fallback open() would have

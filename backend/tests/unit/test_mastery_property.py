@@ -24,9 +24,7 @@ from tests.strategies import mastery_scores, node_ids
 
 @given(confidence=mastery_scores, performance=mastery_scores, nid=node_ids)
 @settings(max_examples=20)
-def test_calibration_record_valid_range(
-    confidence: float, performance: float, nid: str
-) -> None:
+def test_calibration_record_valid_range(confidence: float, performance: float, nid: str) -> None:
     """Any valid (confidence, performance) pair in [0,1] creates a valid CalibrationRecord."""
     record = CalibrationRecord(
         node_id=nid,

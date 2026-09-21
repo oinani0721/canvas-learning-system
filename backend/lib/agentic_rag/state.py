@@ -25,9 +25,7 @@ from langgraph.graph import MessagesState
 from typing_extensions import TypedDict
 
 
-def add_dicts(
-    left: Optional[Dict[str, float]], right: Optional[Dict[str, float]]
-) -> Dict[str, float]:
+def add_dicts(left: Optional[Dict[str, float]], right: Optional[Dict[str, float]]) -> Dict[str, float]:
     """
     Reducer function for merging dictionaries in parallel updates
 
@@ -134,9 +132,7 @@ class CanvasRAGState(MessagesState):
 
     # Story 2.6: CRAG 质量门控与安全降级
     safe_degradation: Annotated[bool, "是否触发安全降级 (2次重试后仍 low)"]
-    degradation_reason: Annotated[
-        Optional[str], "降级原因 (如 retrieval_quality_insufficient)"
-    ]
+    degradation_reason: Annotated[Optional[str], "降级原因 (如 retrieval_quality_insufficient)"]
     quality_history: Annotated[
         List[Dict[str, Any]],
         "质量评分历史 [{iteration, grade, top3_scores, query, binary_grading}]",
@@ -160,9 +156,7 @@ class CanvasRAGState(MessagesState):
 
     # Story 7.1: Faithfulness 忠实度检查字段
     faithfulness_score: Annotated[Optional[float], "Faithfulness忠实度评分 (0.0-1.0)"]
-    faithfulness_details: Annotated[
-        Optional[Dict[str, Any]], "Faithfulness检查详情 (claims + NLI结果)"
-    ]
+    faithfulness_details: Annotated[Optional[Dict[str, Any]], "Faithfulness检查详情 (claims + NLI结果)"]
     faithfulness_degraded: Annotated[Optional[bool], "是否触发忠实度安全降级"]
 
     # fix-rag-faithfulness-and-add-crag-quality-loop Phase 3:
@@ -176,9 +170,7 @@ class CanvasRAGState(MessagesState):
         Optional[Dict[str, Any]],
         "重排阶段断崖/锐度指标 (top_scores / max_gap / is_flat / cut)",
     ]
-    deep_research_used: Annotated[
-        bool, "是否已触发一次性 CRAG deep research 兜底 (one-shot guard)"
-    ]
+    deep_research_used: Annotated[bool, "是否已触发一次性 CRAG deep research 兜底 (one-shot guard)"]
 
     # CARD-G4-2 (2026-08-28): 统一四态检索状态 — Literal 值域镜像
     # app.models.service_status.SERVICE_STATUS_VALUES (值域一致性由
@@ -189,17 +181,13 @@ class CanvasRAGState(MessagesState):
         Optional[Literal["ok", "empty", "degraded", "unavailable"]],
         "G4-2 四态检索状态 (None=检索尚未执行)",
     ]
-    retrieval_status_reason: Annotated[
-        Optional[str], "degraded/unavailable 的诊断原因 (ok/empty 恒 None)"
-    ]
+    retrieval_status_reason: Annotated[Optional[str], "degraded/unavailable 的诊断原因 (ok/empty 恒 None)"]
     channel_errors: Annotated[
         Optional[Dict[str, str]],
         add_dicts,  # 并行检索节点各自写入自己的通道键, reducer 合并防冲突
     ]
     # compress_context 学习记忆注入的降级信号 (nodes.py memory_degraded 收编)
-    memory_degraded: Annotated[
-        Optional[str], "学习记忆注入降级原因 (None=正常或未启用)"
-    ]
+    memory_degraded: Annotated[Optional[str], "学习记忆注入降级原因 (None=正常或未启用)"]
 
     # 性能监控字段 (Optional) - Separate keys to avoid concurrent update conflicts
     graphiti_latency_ms: Annotated[Optional[float], "Graphiti检索延迟 (ms)"]
@@ -331,9 +319,7 @@ class AgentRAGState(MessagesState):
     retrieved_documents: Annotated[List[SearchResult], "当前迭代检索到的文档"]
 
     # ── LLM Document Grading ──
-    document_grades: Annotated[
-        List[str], "LLM对每个文档的相关性评分: relevant / irrelevant"
-    ]
+    document_grades: Annotated[List[str], "LLM对每个文档的相关性评分: relevant / irrelevant"]
     relevant_documents: Annotated[List[SearchResult], "LLM判断为相关的文档子集"]
 
     # ── Generation Control ──
@@ -342,9 +328,7 @@ class AgentRAGState(MessagesState):
 
     # ── Output ──
     final_answer: Annotated[Optional[str], "LLM生成的最终回答"]
-    citations: Annotated[
-        List[Dict[str, Any]], "引用列表: [{source, content_snippet, line_range}]"
-    ]
+    citations: Annotated[List[Dict[str, Any]], "引用列表: [{source, content_snippet, line_range}]"]
 
     # ── Agent Configuration (passed at invocation) ──
     agent_type: Annotated[Optional[str], "Agent类型（如oral-explanation）"]

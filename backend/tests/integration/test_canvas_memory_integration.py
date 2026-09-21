@@ -112,9 +112,7 @@ class TestFullCRUDFlow:
     """Test full CRUD flow with memory integration."""
 
     @pytest.mark.asyncio
-    async def test_add_node_full_flow(
-        self, integrated_canvas_service, memory_service, wait_for_call
-    ):
+    async def test_add_node_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test add_node triggers complete memory flow."""
         # Arrange
         await memory_service.initialize()
@@ -150,9 +148,7 @@ class TestFullCRUDFlow:
         assert recorded_event["node_id"] == result["id"]
 
     @pytest.mark.asyncio
-    async def test_update_node_full_flow(
-        self, integrated_canvas_service, memory_service, wait_for_call
-    ):
+    async def test_update_node_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test update_node triggers complete memory flow."""
         await memory_service.initialize()
         spy = _spy_on_record(memory_service)
@@ -169,17 +165,11 @@ class TestFullCRUDFlow:
         assert result["color"] == "3"
 
         # Find the recorded event
-        node_updated_events = [
-            ep
-            for ep in memory_service._episodes
-            if ep.get("event_type") == "node_updated"
-        ]
+        node_updated_events = [ep for ep in memory_service._episodes if ep.get("event_type") == "node_updated"]
         assert len(node_updated_events) > 0
 
     @pytest.mark.asyncio
-    async def test_add_edge_full_flow(
-        self, integrated_canvas_service, memory_service, wait_for_call
-    ):
+    async def test_add_edge_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test add_edge triggers complete memory flow."""
         await memory_service.initialize()
 
@@ -214,11 +204,7 @@ class TestFullCRUDFlow:
         assert result["toNode"] == "target-node"
 
         # Find edge_created event
-        edge_events = [
-            ep
-            for ep in memory_service._episodes
-            if ep.get("event_type") == "edge_created"
-        ]
+        edge_events = [ep for ep in memory_service._episodes if ep.get("event_type") == "edge_created"]
         assert len(edge_events) > 0
 
 
@@ -231,16 +217,12 @@ class TestMemoryPersistence:
     """Test that memory writes persist correctly."""
 
     @pytest.mark.asyncio
-    async def test_episode_structure_matches_schema(
-        self, integrated_canvas_service, memory_service, wait_for_call
-    ):
+    async def test_episode_structure_matches_schema(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test recorded episode matches temporal-event.schema.json structure."""
         await memory_service.initialize()
         spy = _spy_on_record(memory_service)
 
-        await integrated_canvas_service.add_node(
-            "test-canvas", {"type": "text", "text": "Schema Test", "x": 0, "y": 0}
-        )
+        await integrated_canvas_service.add_node("test-canvas", {"type": "text", "text": "Schema Test", "x": 0, "y": 0})
 
         await wait_for_call(spy)
 
@@ -259,9 +241,7 @@ class TestMemoryPersistence:
         assert "metadata" in latest
 
     @pytest.mark.asyncio
-    async def test_multiple_events_accumulated(
-        self, integrated_canvas_service, memory_service, wait_for_call
-    ):
+    async def test_multiple_events_accumulated(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test multiple events are accumulated in memory."""
         await memory_service.initialize()
         initial_count = len(memory_service._episodes)
@@ -272,9 +252,7 @@ class TestMemoryPersistence:
             "test-canvas", {"type": "text", "text": "Node 1", "x": 0, "y": 0}
         )
 
-        await integrated_canvas_service.update_node(
-            "test-canvas", node1["id"], {"color": "2"}
-        )
+        await integrated_canvas_service.update_node("test-canvas", node1["id"], {"color": "2"})
 
         node2 = await integrated_canvas_service.add_node(
             "test-canvas", {"type": "text", "text": "Node 2", "x": 100, "y": 0}
@@ -296,9 +274,7 @@ class TestConcurrentOperations:
     """Test concurrent CRUD operations with memory writes."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_add_nodes(
-        self, integrated_canvas_service, memory_service, wait_for_call
-    ):
+    async def test_concurrent_add_nodes(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test concurrent node additions don't cause race conditions."""
         await memory_service.initialize()
         spy = _spy_on_record(memory_service)
@@ -330,17 +306,11 @@ class TestConcurrentOperations:
             assert result["text"] == f"Concurrent Node {i}"
 
         # Should have 5 node_created events
-        node_created_events = [
-            ep
-            for ep in memory_service._episodes
-            if ep.get("event_type") == "node_created"
-        ]
+        node_created_events = [ep for ep in memory_service._episodes if ep.get("event_type") == "node_created"]
         assert len(node_created_events) >= 5
 
     @pytest.mark.asyncio
-    async def test_concurrent_operations_different_canvases(
-        self, temp_canvas_dir, memory_service, wait_for_call
-    ):
+    async def test_concurrent_operations_different_canvases(self, temp_canvas_dir, memory_service, wait_for_call):
         """Test concurrent operations on different canvases."""
         await memory_service.initialize()
         spy = _spy_on_record(memory_service)
@@ -358,9 +328,7 @@ class TestConcurrentOperations:
         )
 
         # Concurrent operations on different canvases
-        task1 = service1.add_node(
-            "test-canvas", {"type": "text", "text": "Canvas 1 Node", "x": 0, "y": 0}
-        )
+        task1 = service1.add_node("test-canvas", {"type": "text", "text": "Canvas 1 Node", "x": 0, "y": 0})
         task2 = service2.add_node(
             "concurrent-canvas",
             {"type": "text", "text": "Canvas 2 Node", "x": 0, "y": 0},
@@ -482,9 +450,7 @@ class TestCanvasConceptRelationship:
         )
 
         # Act
-        await service.add_node(
-            "test-canvas", {"type": "text", "text": "Test Node", "x": 0, "y": 0}
-        )
+        await service.add_node("test-canvas", {"type": "text", "text": "Test Node", "x": 0, "y": 0})
 
         # Wait for background task to complete (event is recorded but Neo4j skipped)
         await wait_for_call(spy)
@@ -502,9 +468,7 @@ class TestPerformance:
     """Test performance characteristics."""
 
     @pytest.mark.asyncio
-    async def test_crud_response_time_under_threshold(
-        self, integrated_canvas_service, memory_service
-    ):
+    async def test_crud_response_time_under_threshold(self, integrated_canvas_service, memory_service):
         """Test CRUD response time is under 50ms overhead from memory trigger."""
         import time
 
@@ -517,9 +481,7 @@ class TestPerformance:
         )
 
         start = time.time()
-        await service_no_memory.add_node(
-            "test-canvas", {"type": "text", "text": "Baseline", "x": 0, "y": 0}
-        )
+        await service_no_memory.add_node("test-canvas", {"type": "text", "text": "Baseline", "x": 0, "y": 0})
         baseline_time = time.time() - start
 
         # Measure with memory client

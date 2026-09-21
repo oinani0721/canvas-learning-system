@@ -247,9 +247,7 @@ class TestDIPathPropagation:
         assert "AGENT_MEMORY_CACHE_MAXSIZE" in source, (
             "dependencies.py must pass AGENT_MEMORY_CACHE_MAXSIZE to AgentService"
         )
-        assert "AGENT_MEMORY_CACHE_TTL" in source, (
-            "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
-        )
+        assert "AGENT_MEMORY_CACHE_TTL" in source, "dependencies.py must pass AGENT_MEMORY_CACHE_TTL to AgentService"
 
     @pytest.mark.xfail(
         strict=True,

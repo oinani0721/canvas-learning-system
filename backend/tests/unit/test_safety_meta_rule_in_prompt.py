@@ -27,17 +27,13 @@ from pathlib import Path
 import pytest
 
 
-AGENT_SERVICE_PATH = (
-    Path(__file__).resolve().parents[2] / "app" / "services" / "agent_service.py"
-)
+AGENT_SERVICE_PATH = Path(__file__).resolve().parents[2] / "app" / "services" / "agent_service.py"
 
 
 @pytest.fixture(scope="module")
 def agent_service_source() -> str:
     """Read the agent_service.py source text once per test module."""
-    assert AGENT_SERVICE_PATH.exists(), (
-        f"agent_service.py not found at expected path: {AGENT_SERVICE_PATH}"
-    )
+    assert AGENT_SERVICE_PATH.exists(), f"agent_service.py not found at expected path: {AGENT_SERVICE_PATH}"
     return AGENT_SERVICE_PATH.read_text(encoding="utf-8")
 
 
@@ -46,10 +42,7 @@ def test_safety_meta_rule_contains_untrusted_tag_reference(agent_service_source:
     so the model's attention latches onto the tag semantic before any
     untrusted payload arrives later in the prompt.
     """
-    assert (
-        "任何被 `<UNTRUSTED_" in agent_service_source
-        or "任何被 <UNTRUSTED_" in agent_service_source
-    ), (
+    assert "任何被 `<UNTRUSTED_" in agent_service_source or "任何被 <UNTRUSTED_" in agent_service_source, (
         "Safety meta-rule must contain the phrase '任何被 <UNTRUSTED_*>' so that "
         "the model can bind the tag family to the 'reference material' semantic."
     )
@@ -76,9 +69,7 @@ def test_safety_meta_rule_mentions_record_learning_memory(agent_service_source: 
     # the next ~1500 chars (roughly the meta-rule paragraph length).
     anchor = "### 安全元规则"
     anchor_idx = agent_service_source.find(anchor)
-    assert anchor_idx >= 0, (
-        f"Safety meta-rule section header '{anchor}' not found in agent_service.py"
-    )
+    assert anchor_idx >= 0, f"Safety meta-rule section header '{anchor}' not found in agent_service.py"
     meta_block = agent_service_source[anchor_idx : anchor_idx + 2000]
     assert "record_learning_memory" in meta_block, (
         "Safety meta-rule must explicitly mention record_learning_memory "
@@ -97,9 +88,7 @@ def test_safety_meta_rule_placement_after_tool_instruction(agent_service_source:
     3. Context injection comes last (the actual untrusted material).
     """
     # Find the two key anchors and assert ordering.
-    tool_instr_anchor = (
-        'system_prompt = f"{system_prompt}{tool_instruction}{safety_meta_rule}"'
-    )
+    tool_instr_anchor = 'system_prompt = f"{system_prompt}{tool_instruction}{safety_meta_rule}"'
     assert tool_instr_anchor in agent_service_source, (
         "Expected system_prompt concatenation to be "
         "'system_prompt = f\"{system_prompt}{tool_instruction}{safety_meta_rule}\"' "

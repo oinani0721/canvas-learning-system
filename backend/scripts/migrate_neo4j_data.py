@@ -223,9 +223,7 @@ Examples:
         """,
     )
 
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Preview changes without writing to disk"
-    )
+    parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing to disk")
 
     parser.add_argument(
         "--source",

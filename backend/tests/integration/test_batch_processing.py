@@ -67,9 +67,7 @@ def test_canvas_file(tmp_path: Path, test_canvas_data: dict) -> Path:
     canvas_dir = tmp_path / "笔记库"
     canvas_dir.mkdir(parents=True, exist_ok=True)
     canvas_file = canvas_dir / "test_batch.canvas"
-    canvas_file.write_text(
-        json.dumps(test_canvas_data, ensure_ascii=False), encoding="utf-8"
-    )
+    canvas_file.write_text(json.dumps(test_canvas_data, ensure_ascii=False), encoding="utf-8")
     return canvas_file
 
 
@@ -104,9 +102,7 @@ def mock_canvas_utils(monkeypatch):
             text_nodes = [n for n in nodes if n.get("type") == "text" and n.get("text")]
 
             if len(text_nodes) < min_cluster_size:
-                raise ValueError(
-                    f"节点数量不足: {len(text_nodes)} < {min_cluster_size}"
-                )
+                raise ValueError(f"节点数量不足: {len(text_nodes)} < {min_cluster_size}")
 
             # Create simple clustering: all nodes in one cluster
             return {
@@ -198,9 +194,7 @@ class TestServiceLayerOrchestration:
             )
 
         # Step 6: Transition to completed
-        await session_manager_clean.transition_state(
-            session_id, SessionStatus.COMPLETED
-        )
+        await session_manager_clean.transition_state(session_id, SessionStatus.COMPLETED)
         session_info = await session_manager_clean.get_session(session_id)
         assert session_info.status == SessionStatus.COMPLETED
         assert session_info.progress_percent == 100
@@ -268,46 +262,30 @@ class TestSessionLifecycleManagement:
         """
         # Test PENDING → RUNNING → COMPLETED
         session_id = await session_manager_clean.create_session("test.canvas", 5)
-        assert (
-            await session_manager_clean.get_session(session_id)
-        ).status == SessionStatus.PENDING
+        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.PENDING
 
         await session_manager_clean.transition_state(session_id, SessionStatus.RUNNING)
-        assert (
-            await session_manager_clean.get_session(session_id)
-        ).status == SessionStatus.RUNNING
+        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.RUNNING
 
-        await session_manager_clean.transition_state(
-            session_id, SessionStatus.COMPLETED
-        )
-        assert (
-            await session_manager_clean.get_session(session_id)
-        ).status == SessionStatus.COMPLETED
+        await session_manager_clean.transition_state(session_id, SessionStatus.COMPLETED)
+        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.COMPLETED
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_cancel_from_pending(
-        self, session_manager_clean: SessionManager
-    ):
+    async def test_session_cancel_from_pending(self, session_manager_clean: SessionManager):
         """Test cancellation from PENDING state."""
         session_id = await session_manager_clean.create_session("test.canvas", 5)
         await session_manager_clean.cancel_session(session_id)
-        assert (
-            await session_manager_clean.get_session(session_id)
-        ).status == SessionStatus.CANCELLED
+        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.CANCELLED
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_cancel_from_running(
-        self, session_manager_clean: SessionManager
-    ):
+    async def test_session_cancel_from_running(self, session_manager_clean: SessionManager):
         """Test cancellation from RUNNING state."""
         session_id = await session_manager_clean.create_session("test.canvas", 5)
         await session_manager_clean.transition_state(session_id, SessionStatus.RUNNING)
         await session_manager_clean.cancel_session(session_id)
-        assert (
-            await session_manager_clean.get_session(session_id)
-        ).status == SessionStatus.CANCELLED
+        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.CANCELLED
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -315,18 +293,12 @@ class TestSessionLifecycleManagement:
         """Test PARTIAL_FAILURE state transition."""
         session_id = await session_manager_clean.create_session("test.canvas", 5)
         await session_manager_clean.transition_state(session_id, SessionStatus.RUNNING)
-        await session_manager_clean.transition_state(
-            session_id, SessionStatus.PARTIAL_FAILURE
-        )
-        assert (
-            await session_manager_clean.get_session(session_id)
-        ).status == SessionStatus.PARTIAL_FAILURE
+        await session_manager_clean.transition_state(session_id, SessionStatus.PARTIAL_FAILURE)
+        assert (await session_manager_clean.get_session(session_id)).status == SessionStatus.PARTIAL_FAILURE
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_progress_tracking(
-        self, session_manager_clean: SessionManager
-    ):
+    async def test_session_progress_tracking(self, session_manager_clean: SessionManager):
         """
         Test progress percentage tracking.
 
@@ -349,9 +321,7 @@ class TestSessionLifecycleManagement:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_session_node_result_storage(
-        self, session_manager_clean: SessionManager
-    ):
+    async def test_session_node_result_storage(self, session_manager_clean: SessionManager):
         """
         Test per-node result storage.
 
@@ -377,9 +347,7 @@ class TestSessionLifecycleManagement:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_multiple_sessions_isolation(
-        self, session_manager_clean: SessionManager
-    ):
+    async def test_multiple_sessions_isolation(self, session_manager_clean: SessionManager):
         """
         Test multiple sessions are properly isolated.
 
@@ -388,28 +356,16 @@ class TestSessionLifecycleManagement:
         # Create multiple sessions
         session_ids = []
         for i in range(3):
-            session_id = await session_manager_clean.create_session(
-                f"canvas_{i}.canvas", 5
-            )
+            session_id = await session_manager_clean.create_session(f"canvas_{i}.canvas", 5)
             session_ids.append(session_id)
 
         # Verify sessions are independent
-        await session_manager_clean.transition_state(
-            session_ids[0], SessionStatus.RUNNING
-        )
-        await session_manager_clean.transition_state(
-            session_ids[1], SessionStatus.CANCELLED
-        )
+        await session_manager_clean.transition_state(session_ids[0], SessionStatus.RUNNING)
+        await session_manager_clean.transition_state(session_ids[1], SessionStatus.CANCELLED)
 
-        assert (
-            await session_manager_clean.get_session(session_ids[0])
-        ).status == SessionStatus.RUNNING
-        assert (
-            await session_manager_clean.get_session(session_ids[1])
-        ).status == SessionStatus.CANCELLED
-        assert (
-            await session_manager_clean.get_session(session_ids[2])
-        ).status == SessionStatus.PENDING
+        assert (await session_manager_clean.get_session(session_ids[0])).status == SessionStatus.RUNNING
+        assert (await session_manager_clean.get_session(session_ids[1])).status == SessionStatus.CANCELLED
+        assert (await session_manager_clean.get_session(session_ids[2])).status == SessionStatus.PENDING
 
 
 # =============================================================================
@@ -506,9 +462,7 @@ class TestGroupingServiceIntegration:
         canvas_dir = tmp_path / "笔记库"
         canvas_dir.mkdir(parents=True, exist_ok=True)
         canvas_file = canvas_dir / "test_patterns.canvas"
-        canvas_file.write_text(
-            json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8"
-        )
+        canvas_file.write_text(json.dumps(canvas_data, ensure_ascii=False), encoding="utf-8")
 
         service = IntelligentGroupingService(canvas_base_path=str(tmp_path))
         result = await service.analyze_canvas(

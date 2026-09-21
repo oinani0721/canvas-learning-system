@@ -73,32 +73,24 @@ def get_node_content(node: dict, vault_path: str) -> str:
         IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".svg", ".webp"}
         file_ext = Path(file_path).suffix.lower()
         if file_ext in IMAGE_EXTENSIONS:
-            struct_logger.debug(
-                "image_file_node_embed", node_id=node_id, file_path=file_path
-            )
+            struct_logger.debug("image_file_node_embed", node_id=node_id, file_path=file_path)
             subpath = node.get("subpath", "")
             return f"![[{file_path}{subpath}]]"
 
         # Construct absolute path for text-based files (md, pdf, etc.)
         # [Source: ADR-001 - file paths are relative to vault root]
         abs_path = Path(vault_path) / file_path
-        struct_logger.debug(
-            "resolving_file_path", node_id=node_id, resolved_path=str(abs_path)
-        )
+        struct_logger.debug("resolving_file_path", node_id=node_id, resolved_path=str(abs_path))
 
         try:
             content = abs_path.read_text(encoding="utf-8")
-            struct_logger.debug(
-                "file_read_success", node_id=node_id, content_length=len(content)
-            )
+            struct_logger.debug("file_read_success", node_id=node_id, content_length=len(content))
             return content
         except FileNotFoundError:
             struct_logger.warning("file_not_found", node_id=node_id, path=str(abs_path))
             return ""
         except PermissionError:
-            struct_logger.warning(
-                "file_permission_denied", node_id=node_id, path=str(abs_path)
-            )
+            struct_logger.warning("file_permission_denied", node_id=node_id, path=str(abs_path))
             return ""
         except OSError as e:
             struct_logger.warning("file_read_error", node_id=node_id, error=str(e))
@@ -241,12 +233,8 @@ def extract_and_resolve_wikilinks(
             try:
                 file_content = resolved_path.read_text(encoding="utf-8")
                 if heading:
-                    section = _extract_heading_section(
-                        file_content, heading, max_content_length
-                    )
-                    entry["content"] = (
-                        section if section else file_content[:max_content_length]
-                    )
+                    section = _extract_heading_section(file_content, heading, max_content_length)
+                    entry["content"] = section if section else file_content[:max_content_length]
                 else:
                     entry["content"] = file_content[:max_content_length]
                     if len(file_content) > max_content_length:
@@ -540,11 +528,7 @@ class ContextEnrichmentService:
             return []
 
         # Filter to text nodes with content
-        text_nodes = [
-            node
-            for node in lecture_nodes
-            if node.get("type") == "text" and node.get("text")
-        ]
+        text_nodes = [node for node in lecture_nodes if node.get("type") == "text" and node.get("text")]
 
         if not text_nodes:
             return []
@@ -559,26 +543,18 @@ class ContextEnrichmentService:
             y_pos = node.get("y", 0)
 
             # Calculate component scores
-            similarity_score = self._calculate_text_similarity(
-                exercise_content, node_text
-            )
+            similarity_score = self._calculate_text_similarity(exercise_content, node_text)
             position_score = self._calculate_position_score(y_pos, max_y)
-            color_score = (
-                self._calculate_color_priority(node_color) / 4.0
-            )  # Normalize to 0-1
+            color_score = self._calculate_color_priority(node_color) / 4.0  # Normalize to 0-1
 
             # Story 36.8 Task 3.2: Weighted combination
             # Similarity: 40%, Position: 30%, Color: 30%
-            relevance_score = (
-                similarity_score * 0.4 + position_score * 0.3 + color_score * 0.3
-            )
+            relevance_score = similarity_score * 0.4 + position_score * 0.3 + color_score * 0.3
 
             scored_nodes.append(
                 {
                     "id": node.get("id"),
-                    "text": node_text[
-                        :max_content_length
-                    ],  # Task 3.3: Limit content length
+                    "text": node_text[:max_content_length],  # Task 3.3: Limit content length
                     "color": node_color,
                     "x": node.get("x", 0),
                     "y": y_pos,
@@ -728,9 +704,7 @@ class ContextEnrichmentService:
         if include_learning_memory and self._learning_memory_service:
             try:
                 # Search learning memory using target node content as query
-                node_text = target_node.get("text", "")[
-                    :200
-                ]  # First 200 chars as query
+                node_text = target_node.get("text", "")[:200]  # First 200 chars as query
                 learning_results = await self._search_learning_relations(
                     query=node_text, canvas_name=canvas_name, node_id=node_id
                 )
@@ -738,12 +712,8 @@ class ContextEnrichmentService:
                 if learning_results:
                     has_learning_refs = True
                     learning_relations_list = learning_results
-                    learning_context_str = self._format_learning_context(
-                        learning_results
-                    )
-                    logger.debug(
-                        f"Found {len(learning_results)} learning memory relations for {node_id}"
-                    )
+                    learning_context_str = self._format_learning_context(learning_results)
+                    logger.debug(f"Found {len(learning_results)} learning memory relations for {node_id}")
             except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
                 logger.warning(f"Failed to get learning memory relations: {e}")
                 # Continue without learning memory context (graceful degradation)
@@ -757,23 +727,17 @@ class ContextEnrichmentService:
         has_wikilink_refs = False
         if target_content and vault_path:
             try:
-                wikilink_results = extract_and_resolve_wikilinks(
-                    target_content, vault_path
-                )
+                wikilink_results = extract_and_resolve_wikilinks(target_content, vault_path)
                 resolved = [w for w in wikilink_results if w["resolved"]]
                 if resolved:
                     has_wikilink_refs = True
                     parts = ["--- 引用内容 (Wikilink References) ---"]
                     for w in resolved:
                         htag = f"#{w['heading']}" if w.get("heading") else ""
-                        parts.append(
-                            f"[wikilink|{w['file_path']}{htag}] {w['content']}"
-                        )
+                        parts.append(f"[wikilink|{w['file_path']}{htag}] {w['content']}")
                     wikilink_context_str = "\n\n".join(parts)
                     enriched_context = f"{enriched_context}\n\n{wikilink_context_str}"
-                    logger.debug(
-                        f"Resolved {len(resolved)} wikilinks from target node {node_id}"
-                    )
+                    logger.debug(f"Resolved {len(resolved)} wikilinks from target node {node_id}")
             except (OSError, ValueError, AttributeError) as e:
                 logger.warning(f"Wikilink resolution failed for {node_id}: {e}")
 
@@ -887,9 +851,7 @@ class ContextEnrichmentService:
 
         # Story 12.E.3: Recurse for 2-hop if needed
         if hop_depth >= 2 and current_hop < hop_depth:
-            hop1_node_ids = [
-                adj.node.get("id") for adj in adjacent if adj.node.get("id")
-            ]
+            hop1_node_ids = [adj.node.get("id") for adj in adjacent if adj.node.get("id")]
 
             for hop1_node_id in hop1_node_ids:
                 hop2_nodes = self._find_adjacent_nodes(
@@ -907,9 +869,7 @@ class ContextEnrichmentService:
 
         return adjacent
 
-    def _build_enriched_context(
-        self, target_node: Dict[str, Any], adjacent_nodes: List[AdjacentNode]
-    ) -> str:
+    def _build_enriched_context(self, target_node: Dict[str, Any], adjacent_nodes: List[AdjacentNode]) -> str:
         """
         Build a combined context string from target and adjacent nodes.
 
@@ -943,27 +903,17 @@ class ContextEnrichmentService:
         parts.append(f"[目标节点{color_desc}] {target_text}")
 
         # Story 12.E.3: Group adjacent nodes by relation and hop_distance
-        parents_1hop = [
-            n for n in adjacent_nodes if n.relation == "parent" and n.hop_distance == 1
-        ]
-        parents_2hop = [
-            n for n in adjacent_nodes if n.relation == "parent" and n.hop_distance == 2
-        ]
-        children_1hop = [
-            n for n in adjacent_nodes if n.relation == "child" and n.hop_distance == 1
-        ]
-        children_2hop = [
-            n for n in adjacent_nodes if n.relation == "child" and n.hop_distance == 2
-        ]
+        parents_1hop = [n for n in adjacent_nodes if n.relation == "parent" and n.hop_distance == 1]
+        parents_2hop = [n for n in adjacent_nodes if n.relation == "parent" and n.hop_distance == 2]
+        children_1hop = [n for n in adjacent_nodes if n.relation == "child" and n.hop_distance == 1]
+        children_2hop = [n for n in adjacent_nodes if n.relation == "child" and n.hop_distance == 2]
 
         if parents_1hop or parents_2hop:
             parts.append("\n--- 前置知识 (Parent Nodes) ---")
             # Story 12.E.3: Add 1-hop parents first
             for adj in parents_1hop:
                 # Story 12.D.2: Use get_node_content() for adjacent nodes too
-                node_text = get_node_content(adj.node, vault_path)[
-                    :300
-                ]  # Truncate long text
+                node_text = get_node_content(adj.node, vault_path)[:300]  # Truncate long text
                 parts.append(f"[parent|{adj.edge_label}] {node_text}")
             # Story 12.E.3: Add 2-hop parents with indicator
             for adj in parents_2hop:
@@ -975,9 +925,7 @@ class ContextEnrichmentService:
             # Story 12.E.3: Add 1-hop children first
             for adj in children_1hop:
                 # Story 12.D.2: Use get_node_content() for adjacent nodes too
-                node_text = get_node_content(adj.node, vault_path)[
-                    :300
-                ]  # Truncate long text
+                node_text = get_node_content(adj.node, vault_path)[:300]  # Truncate long text
                 parts.append(f"[child|{adj.edge_label}] {node_text}")
             # Story 12.E.3: Add 2-hop children with indicator
             for adj in children_2hop:
@@ -1030,9 +978,7 @@ class ContextEnrichmentService:
             List of related memory dicts with relevance scores
         """
         if not self._learning_memory_service:
-            logger.warning(
-                "_search_learning_relations: learning_memory_service not available, returning empty"
-            )
+            logger.warning("_search_learning_relations: learning_memory_service not available, returning empty")
             return []
 
         try:
@@ -1047,9 +993,7 @@ class ContextEnrichmentService:
                 limit=5,  # Limit to top 5 most relevant
             )
 
-            logger.debug(
-                f"Learning memory search for '{query[:50]}...': {len(results)} results"
-            )
+            logger.debug(f"Learning memory search for '{query[:50]}...': {len(results)} results")
             return results
 
         except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
@@ -1089,9 +1033,7 @@ class ContextEnrichmentService:
         for memory in learning_results:
             concept = memory.get("concept", "未知概念")
             relevance = memory.get("relevance", 0.0)
-            timestamp = (
-                memory.get("timestamp", "")[:10] if memory.get("timestamp") else ""
-            )
+            timestamp = memory.get("timestamp", "")[:10] if memory.get("timestamp") else ""
             score = memory.get("score")
             understanding = memory.get("user_understanding", "")
 
@@ -1112,18 +1054,12 @@ class ContextEnrichmentService:
                 if understanding_check.is_blocked:
                     parts.append("  历史理解: [filtered: suspicious content]")
                 else:
-                    preview = (
-                        understanding[:100] + "..."
-                        if len(understanding) > 100
-                        else understanding
-                    )
+                    preview = understanding[:100] + "..." if len(understanding) > 100 else understanding
                     parts.append(f"  历史理解: {preview}")
 
         return "\n".join(parts)
 
-    def build_agent_prompt(
-        self, base_prompt: str, context: Optional[EnrichedContext]
-    ) -> str:
+    def build_agent_prompt(self, base_prompt: str, context: Optional[EnrichedContext]) -> str:
         """
         Build an enriched agent prompt with adjacent node context.
 

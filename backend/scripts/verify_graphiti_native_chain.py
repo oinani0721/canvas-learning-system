@@ -66,9 +66,7 @@ async def main() -> int:
     src, tgt = f"{PROBE}src", f"{PROBE}tgt"
 
     async def cleanup():
-        await driver.execute_query(
-            "MATCH (n:Entity) WHERE n.name STARTS WITH $p DETACH DELETE n", p=PROBE
-        )
+        await driver.execute_query("MATCH (n:Entity) WHERE n.name STARTS WITH $p DETACH DELETE n", p=PROBE)
         await driver.execute_query(
             "MATCH (e:EpisodicNode) WHERE e.node_id STARTS WITH $p DETACH DELETE e",
             p=PROBE,
@@ -108,9 +106,7 @@ async def main() -> int:
         )
         # (a) canonical 图形状
         records, _, _ = await driver.execute_query(
-            "MATCH (:Entity)-[e:RELATES_TO]->(:Entity) "
-            "WHERE e.node_id STARTS WITH $p "
-            "RETURN count(e) AS n",
+            "MATCH (:Entity)-[e:RELATES_TO]->(:Entity) WHERE e.node_id STARTS WITH $p RETURN count(e) AS n",
             p=PROBE,
         )
         check(
@@ -131,13 +127,10 @@ async def main() -> int:
         print("(b) 不再产出 :EpisodicNode{node_id} (Fix-D 模式已死)")
         print("═" * 64)
         records, _, _ = await driver.execute_query(
-            "MATCH (e:EpisodicNode) WHERE e.node_id STARTS WITH $p "
-            "RETURN count(e) AS n",
+            "MATCH (e:EpisodicNode) WHERE e.node_id STARTS WITH $p RETURN count(e) AS n",
             p=PROBE,
         )
-        check(
-            records[0]["n"] == 0, f"(b) probe :EpisodicNode = {records[0]['n']} (应 0)"
-        )
+        check(records[0]["n"] == 0, f"(b) probe :EpisodicNode = {records[0]['n']} (应 0)")
 
         print("═" * 64)
         print("(d) belief 3 版本链 (真实 Neo4j, bitemporal 真消费)")
@@ -161,9 +154,7 @@ async def main() -> int:
                 node_id=src,
                 source="callout",
             )
-        history = await bs.get_belief_history(
-            graphiti, bk, gid, as_of=now - timedelta(days=3)
-        )
+        history = await bs.get_belief_history(graphiti, bk, gid, as_of=now - timedelta(days=3))
         check(len(history) == 3, f"(d) 版本链长度 = {len(history)}/3")
         superseded = [h for h in history if h["status"] == "superseded"]
         check(len(superseded) == 2, f"(d) superseded 旧版 = {len(superseded)}/2")
@@ -186,9 +177,7 @@ async def main() -> int:
     if _failures:
         print(f"{RED}❌ {len(_failures)} 项失败{RESET}")
         return 1
-    print(
-        f"{GREEN}✅ 全部断言通过 — Graphiti-native 主链 (写/读/belief 时序) 端到端可用{RESET}"
-    )
+    print(f"{GREEN}✅ 全部断言通过 — Graphiti-native 主链 (写/读/belief 时序) 端到端可用{RESET}")
     return 0
 
 

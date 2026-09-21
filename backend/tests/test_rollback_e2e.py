@@ -244,9 +244,7 @@ class TestOperationHistoryE2E:
 
     def test_get_single_operation_not_found(self, test_client):
         """Test getting non-existent operation."""
-        response = test_client.get(
-            "/api/v1/rollback/operation/nonexistent-operation-id"
-        )
+        response = test_client.get("/api/v1/rollback/operation/nonexistent-operation-id")
 
         assert response.status_code == 404
 
@@ -468,9 +466,7 @@ class TestCompleteWorkflowE2E:
         snapshot_id = snapshot_data["id"]
 
         # Step 2: Verify snapshot exists
-        list_response = test_client.get(
-            "/api/v1/rollback/snapshots/workflow_test.canvas"
-        )
+        list_response = test_client.get("/api/v1/rollback/snapshots/workflow_test.canvas")
         assert list_response.status_code == 200
 
         # Step 3: Rollback to snapshot
@@ -578,9 +574,7 @@ class TestAPIContractValidation:
         for endpoint, method in endpoints:
             if method == "get":
                 response = test_client.get(endpoint)
-            assert response.headers.get("content-type", "").startswith(
-                "application/json"
-            )
+            assert response.headers.get("content-type", "").startswith("application/json")
 
     def test_operation_response_schema(self, test_client):
         """Test operation response matches expected schema."""

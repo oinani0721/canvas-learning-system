@@ -61,9 +61,7 @@ class CandidateEdits(BaseModel):
 
     description: Optional[str] = Field(default=None, description="覆盖错误描述")
     pedagogy_type: Optional[str] = Field(default=None, description="覆盖 4 主类标签")
-    legacy_type: Optional[str] = Field(
-        default=None, description="覆盖 Story 3.6 兼容标签"
-    )
+    legacy_type: Optional[str] = Field(default=None, description="覆盖 Story 3.6 兼容标签")
 
 
 class AcceptCandidateResult(BaseModel):
@@ -121,9 +119,7 @@ def _normalize_yaml_timestamps(obj: Any) -> Any:
     return obj
 
 
-def _atomic_write_frontmatter(
-    file_path: Path, fm_dict: dict[str, Any], body: str
-) -> None:
+def _atomic_write_frontmatter(file_path: Path, fm_dict: dict[str, Any], body: str) -> None:
     """原子写回 frontmatter + body (临时文件 + os.replace)."""
     fm_dict = _normalize_yaml_timestamps(fm_dict)
     new_fm = yaml.safe_dump(fm_dict, allow_unicode=True, sort_keys=False)
@@ -261,9 +257,7 @@ async def accept_candidate(
         try:
             fm_dict, body = await asyncio.to_thread(_read_frontmatter_dict, p)
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to read frontmatter: {e}"
-            )
+            raise HTTPException(status_code=500, detail=f"Failed to read frontmatter: {e}")
 
         candidates = fm_dict.get("error_candidates") or []
         if not isinstance(candidates, list):
@@ -271,9 +265,7 @@ async def accept_candidate(
 
         _idx, candidate = _find_candidate(candidates, candidate_id)
         if candidate is None:
-            raise HTTPException(
-                status_code=404, detail=f"Candidate {candidate_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
 
         # 状态机: 有 edits → "edited", 无 → "accepted"
         target_status = "edited" if user_edits else "accepted"
@@ -284,17 +276,13 @@ async def accept_candidate(
         try:
             classified = _candidate_to_classified_error(candidate, user_edits)
         except Exception as e:
-            raise HTTPException(
-                status_code=422, detail=f"Failed to construct error from candidate: {e}"
-            )
+            raise HTTPException(status_code=422, detail=f"Failed to construct error from candidate: {e}")
 
         # errors[] 追加 (复用 candidate.id 作为 error_id, 与 frontmatter 一致)
         node_id_for_dedupe = candidate.get("node_id") or ""
         dedupe_hash = _make_dedupe_hash(classified, node_id_for_dedupe)
         now_iso = datetime.now(timezone.utc).isoformat()
-        error_id = (
-            candidate_id  # AC #5: 复用 candidate_id 作为 error_id (frontmatter 一致)
-        )
+        error_id = candidate_id  # AC #5: 复用 candidate_id 作为 error_id (frontmatter 一致)
 
         errors_list = fm_dict.get("errors") or []
         if not isinstance(errors_list, list):
@@ -303,11 +291,7 @@ async def accept_candidate(
         # errors[] dedupe (与 v1.0 同算法, 同 hash 的 corrected_at=null 视为重复 → update)
         existing_idx = None
         for i, rec in enumerate(errors_list):
-            if (
-                isinstance(rec, dict)
-                and rec.get("dedupe_hash") == dedupe_hash
-                and rec.get("corrected_at") is None
-            ):
+            if isinstance(rec, dict) and rec.get("dedupe_hash") == dedupe_hash and rec.get("corrected_at") is None:
                 existing_idx = i
                 break
 
@@ -423,9 +407,7 @@ async def dismiss_candidate(
     candidate.status pending → dismissed. 不入 errors[]. 不写 Graphiti.
     保留 candidate 在 error_candidates[] 供未来训练 prompt.
     """
-    return await _change_candidate_status_only(
-        file_path, candidate_id, target_status="dismissed"
-    )
+    return await _change_candidate_status_only(file_path, candidate_id, target_status="dismissed")
 
 
 async def dispute_candidate(
@@ -439,19 +421,14 @@ async def dispute_candidate(
     不入 errors[]. 不写 Graphiti.
     """
     if not dispute_reason or not dispute_reason.strip():
-        raise HTTPException(
-            status_code=422, detail="dispute_reason is required for dispute"
-        )
+        raise HTTPException(status_code=422, detail="dispute_reason is required for dispute")
     # 轨道 B (2026-07-20, C2 观察 a): 用户实测填占位"111"也能过 —
     # 拒绝过短与单字符重复的占位理由, 保住异议数据质量。
     _reason = dispute_reason.strip()
     if len(_reason) < 2 or len(set(_reason)) == 1:
         raise HTTPException(
             status_code=422,
-            detail=(
-                "dispute_reason too weak: 请写一句真实理由 "
-                "(如「我没这么说过, 是 AI 过度推断」), 不接受占位字符"
-            ),
+            detail=("dispute_reason too weak: 请写一句真实理由 (如「我没这么说过, 是 AI 过度推断」), 不接受占位字符"),
         )
 
     return await _change_candidate_status_only(
@@ -484,9 +461,7 @@ async def _change_candidate_status_only(
         try:
             fm_dict, body = await asyncio.to_thread(_read_frontmatter_dict, p)
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Failed to read frontmatter: {e}"
-            )
+            raise HTTPException(status_code=500, detail=f"Failed to read frontmatter: {e}")
 
         candidates = fm_dict.get("error_candidates") or []
         if not isinstance(candidates, list):
@@ -494,9 +469,7 @@ async def _change_candidate_status_only(
 
         _idx, candidate = _find_candidate(candidates, candidate_id)
         if candidate is None:
-            raise HTTPException(
-                status_code=404, detail=f"Candidate {candidate_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Candidate {candidate_id} not found")
 
         # 状态机 + auto-write timestamp/by
         apply_status_change(candidate, target_status, changed_by="user")
@@ -511,9 +484,7 @@ async def _change_candidate_status_only(
         body, _card_updated = upsert_candidate_callout(
             body,
             candidate_id,
-            render_candidate_callout(
-                candidate, target_status, dispute_reason=dispute_reason
-            ),
+            render_candidate_callout(candidate, target_status, dispute_reason=dispute_reason),
             append_if_missing=False,
         )
 

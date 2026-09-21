@@ -166,17 +166,13 @@ def test_observer_token_unset_bypass_not_a_boolean_503():
     os.environ.pop("SIDECAR_OBSERVER_TOKEN", None)
     # 'yes' / '1' / 'TRUE' must NOT enable bypass — only literal 'true' does
     for fuzzy_value in ("yes", "1", "TRUE", "True", "enabled"):
-        with patch.dict(
-            os.environ, {"ALLOW_LOCAL_OBSERVER_BYPASS": fuzzy_value}, clear=False
-        ):
+        with patch.dict(os.environ, {"ALLOW_LOCAL_OBSERVER_BYPASS": fuzzy_value}, clear=False):
             if fuzzy_value.lower() == "true":
                 # 'TRUE' / 'True' lowercase matches — should allow
                 _require_observer_token(request=request, x_canvas_observer_token=None)
             else:
                 with pytest.raises(HTTPException) as exc_info:
-                    _require_observer_token(
-                        request=request, x_canvas_observer_token=None
-                    )
+                    _require_observer_token(request=request, x_canvas_observer_token=None)
                 assert exc_info.value.status_code == 503
 
 

@@ -60,9 +60,7 @@ class TopicClusterer:
             clusters[topic].append(node)
 
         # Sort clusters by number of nodes (largest first)
-        sorted_clusters = dict(
-            sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True)
-        )
+        sorted_clusters = dict(sorted(clusters.items(), key=lambda x: len(x[1]), reverse=True))
 
         return sorted_clusters
 
@@ -164,9 +162,7 @@ class TopicClusterer:
             num_cols = min(len(topic_nodes), nodes_per_row)
 
             group_width = num_cols * (node_width + node_padding) + node_padding
-            group_height = (
-                num_rows * (node_height + node_padding) + node_padding + 50
-            )  # +50 for label
+            group_height = num_rows * (node_height + node_padding) + node_padding + 50  # +50 for label
 
             # Create Group node
             group_id = uuid.uuid4().hex[:16]
@@ -187,9 +183,7 @@ class TopicClusterer:
                 row = i // nodes_per_row
 
                 node_x = start_x + node_padding + col * (node_width + node_padding)
-                node_y = (
-                    current_y + 50 + node_padding + row * (node_height + node_padding)
-                )  # +50 for label
+                node_y = current_y + 50 + node_padding + row * (node_height + node_padding)  # +50 for label
 
                 node_positions.append(
                     {

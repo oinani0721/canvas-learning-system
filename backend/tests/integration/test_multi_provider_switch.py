@@ -39,13 +39,9 @@ class TestMultiProviderSwitch:
         provider.name = "google"
         provider.priority = 1
         provider.is_enabled = True
-        provider.health = ProviderHealth(
-            status=ProviderStatus.HEALTHY, latency_ms=50.0, consecutive_failures=0
-        )
+        provider.health = ProviderHealth(status=ProviderStatus.HEALTHY, latency_ms=50.0, consecutive_failures=0)
         provider.is_available = True
-        provider.config = ProviderConfig(
-            name="google", api_key="test-key", model="gemini-2.0-flash-exp", priority=1
-        )
+        provider.config = ProviderConfig(name="google", api_key="test-key", model="gemini-2.0-flash-exp", priority=1)
         provider.initialize = AsyncMock(return_value=True)
         provider.health_check = AsyncMock(return_value=provider.health)
         provider.complete = AsyncMock(
@@ -65,13 +61,9 @@ class TestMultiProviderSwitch:
         provider.name = "openai"
         provider.priority = 2
         provider.is_enabled = True
-        provider.health = ProviderHealth(
-            status=ProviderStatus.HEALTHY, latency_ms=80.0, consecutive_failures=0
-        )
+        provider.health = ProviderHealth(status=ProviderStatus.HEALTHY, latency_ms=80.0, consecutive_failures=0)
         provider.is_available = True
-        provider.config = ProviderConfig(
-            name="openai", api_key="test-key", model="gpt-4o", priority=2
-        )
+        provider.config = ProviderConfig(name="openai", api_key="test-key", model="gpt-4o", priority=2)
         provider.initialize = AsyncMock(return_value=True)
         provider.health_check = AsyncMock(return_value=provider.health)
         provider.complete = AsyncMock(
@@ -91,9 +83,7 @@ class TestMultiProviderSwitch:
         provider.name = "anthropic"
         provider.priority = 3
         provider.is_enabled = True
-        provider.health = ProviderHealth(
-            status=ProviderStatus.HEALTHY, latency_ms=100.0, consecutive_failures=0
-        )
+        provider.health = ProviderHealth(status=ProviderStatus.HEALTHY, latency_ms=100.0, consecutive_failures=0)
         provider.is_available = True
         provider.config = ProviderConfig(
             name="anthropic",
@@ -146,9 +136,7 @@ class TestMultiProviderSwitch:
     ):
         """AC-20.6.2: Primary fails, should switch to backup."""
         # Arrange - Make Google unhealthy
-        mock_google_provider.health = ProviderHealth(
-            status=ProviderStatus.UNHEALTHY, consecutive_failures=3
-        )
+        mock_google_provider.health = ProviderHealth(status=ProviderStatus.UNHEALTHY, consecutive_failures=3)
         mock_google_provider.is_available = False
 
         factory = ProviderFactory()
@@ -175,14 +163,10 @@ class TestMultiProviderSwitch:
     ):
         """AC-20.6.6: Test complete failover chain Google → OpenAI → Anthropic."""
         # Arrange - Make Google and OpenAI unhealthy
-        mock_google_provider.health = ProviderHealth(
-            status=ProviderStatus.UNHEALTHY, consecutive_failures=3
-        )
+        mock_google_provider.health = ProviderHealth(status=ProviderStatus.UNHEALTHY, consecutive_failures=3)
         mock_google_provider.is_available = False
 
-        mock_openai_provider.health = ProviderHealth(
-            status=ProviderStatus.UNHEALTHY, consecutive_failures=3
-        )
+        mock_openai_provider.health = ProviderHealth(status=ProviderStatus.UNHEALTHY, consecutive_failures=3)
         mock_openai_provider.is_available = False
 
         factory = ProviderFactory()
@@ -214,9 +198,7 @@ class TestMultiProviderSwitch:
             mock_openai_provider,
             mock_anthropic_provider,
         ]:
-            provider.health = ProviderHealth(
-                status=ProviderStatus.UNHEALTHY, consecutive_failures=3
-            )
+            provider.health = ProviderHealth(status=ProviderStatus.UNHEALTHY, consecutive_failures=3)
             provider.is_available = False
 
         factory = ProviderFactory()
@@ -315,9 +297,7 @@ class TestMultiProviderSwitch:
     ):
         """Test that DEGRADED status providers are still selectable."""
         # Arrange - Make Google degraded (1 failure)
-        mock_google_provider.health = ProviderHealth(
-            status=ProviderStatus.DEGRADED, consecutive_failures=1
-        )
+        mock_google_provider.health = ProviderHealth(status=ProviderStatus.DEGRADED, consecutive_failures=1)
         mock_google_provider.is_available = True  # Still available when degraded
 
         factory = ProviderFactory()
@@ -333,9 +313,7 @@ class TestMultiProviderSwitch:
         # Assert - Degraded but highest priority is still selected
         assert provider.name == "google"
 
-    def test_get_specific_provider_by_name(
-        self, mock_google_provider, mock_openai_provider, provider_factory_clean
-    ):
+    def test_get_specific_provider_by_name(self, mock_google_provider, mock_openai_provider, provider_factory_clean):
         """Test getting specific provider by name."""
         # Arrange
         factory = ProviderFactory()
@@ -387,9 +365,7 @@ class TestMultiProviderSwitchAsync:
         # Arrange - First provider fails
         mock_unhealthy_provider.priority = 1
         mock_unhealthy_provider.is_available = True  # Appears available but will fail
-        mock_unhealthy_provider.complete = AsyncMock(
-            side_effect=ProviderError("API Error", provider="test-unhealthy")
-        )
+        mock_unhealthy_provider.complete = AsyncMock(side_effect=ProviderError("API Error", provider="test-unhealthy"))
 
         mock_healthy_provider.priority = 2
 
@@ -402,17 +378,13 @@ class TestMultiProviderSwitchAsync:
         factory._initialized = True
 
         # Act
-        response = await factory.complete(
-            system_prompt="You are helpful", user_prompt="Hello"
-        )
+        response = await factory.complete(system_prompt="You are helpful", user_prompt="Hello")
 
         # Assert - Should have failed over to healthy provider
         assert response.provider == "test-google"
         assert factory._switch_count == 1
 
-    async def test_failover_time_under_2_seconds(
-        self, mock_healthy_provider, provider_factory_clean
-    ):
+    async def test_failover_time_under_2_seconds(self, mock_healthy_provider, provider_factory_clean):
         """AC-20.E2: Provider failover completes within 2 seconds."""
         from app.clients.base_provider import ProviderError
 
@@ -424,9 +396,7 @@ class TestMultiProviderSwitchAsync:
             provider.priority = i + 1
             provider.is_enabled = True
             provider.is_available = True
-            provider.complete = AsyncMock(
-                side_effect=ProviderError(f"API Error {i}", provider=f"failing_{i}")
-            )
+            provider.complete = AsyncMock(side_effect=ProviderError(f"API Error {i}", provider=f"failing_{i}"))
             failing_providers.append(provider)
 
         mock_healthy_provider.priority = 4
@@ -441,9 +411,7 @@ class TestMultiProviderSwitchAsync:
 
         # Act - Time the failover
         start = time.perf_counter()
-        response = await factory.complete(
-            system_prompt="You are helpful", user_prompt="Hello"
-        )
+        response = await factory.complete(system_prompt="You are helpful", user_prompt="Hello")
         elapsed = time.perf_counter() - start
 
         # Assert - Should complete within 2 seconds

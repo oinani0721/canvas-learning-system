@@ -40,9 +40,7 @@ class TestVerificationHistoryEndpoint:
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
     def test_returns_empty_list_when_no_history(self, client):
         """
@@ -57,9 +55,7 @@ class TestVerificationHistoryEndpoint:
 
             response = client.get("/api/v1/review/verification/history/新概念")
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
             assert data["concept"] == "新概念"
             assert data["total_count"] == 0
@@ -94,16 +90,12 @@ class TestVerificationHistoryEndpoint:
 
         with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
             mock_client = AsyncMock()
-            mock_client.search_verification_questions = AsyncMock(
-                return_value=mock_history
-            )
+            mock_client.search_verification_questions = AsyncMock(return_value=mock_history)
             mock_get.return_value = mock_client
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
             assert data["concept"] == "逆否命题"
             assert data["total_count"] == 2
@@ -132,9 +124,7 @@ class TestVerificationHistoryEndpoint:
                 params={"canvas_name": "离散数学"},
             )
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             # Verify the client was called with canvas_name filter
             mock_client.search_verification_questions.assert_called()
             call_kwargs = mock_client.search_verification_questions.call_args.kwargs
@@ -152,9 +142,7 @@ class TestVerificationHistoryEndpoint:
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
             # Graceful degradation: should return 200 with empty list
-            assert response.status_code == 200, (
-                f"Graceful degradation should return 200, got {response.status_code}"
-            )
+            assert response.status_code == 200, f"Graceful degradation should return 200, got {response.status_code}"
             data = response.json()
             assert data["total_count"] == 0
 
@@ -175,9 +163,7 @@ class TestVerificationHistoryPagination:
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
             assert "pagination" in data, "Response should include pagination info"
             assert data["pagination"]["limit"] == 20
@@ -196,13 +182,9 @@ class TestVerificationHistoryPagination:
             mock_client.search_verification_questions = AsyncMock(return_value=[])
             mock_get.return_value = mock_client
 
-            response = client.get(
-                "/api/v1/review/verification/history/逆否命题", params={"limit": 5}
-            )
+            response = client.get("/api/v1/review/verification/history/逆否命题", params={"limit": 5})
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             mock_client.search_verification_questions.assert_called()
             call_kwargs = mock_client.search_verification_questions.call_args.kwargs
             # Endpoint fetches limit+1 to detect has_more
@@ -222,13 +204,9 @@ class TestVerificationHistoryPagination:
             mock_client.search_verification_questions = AsyncMock(return_value=[])
             mock_get.return_value = mock_client
 
-            response = client.get(
-                "/api/v1/review/verification/history/逆否命题", params={"offset": 10}
-            )
+            response = client.get("/api/v1/review/verification/history/逆否命题", params={"offset": 10})
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
             assert "pagination" in data, "Response should include pagination info"
             assert data["pagination"]["offset"] == 10
@@ -256,18 +234,12 @@ class TestVerificationHistoryPagination:
         with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
             mock_client = AsyncMock()
             # Endpoint fetches limit+1 to detect has_more, so return 21 items
-            mock_client.search_verification_questions = AsyncMock(
-                return_value=mock_history[:21]
-            )
+            mock_client.search_verification_questions = AsyncMock(return_value=mock_history[:21])
             mock_get.return_value = mock_client
 
-            response = client.get(
-                "/api/v1/review/verification/history/逆否命题", params={"limit": 20}
-            )
+            response = client.get("/api/v1/review/verification/history/逆否命题", params={"limit": 20})
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
             assert "pagination" in data, "Response should include pagination info"
             assert data["pagination"]["has_more"] is True
@@ -290,13 +262,9 @@ class TestVerificationHistoryPagination:
             mock_client.search_verification_questions = AsyncMock(return_value=[])
             mock_get.return_value = mock_client
 
-            response = client.get(
-                "/api/v1/review/verification/history/逆否命题", params=params
-            )
+            response = client.get("/api/v1/review/verification/history/逆否命题", params=params)
 
-            assert response.status_code in [400, 422], (
-                f"Expected 400/422 for {description}, got {response.status_code}"
-            )
+            assert response.status_code in [400, 422], f"Expected 400/422 for {description}, got {response.status_code}"
 
 
 class TestVerificationHistoryResponseFormat:
@@ -322,16 +290,12 @@ class TestVerificationHistoryResponseFormat:
 
         with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
             mock_client = AsyncMock()
-            mock_client.search_verification_questions = AsyncMock(
-                return_value=mock_history
-            )
+            mock_client.search_verification_questions = AsyncMock(return_value=mock_history)
             mock_get.return_value = mock_client
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
 
             # Verify top-level fields
@@ -372,9 +336,7 @@ class TestVerificationHistoryResponseFormat:
 
         with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
             mock_client = AsyncMock()
-            mock_client.search_verification_questions = AsyncMock(
-                return_value=mock_history
-            )
+            mock_client.search_verification_questions = AsyncMock(return_value=mock_history)
             mock_get.return_value = mock_client
 
             response = client.get("/api/v1/review/verification/history/测试概念")
@@ -406,21 +368,15 @@ class TestVerificationHistoryResponseFormat:
 
         with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
             mock_client = AsyncMock()
-            mock_client.search_verification_questions = AsyncMock(
-                return_value=mock_history
-            )
+            mock_client.search_verification_questions = AsyncMock(return_value=mock_history)
             mock_get.return_value = mock_client
 
             response = client.get("/api/v1/review/verification/history/测试概念")
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
             assert len(data["items"]) > 0, "Expected non-empty items list"
-            assert data["items"][0].get("score") is not None, (
-                "Expected score to be present"
-            )
+            assert data["items"][0].get("score") is not None, "Expected score to be present"
             score = data["items"][0]["score"]
             assert 0 <= score <= 100
 
@@ -444,9 +400,7 @@ class TestMultiSubjectIsolation:
                 params={"group_id": "math_subject"},
             )
 
-            assert response.status_code == 200, (
-                f"Expected 200, got {response.status_code}: {response.text}"
-            )
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             mock_client.search_verification_questions.assert_called()
             call_kwargs = mock_client.search_verification_questions.call_args.kwargs
             assert call_kwargs.get("group_id") == "math_subject"
@@ -492,9 +446,7 @@ class TestMultiSubjectIsolation:
                     return physics_history
                 return []
 
-            mock_client.search_verification_questions = AsyncMock(
-                side_effect=mock_search
-            )
+            mock_client.search_verification_questions = AsyncMock(side_effect=mock_search)
             mock_get.return_value = mock_client
 
             # Query math subject
@@ -509,9 +461,7 @@ class TestMultiSubjectIsolation:
                 params={"group_id": "physics_subject"},
             )
 
-            assert response_math.status_code == 200, (
-                f"Math query: expected 200, got {response_math.status_code}"
-            )
+            assert response_math.status_code == 200, f"Math query: expected 200, got {response_math.status_code}"
             assert response_physics.status_code == 200, (
                 f"Physics query: expected 200, got {response_physics.status_code}"
             )
@@ -521,7 +471,4 @@ class TestMultiSubjectIsolation:
             # Results should be different based on group_id
             assert len(math_data["items"]) > 0, "Expected non-empty math items"
             assert len(physics_data["items"]) > 0, "Expected non-empty physics items"
-            assert (
-                math_data["items"][0]["question_id"]
-                != physics_data["items"][0]["question_id"]
-            )
+            assert math_data["items"][0]["question_id"] != physics_data["items"][0]["question_id"]

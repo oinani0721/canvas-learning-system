@@ -46,13 +46,10 @@ class TestP01FSRSManagerDI:
 
         source = inspect.getsource(get_review_service)
         assert "fsrs_manager=" in source, (
-            "services/review_service.py get_review_service singleton must pass "
-            "fsrs_manager to ReviewService"
+            "services/review_service.py get_review_service singleton must pass fsrs_manager to ReviewService"
         )
 
-    def test_review_service_accepts_fsrs_manager(
-        self, mock_canvas_service, mock_task_manager
-    ):
+    def test_review_service_accepts_fsrs_manager(self, mock_canvas_service, mock_task_manager):
         """ReviewService should accept and store fsrs_manager parameter."""
         mock_fsrs = MagicMock()
         with patch(
@@ -69,9 +66,7 @@ class TestP01FSRSManagerDI:
         assert service._fsrs_manager is mock_fsrs
         assert service._fsrs_init_ok is True
 
-    def test_review_service_fsrs_manager_none_fallback(
-        self, mock_canvas_service, mock_task_manager
-    ):
+    def test_review_service_fsrs_manager_none_fallback(self, mock_canvas_service, mock_task_manager):
         """When fsrs_manager=None, ReviewService should attempt auto-create."""
         with patch(
             "app.services.review_service.ReviewService._load_card_states",
@@ -132,9 +127,7 @@ class TestP02CardStatePersistence:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_save_card_states_writes_file(
-        self, tmp_path, mock_canvas_service, mock_task_manager
-    ):
+    async def test_save_card_states_writes_file(self, tmp_path, mock_canvas_service, mock_task_manager):
         """_save_card_states should write to JSON file (now async with atomic write)."""
         json_file = tmp_path / "fsrs_card_states.json"
 
@@ -145,9 +138,7 @@ class TestP02CardStatePersistence:
             ):
                 from app.services.review_service import ReviewService
 
-                service = ReviewService(
-                    canvas_service=mock_canvas_service, task_manager=mock_task_manager
-                )
+                service = ReviewService(canvas_service=mock_canvas_service, task_manager=mock_task_manager)
             service._card_states = {"concept_x": '{"stability": 3.0}'}
             await service._save_card_states()
 
@@ -156,9 +147,7 @@ class TestP02CardStatePersistence:
         assert loaded == {"concept_x": '{"stability": 3.0}'}
 
     @pytest.mark.asyncio
-    async def test_save_card_states_survives_restart(
-        self, tmp_path, mock_canvas_service, mock_task_manager
-    ):
+    async def test_save_card_states_survives_restart(self, tmp_path, mock_canvas_service, mock_task_manager):
         """Card states should survive service restart (save then load)."""
         json_file = tmp_path / "fsrs_card_states.json"
         states = {"concept_1": '{"s":1}', "concept_2": '{"s":2}'}
@@ -171,9 +160,7 @@ class TestP02CardStatePersistence:
             ):
                 from app.services.review_service import ReviewService
 
-                svc1 = ReviewService(
-                    canvas_service=mock_canvas_service, task_manager=mock_task_manager
-                )
+                svc1 = ReviewService(canvas_service=mock_canvas_service, task_manager=mock_task_manager)
             svc1._card_states = states
             await svc1._save_card_states()
 
@@ -198,9 +185,7 @@ class TestP03RatingValidation:
         ):
             from app.services.review_service import ReviewService
 
-            return ReviewService(
-                canvas_service=mock_canvas_service, task_manager=mock_task_manager
-            )
+            return ReviewService(canvas_service=mock_canvas_service, task_manager=mock_task_manager)
 
     @pytest.mark.asyncio
     async def test_rating_string_abc_defaults_to_3(self, review_service):

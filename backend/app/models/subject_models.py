@@ -30,9 +30,7 @@ class SubjectCreate(BaseModel):
         description="Optional display color (e.g. '#4A90D9')",
     )
 
-    model_config = ConfigDict(
-        json_schema_extra={"example": {"name": "离散数学", "color": "#4A90D9"}}
-    )
+    model_config = ConfigDict(json_schema_extra={"example": {"name": "离散数学", "color": "#4A90D9"}})
 
 
 class SubjectUpdate(BaseModel):
@@ -50,9 +48,7 @@ class SubjectUpdate(BaseModel):
         description="New display color",
     )
 
-    model_config = ConfigDict(
-        json_schema_extra={"example": {"name": "离散数学 (进阶)", "color": "#D94A4A"}}
-    )
+    model_config = ConfigDict(json_schema_extra={"example": {"name": "离散数学 (进阶)", "color": "#D94A4A"}})
 
 
 class SubjectResponse(BaseModel):
@@ -62,9 +58,7 @@ class SubjectResponse(BaseModel):
     name: str = Field(..., description="Human-readable subject name")
     color: Optional[str] = Field(default=None, description="Display color")
     created_at: str = Field(..., description="ISO-8601 creation timestamp")
-    node_count: int = Field(
-        default=0, description="Number of CanvasNode entries in this subject"
-    )
+    node_count: int = Field(default=0, description="Number of CanvasNode entries in this subject")
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -82,7 +76,5 @@ class SubjectResponse(BaseModel):
 class SubjectListResponse(BaseModel):
     """Response for GET /subjects/."""
 
-    subjects: list[SubjectResponse] = Field(
-        default_factory=list, description="All subjects"
-    )
+    subjects: list[SubjectResponse] = Field(default_factory=list, description="All subjects")
     total: int = Field(default=0, description="Total number of subjects")

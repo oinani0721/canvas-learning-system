@@ -70,9 +70,7 @@ def test_effective_at_can_backfill(monkeypatch, tmp_path):
 
 
 def test_io_failure_never_raises(monkeypatch):
-    monkeypatch.setattr(
-        ev, "_log_path", lambda: (_ for _ in ()).throw(RuntimeError("boom"))
-    )
+    monkeypatch.setattr(ev, "_log_path", lambda: (_ for _ in ()).throw(RuntimeError("boom")))
     assert not ev.append_event("answer_scored", event_id="quiz:e2")
 
 

@@ -162,15 +162,12 @@ class TestRollbackSwitchE2E:
             )
 
         assert result is False  # Skipped (fallback)
-        warning_msgs = [
-            r.message.lower() for r in caplog.records if r.levelno >= logging.WARNING
-        ]
+        warning_msgs = [r.message.lower() for r in caplog.records if r.levelno >= logging.WARNING]
         assert len(warning_msgs) > 0, "Expected at least one WARNING log"
         combined = " ".join(warning_msgs)
-        assert any(
-            kw in combined
-            for kw in ["fallback", "unavailable", "skipping", "not configured"]
-        ), f"Expected fallback/skip keyword in: {combined}"
+        assert any(kw in combined for kw in ["fallback", "unavailable", "skipping", "not configured"]), (
+            f"Expected fallback/skip keyword in: {combined}"
+        )
 
     @pytest.mark.asyncio
     async def test_edge_sync_json_fallback_when_neo4j_unavailable(self, caplog):
@@ -217,9 +214,7 @@ class TestResilienceE2E:
         service = CanvasService(canvas_base_path="/tmp/test")
         mock_memory = MagicMock()
         mock_neo4j = AsyncMock()
-        mock_neo4j.create_edge_relationship = AsyncMock(
-            side_effect=ConnectionError("Connection refused")
-        )
+        mock_neo4j.create_edge_relationship = AsyncMock(side_effect=ConnectionError("Connection refused"))
         mock_memory.neo4j = mock_neo4j
         service._memory_client = mock_memory
 
@@ -248,9 +243,7 @@ class TestResilienceE2E:
 
         mock_neo4j = MagicMock()
         mock_learning = MagicMock()
-        mock_learning.add_learning_episode = AsyncMock(
-            side_effect=RuntimeError("Client unavailable")
-        )
+        mock_learning.add_learning_episode = AsyncMock(side_effect=RuntimeError("Client unavailable"))
 
         service = MemoryService(
             neo4j_client=mock_neo4j,

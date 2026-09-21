@@ -53,9 +53,7 @@ def mock_operation_tracker():
 class TestOperationHistoryEndpoint:
     """Test suite for GET /api/v1/rollback/history/{canvas_path} endpoint."""
 
-    def test_get_operation_history_returns_200(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_returns_200(self, client: TestClient, mock_operation_tracker):
         """
         Test that operation history endpoint returns HTTP 200 OK.
 
@@ -68,9 +66,7 @@ class TestOperationHistoryEndpoint:
             response = client.get("/api/v1/rollback/history/test.canvas")
             assert response.status_code == 200
 
-    def test_get_operation_history_response_structure(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_response_structure(self, client: TestClient, mock_operation_tracker):
         """
         Test that operation history response has correct structure.
 
@@ -91,9 +87,7 @@ class TestOperationHistoryEndpoint:
             assert "offset" in data
             assert "operations" in data
 
-    def test_get_operation_history_pagination_params(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_pagination_params(self, client: TestClient, mock_operation_tracker):
         """
         Test that pagination parameters are correctly passed.
 
@@ -103,20 +97,14 @@ class TestOperationHistoryEndpoint:
             "app.api.v1.endpoints.rollback.get_operation_tracker",
             return_value=mock_operation_tracker,
         ):
-            response = client.get(
-                "/api/v1/rollback/history/test.canvas?limit=10&offset=5"
-            )
+            response = client.get("/api/v1/rollback/history/test.canvas?limit=10&offset=5")
             data = response.json()
 
             assert data["limit"] == 10
             assert data["offset"] == 5
-            mock_operation_tracker.get_history.assert_called_with(
-                "test.canvas", limit=10, offset=5
-            )
+            mock_operation_tracker.get_history.assert_called_with("test.canvas", limit=10, offset=5)
 
-    def test_get_operation_history_default_pagination(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_default_pagination(self, client: TestClient, mock_operation_tracker):
         """
         Test that default pagination values are applied.
 
@@ -133,9 +121,7 @@ class TestOperationHistoryEndpoint:
             assert data["limit"] == 50
             assert data["offset"] == 0
 
-    def test_get_operation_history_limit_validation(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_limit_validation(self, client: TestClient, mock_operation_tracker):
         """
         Test that limit parameter is validated (1-100).
 
@@ -153,9 +139,7 @@ class TestOperationHistoryEndpoint:
             response = client.get("/api/v1/rollback/history/test.canvas?limit=0")
             assert response.status_code == 422
 
-    def test_get_operation_history_operations_structure(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_operations_structure(self, client: TestClient, mock_operation_tracker):
         """
         Test that each operation in the list has correct structure.
 
@@ -180,9 +164,7 @@ class TestOperationHistoryEndpoint:
             assert "data" in op
             assert "metadata" in op
 
-    def test_get_operation_history_empty_canvas(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_empty_canvas(self, client: TestClient, mock_operation_tracker):
         """Test that empty canvas returns empty operations list."""
         mock_operation_tracker.get_history.return_value = []
         mock_operation_tracker.get_total_count.return_value = 0
@@ -197,9 +179,7 @@ class TestOperationHistoryEndpoint:
             assert data["total"] == 0
             assert data["operations"] == []
 
-    def test_get_operation_history_canvas_path_with_subdirectory(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_canvas_path_with_subdirectory(self, client: TestClient, mock_operation_tracker):
         """
         Test that canvas path with subdirectory is handled correctly.
 
@@ -215,9 +195,7 @@ class TestOperationHistoryEndpoint:
             data = response.json()
             assert data["canvas_path"] == "课程/离散数学.canvas"
 
-    def test_get_operation_history_content_type(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_history_content_type(self, client: TestClient, mock_operation_tracker):
         """Test that operation history returns JSON content type."""
         with patch(
             "app.api.v1.endpoints.rollback.get_operation_tracker",
@@ -230,9 +208,7 @@ class TestOperationHistoryEndpoint:
 class TestSingleOperationEndpoint:
     """Test suite for GET /api/v1/rollback/operation/{operation_id} endpoint."""
 
-    def test_get_operation_returns_200(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_returns_200(self, client: TestClient, mock_operation_tracker):
         """Test that get operation endpoint returns HTTP 200 OK."""
         with patch(
             "app.api.v1.endpoints.rollback.get_operation_tracker",
@@ -241,9 +217,7 @@ class TestSingleOperationEndpoint:
             response = client.get("/api/v1/rollback/operation/op-001")
             assert response.status_code == 200
 
-    def test_get_operation_response_structure(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_response_structure(self, client: TestClient, mock_operation_tracker):
         """
         Test that single operation response has correct structure.
 
@@ -265,9 +239,7 @@ class TestSingleOperationEndpoint:
             assert "data" in data
             assert "metadata" in data
 
-    def test_get_operation_not_found_returns_404(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_not_found_returns_404(self, client: TestClient, mock_operation_tracker):
         """
         Test that non-existent operation returns 404.
 
@@ -284,9 +256,7 @@ class TestSingleOperationEndpoint:
             data = response.json()
             assert "detail" in data
 
-    def test_get_operation_data_structure(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_data_structure(self, client: TestClient, mock_operation_tracker):
         """Test that operation data has correct structure."""
         with patch(
             "app.api.v1.endpoints.rollback.get_operation_tracker",
@@ -301,9 +271,7 @@ class TestSingleOperationEndpoint:
             assert "node_ids" in op_data
             assert "edge_ids" in op_data
 
-    def test_get_operation_metadata_structure(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_metadata_structure(self, client: TestClient, mock_operation_tracker):
         """Test that operation metadata has correct structure."""
         with patch(
             "app.api.v1.endpoints.rollback.get_operation_tracker",
@@ -317,9 +285,7 @@ class TestSingleOperationEndpoint:
             assert "agent_id" in metadata
             assert "request_id" in metadata
 
-    def test_get_operation_type_values(
-        self, client: TestClient, mock_operation_tracker
-    ):
+    def test_get_operation_type_values(self, client: TestClient, mock_operation_tracker):
         """
         Test that operation type is one of the valid types.
 

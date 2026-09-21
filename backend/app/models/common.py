@@ -38,9 +38,7 @@ class HealthCheckResponse(BaseModel):
     )
     app_name: str = Field(..., description="Application name")
     version: str = Field(..., description="Application version")
-    timestamp: datetime = Field(
-        ..., description="Health check timestamp (ISO 8601 format)"
-    )
+    timestamp: datetime = Field(..., description="Health check timestamp (ISO 8601 format)")
 
     model_config = {
         "json_schema_extra": {
@@ -99,9 +97,7 @@ class AgentTypeStats(BaseModel):
     count: int = Field(..., description="Total invocations")
     success_count: int = Field(default=0, description="Successful invocations")
     error_count: int = Field(default=0, description="Failed invocations")
-    avg_time_s: float = Field(
-        default=0.0, description="Average execution time in seconds"
-    )
+    avg_time_s: float = Field(default=0.0, description="Average execution time in seconds")
 
 
 class AgentMetricsSummary(BaseModel):
@@ -112,12 +108,8 @@ class AgentMetricsSummary(BaseModel):
     """
 
     invocations_total: int = Field(..., description="Total agent invocations")
-    avg_execution_time_s: float = Field(
-        ..., description="Average execution time in seconds"
-    )
-    by_type: dict[str, AgentTypeStats] = Field(
-        default_factory=dict, description="Statistics by agent type"
-    )
+    avg_execution_time_s: float = Field(..., description="Average execution time in seconds")
+    by_type: dict[str, AgentTypeStats] = Field(default_factory=dict, description="Statistics by agent type")
 
 
 class MemoryTypeStats(BaseModel):
@@ -127,9 +119,7 @@ class MemoryTypeStats(BaseModel):
     success_count: int = Field(default=0, description="Successful queries")
     error_count: int = Field(default=0, description="Failed queries")
     avg_latency_s: float = Field(default=0.0, description="Average latency in seconds")
-    by_operation: dict[str, int] = Field(
-        default_factory=dict, description="Query counts by operation type"
-    )
+    by_operation: dict[str, int] = Field(default_factory=dict, description="Query counts by operation type")
 
 
 class MemoryMetricsSummary(BaseModel):
@@ -156,9 +146,7 @@ class ResourceMetricsSummary(BaseModel):
 
     cpu_usage_percent: float = Field(..., description="CPU usage percentage")
     memory_usage_percent: float = Field(..., description="Memory usage percentage")
-    memory_available_bytes: int = Field(
-        default=0, description="Available memory in bytes"
-    )
+    memory_available_bytes: int = Field(default=0, description="Available memory in bytes")
     memory_total_bytes: int = Field(default=0, description="Total memory in bytes")
     disk_usage_percent: float = Field(..., description="Disk usage percentage")
     disk_free_bytes: int = Field(default=0, description="Free disk space in bytes")
@@ -173,12 +161,8 @@ class MetricsSummary(BaseModel):
     """
 
     agents: AgentMetricsSummary = Field(..., description="Agent execution metrics")
-    memory_system: MemoryMetricsSummary = Field(
-        ..., description="Memory system metrics"
-    )
-    resources: ResourceMetricsSummary = Field(
-        ..., description="System resource metrics"
-    )
+    memory_system: MemoryMetricsSummary = Field(..., description="Memory system metrics")
+    resources: ResourceMetricsSummary = Field(..., description="System resource metrics")
     timestamp: datetime = Field(..., description="Metrics collection timestamp")
 
     model_config = {

@@ -52,9 +52,7 @@ class ArchiveScheduler:
 
         self._running = True
         self._task = asyncio.create_task(self._run_loop())
-        logger.info(
-            f"[Story 3.8] Archive scheduler started (interval={self._check_interval}s)"
-        )
+        logger.info(f"[Story 3.8] Archive scheduler started (interval={self._check_interval}s)")
 
     async def stop(self) -> None:
         """
@@ -137,10 +135,7 @@ class ArchiveScheduler:
             archived_count = len(results)
             self._total_archived += archived_count
 
-            logger.info(
-                f"[Story 3.8] Archive check complete: "
-                f"checked={len(node_ids)} archived={archived_count}"
-            )
+            logger.info(f"[Story 3.8] Archive check complete: checked={len(node_ids)} archived={archived_count}")
 
             return {
                 "checked": len(node_ids),
@@ -174,9 +169,7 @@ class ArchiveScheduler:
         # 现在统一走读侧解析口: ContextVar 有真实 vault 就用它, 否则推导进程
         # active vault; 推导不出或落到 vault:default 污染桶则显式抛错
         # (由下方 except 记 error, 不静默当成"没有活跃节点")。
-        effective_group_id = require_read_group(
-            context="archive_scheduler._get_active_node_ids"
-        )
+        effective_group_id = require_read_group(context="archive_scheduler._get_active_node_ids")
 
         memory_svc = await get_memory_service()
 

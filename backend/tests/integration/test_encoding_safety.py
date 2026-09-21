@@ -92,9 +92,7 @@ class TestRequestEncoding:
     """Story 12.J.2 & 12.J.3: 请求编码测试."""
 
     @pytest.mark.asyncio
-    async def test_chinese_canvas_name_accepted(
-        self, async_client: AsyncClient, chinese_canvas_name: str
-    ):
+    async def test_chinese_canvas_name_accepted(self, async_client: AsyncClient, chinese_canvas_name: str):
         """中文 canvas 名称应被正确接受."""
         response = await async_client.post(
             "/api/v1/agents/decompose/basic",
@@ -106,9 +104,7 @@ class TestRequestEncoding:
         assert response.status_code != 400, "Should not reject valid UTF-8"
 
     @pytest.mark.asyncio
-    async def test_invalid_utf8_returns_400(
-        self, async_client: AsyncClient, invalid_utf8_bytes: bytes
-    ):
+    async def test_invalid_utf8_returns_400(self, async_client: AsyncClient, invalid_utf8_bytes: bytes):
         """无效 UTF-8 应返回 400，不是 500."""
         response = await async_client.post(
             "/api/v1/agents/decompose/basic",
@@ -121,9 +117,7 @@ class TestRequestEncoding:
         assert data.get("error_type") == "ENCODING_ERROR"
 
     @pytest.mark.asyncio
-    async def test_emoji_in_node_content(
-        self, async_client: AsyncClient, emoji_content: str
-    ):
+    async def test_emoji_in_node_content(self, async_client: AsyncClient, emoji_content: str):
         """节点内容包含 emoji 应正常处理."""
         response = await async_client.post(
             "/api/v1/agents/decompose/basic",
@@ -154,27 +148,21 @@ class TestUnicodeErrorHandling:
         error = UnicodeEncodeError("gbk", "测试🔥", 2, 3, "illegal multibyte sequence")
 
         # 调用辅助函数
-        http_exception = _create_encoding_error_response(
-            error, "test_endpoint", "test_cache_key"
-        )
+        http_exception = _create_encoding_error_response(error, "test_endpoint", "test_cache_key")
 
         # 验证返回的 HTTPException
         assert http_exception.status_code == 500
         detail = http_exception.detail
         assert detail.get("error_type") == "ENCODING_ERROR"
         assert "diagnostic" in detail
-        assert (
-            detail.get("is_retryable") is True
-        )  # ENCODING_ERROR is retryable per ADR-009
+        assert detail.get("is_retryable") is True  # ENCODING_ERROR is retryable per ADR-009
 
     def test_encoding_error_diagnostic_is_ascii_safe(self):
         """诊断信息应为 ASCII 安全格式."""
         from app.api.v1.endpoints.agents import _create_encoding_error_response
 
         # 创建包含中文和 emoji 的 UnicodeEncodeError
-        error = UnicodeEncodeError(
-            "gbk", "中文测试🔥表情", 4, 5, "illegal multibyte sequence"
-        )
+        error = UnicodeEncodeError("gbk", "中文测试🔥表情", 4, 5, "illegal multibyte sequence")
 
         http_exception = _create_encoding_error_response(error, "test", "")
 
@@ -203,9 +191,7 @@ class TestCORSMiddlewareEncoding:
     """Story 12.J.5: CORS 中间件编码安全测试."""
 
     @pytest.mark.asyncio
-    async def test_exception_with_unicode_safely_handled(
-        self, async_client: AsyncClient
-    ):
+    async def test_exception_with_unicode_safely_handled(self, async_client: AsyncClient):
         """包含 Unicode 的异常应被安全处理."""
         # Use unique IDs to avoid request cache (Story 12.H.5)
         test_canvas = f"cors_test_{unique_id()}.canvas"
@@ -290,6 +276,4 @@ class TestEncodingEndToEnd:
             # 所有端点都不应返回编码相关的错误
             if response.status_code == 400:
                 data = response.json()
-                assert data.get("error_type") != "ENCODING_ERROR", (
-                    f"Endpoint {endpoint} rejected valid Unicode"
-                )
+                assert data.get("error_type") != "ENCODING_ERROR", f"Endpoint {endpoint} rejected valid Unicode"
