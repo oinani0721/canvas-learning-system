@@ -1,6 +1,6 @@
 # B15-CLOSEOUT 状态（2026-09-20 17:40 · 主 session · 候选树已就绪）
 
-## 候选树就绪（tip 6819f74e，树净；全部门已跑）
+## 候选树就绪（历史阶段快照：tip 6819f74e，树净；全部门已跑）——已由 ff-only + 收尾登记取代
 - 32 卡全合（G8-10 squash `0400d848` = 24 lane commits，r21 绑 67db0c61 = B/H/M/L 0/0/0/0）。
 - 协议回写 `f26e6a85`；R-SLO 锁版 `69d26ed5`（用户口令+签字）；集成修复 `2bdbc685`/`d0e42bc4`/`4f6d17ca`（7692 门新契约）；底账重锚 `62151cf1`/`46984d80`；D40 `04eb9a9f`；台账/总账 `2d6d9abf`；复核存档 `22f68228`；终证据 `6819f74e`。
 - 终跑门（全部在最终 tip）：openapi `DRIFT: none`；pyright `app` **0 errors**；tests/unit **只减**（32 vs 基线 33，0 引入/1 修）；**7692 四文件 107 passed**；contract 3 文件 = 2 既有红/75 passed（红 nodeid 集合/计数与基线等价）；G8-10 checker failures=0 rc=0。
@@ -39,7 +39,7 @@
 3. **feature 树 3 处删除处置**（research-pack 3 文件 / .gdr prompt / 2026-05-27 任务书）：恢复 or 保留。
 4. ff-only 前置已实测：仅 `.claude/rules/card-batch-protocol.md` 需 restore（内容 ⊆ 候选版）；untracked 无碰撞。
 
-## ff 后步骤（已备）
+## ff 后步骤（已全部执行；保留为执行清单）
 ff-only → feature 收尾登记 commit（命令卡/进度表/协议侧清理/批次 docs）→ 推送 origin+backup+tags（逐个）→ 状态账 MERGED + `第十五批-完成的卡-汇报.md` → **D-15 GLM-5.3 max 终审绑最终 HEAD（M/L 也须 0；模板已备 /tmp/b15-closeout/final-glm-prompt-template.md）**。
 
 ---
