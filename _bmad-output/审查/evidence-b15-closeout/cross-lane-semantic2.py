@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""跨车道语义等价核验 v2（r3 H-3 修复）。
+"""跨车道语义等价核验 v2.1（r3 H-3 修复 + r4-L2 修复：blob 读取 fail-closed）。
 
 按后缀选择比较口径（均双端同口径；无法结构化则字节比较）：
   .py     → ast.dump(ast.parse)  相等
@@ -30,8 +30,16 @@ EXCEPTIONS = {
 def run(args, cwd):
     return subprocess.run(["git"] + args, cwd=cwd, capture_output=True).stdout
 
-def blob(cwd, ref, path):
-    return subprocess.run(["git", "show", f"{ref}:{path}"], cwd=cwd, capture_output=True).stdout
+def blob_checked(cwd, ref, path):
+    """r4-L2 修复：先 `git cat-file -e <ref>:<path>` 断言路径存在，再取 blob；
+    任一 git 子命令失败 ⇒ ok=False（不把“路径缺失”与“空 blob”混同为 b''）。"""
+    exists = subprocess.run(["git", "cat-file", "-e", f"{ref}:{path}"], cwd=cwd, capture_output=True)
+    if exists.returncode != 0:
+        return False, b""
+    show = subprocess.run(["git", "show", f"{ref}:{path}"], cwd=cwd, capture_output=True)
+    if show.returncode != 0:
+        return False, b""
+    return True, show.stdout
 
 def _try(fn, b):
     try:
@@ -82,7 +90,7 @@ def equiv(path, a, b):
         return "SH" if _lines(a) == _lines(b) else None
     return None
 
-equiv_n = exc_n = diff_n = 0
+equiv_n = exc_n = diff_n = missing_n = empty_n = 0
 print(f"# candidate={C} head={run(['rev-parse','--short=8','HEAD'],C).decode().strip()}")
 for lane, d in LANES.items():
     L = f"{W}/card-{d}"
@@ -91,7 +99,14 @@ for lane, d in LANES.items():
     files = [f for f in run(["diff", "--name-only", "-z", f"{BASE}..HEAD", "--", ".", ":(exclude)_bmad-output"], L).decode("utf-8","surrogateescape").split("\0") if f]
     print(f"## {lane} tip={tip} files={len(files)}")
     for f in files:
-        a = blob(C, "HEAD", f); b = blob(L, "HEAD", f)
+        ok_c, a = blob_checked(C, "HEAD", f); ok_l, b = blob_checked(L, "HEAD", f)
+        if not (ok_c and ok_l):
+            missing_n += 1
+            print(f"  [MISSING] {f}（cat-file -e rc!=0：candidate_ok={ok_c} lane_ok={ok_l}）")
+            continue
+        if a == b"" or b == b"":
+            empty_n += 1
+            print(f"  [EMPTY] {f}（零字节 blob：candidate_len={len(a)} lane_len={len(b)}）")
         how = equiv(f, a, b)
         if how:
             equiv_n += 1
@@ -101,6 +116,6 @@ for lane, d in LANES.items():
         else:
             diff_n += 1
             print(f"  [DIFF] {f}（无声明例外，需归因）")
-total = equiv_n + exc_n + diff_n
-print(f"\nchecked={total} equiv={equiv_n} exceptions={exc_n} undecided_diff={diff_n}")
-print(f"verdict={'PASS' if diff_n == 0 else 'FAIL(' + str(diff_n) + ')'}")
+total = equiv_n + exc_n + diff_n + missing_n
+print(f"\nchecked={total} equiv={equiv_n} exceptions={exc_n} undecided_diff={diff_n} missing={missing_n} empty={empty_n}")
+print(f"verdict={'PASS' if (diff_n == 0 and missing_n == 0) else 'FAIL(diff=' + str(diff_n) + ',missing=' + str(missing_n) + ')'}")

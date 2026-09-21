@@ -1,0 +1,11 @@
+# branch push 自证 @ 83a280dbaebb8f8d70eced748cf356950b89dd2d（2026-09-20 20:31:35 -0700）
+# 命令：git rev-parse HEAD / origin|backup/worktree-feature-obsidian-hybrid-dev；git ls-remote --heads origin|backup
+# r4 前置提交推送核对 20260920T203135
+local=83a280dbaebb8f8d70eced748cf356950b89dd2d
+origin(tracking)=83a280dbaebb8f8d70eced748cf356950b89dd2d
+backup(tracking)=83a280dbaebb8f8d70eced748cf356950b89dd2d
+--- ls-remote --heads origin ---
+83a280dbaebb8f8d70eced748cf356950b89dd2d	refs/heads/worktree-feature-obsidian-hybrid-dev
+--- ls-remote --heads backup ---
+83a280dbaebb8f8d70eced748cf356950b89dd2d	refs/heads/worktree-feature-obsidian-hybrid-dev
+# 说明：本档随 r5 前置档入库；其提交后的 tip 推送以 remote-tracking refs / ls-remote 复核（r5 prompt 附 transcript）。

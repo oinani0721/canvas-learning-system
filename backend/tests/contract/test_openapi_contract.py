@@ -39,7 +39,7 @@ from hypothesis import Phase, settings
 #   - `tests/conftest.py` 把 `CANVAS_BASE_PATH` 设成相对的 `"./test_canvas"`, canvas /
 #     index / sync 端点因此写进 `backend/test_canvas/`。
 #
-# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 **89** 条 —— 93 个 GET(HEAD 面为 0)
+# 代价(如实): 契约覆盖面从 206 个 operation 收窄到 **90** 条 —— 94 个 GET(HEAD 面为 0)
 # 再减去下方追加排除的 4 条会写盘的只读端点。被排除的共 **117** 条(POST 96 / DELETE 9 /
 # PUT 6 / PATCH 2 / GET 4), 清单见
 # `_bmad-output/审查/evidence-hyg-openapi/excluded-operations.txt`
