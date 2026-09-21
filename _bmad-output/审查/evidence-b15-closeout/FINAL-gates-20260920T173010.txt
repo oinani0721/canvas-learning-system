@@ -1,0 +1,5 @@
+# FINAL gate snapshot @ 46984d802d2c55030b70452d49286d6b37f37567  2026-09-20 17:30:10 -0700
+== openapi drift ==
+DRIFT: none (paths=199 schemas=357)
+== pyright app ==
+0 errors, 83 warnings, 0 informations

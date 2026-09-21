@@ -1,0 +1,4 @@
+# G8-10 checker FINAL @ 46984d802d2c55030b70452d49286d6b37f37567
+# digest=088fdb09cb0bf7d7ad553e6760e49136
+chains=6 obj07=5 failures=0 source_digest=088fdb09cb0bf7d7ad553e6760e49136 expect_digest=088fdb09cb0bf7d7ad553e6760e49136 head=46984d802d2c55030b70452d49286d6b37f37567 dirty=1 dirty_tracked=0 dirty_untracked=1
+rc=0
