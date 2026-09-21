@@ -12,13 +12,13 @@
 - tests/unit：**只减**（32 vs 基线 33；0 引入 / 1 修 = `tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422`〔r8-L2 勘误；r1–r7 存档中 digest 测试归因为误〕）——**含 node 相关 33 条的两次跑**：homebrew node 崩（llhttp 9.3 缺）致 65 红的跑档亦入库并归因；nvm node v24.16.0 复跑 = 32。
 - 7692 四文件：**107 passed / 0 failed**（FINAL-107 原始日志）；contract 3 非 pact：2 既有红 / 75 passed（红 nodeid 集合与计数与基线等价）。
 - tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
-- G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 **v2.5** verdict=PASS（129 文件：122 equiv + **7** 声明例外〔J07 manifest 走内容谓词：仅 notes〕；missing=0/empty=0/lane_empty=0/failures=0；`script_sha256=61078e6e…` version=v2.5；shell=字节级 + bash -n；7 负控 + 8 case self-test 全文入库）——fail-closed（git rc + 退出码 + 空 blob 即红 + 计数下限 + **40-hex 全 SHA pin**〔8 位前缀不豁免〕+ P3-only docs-drift 白名单〔解析 `b15-freeze-exclusions.json`〕）；`--self-test` + **6 个 one-line 变异负控**（badbase/drift/tipdrift/missingkey/shortpin/prefixcollision）全文入库。
+- G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 **v2.5.1** verdict=PASS（129 文件：122 equiv + **7** 声明例外〔J07 manifest 走内容谓词：仅 notes〕；missing=0/empty=0/lane_empty=0/failures=0；`script_sha256=7c01d736…` version=v2.5.1；shell=字节级 + `bash -n` 硬门；7 负控 + 9 case self-test 全文入库）——fail-closed（git rc + 退出码 + 空 blob 即红 + 计数下限 + **40-hex 全 SHA pin**〔8 位前缀不豁免〕+ P3-only docs-drift 白名单〔解析 `b15-freeze-exclusions.json`〕）；`--self-test` + **6 个 one-line 变异负控**（badbase/drift/tipdrift/missingkey/shortpin/prefixcollision）全文入库。
 - **schemathesis 90-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
 - G8-10 checker 最终 tip digest 档（r14-M1）：`g810-checker-final-digest-20260921T001727.txt`（dirty_tracked=0/failures=0；digest 含 HEAD 的复算口径在档内）。
 - J07 开窗前置证据补档：`j07-window-open-preflight-recapture-20260920T2326.txt`（r12-L1 处置；5/5 部署一致 + docker StartedAt + :05 档 + 8011 GET 200；原 18:23 原始档缺失已登记）。
 - D40 `04eb9a9f`：format-only（480 `.py` + openapi 时间戳）；`LEFTHOOK_EXCLUDE=python-lint` 归因证据 = `d40-hook-exclusion-evidence-20260920T225429.txt`（协议 §2.3：hook 原始输出 2×F821 rc=1 + 父子 AST 全等/名次相同 + `ruff format --check` 复跑 rc=0）。
 - 推送：分支 local=origin=backup 逐 commit 对齐；`83a280db` 的 branch push 自证 = `branch-push-verify-20260920T203135.txt`（local/origin/backup 三列 + ls-remote 活态）；**35 tag 逐个三列 SHA 全 OK**（`push-and-tags-evidence-20260920T202239.txt` + `push-and-tags-evidence-20260920T203021.txt`）。
-- 冻结声明（r6 前置）：B15 面 = 主干冻结档；P3 lane 冻结后 docs-only 证据推进（32a405a4→ec9845fa→80665fc1→…）**显式排除**（`b15-freeze-exclusions.json`），登记第十六批；semantic v2.4 以 40-hex 全 SHA pin 监控（仅登记工作树容忍 docs-only 前进；未登记车道全 SHA 精确相等；代码面异动即红）。
+- 冻结声明（r6 前置）：B15 面 = 主干冻结档；P3 lane 冻结后 docs-only 证据推进（32a405a4→ec9845fa→80665fc1→…）**显式排除**（`b15-freeze-exclusions.json`），登记第十六批；semantic v2.5.1 以 40-hex 全 SHA pin 监控（仅登记工作树容忍 docs-only 前进；未登记车道全 SHA 精确相等；代码面异动即红；`.sh` = `bash -n` 硬门 + 字节相等）。
 - 注：代码面门共绑 `1e907037`（openapi/pyright post-P9）与 P9/8a651d2a 树；`1e907037..83a280db` 的 tracked 差异全部在 `_bmad-output/**`（docs-only）；r4/r5 两轮整改的代码面改动累计 = `backend/tests/contract/test_openapi_contract.py:42-46` 注释行（89→90 / 93→94 GET、206/117→211/121 口径），行为零变更（schemathesis 面仍显式 skip；contract 3-file 门不含该文件）。
 
 ## D-15 轮次
@@ -36,7 +36,8 @@
 - r12（绑 `9d799e22`）：**B0/H0/M1/L1**（M1=J07 终态未同步主 UAT/manifest；L1=J07 前置四查缺原始档）→ 整改见 `D-15-r12-整改说明.md`（UAT 指针 + manifest notes 补记 + 23:26 复捕获档；原 18:23 原始档缺失登记）；**r12 已确认 r11 三项真实落盘**；**r12 复核存档已入库**。
 - r13（绑 `0d712dd4`）：**B1/H0/M0/L2**（B1=J07 manifest notes 补记使 semantic 预期转红而仍宣称 PASS；L1=StartedAt 用 CreatedAt 冒充；L2=台账行 4 列）→ 整改见 `D-15-r13-整改说明.md`（v2.4.1 声明例外 + 重跑 122/7 PASS + docker inspect StartedAt + 台账 3 列）；**r13 已确认 r12 的 M1/L1 实质落盘**；**r13 复核存档已入库**。
 - r14（绑 `3139cef7`）：**B0/H0/M3/L2**（M1=G8-10 final digest 不可复放；M2=J07 路径级例外；M3=shell 归一化剥缩进；L1=v2.4.1 证据闭环；L2=状态账 contract 口径）→ 整改见 `D-15-r14-整改说明.md`（最终 tip digest 档 + semantic v2.5 内容谓词/字节级 shell/hash 自证 + 7 负控 + 状态账勘误）；**r14 已确认 r13 三项闭合**；**r14 复核存档已入库**。
-- r15：绑定本整改档（GLM-5.3 max；prompt 审后随 r15 档入库）——待跑。
+- r15（绑 `9229ea54`）：**B0/H0/M0/L1**（L1=version/描述不同步〔STATUS/guard 仍写 v2.4；脚本 docstring 旧 `.sh` 口径；且 `.sh` 的 `bash -n` 被字节短路绕过、实际不参与判定〕）→ 整改见 `D-15-r15-整改说明.md`（v2.5.1：`.sh` 语法硬门前置 + 描述/版本同步 + 9 case self-test + 全证据重跑）；**r15 已确认 r14 的 M1/M2/M3 实质闭合**；**r15 复核存档已入库**。
+- r16：绑定本整改档（GLM-5.3 max；prompt 审后随 r16 档入库）——待跑。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。

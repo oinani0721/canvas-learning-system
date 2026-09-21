@@ -1,0 +1,246 @@
+# v2.5.1 自证 + 负控（r15-L1 处置证据；脚本 sha256 + 版本绑定）  TS=20260921T011824
+# 主脚本 sha256=7c01d736126e2d32ed69363cf251e25721d4828489ea2b1f19ec3a475b57c51c  version=v2.5.1
+
+## 自证 --self-test（9 case：空 blob / shell 字节级+语法硬门 / J07 内容谓词）
+$ python3 cross-lane-semantic2.py --self-test
+[self-test] both-empty: must_fail=True got=True -> OK
+[self-test] one-empty: must_fail=True got=True -> OK
+[self-test] both-nonempty-equal: must_fail=False got=False -> OK
+[self-test] sh-broken-identical: expect=gate-blocked got=True -> OK
+[self-test] sh-bytes-equal: expect=True got=True -> OK
+[self-test] sh-heredoc-dedent: expect=not-equivalent got=True -> OK
+[self-test] j07-notes-only: got=True -> OK
+[self-test] j07-other-key-rejected: got=True -> OK
+[self-test] j07-path-scoped: got=True -> OK
+self_test=PASS
+selftest_rc=0
+
+## 负控 neg-badbase
+# sha256=7b12ba3edbd6ca036318081448a73fdf5490a516418ae92da008922feb3ca680
+$ python3 cross-lane-semantic2-neg-badbase.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=9229ea54
+# script_sha256=7b12ba3edbd6ca036318081448a73fdf5490a516418ae92da008922feb3ca680 version=v2.5.1
+## p1 tip=39144558 pin=39144558 full_pin_ok=True code_drift=0 files=0
+## p2 tip=ac52e3b8 pin=ac52e3b8 full_pin_ok=True code_drift=0 files=0
+  [DOCS-DRIFT-ALLOWED] p3 32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67..1726b695（登记排除面；代码面零漂移）
+## p3 tip=1726b695 pin=32a405a4 full_pin_ok=False code_drift=0 files=0
+## p4 tip=aa126e5b pin=aa126e5b full_pin_ok=True code_drift=0 files=0
+## p5 tip=7af5306b pin=7af5306b full_pin_ok=True code_drift=0 files=0
+## p6 tip=6346facb pin=6346facb full_pin_ok=True code_drift=0 files=0
+## p7 tip=eb798680 pin=eb798680 full_pin_ok=True code_drift=0 files=0
+## p8 tip=447eb50f pin=447eb50f full_pin_ok=True code_drift=0 files=0
+## p9 tip=430dcf25 pin=430dcf25 full_pin_ok=True code_drift=0 files=0
+## p10 tip=d2db49af pin=d2db49af full_pin_ok=True code_drift=0 files=0
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p1 tip=39144558 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p2-outbox rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p2 tip=ac52e3b8 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p3-deploy rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p3 tip=1726b695 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p4-fsrs rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p4 tip=aa126e5b 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p5-review rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p5 tip=7af5306b 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p6-skills-w rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p6 tip=6346facb 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p7-skills-x rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p7 tip=eb798680 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p8-backend rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p8 tip=447eb50f 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p9 tip=430dcf25 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] git-fail: git diff --name-only -z deadbeef..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p10-docs rc=128 err=fatal: bad revision 'deadbeef..HEAD'
+
+[FAIL] lane-empty: p10 tip=d2db49af 枚举 0 文件（防空枚举 vacuous PASS）
+[FAIL] count-guard: checked=0 < 100（防空枚举）
+
+checked=0 equiv=0 exceptions=0 undecided_diff=0 missing=0 empty=0 lane_empty=10 failures=21
+verdict=FAIL
+neg_badbase_rc=1
+
+## 负控 neg-drift
+# sha256=75706c2cad86f8969dfdff2c871bbfbc52e8bee7e0d48ecc2c357f5ad2fbeae4
+$ python3 cross-lane-semantic2-neg-drift.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=9229ea54
+# script_sha256=75706c2cad86f8969dfdff2c871bbfbc52e8bee7e0d48ecc2c357f5ad2fbeae4 version=v2.5.1
+## p1 tip=39144558 pin=39144558 full_pin_ok=True code_drift=0 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 pin=ac52e3b8 full_pin_ok=True code_drift=0 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p3 tip=1726b695 pin=9c4e7e82 full_pin_ok=False code_drift=5 files=5
+## p4 tip=aa126e5b pin=aa126e5b full_pin_ok=True code_drift=0 files=7
+## p5 tip=7af5306b pin=7af5306b full_pin_ok=True code_drift=0 files=32
+  [EXCEPTION] docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json —— B15 收口期修正（内容谓词：仅 notes；r14-M2）
+## p6 tip=6346facb pin=6346facb full_pin_ok=True code_drift=0 files=11
+## p7 tip=eb798680 pin=eb798680 full_pin_ok=True code_drift=0 files=6
+## p8 tip=447eb50f pin=447eb50f full_pin_ok=True code_drift=0 files=15
+## p9 tip=430dcf25 pin=430dcf25 full_pin_ok=True code_drift=0 files=16
+## p10 tip=d2db49af pin=d2db49af full_pin_ok=True code_drift=0 files=5
+[FAIL] code-drift: p3 9c4e7e82f2c80ab45a7eb4facfc95c1e6dadb680..1726b695 非 _bmad-output 面 5 文件: ['backend/tests/unit/test_vault_install_manifest.py', 'backend/tests/unit/test_verify_install_manifest.py', 'scripts/j01_e2e.sh']
+
+checked=129 equiv=122 exceptions=7 undecided_diff=0 missing=0 empty=0 lane_empty=0 failures=1
+verdict=FAIL
+neg_drift_rc=1
+
+## 负控 neg-tipdrift
+# sha256=40e376c0046bfbd37d36f2ec6186f6bfc724b4feeecdac5f7c980471a6465a85
+$ python3 cross-lane-semantic2-neg-tipdrift.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=9229ea54
+# script_sha256=40e376c0046bfbd37d36f2ec6186f6bfc724b4feeecdac5f7c980471a6465a85 version=v2.5.1
+## p1 tip=39144558 pin=00000000 full_pin_ok=False code_drift=0 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 pin=ac52e3b8 full_pin_ok=True code_drift=0 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+  [DOCS-DRIFT-ALLOWED] p3 32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67..1726b695（登记排除面；代码面零漂移）
+## p3 tip=1726b695 pin=32a405a4 full_pin_ok=False code_drift=0 files=5
+## p4 tip=aa126e5b pin=aa126e5b full_pin_ok=True code_drift=0 files=7
+## p5 tip=7af5306b pin=7af5306b full_pin_ok=True code_drift=0 files=32
+  [EXCEPTION] docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json —— B15 收口期修正（内容谓词：仅 notes；r14-M2）
+## p6 tip=6346facb pin=6346facb full_pin_ok=True code_drift=0 files=11
+## p7 tip=eb798680 pin=eb798680 full_pin_ok=True code_drift=0 files=6
+## p8 tip=447eb50f pin=447eb50f full_pin_ok=True code_drift=0 files=15
+## p9 tip=430dcf25 pin=430dcf25 full_pin_ok=True code_drift=0 files=16
+## p10 tip=d2db49af pin=d2db49af full_pin_ok=True code_drift=0 files=5
+[FAIL] git-fail: git diff --name-only 0000000000000000000000000000000000000000..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage rc=128 err=fatal: Invalid revision range 0000000000000000000000000000000000000000..HEAD
+
+[FAIL] tip-drift: p1 tip=39144558946094707a5223e4cedbf599e73b2ba7 != pin=0000000000000000000000000000000000000000（未登记排除面的车道必须 tip 精确相等）
+
+checked=129 equiv=122 exceptions=7 undecided_diff=0 missing=0 empty=0 lane_empty=0 failures=2
+verdict=FAIL
+neg_tipdrift_rc=1
+
+## 负控 neg-missingkey
+# sha256=a364f6cc8d5f3f820885e5a60c42b5f9bb6706fdaf93200c11d688c3737507e7
+$ python3 cross-lane-semantic2-neg-missingkey.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=9229ea54
+# script_sha256=a364f6cc8d5f3f820885e5a60c42b5f9bb6706fdaf93200c11d688c3737507e7 version=v2.5.1
+## p1 tip=39144558 pin= full_pin_ok=False code_drift=0 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 pin=ac52e3b8 full_pin_ok=True code_drift=0 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+  [DOCS-DRIFT-ALLOWED] p3 32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67..1726b695（登记排除面；代码面零漂移）
+## p3 tip=1726b695 pin=32a405a4 full_pin_ok=False code_drift=0 files=5
+## p4 tip=aa126e5b pin=aa126e5b full_pin_ok=True code_drift=0 files=7
+## p5 tip=7af5306b pin=7af5306b full_pin_ok=True code_drift=0 files=32
+  [EXCEPTION] docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json —— B15 收口期修正（内容谓词：仅 notes；r14-M2）
+## p6 tip=6346facb pin=6346facb full_pin_ok=True code_drift=0 files=11
+## p7 tip=eb798680 pin=eb798680 full_pin_ok=True code_drift=0 files=6
+## p8 tip=447eb50f pin=447eb50f full_pin_ok=True code_drift=0 files=15
+## p9 tip=430dcf25 pin=430dcf25 full_pin_ok=True code_drift=0 files=16
+## p10 tip=d2db49af pin=d2db49af full_pin_ok=True code_drift=0 files=5
+[FAIL] pin-missing: p1 CODE_TIPS 缺键（fail-closed）
+
+checked=129 equiv=122 exceptions=7 undecided_diff=0 missing=0 empty=0 lane_empty=0 failures=1
+verdict=FAIL
+neg_missingkey_rc=1
+
+## 负控 neg-shortpin
+# sha256=72211e2245bedf813f65da3f4cfc227b9ae93b18019b17857d8a5ebe65964a41
+$ python3 cross-lane-semantic2-neg-shortpin.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=9229ea54
+# script_sha256=72211e2245bedf813f65da3f4cfc227b9ae93b18019b17857d8a5ebe65964a41 version=v2.5.1
+## p1 tip=39144558 pin=39144558 full_pin_ok=False code_drift=0 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 pin=ac52e3b8 full_pin_ok=True code_drift=0 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+  [DOCS-DRIFT-ALLOWED] p3 32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67..1726b695（登记排除面；代码面零漂移）
+## p3 tip=1726b695 pin=32a405a4 full_pin_ok=False code_drift=0 files=5
+## p4 tip=aa126e5b pin=aa126e5b full_pin_ok=True code_drift=0 files=7
+## p5 tip=7af5306b pin=7af5306b full_pin_ok=True code_drift=0 files=32
+  [EXCEPTION] docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json —— B15 收口期修正（内容谓词：仅 notes；r14-M2）
+## p6 tip=6346facb pin=6346facb full_pin_ok=True code_drift=0 files=11
+## p7 tip=eb798680 pin=eb798680 full_pin_ok=True code_drift=0 files=6
+## p8 tip=447eb50f pin=447eb50f full_pin_ok=True code_drift=0 files=15
+## p9 tip=430dcf25 pin=430dcf25 full_pin_ok=True code_drift=0 files=16
+## p10 tip=d2db49af pin=d2db49af full_pin_ok=True code_drift=0 files=5
+[FAIL] pin-invalid: p1 pin='39144558' 非 40-hex 全 SHA（r7-M1 fail-closed）
+[FAIL] tip-drift: p1 tip=39144558946094707a5223e4cedbf599e73b2ba7 != pin=39144558（未登记排除面的车道必须 tip 精确相等）
+
+checked=129 equiv=122 exceptions=7 undecided_diff=0 missing=0 empty=0 lane_empty=0 failures=2
+verdict=FAIL
+neg_shortpin_rc=1
+
+## 负控 neg-prefixcollision
+# sha256=2b3e135399f038f82ccdce2802185980b4288d9993b6df6c81562b746bc2c1e7
+$ python3 cross-lane-semantic2-neg-prefixcollision.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=9229ea54
+# script_sha256=2b3e135399f038f82ccdce2802185980b4288d9993b6df6c81562b746bc2c1e7 version=v2.5.1
+## p1 tip=39144558 pin=39144558 full_pin_ok=False code_drift=0 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 pin=ac52e3b8 full_pin_ok=True code_drift=0 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+  [DOCS-DRIFT-ALLOWED] p3 32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67..1726b695（登记排除面；代码面零漂移）
+## p3 tip=1726b695 pin=32a405a4 full_pin_ok=False code_drift=0 files=5
+## p4 tip=aa126e5b pin=aa126e5b full_pin_ok=True code_drift=0 files=7
+## p5 tip=7af5306b pin=7af5306b full_pin_ok=True code_drift=0 files=32
+  [EXCEPTION] docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json —— B15 收口期修正（内容谓词：仅 notes；r14-M2）
+## p6 tip=6346facb pin=6346facb full_pin_ok=True code_drift=0 files=11
+## p7 tip=eb798680 pin=eb798680 full_pin_ok=True code_drift=0 files=6
+## p8 tip=447eb50f pin=447eb50f full_pin_ok=True code_drift=0 files=15
+## p9 tip=430dcf25 pin=430dcf25 full_pin_ok=True code_drift=0 files=16
+## p10 tip=d2db49af pin=d2db49af full_pin_ok=True code_drift=0 files=5
+[FAIL] git-fail: git diff --name-only 39144558946094707a5223e4cedbf599e73b2ba8..HEAD -- . :(exclude)_bmad-output @ /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p1-storage rc=128 err=fatal: Invalid revision range 39144558946094707a5223e4cedbf599e73b2ba8..HEAD
+
+[FAIL] tip-drift: p1 tip=39144558946094707a5223e4cedbf599e73b2ba7 != pin=39144558946094707a5223e4cedbf599e73b2ba8（未登记排除面的车道必须 tip 精确相等）
+
+checked=129 equiv=122 exceptions=7 undecided_diff=0 missing=0 empty=0 lane_empty=0 failures=2
+verdict=FAIL
+neg_prefixcollision_rc=1
+
+## 负控 neg-j07pred-off
+# sha256=bfb5371973d6d648b2bcd8bca660810d8dbc2c2809a10be01d4df30678989849
+$ python3 cross-lane-semantic2-neg-j07pred-off.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=9229ea54
+# script_sha256=bfb5371973d6d648b2bcd8bca660810d8dbc2c2809a10be01d4df30678989849 version=v2.5.1
+## p1 tip=39144558 pin=39144558 full_pin_ok=True code_drift=0 files=17
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+## p2 tip=ac52e3b8 pin=ac52e3b8 full_pin_ok=True code_drift=0 files=15
+  [EXCEPTION] backend/app/clients/neo4j_client.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/episode_worker.py —— 多写者并集面（P1×P2）
+  [EXCEPTION] backend/app/services/memory_service.py —— 多写者并集面（P1×P2）
+  [DOCS-DRIFT-ALLOWED] p3 32a405a4695cf0f9a63e44a80a7c7fa9c3e84e67..1726b695（登记排除面；代码面零漂移）
+## p3 tip=1726b695 pin=32a405a4 full_pin_ok=False code_drift=0 files=5
+## p4 tip=aa126e5b pin=aa126e5b full_pin_ok=True code_drift=0 files=7
+## p5 tip=7af5306b pin=7af5306b full_pin_ok=True code_drift=0 files=32
+  [DIFF] docs/release-evidence/dev-b15-p5/journeys/J07/manifest.json（无声明例外，需归因）
+## p6 tip=6346facb pin=6346facb full_pin_ok=True code_drift=0 files=11
+## p7 tip=eb798680 pin=eb798680 full_pin_ok=True code_drift=0 files=6
+## p8 tip=447eb50f pin=447eb50f full_pin_ok=True code_drift=0 files=15
+## p9 tip=430dcf25 pin=430dcf25 full_pin_ok=True code_drift=0 files=16
+## p10 tip=d2db49af pin=d2db49af full_pin_ok=True code_drift=0 files=5
+
+checked=129 equiv=122 exceptions=6 undecided_diff=1 missing=0 empty=0 lane_empty=0 failures=0
+verdict=FAIL
+neg_j07pred-off_rc=1
+

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""跨车道语义等价核验 v2.5（v2.4 + r14-M2/M3/L1：J07 内容谓词例外 + shell 字节级比较 + 脚本哈希自证 + 版本标识）。
+"""跨车道语义等价核验 v2.5.1（v2.5 + r15-L1：.sh 的 bash -n 前置为硬门 + shell 描述修正 + 版本标签同步）。
 
 按后缀选择比较口径（均双端同口径；无法结构化则字节比较）：
   .py     → ast.dump(ast.parse)  相等
   .yaml/.yml → yaml.safe_load 结构相等
   .json   → json.loads 结构相等
   .ini/.cfg  → configparser 结构相等
-  .sh     → `bash -n` 双端语法 OK + 去注释/空行后的行序列相等（换行边界保留）
+  .sh     → 先 `bash -n` 双端语法 OK（硬门：失败即 [sh-syntax] 红，不再短路）；再字节相等（相同字节=SH，不同字节=不等价）
   其它     → 字节相等
 输出：每 lane 先打印 tip SHA；末行 verdict=PASS/FAIL(n)。声明例外（多写者并集面）单列。
 """
@@ -115,7 +115,11 @@ def run_self_test():
         print(f"[self-test] {name}: must_fail={must_fail} got={got} -> {'OK' if got == must_fail else 'BAD'}")
     sh_same = b'cat <<PY\n    sys.exit(4)\nPY\n'
     sh_dedent = b'cat <<PY\nsys.exit(4)\nPY\n'
-    sh_eq = equiv("self-test/x.sh", sh_same, sh_same) in ("SH", "BYTES")  # 相同字节先短路为 BYTES
+    sh_eq = equiv("self-test/x.sh", sh_same, sh_same) == "SH"
+    sh_broken = b"if true; then\n"
+    sh_broken_gate = sh_gate_ok(sh_broken, sh_broken) is False   # 相同字节但语法损坏 ⇒ 硬门必须红
+    print(f"[self-test] sh-broken-identical: expect=gate-blocked got={sh_broken_gate} -> {'OK' if sh_broken_gate else 'BAD'}")
+    ok = ok and sh_broken_gate
     sh_dedent_caught = equiv("self-test/x.sh", sh_same, sh_dedent) is None
     print(f"[self-test] sh-bytes-equal: expect=True got={sh_eq} -> {'OK' if sh_eq else 'BAD'}")
     print(f"[self-test] sh-heredoc-dedent: expect=not-equivalent got={sh_dedent_caught} -> {'OK' if sh_dedent_caught else 'BAD'}")
@@ -146,6 +150,10 @@ def blob_checked(cwd, ref, path):
         return False, b""
     return True, show.stdout
 
+def sh_gate_ok(a, b):
+    """r15-L1：.sh 语法硬门——双端 bash -n 必须通过（相同字节也检查）。"""
+    return sh_syntax_ok(a) and sh_syntax_ok(b)
+
 def sh_syntax_ok(x):
     with tempfile.NamedTemporaryFile("wb", suffix=".sh", delete=False) as f:
         f.write(x); p = f.name
@@ -161,6 +169,9 @@ def _try(fn, b):
         return None
 
 def equiv(path, a, b):
+    if path.endswith(".sh"):
+        # r15-L1：.sh 不走字节短路——先语法门（由调用方 sh_gate_ok 判定），此处仅做字节相等
+        return "SH" if a == b else None
     if a == b:
         return "BYTES"
     if path.endswith(".py"):
@@ -183,11 +194,6 @@ def equiv(path, a, b):
             return {s: dict(cp.items(s)) for s in cp.sections()}
         na, nb = _try(_ini, a), _try(_ini, b)
         return "INI" if (na is not None and na == nb) else None
-    if path.endswith(".sh"):
-        # r14-M3：bash -n + **字节相等**（旧口径 strip 去缩进会放过 heredoc 内嵌 Python 的缩进破坏）
-        if not (sh_syntax_ok(a) and sh_syntax_ok(b)):
-            return None
-        return "SH" if a == b else None
     return None
 
 equiv_n = exc_n = diff_n = missing_n = empty_n = lane_empty_n = 0
@@ -197,7 +203,7 @@ if "--self-test" in sys.argv:
     print(f"self_test={'PASS' if ok else 'FAIL'}")
     raise SystemExit(0 if ok else 1)
 print(f"# candidate={C} head={run_checked(['rev-parse','--short=8','HEAD'],C).decode().strip()}")
-print(f"# script_sha256={hashlib.sha256(Path(__file__).read_bytes()).hexdigest()} version=v2.5")
+print(f"# script_sha256={hashlib.sha256(Path(__file__).read_bytes()).hexdigest()} version=v2.5.1")
 for lane, d in LANES.items():
     L = f"{W}/card-{d}"
     tip_full = run_checked(["rev-parse", "HEAD"], L).decode().strip()
@@ -229,6 +235,10 @@ for lane, d in LANES.items():
         if not (ok_c and ok_l):
             missing_n += 1
             print(f"  [MISSING] {f}（cat-file -e rc!=0：candidate_ok={ok_c} lane_ok={ok_l}）")
+            continue
+        if f.endswith(".sh") and not sh_gate_ok(a, b):
+            failures.append(f"sh-syntax: {f} 双端 bash -n 未通过（r15-L1 硬门）")
+            print(f"  [SH-SYNTAX] {f}（bash -n 失败 ⇒ 红）")
             continue
         ef = empty_failure(f, a, b)
         if ef:
