@@ -1,0 +1,37 @@
+# 汇报时序/完整性机器门 v3 实跑（提交后；逐段记录命令与输出） 20260921T023124
+# runner HEAD=6c11b98dd99420e49378f259c6639bb8b9a49d80
+# script=_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py sha256=7b0492c241949a3a417ed89fc601b2ee506417e510add96f2da4e385f30ed102
+
+## 段 1：常规逐行检查（时序 + 完备性 + 行集合哈希 + 待跑指针）
+$ python3 check-report-chronology.py $PWD --min-rows 20 --min-round r4 --expect-latest r16 --expect-rows-sha256 86022659056e45940cf21c087c5411b82f095827bec96acb63481daf23e5f809 --expect-next r17
+[OK] :8 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :9 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :10 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :11 row=09-19 18:21 commit=09-20 17:52:12 -> row<=commit
+[OK] :12 row=09-19 20:59 commit=09-20 17:52:12 -> row<=commit
+[OK] :14 row=09-20 17:50 commit=09-20 22:55:23 -> row<=commit
+[OK] :15 row=09-20 20:30 commit=09-20 23:08:38 -> row<=commit
+[OK] :16 row=09-20 20:53 commit=09-20 20:54:06 -> row<=commit
+[OK] :17 row=09-20 21:12 commit=09-20 21:12:32 -> row<=commit
+[OK] :18 row=09-20 21:29 commit=09-20 22:37:22 -> row<=commit
+[OK] :19 row=09-20 21:51 commit=09-20 22:37:22 -> row<=commit
+[OK] :20 row=09-20 22:15 commit=09-20 22:36:34 -> row<=commit
+[OK] :21 row=09-20 22:36 commit=09-20 22:36:34 -> row<=commit
+[OK] :22 row=09-20 22:55 commit=09-20 22:55:23 -> row<=commit
+[OK] :23 row=09-20 23:05 commit=09-20 23:08:38 -> row<=commit
+[OK] :24 row=09-20 23:20 commit=09-20 23:27:40 -> row<=commit
+[OK] :25 row=09-20 23:40 commit=09-20 23:45:32 -> row<=commit
+[OK] :26 row=09-21 00:18 commit=09-21 01:43:25 -> row<=commit
+[OK] :27 row=09-21 01:19 commit=09-21 01:43:25 -> row<=commit
+[OK] :28 row=09-21 01:45 commit=09-21 02:09:36 -> row<=commit
+
+rows=20 rows_sha256=86022659056e45940cf21c087c5411b82f095827bec96acb63481daf23e5f809 min_rows=20 min_round=r4 expect_latest=r16 expect_next=r17 violations=0
+verdict=PASS
+rc=0
+
+## 段 2：自证 --self-test（3 类绕过必须被捕捉）
+$ python3 check-report-chronology.py $PWD --min-rows 20 --min-round r4 --expect-latest r16 --expect-next r17 --self-test
+[self-test] drop-last-row caught: True (['rows<20: rows=19']) -> OK
+[self-test] delete+duplicate bypass caught: True (['min-round mismatch: 期望 r4，实测 r5', "round-duplicate: ['r15']"]) -> OK
+[self-test] rows-sha256 tamper caught: True -> OK
+selftest_rc=0
