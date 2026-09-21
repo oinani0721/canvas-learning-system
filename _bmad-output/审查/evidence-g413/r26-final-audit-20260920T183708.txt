@@ -1,0 +1,32 @@
+# G4-13 完成条件终审（20260920T183708；HEAD=3c2cbdb8）
+
+① 103/103 非 pending：
+   vault pending=0 memory pending=0
+   vault: relevant=45 ambiguous=30
+   memory: relevant=19 ambiguous=9
+
+② manifest 签字：
+adjudication:
+  status: approved
+  signed_by: Heishing
+  signed_at: '2026-09-21T01:15:33Z'
+  checklist_path: _bmad-output/验收单/UAT-CARD-G4-13-2026-09-19-裁定清单.md
+   revision=revision: 3 frozen=frozen: true
+
+③ 校验器：
+OK backend/tests/regression/vault_gold_set.yaml sha256=34f246345525… queries=75
+OK backend/tests/regression/memory_gold_set.yaml sha256=5c1f9e6c9c39… queries=28
+OK backend/tests/regression/vault_gold_set_shadow.yaml sha256=c7b25fcc9c0b… queries=2
+OK backend/tests/regression/memory_gold_set_shadow.yaml sha256=582df3afe892… queries=0
+
+④ 点名套件（收尾复跑）：
+======================= 37 passed, 122 warnings in 1.26s =======================
+
+⑤ 内容冻结（全量 103 vs 回写前）：
+全量条数=103 非标注差异=0
+OK：103 条中除 user_verdict/verdict_by/verdict_at 外，逐键逐值完全一致（内容冻结）
+
+⑥ 终轮复核：
+本轮总评：B=0 / H=0 / M=0 / L=0。**
+
+⑦ 树净：git status --porcelain | wc -l =        1
