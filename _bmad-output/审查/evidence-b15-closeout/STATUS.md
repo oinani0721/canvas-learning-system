@@ -9,7 +9,7 @@
 
 ## 终局门（全部在 8a651d2a / P9 合入后 da825921 复跑，原始日志已入库）
 - openapi `DRIFT: none (paths=199 schemas=357)`；pyright `app` **0 errors**（绝对路径 + nvm node 自证；feature 树 venv 无 pyright）。
-- tests/unit：**只减**（32 vs 基线 33；0 引入 / 1 修）——**含 node 相关 33 条的两次跑**：homebrew node 崩（llhttp 9.3 缺）致 65 红的跑档亦入库并归因；nvm node v24.16.0 复跑 = 32。
+- tests/unit：**只减**（32 vs 基线 33；0 引入 / 1 修 = `tests/unit/test_candidate_service.py::test_accept_candidate_already_accepted_returns_422`〔r8-L2 勘误；r1–r7 存档中 digest 测试归因为误〕）——**含 node 相关 33 条的两次跑**：homebrew node 崩（llhttp 9.3 缺）致 65 红的跑档亦入库并归因；nvm node v24.16.0 复跑 = 32。
 - 7692 四文件：**107 passed / 0 failed**（FINAL-107 原始日志）；contract 3 非 pact：2 既有红 / 75 passed（红 nodeid 集合与计数与基线等价）。
 - tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
 - G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 **v2.4** verdict=PASS（129 文件：123 equiv + 6 声明例外；missing=0/empty=0/lane_empty=0/failures=0）——fail-closed（git rc + 退出码 + 空 blob 即红 + 计数下限 + **40-hex 全 SHA pin**〔8 位前缀不豁免〕+ P3-only docs-drift 白名单〔解析 `b15-freeze-exclusions.json`〕）；`--self-test` + **6 个 one-line 变异负控**（badbase/drift/tipdrift/missingkey/shortpin/prefixcollision）全文入库。
@@ -26,7 +26,8 @@
 - r5（绑 `85a157dc`）：**B1/H1/M0/L2**（B1=P3 lane 冻结后证据面推进/未显式排除；H1=semantic 仍 fail-open；L1=源码注释 206/117 残余；L2=旧 push 档 tag 分解公式）→ 整改见 `D-15-r5-整改说明.md`（P3 面显式排除冻结档 + semantic v2.2 fail-closed（含两负控）+ 注释 211/90/121 + tag 分解勘误）；**r5 复核存档已入库**。
 - r6（绑 `a6303136`）：**B0/H1/M1/L2**（H1=empty blob 未 fail-closed；M1=冻结容忍未限定 P3；L1=负控脚本/全文未入库；L2=freeze JSON 措辞）→ 整改见 `D-15-r6-整改说明.md`（semantic v2.3 + 4 变异脚本/全文负控 + freeze 措辞）；**B-1 冻结/排除获 r6 确认**；**r6 复核存档已入库**。
 - r7（绑 `9b96e5a6`）：**B0/H0/M1/L1**（M1=8-hex pin 前缀比较可绕过；L1=freeze guard 措辞）→ 整改见 `D-15-r7-整改说明.md`（v2.4 全 SHA pin + shortpin/prefixcollision 负控 + guard 措辞）；**r7 已确认 r6 的 H1/L1 闭合、语义核心复算一致**；**r7 复核存档已入库**。
-- r8：绑本整改档 tip（GLM-5.3 max；prompt 审后随 r8 档入库）——待跑。
+- r8（绑 `ae467fae`）：**B0/H0/M0/L2**（L1=G4-13 主 UAT 终态字段滞后；L2=unit 差集 nodeid 误归因）→ 整改见 `D-15-r8-整改说明.md`（UAT 终态勘误指针 + unit 差集勘误）；**r8 已独立确认 v2.4 全 SHA 比较/6 负控/P3 冻结排除/docs-only 等核心面**；**r8 复核存档已入库**。
+- r9：绑本整改档 tip（GLM-5.3 max；prompt 审后随 r9 档入库）——待跑。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。
