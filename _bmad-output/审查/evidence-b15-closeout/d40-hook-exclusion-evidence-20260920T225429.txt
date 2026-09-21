@@ -1,0 +1,61 @@
+# D40 hook-exclusion 归因证据（协议 §2.3：LEFTHOOK_EXCLUDE 必须贴被跳过 hook 原始输出 + 「报错不在本卡改动行」证明）
+# 生成: 2026-09-20（TS=20260920T225429）；commit: 04eb9a9f44ec22e64286966dbe688d42da984337（D40 整仓 backend/ ruff format 单独 commit）
+# 跳过项: LEFTHOOK_EXCLUDE=python-lint；环境: ruff 0.15.9 = backend/.venv/bin/ruff（复跑加 --no-cache：沙箱 .ruff_cache 不可写；hook 正常运行不加）
+
+## 1) lefthook.yml python-lint 定义（pre-commit；原样引用）
+```
+    python-lint:
+      glob: "{backend,src,scripts}/*.py"
+      run: |
+        # Activate backend venv for ruff
+        if [ -f "backend/.venv/bin/activate" ]; then source backend/.venv/bin/activate; fi
+        echo "[Python] Running ruff lint..."
+        ruff check {staged_files} 2>&1 || exit 1
+        echo "[Python] Lint OK."
+        echo "[Python] Checking format..."
+        ruff format --check {staged_files} 2>&1 || {
+          echo "[Python] Format check FAILED! Fix: ruff format {staged_files}"
+          exit 1
+        }
+```
+
+## 2) 被跳过 hook 的原始输出（等价命令：ruff check backend；hook 面 = staged .py ⊆ backend）
+$ RUFF_CACHE_DIR=/tmp/... backend/.venv/bin/ruff check --no-cache backend
+rc=1
+F821 Undefined name `simulate_async_delay`
+   --> backend/tests/integration/test_agent_memory_integration.py:170:19
+    |
+168 |         # Make memory write slow
+169 |         async def slow_add_episode(memory):
+170 |             await simulate_async_delay(0.3)
+    |                   ^^^^^^^^^^^^^^^^^^^^
+171 |             return True
+    |
+
+F821 Undefined name `Path`
+  --> backend/tests/unit/test_candidate_writer.py:52:69
+   |
+52 | def _make_md_with_frontmatter(tmp_path, body: str = "# Body\n") -> "Path":
+   |                                                                     ^^^^
+53 |     """创建测试节点 .md 含基础 frontmatter (无 errors / candidates)."""
+54 |     f = tmp_path / "test_node.md"
+   |
+
+Found 2 errors.
+
+## 3) 「报错不在本卡改动行」证明
+机制：D40 对每个 .py 只做 ruff format（无 AST 变化）。逐错误证明：语句在 D40 父子提交中 AST 相同、undefined 名两版出现次数相同（⇒ 非 D40 引入）：
+- backend/tests/integration/test_agent_memory_integration.py :: `simulate_async_delay`: parent lines=[176] / child lines=[170]；occurrences parent=1 child=1；AST_equal=True
+- backend/tests/unit/test_candidate_writer.py :: `Path`: parent lines=[52] / child lines=[52]；occurrences parent=1 child=1；AST_equal=True
+（另：r4 复核已独立复算 D40 全量 480 .py = 479 AST 全等 + 1 docstring 尾随空白差异，见 codex-review-B15-CLOSEOUT-r4.md。）
+
+## 4) format 门本体（同一 hook 第二段）在最终 HEAD 复跑原始输出
+$ RUFF_CACHE_DIR=/tmp/... backend/.venv/bin/ruff format --check --no-cache backend
+rc=0
+912 files already formatted
+（D40 当时档 d40-format-20260920T171657.txt 记 912 already formatted；本档为最终 HEAD 复跑，一致。）
+
+## 5) 结论
+- 被跳过的 python-lint 因 2 处既有 F821（ruff check rc=1）被跳过；format 段 rc=0。
+- 两处 F821 所在语句在 D40 父子提交 AST 全等、undefined 名出现次数两版相同 ⇒ 报错不在本卡语义改动行。
+- 归因满足协议 §2.3；D40 的 format-only 声称另由 480 文件 AST 对照复核背书。

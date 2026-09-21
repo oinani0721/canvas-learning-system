@@ -14,6 +14,7 @@
 - tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
 - G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 **v2.4** verdict=PASS（129 文件：123 equiv + 6 声明例外；missing=0/empty=0/lane_empty=0/failures=0）——fail-closed（git rc + 退出码 + 空 blob 即红 + 计数下限 + **40-hex 全 SHA pin**〔8 位前缀不豁免〕+ P3-only docs-drift 白名单〔解析 `b15-freeze-exclusions.json`〕）；`--self-test` + **6 个 one-line 变异负控**（badbase/drift/tipdrift/missingkey/shortpin/prefixcollision）全文入库。
 - **schemathesis 90-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
+- D40 `04eb9a9f`：format-only（480 `.py` + openapi 时间戳）；`LEFTHOOK_EXCLUDE=python-lint` 归因证据 = `d40-hook-exclusion-evidence-20260920T225429.txt`（协议 §2.3：hook 原始输出 2×F821 rc=1 + 父子 AST 全等/名次相同 + `ruff format --check` 复跑 rc=0）。
 - 推送：分支 local=origin=backup 逐 commit 对齐；`83a280db` 的 branch push 自证 = `branch-push-verify-20260920T203135.txt`（local/origin/backup 三列 + ls-remote 活态）；**35 tag 逐个三列 SHA 全 OK**（`push-and-tags-evidence-20260920T202239.txt` + `push-and-tags-evidence-20260920T203021.txt`）。
 - 冻结声明（r6 前置）：B15 面 = 主干冻结档；P3 lane 冻结后 docs-only 证据推进（32a405a4→ec9845fa→80665fc1→…）**显式排除**（`b15-freeze-exclusions.json`），登记第十六批；semantic v2.4 以 40-hex 全 SHA pin 监控（仅登记工作树容忍 docs-only 前进；未登记车道全 SHA 精确相等；代码面异动即红）。
 - 注：代码面门共绑 `1e907037`（openapi/pyright post-P9）与 P9/8a651d2a 树；`1e907037..83a280db` 的 tracked 差异全部在 `_bmad-output/**`（docs-only）；r4/r5 两轮整改的代码面改动累计 = `backend/tests/contract/test_openapi_contract.py:42-46` 注释行（89→90 / 93→94 GET、206/117→211/121 口径），行为零变更（schemathesis 面仍显式 skip；contract 3-file 门不含该文件）。
@@ -28,16 +29,18 @@
 - r7（绑 `9b96e5a6`）：**B0/H0/M1/L1**（M1=8-hex pin 前缀比较可绕过；L1=freeze guard 措辞）→ 整改见 `D-15-r7-整改说明.md`（v2.4 全 SHA pin + shortpin/prefixcollision 负控 + guard 措辞）；**r7 已确认 r6 的 H1/L1 闭合、语义核心复算一致**；**r7 复核存档已入库**。
 - r8（绑 `ae467fae`）：**B0/H0/M0/L2**（L1=G4-13 主 UAT 终态字段滞后；L2=unit 差集 nodeid 误归因）→ 整改见 `D-15-r8-整改说明.md`（UAT 终态勘误指针 + unit 差集勘误）；**r8 已独立确认 v2.4 全 SHA 比较/6 负控/P3 冻结排除/docs-only 等核心面**；**r8 复核存档已入库**。
 - r9（绑 `c11487c8`）：**B0/H0/M1/L2**（M1=STATUS「剩余」块滞后；L1=汇报行时序；L2=勘误清单漏 r5）→ 整改见 `D-15-r9-整改说明.md`（剩余块改终态 + 时间勘误 + 清单补列）；**r9 已确认 r8 的 L1/L2 实质闭合**；**r9 复核存档已入库**。
-- r10：绑本整改档 tip（GLM-5.3 max；prompt 审后随 r10 档入库）——待跑。
+- r10（绑 `b55744ba`）：**B0/H1/M1/L1**（H1=r9-M1 假整改〔整块改写声称未落盘〕；M1=D40 hook-exclusion 缺少协议要求的原始输出/归因；L1=汇报 18:02 行负时序）→ 整改见 `D-15-r10-整改说明.md`（STATUS 剩余块真实落盘 + D40 归因证据档 + 汇报 18:02→17:50；并登记根因=整改包同文件双补丁覆盖）；**r10 复核存档已入库**。
+- r11：绑定本整改档（GLM-5.3 max；prompt 审后随 r11 档入库）——待跑。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。
 
-## 剩余（原等用户裁定项；P9 已收口）
-1. **G8-7 签字位**（UAT-CARD-G8-7-2026-09-20 :90 起 6 步体验勾选 + :95 旅程签字）：走查已执行、产物 sha 已落；用户未勾 ⇒ 登记为「待签字（或 SKIP）」。
-2. **G6-13 J07 / G4-13 103 标注**：无口令 ⇒ not_run + SKIP 登记（第十六批）；若有口令则改走窗口。
-3. **feature 树 3 处删除处置**（research-pack 3 文件 / .gdr prompt / 2026-05-27 任务书）：恢复 or 保留。
-4. ff-only 前置已实测：仅 `.claude/rules/card-batch-protocol.md` 需 restore（内容 ⊆ 候选版）；untracked 无碰撞。
+## 剩余（终态更新 2026-09-20 22:5x；旧「原等用户裁定项」块已被本块取代）
+1. **G8-7 签字位**：走查已执行、终版证据包 `d5555a18` 已合入、用户回复-3 已入库（`Pi search note回复3.md`）；**签字未勾 ⇒ 非 pass**；P3 lane 冻结后的证据推进（r15–r17）已显式排除（`b15-freeze-exclusions.json`，转第十六批）。
+2. **G6-13 J07**：窗口 18:23 已开（用户口令 + 前置四查通过）；Day-0 进行中，**跨日部分转第十六批**（不写 pass）。
+3. **G4-13 103 标注**：✅ 用户裁定完成（103/103 + `approved`；`89be3d0e`/`da825921`）——原「not_run + SKIP」口径**作废**。
+4. **P2b G4-6 第二波**：显式转第十六批（未建）。
+5. **已闭合（指针）**：ff-only + 收尾登记（`f16c867a` → `51acf6cd` → …）已完成；协议侧 restore 与 3 处删除处置已随收尾登记完成；用户未跟踪资产未动。
 
 ## ff 后步骤（已全部执行；保留为执行清单）
 ff-only → feature 收尾登记 commit（命令卡/进度表/协议侧清理/批次 docs）→ 推送 origin+backup+tags（逐个）→ 状态账 MERGED + `第十五批-完成的卡-汇报.md` → **D-15 GLM-5.3 max 终审绑最终 HEAD（M/L 也须 0；模板已备 /tmp/b15-closeout/final-glm-prompt-template.md）**。
