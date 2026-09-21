@@ -1,0 +1,182 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.14.4, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend
+configfile: pytest.ini
+plugins: hypothesis-6.151.10, cov-7.1.0, xdist-3.8.0, timeout-2.4.0, asyncio-1.3.0, schemathesis-4.14.3, bdd-8.1.0, langsmith-0.7.24, anyio-4.13.0
+timeout: 300.0s
+timeout method: signal
+timeout func_only: False
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 1995 items
+
+tests/regression/test_all_index_entrypoints_hostile_env.py ............. [  0%]
+.....................                                                    [  1%]
+tests/regression/test_autoscore_regression.py .........                  [  2%]
+tests/regression/test_board_manifest_contracts.py ...................... [  3%]
+..........................................                               [  5%]
+tests/regression/test_callout_direct.py .....                            [  5%]
+tests/regression/test_census_dead_letter_readonly_contract.py .......... [  6%]
+..........                                                               [  6%]
+tests/regression/test_context_extract_regression.py ........             [  7%]
+tests/regression/test_crag_grading_regression.py .........               [  7%]
+tests/regression/test_daily_review_pick.py ............................. [  8%]
+...........................................................              [ 11%]
+tests/regression/test_daily_review_run.py .............................. [ 13%]
+............................................                             [ 15%]
+tests/regression/test_debt8_fsrs_fallback_honest.py .....                [ 15%]
+tests/regression/test_decay_beta_convergence.py ...................      [ 16%]
+tests/regression/test_edge_dialog_prompt.py ..................           [ 17%]
+tests/regression/test_fsrs_bridge.py ..........                          [ 18%]
+tests/regression/test_fsrs_fallback_datetime_serialize.py ..             [ 18%]
+tests/regression/test_fsrs_golden_vectors.py ...................         [ 19%]
+tests/regression/test_fsrs_legacy_state_zero.py ..............           [ 19%]
+tests/regression/test_fsrs_new_card_none_serialization.py .......        [ 20%]
+tests/regression/test_g29_dual_vault_fsrs_isolation.py ..                [ 20%]
+tests/regression/test_g39_three_view_reconcile.py ...................... [ 21%]
+...................................                                      [ 23%]
+tests/regression/test_g3_2_review_ledger.py ............................ [ 24%]
+........................................................................ [ 28%]
+..........
+╭─ 六格状态机三元组实测 (rc / W / ledger) ─────────────
+│ 格1 dup=无 f1=假                rc=0  W=2026-08-02T10:00:00Z  ledger=2
+│ 格2 dup=无 f1=真                rc=0  W=2026-08-02T10:00:00Z  ledger=1
+│ 格3 dup=有 f1=真 applied=真      rc=0  W=2026-08-01T10:00:00Z  ledger=1
+│ 格4 dup=有 f1=假 applied=真      rc=1  W=2026-08-01T10:00:00Z  ledger=1
+│ 格5 dup=有 f1=真 applied=假      rc=0  W=2026-08-01T10:00:00Z  ledger=1
+│ 格6 dup=有 f1=假 applied=假      rc=0  W=2026-08-01T10:00:00Z  ledger=1
+╰──────────────────────────────────────────────────────
+.............................................................. [ 31%]
+........................................................................ [ 35%]
+.........................................................                [ 38%]
+tests/regression/test_g3_3_cas.py ...............................        [ 39%]
+tests/regression/test_g3_5_vault_keyed_card_states.py .................. [ 40%]
+...                                                                      [ 40%]
+tests/regression/test_g3_7_truth_source.py .....................         [ 42%]
+tests/regression/test_g68_five_view_contract.py ........................ [ 43%]
+.........                                                                [ 43%]
+tests/regression/test_g6_9_boundary_matrix.py ........................   [ 44%]
+tests/regression/test_g6_9c_single_tz_source.py ........................ [ 46%]
+.................................................                        [ 48%]
+tests/regression/test_gold_set_manifest_g413.py ........................ [ 49%]
+...................................................                      [ 52%]
+tests/regression/test_immutable_skip_dirs_contract.py ..........         [ 52%]
+tests/regression/test_learning_event_log.py ............................ [ 54%]
+...............                                                          [ 54%]
+tests/regression/test_learning_events_schema_contract.py ............... [ 55%]
+.................................................s...................... [ 59%]
+........................................................................ [ 62%]
+....................................                                     [ 64%]
+tests/regression/test_mcp_quarantine.py ................................ [ 66%]
+                                                                         [ 66%]
+tests/regression/test_p03_vault_isolation.py ...........                 [ 66%]
+tests/regression/test_production_bugs.py x......sssss                    [ 67%]
+tests/regression/test_projection_sync_ghost_edges.py ...                 [ 67%]
+tests/regression/test_query_optimize_regression.py .........             [ 68%]
+tests/regression/test_query_rewrite_regression.py ........               [ 68%]
+tests/regression/test_question_gen_regression.py ........                [ 68%]
+tests/regression/test_rag_stage0_contracts.py .........                  [ 69%]
+tests/regression/test_rag_stage1_index_contracts.py .................... [ 70%]
+...............                                                          [ 71%]
+tests/regression/test_rag_stage2_chain_unify_contracts.py .............. [ 71%]
+........                                                                 [ 72%]
+tests/regression/test_rag_stage2_chunk_contracts.py .................... [ 73%]
+.                                                                        [ 73%]
+tests/regression/test_rag_stage2_rerank_contracts.py ................... [ 74%]
+.......                                                                  [ 74%]
+tests/regression/test_rag_stage2_t6_verification_contracts.py .......... [ 75%]
+......                                                                   [ 75%]
+tests/regression/test_real_entrypoint_admission.py .....                 [ 75%]
+tests/regression/test_recap_scan_signals.py ............................ [ 76%]
+........................................................................ [ 80%]
+........................................................................ [ 84%]
+........................................................................ [ 87%]
+.....................................................................    [ 91%]
+tests/regression/test_reference_config_fallback_contract.py ............ [ 91%]
+...........                                                              [ 92%]
+tests/regression/test_search_dedupe_floor.py .....                       [ 92%]
+tests/regression/test_search_error_memories.py ....                      [ 92%]
+tests/regression/test_search_intent_regression.py .........              [ 93%]
+tests/regression/test_snapshot_schema_migration_contract.py ........     [ 93%]
+tests/regression/test_snapshot_v3_contract.py ........................   [ 94%]
+tests/regression/test_sync_board_concepts.py ........................... [ 96%]
+.............                                                            [ 96%]
+tests/regression/test_targeting_material_isolation.py ...............    [ 97%]
+tests/regression/test_term_aliases.py ......                             [ 97%]
+tests/regression/test_tombstone_read_side_contract.py .........          [ 98%]
+tests/regression/test_u9c_startup_rejection_eval.py .....                [ 98%]
+tests/regression/test_vault_skip_files_scope_contract.py ............... [ 99%]
+......                                                                   [ 99%]
+tests/regression/test_write_side_group_guard.py .....                    [100%]
+
+=============================== warnings summary ===============================
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/google/genai/types.py:43: DeprecationWarning: '_UnionGenericAlias' is deprecated and slated for removal in Python 3.17
+    VersionedUnionType = Union[builtin_types.UnionType, _UnionGenericAlias]
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/langchain_core/_api/deprecation.py:25: UserWarning: Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.
+    from pydantic.v1.fields import FieldInfo as FieldInfoV1
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/graphiti_core/driver/search_interface/search_interface.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SearchInterface(BaseModel):
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/jieba/_compat.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    import pkg_resources
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:491
+  <frozen importlib._bootstrap>:491: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+app/api/v1/endpoints/chat.py:807
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/chat.py:807: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HookEnrichRequest(BaseModel):
+
+app/api/v1/endpoints/metadata.py:103
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:103: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(
+
+app/api/v1/endpoints/metadata.py:177
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/api/v1/endpoints/metadata.py:177: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    canvas_path: str = Query(..., description="Canvas file path", example="Math 54/离散数学.canvas"),
+
+../../card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/pydantic/_internal/_generate_schema.py:2356: PydanticDeprecatedSince211: The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated. If you are calling `super().__get_pydantic_core_schema__` when overriding the method on a Pydantic model, consider using `handler(source)` instead. However, note that overriding this method on models can lead to unexpected side effects. Deprecated in Pydantic V2.11 to be removed in V3.0.
+    schema = annotation_get_schema(source, get_inner_schema)
+
+tests/regression/test_all_index_entrypoints_hostile_env.py: 8 warnings
+tests/regression/test_board_manifest_contracts.py: 167 warnings
+tests/regression/test_projection_sync_ghost_edges.py: 4 warnings
+tests/regression/test_recap_scan_signals.py: 4 warnings
+tests/regression/test_snapshot_v3_contract.py: 86 warnings
+tests/regression/test_sync_board_concepts.py: 18 warnings
+tests/regression/test_targeting_material_isolation.py: 10 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-v5-lance/backend/.venv/lib/python3.14/site-packages/frontmatter/__init__.py:161: DeprecationWarning: codecs.open() is deprecated. Use open() instead.
+    with codecs.open(fd, "r", encoding) as f:
+
+tests/regression/test_rag_stage1_index_contracts.py: 15 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/lib/agentic_rag/clients/lancedb_client.py:4414: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if data and table_name in self._db.table_names():
+
+tests/regression/test_rag_stage1_index_contracts.py: 58 warnings
+  /opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/events.py:94: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    self._context.run(self._callback, *self._args)
+
+tests/regression/test_rag_stage1_index_contracts.py: 15 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/lib/agentic_rag/clients/lancedb_client.py:4423: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table_name in self._db.table_names():
+
+tests/regression/test_rag_stage1_index_contracts.py: 14 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/tests/regression/test_rag_stage1_index_contracts.py:71: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if table not in client._db.table_names():
+
+tests/regression/test_rag_stage1_index_contracts.py: 14 warnings
+  /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/app/services/vault_index_orchestrator.py:649: DeprecationWarning: table_names() is deprecated, use list_tables() instead
+    if client._db is None or table not in client._db.table_names():
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+===== 1988 passed, 6 skipped, 1 xfailed, 423 warnings in 361.95s (0:06:01) =====

@@ -1,0 +1,13 @@
+picks=103 problems=0 分布={'relevant': 64, 'ambiguous': 39}
+apply-verdicts: changed=103 problems=[]
+  vault_gold_set.yaml: lines_changed=225 (期望 225)
+  memory_gold_set.yaml: lines_changed=84 (期望 84)
+  vault_gold_set_shadow.yaml: lines_changed=0 (期望 0)
+  memory_gold_set_shadow.yaml: lines_changed=0 (期望 0)
+值对账不符条数: 0
+回写后 verify（应 rc=1）：rc=1
+OK build revision=3 main=103 attack=20 -> gold_set_manifest.yaml
+revision: 3 verdict_counts: {'vault_gold_set.yaml': {'pending': 0, 'relevant': 45, 'irrelevant': 0, 'ambiguous': 30, 'needs_split': 0}, 'memory_gold_set.yaml': {'pending': 0, 'relevant': 19, 'irrelevant': 0, 'ambiguous': 9, 'needs_split': 0}, 'vault_gold_set_shadow.yaml': {'pending': 2, 'relevant': 0, 'irrelevant': 0, 'ambiguous': 0, 'needs_split': 0}, 'memory_gold_set_shadow.yaml': {'pending': 0, 'relevant': 0, 'irrelevant': 0, 'ambiguous': 0, 'needs_split': 0}}
+OK approve signed_by=Heishing signed_at=2026-09-21T01:05:00Z -> gold_set_manifest.yaml
+approve rc=0
+USER-MARKS REHEARSAL OK：103/103 回写 → 升版 → 签字 → verify rc=0（全在副本内）

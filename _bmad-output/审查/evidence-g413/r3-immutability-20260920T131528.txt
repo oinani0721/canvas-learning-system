@@ -1,0 +1,15 @@
+backend/tests/regression/vault_gold_set.yaml: unchanged=58 diffs=0
+backend/tests/regression/memory_gold_set.yaml: unchanged=25 diffs=0
+run_vault_retrieval_regression.py:norm_text same=True
+run_vault_retrieval_regression.py:material_text same=True
+run_vault_retrieval_regression.py:grade_of same=True
+run_vault_retrieval_regression.py:is_contaminated same=True
+run_vault_retrieval_regression.py:forbidden_violations same=True
+run_vault_retrieval_regression.py:ndcg_at_k same=True
+run_vault_retrieval_regression.py:compare_with_baseline same=True
+run_memory_retrieval_regression.py:norm_text same=True
+run_memory_retrieval_regression.py:result_text same=True
+run_memory_retrieval_regression.py:is_relevant same=True
+run_memory_retrieval_regression.py:is_leaked same=True
+run_memory_retrieval_regression.py:compare_with_baseline same=True
+AST checked=12 diffs=0

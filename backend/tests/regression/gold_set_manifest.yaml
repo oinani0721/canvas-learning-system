@@ -5,14 +5,14 @@
 #
 # 两个 retrieval runner 在跑之前都会调 verify_gold_set_file()；不符就拒跑（rc=2）。
 
-revision: 2
-frozen_at: '2026-09-19T11:56:41Z'
+revision: 3
+frozen_at: '2026-09-21T01:15:24Z'
 base_commit: 9c4e7e82
 frozen: true
 files:
 - path: backend/tests/regression/vault_gold_set.yaml
   config_version: 3
-  sha256: 650c5d46e7ca4d990fb740b9543cc3fdd6280ba62f3064ad07c3a28aa4234b4d
+  sha256: 34f2463455259782205a8c73ba5159442f693c9017d9734c5858d18521f2aee5
   query_count: 75
   class_key: query_type
   by_class:
@@ -28,14 +28,14 @@ files:
     nonexistent: 4
     zero_lexical_overlap: 5
   verdict_counts:
-    pending: 75
-    relevant: 0
+    pending: 0
+    relevant: 45
     irrelevant: 0
-    ambiguous: 0
+    ambiguous: 30
     needs_split: 0
 - path: backend/tests/regression/memory_gold_set.yaml
   config_version: 2
-  sha256: d88d3a0a70b77280627c45b96476560750d57fc93f4e248d4bfef58a8a76fffb
+  sha256: 5c1f9e6c9c399710f4365e4705f5bfdd5626ab86371172499f5f438d5bcd1b06
   query_count: 28
   class_key: category
   by_class:
@@ -49,10 +49,10 @@ files:
     paraphrase: 3
     session: 1
   verdict_counts:
-    pending: 28
-    relevant: 0
+    pending: 0
+    relevant: 19
     irrelevant: 0
-    ambiguous: 0
+    ambiguous: 9
     needs_split: 0
 - path: backend/tests/regression/vault_gold_set_shadow.yaml
   config_version: 2
@@ -85,10 +85,10 @@ totals:
   cross_vault_attack: 20
   all_registered_queries: 105
 adjudication:
-  status: pending
-  signed_by: null
-  signed_at: null
-  checklist_path: null
+  status: approved
+  signed_by: Heishing
+  signed_at: '2026-09-21T01:15:33Z'
+  checklist_path: _bmad-output/验收单/UAT-CARD-G4-13-2026-09-19-裁定清单.md
 revision_history:
 - revision: 1
   at: '2026-09-19T11:54:21Z'
@@ -96,3 +96,6 @@ revision_history:
 - revision: 2
   at: '2026-09-19T11:56:41Z'
   reason: 修复迁移幂等缺陷：annotate 曾给自带标注的 17+3 条重复写键，yaml 静默取后者导致 source.ref 被覆盖为 null（负控③ 挖出）
+- revision: 3
+  at: '2026-09-21T01:15:24Z'
+  reason: G4-13 用户裁定回写：103/103（relevant 64 / ambiguous 39；来源=用户勾选清单 2026-09-20）

@@ -1,0 +1,64 @@
+--- run_memory_retrieval_regression.py	2026-09-19 04:51:43
++++ /tmp/g413-r3/run_memory_mut.py	2026-09-20 13:14:23
+@@ -349,6 +349,14 @@
+ 
+     if args.update_baseline and not args.reason:
+         print(f"{RED}⛔ --update-baseline 必须带 --reason (基线 churn 可审计){RESET}")
++        return 2
++
++
++    if not check_backend_alive():
++        print(
++            f"{RED}⛔ backend 不可达 ({HEALTH_ENDPOINT}) — 先起 backend 再跑门禁。"
++            f"环境不可用 ≠ 指标回退, exit 2。{RESET}"
++        )
+         return 2
+ 
+     # CARD-G4-13: 金集与 gold_set_manifest.yaml 对不上就拒跑。
+@@ -362,13 +370,6 @@
+         return 2
+     print(detail)
+ 
+-    if not check_backend_alive():
+-        print(
+-            f"{RED}⛔ backend 不可达 ({HEALTH_ENDPOINT}) — 先起 backend 再跑门禁。"
+-            f"环境不可用 ≠ 指标回退, exit 2。{RESET}"
+-        )
+-        return 2
+-
+     gold_path = SHADOW_SET if args.shadow else GOLD_SET
+     gold = yaml.safe_load(gold_path.read_text(encoding="utf-8"))
+     tolerance = float(gold["config"].get("tolerance", 0.02))
+--- run_vault_retrieval_regression.py	2026-09-19 04:55:22
++++ /tmp/g413-r3/run_vault_mut.py	2026-09-20 13:14:23
+@@ -484,14 +484,6 @@
+ 
+     gold_path = SHADOW_SET if args.shadow else GOLD_SET
+ 
+-    # CARD-G4-13: 金集与 gold_set_manifest.yaml 对不上就拒跑。
+-    # 金集是这道门的**真值**；真值能被悄悄改掉，门就只是在给自己打分。
+-    # rc=2 沿用本文件既有的「环境/输入错 ≠ 指标回退」语义（同 :475 / :488 / :498）。
+-    ok, detail = verify_gold_set_file(gold_path)
+-    if not ok:
+-        print(f"{RED}⛔ 金集与 gold_set_manifest.yaml 不符 ({detail}){RESET}")
+-        return 2
+-    print(detail)
+ 
+     gold = yaml.safe_load(gold_path.read_text(encoding="utf-8"))
+     tolerance = float(gold["config"].get("tolerance", 0.02))
+@@ -505,6 +497,15 @@
+         print(f"{RED}⛔ 评测环境异常 (非指标回退): {exc}{RESET}")
+         return 2
+ 
++    # CARD-G4-13: 金集与 gold_set_manifest.yaml 对不上就拒跑。
++    # 金集是这道门的**真值**；真值能被悄悄改掉，门就只是在给自己打分。
++    # rc=2 沿用本文件既有的「环境/输入错 ≠ 指标回退」语义（同 :475 / :488 / :498）。
++    ok, detail = verify_gold_set_file(gold_path)
++    if not ok:
++        print(f"{RED}⛔ 金集与 gold_set_manifest.yaml 不符 ({detail}){RESET}")
++        return 2
++    print(detail)
++
+     # 空索引哨兵: 全部 query 零返回 = 环境错误 (多半是在宿主跑, 摸不到
+     # named volume), 绝不能作为基线/回退判定
+     if all(e.get("returned", 0) == 0 for e in report["per_query"]):

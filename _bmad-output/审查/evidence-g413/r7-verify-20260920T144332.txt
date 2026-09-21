@@ -1,0 +1,5 @@
+OK backend/tests/regression/vault_gold_set.yaml sha256=650c5d46e7ca… queries=75
+OK backend/tests/regression/memory_gold_set.yaml sha256=d88d3a0a70b7… queries=28
+OK backend/tests/regression/vault_gold_set_shadow.yaml sha256=c7b25fcc9c0b… queries=2
+OK backend/tests/regression/memory_gold_set_shadow.yaml sha256=582df3afe892… queries=0
+verify_rc=0

@@ -1,0 +1,14 @@
+apply-verdicts: changed=['vq-x01', 'mem-23'] problems=[]
+vault_gold_set.yaml: lines_changed=3 (期望 3)
+memory_gold_set.yaml: lines_changed=3 (期望 3)
+vault_gold_set_shadow.yaml: lines_changed=0 (期望 0)
+memory_gold_set_shadow.yaml: lines_changed=0 (期望 0)
+回写后 verify（应 rc=1：sha 变）: rc=1; 首行=MISMATCH backend/tests/regression/vault_gold_set.yaml sha256=650c5d46e
+Traceback (most recent call last):
+  File "<stdin>", line 63, in <module>
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/scripts/gold_set_manifest_tool.py", line 185, in build_manifest
+    files = [describe_file(p, key) for p, key in GOLD_SETS]
+             ~~~~~~~~~~~~~^^^^^^^^
+  File "/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/card-p9-testinfra/backend/scripts/gold_set_manifest_tool.py", line 130, in describe_file
+    raise ValueError(f"{path} 在仓外 —— manifest 只登记仓内路径（写进去换台机器就对不上）")
+ValueError: /tmp/g413-r3/dryrun-root/backend/tests/regression/vault_gold_set.yaml 在仓外 —— manifest 只登记仓内路径（写进去换台机器就对不上）

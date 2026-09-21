@@ -1,0 +1,24 @@
+⛔ 主集还有 pending 的 user_verdict —— AI 不得代填，用户没标完不许签字：
+  backend/tests/regression/memory_gold_set.yaml: 1
+[A] apply-verdicts: changed=103 problems=0 (标了 103 条)
+[A]   vault_gold_set.yaml: lines_changed=225 (期望 225 = 75 条×3)
+[A]   memory_gold_set.yaml: lines_changed=84 (期望 84 = 28 条×3)
+[A]   vault_gold_set_shadow.yaml: lines_changed=0 (期望 0 = 0 条×3)
+[A]   memory_gold_set_shadow.yaml: lines_changed=0 (期望 0 = 0 条×3)
+[A] 回写后 verify（应 rc=1：sha 变）: rc=1
+OK build revision=3 main=103 attack=20 -> gold_set_manifest.yaml
+[A] build: revision=3 adjudication.status=pending vault.verdict_counts={'pending': 0, 'relevant': 60, 'irrelevant': 8, 'ambiguous': 7, 'needs_split': 0}
+OK approve signed_by=user signed_at=2026-09-20T18:05:00Z -> gold_set_manifest.yaml
+[A] approve: rc=0（期望 0）
+[A] ✅ 场景 A 全通：103/103 → approved+签字 → verify rc=0
+[B] apply-verdicts: changed=102 problems=0 (标了 102 条)
+[B]   vault_gold_set.yaml: lines_changed=225 (期望 225 = 75 条×3)
+[B]   memory_gold_set.yaml: lines_changed=81 (期望 81 = 27 条×3)
+[B]   vault_gold_set_shadow.yaml: lines_changed=0 (期望 0 = 0 条×3)
+[B]   memory_gold_set_shadow.yaml: lines_changed=0 (期望 0 = 0 条×3)
+[B] 回写后 verify（应 rc=1：sha 变）: rc=1
+OK build revision=3 main=103 attack=20 -> gold_set_manifest.yaml
+[B] build: revision=3 adjudication.status=pending vault.verdict_counts={'pending': 0, 'relevant': 60, 'irrelevant': 8, 'ambiguous': 7, 'needs_split': 0}
+[B] approve: rc=1（期望 非 0）
+[B] ✅ 场景 B 正确拒绝：留 mem-x03 pending ⇒ 不许签字
+REHEARSAL OK：两场景全通（全部在 /tmp 副本；真金集/真 manifest 只读未动）

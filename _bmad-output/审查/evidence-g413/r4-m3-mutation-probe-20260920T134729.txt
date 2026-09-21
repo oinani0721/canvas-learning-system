@@ -1,0 +1,3 @@
+[变异体 + pin(alive=False)] rc=2 含不符=False 含不可达=True ⇒ pin 会红 = True
+[变异体 + 无 pin(alive=True)] rc=2 含不符=True ⇒ 与正确顺序不可区分 = True
+⇒ 结论：pin 承重（两条都成立）

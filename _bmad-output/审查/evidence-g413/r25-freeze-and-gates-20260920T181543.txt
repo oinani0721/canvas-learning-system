@@ -1,0 +1,12 @@
+# 冻结不变性（10 键 × 83 vs 9c4e7e82；20260920T181543）
+backend/tests/regression/vault_gold_set.yaml: unchanged=58 diffs=0
+backend/tests/regression/memory_gold_set.yaml: unchanged=25 diffs=0
+AST diffs = 0
+
+# 行为门（g413）
+FAILED tests/regression/test_gold_set_manifest_g413.py::test_apply_verdicts_preserves_missing_trailing_newline
+================== 6 failed, 84 passed, 10 warnings in 2.61s ===================
+
+# 点名套件
+NEO4J_LIVE_PORT_CONNECT_ATTEMPTS=0 (blocked=0, advisory=0, unaccounted=0)
+======================= 47 passed, 122 warnings in 1.39s =======================

@@ -1,0 +1,13 @@
+# 回写后核验（20260920T181519）
+backend/tests/regression/vault_gold_set.yaml:0
+backend/tests/regression/memory_gold_set.yaml:0
+---
+backend/tests/regression/vault_gold_set.yaml:45
+backend/tests/regression/memory_gold_set.yaml:19
+backend/tests/regression/vault_gold_set.yaml:30
+backend/tests/regression/memory_gold_set.yaml:9
+--- git diff numstat ---
+84	84	backend/tests/regression/memory_gold_set.yaml
+225	225	backend/tests/regression/vault_gold_set.yaml
+--- shadow 未动? ---
+(空=未动)

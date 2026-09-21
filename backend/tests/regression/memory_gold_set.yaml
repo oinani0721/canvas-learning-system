@@ -40,9 +40,9 @@ queries:
     category: knowledge
     origin: "审查 q1 (实测 80%, 同三元组 5 变体占半屏)"
     expect_any: ["特征值", "eigenvalue", "PCA", "主成分"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-02
@@ -51,9 +51,9 @@ queries:
     category: knowledge
     origin: "审查 q2 (实测 65%, 两条逐字节相同并排)"
     expect_any: ["零空间", "null space", "特征值", "eigenvalue"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-03
@@ -62,9 +62,9 @@ queries:
     category: knowledge
     origin: "审查 q3 (实测 90%, 最佳)"
     expect_any: ["forward checking", "AC-3", "arc consistency", "弧一致"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-04
@@ -73,9 +73,9 @@ queries:
     category: knowledge
     origin: "审查 q4 (实测 95%, 但同 fact 重复 7 次)"
     expect_any: ["backtracking", "DFS", "depth-first", "回溯", "深度优先"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-05
@@ -84,9 +84,9 @@ queries:
     category: annotation
     origin: "审查 q5 (实测 30%, rank1 是弧一致性)"
     expect_any: ["理性", "rational", "agent", "代理"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-06
@@ -95,9 +95,9 @@ queries:
     category: meta
     origin: "审查 q6 (实测 45%, 孤立批注不带所属节点)"
     expect_any: ["误解", "混淆", "错误", "misconception", "confus"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-07
@@ -106,9 +106,9 @@ queries:
     category: knowledge
     origin: "审查 q7 (实测 85%, 纯中文可用)"
     expect_any: ["协方差", "covariance"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-08
@@ -117,9 +117,9 @@ queries:
     category: paraphrase
     origin: "审查 q8 (同义改写零关键词, 实测 60%, 正解 rank7)"
     expect_any: ["特征向量", "特征值", "eigenvector", "eigenvalue"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-09
@@ -128,9 +128,9 @@ queries:
     category: nonexistent
     origin: "审查 q9 (库内不存在, 实测满编 10 条无关)"
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-10
@@ -139,9 +139,9 @@ queries:
     category: session
     origin: "审查 q10 (实测 35%, 专写的会话总结 fact 未召回)"
     expect_any: ["会话", "总结", "session", "summary"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-11
@@ -150,9 +150,9 @@ queries:
     category: ambiguous
     origin: "审查 q11 (歧义短词, 实测 30%, 7/10 无关含裸词垃圾)"
     expect_any: ["agent", "理性", "rational"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
 
   - id: mem-12
@@ -163,9 +163,9 @@ queries:
     expect_any: ["变量", "MRV", "variable", "ordering", "CSP", "约束"]
 
   # ── 新增 13 条 (G0: 补中英对半 + 三类难例) ──
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
   - id: mem-13
     query: "admissibility vs consistency of heuristics"
@@ -173,9 +173,9 @@ queries:
     category: knowledge
     origin: "g0-new (库内最强主题, A* 启发函数)"
     expect_any: ["admissib", "consisten", "heuristic", "启发"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-14
@@ -184,9 +184,9 @@ queries:
     category: paraphrase
     origin: "g0-new (同义改写零关键词 → admissible)"
     expect_any: ["admissib", "heuristic", "启发", "overestimate"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-15
@@ -195,9 +195,9 @@ queries:
     category: ambiguous
     origin: "g0-new (歧义短词: value iteration vs eigenvalue vs 裸词垃圾 — 审查 q11 发现裸词垃圾 value)"
     expect_any: ["value iteration", "值迭代", "utility", "效用", "eigenvalue", "特征值"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-16
@@ -206,9 +206,9 @@ queries:
     category: knowledge
     origin: "g0-new (CS188 值迭代)"
     expect_any: ["value iteration", "值迭代", "MDP", "Bellman", "收敛"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-17
@@ -217,9 +217,9 @@ queries:
     category: knowledge
     origin: "g0-new (CS188 零和博弈)"
     expect_any: ["minimax", "alpha-beta", "剪枝", "零和", "zero-sum"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-18
@@ -228,9 +228,9 @@ queries:
     category: nonexistent
     origin: "g0-new (数据结构不在库, 英文版假阳性测试)"
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-19
@@ -239,9 +239,9 @@ queries:
     category: meta
     origin: "g0-new (元查询英文版, 错误记忆召回)"
     expect_any: ["A*", "admissib", "consisten", "错误", "mistake"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-20
@@ -250,9 +250,9 @@ queries:
     category: crosslingual
     origin: "g0-new (跨语: 库内协方差为中文三元组, 英文 query 测 dense 层拉平)"
     expect_any: ["covariance", "协方差", "eigenvector", "特征向量"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-21
@@ -261,9 +261,9 @@ queries:
     category: knowledge
     origin: "g0-new (AC-3 约束传播)"
     expect_any: ["AC-3", "arc consistency", "弧一致", "constraint"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-22
@@ -272,9 +272,9 @@ queries:
     category: nonexistent
     origin: "g0-new (物理主题不在库, 假阳性测试)"
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-23
@@ -283,9 +283,9 @@ queries:
     category: paraphrase
     origin: "g0-new (同义改写中文 → admissible 不会高估)"
     expect_any: ["admissib", "乐观", "启发", "heuristic", "高估"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-24
@@ -294,9 +294,9 @@ queries:
     category: crosslingual
     origin: "g0-new (跨语: 库内 minimax 为英文内容, 中文 query)"
     expect_any: ["minimax", "alpha-beta", "剪枝", "极小极大"]
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
 
   - id: mem-25
@@ -308,9 +308,9 @@ queries:
 
   # ── cross_vault_attack (3) — 跨 vault 同名资产攻击 (CARD-G4-13) ──
   # 形状同 vault 集，来源 G2-9 同名攻击用例集。expect_empty: 本 vault 不该召回他 vault 同名资产。
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: mem-x01
     query: "同名概念 在我的记忆里是怎么记的"
@@ -318,9 +318,9 @@ queries:
     category: cross_vault_attack
     origin: "G2-9 同名攻击用例集 backend/scripts/g29_dual_vault_canary.py:101-111"
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: mem-x02
     query: "g29-canary-user 说过什么"
@@ -328,9 +328,9 @@ queries:
     category: cross_vault_attack
     origin: "G2-9 同名攻击用例集 backend/scripts/g29_dual_vault_canary.py:101-111"
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: mem-x03
     query: "Recall anything about 同名情节"
@@ -338,7 +338,7 @@ queries:
     category: cross_vault_attack
     origin: "G2-9 同名攻击用例集 backend/scripts/g29_dual_vault_canary.py:101-111"
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}

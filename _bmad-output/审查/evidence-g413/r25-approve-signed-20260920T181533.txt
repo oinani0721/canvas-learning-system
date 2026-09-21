@@ -1,0 +1,18 @@
+# approve（从车道根，仓相对 checklist 路径；20260920T181533）
+OK approve signed_by=Heishing signed_at=2026-09-21T01:15:33Z -> gold_set_manifest.yaml
+approve_rc=0
+
+# verify
+OK backend/tests/regression/vault_gold_set.yaml sha256=34f246345525… queries=75
+OK backend/tests/regression/memory_gold_set.yaml sha256=5c1f9e6c9c39… queries=28
+OK backend/tests/regression/vault_gold_set_shadow.yaml sha256=c7b25fcc9c0b… queries=2
+OK backend/tests/regression/memory_gold_set_shadow.yaml sha256=582df3afe892… queries=0
+verify_rc=0
+
+# adjudication 终态
+adjudication:
+  status: approved
+  signed_by: Heishing
+  signed_at: '2026-09-21T01:15:33Z'
+  checklist_path: _bmad-output/验收单/UAT-CARD-G4-13-2026-09-19-裁定清单.md
+revision_history:

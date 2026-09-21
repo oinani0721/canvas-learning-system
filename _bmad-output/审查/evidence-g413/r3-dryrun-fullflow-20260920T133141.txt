@@ -1,0 +1,10 @@
+apply-verdicts: changed=['vq-x01', 'mem-23'] problems=[]
+vault_gold_set.yaml: lines_changed=3 (期望 3)
+memory_gold_set.yaml: lines_changed=3 (期望 3)
+vault_gold_set_shadow.yaml: lines_changed=0 (期望 0)
+memory_gold_set_shadow.yaml: lines_changed=0 (期望 0)
+回写后 verify（应 rc=1：sha 变）: rc=1; 首行=MISMATCH backend/tests/regression/vault_gold_set.yaml sha256=650c5d46e
+OK build revision=3 main=103 attack=20 -> gold_set_manifest.yaml
+bump 后 verify: rc=0
+manifest: {'revision': 3, 'adjudication': {'status': 'pending', 'signed_by': None, 'signed_at': None, 'checklist_path': None}, 'history_len': 3}
+DRY-RUN OK：勾选 → 逐行回写（每文件仅 3 行变）→ 升版 revision=3 → verify rc=0；全程副本，未碰真金集

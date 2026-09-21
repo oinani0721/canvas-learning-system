@@ -25,7 +25,7 @@ worker.is_ready=False, Tier 1 恒空手, 评出来的是假基线。
   .venv/bin/python scripts/run_memory_retrieval_regression.py --update-baseline        # 固化/更新基线
   .venv/bin/python scripts/run_memory_retrieval_regression.py --json                   # 额外输出机器可读 JSON
 
-exit code: 0 = 通过 / 1 = 指标回退 / 2 = 环境不可用 (backend 未起, 不算回退)
+exit code: 0 = 通过 / 1 = 指标回退 / 2 = 环境或输入错 (backend 未起 / manifest·金集·配置不可跑；最外层兜底, 2026-09-20 G4-13 r11)
 """
 
 import argparse
@@ -330,7 +330,7 @@ def print_report(report: dict) -> None:
             print(f"    {e['id']} [{e['category']}] {e['query']}")
 
 
-def main() -> int:
+def _main() -> int:
     parser = argparse.ArgumentParser(description="记忆检索 gold set 回归门禁")
     parser.add_argument("--update-baseline", action="store_true", help="固化当前指标为基线")
     parser.add_argument(
@@ -432,6 +432,21 @@ def main() -> int:
         return 1
     print(f"{GREEN}✅ 门禁通过 — 5 指标均未回退 (基线 {baseline.get('run_at', '?')}){RESET}")
     return 0
+
+
+def main() -> int:
+    """rc 契约兜底（G4-13 r11）：``0`` 通过 / ``1`` 指标回退 / ``2`` 环境或输入错。
+
+    ``_main`` 里任何**未预期异常**冒泡都会被 shell 记成 exit 1 —— 冒充「指标回退」档。
+    金集/配置里没被 ``verify_gold_set_file`` 拦下的畸形值正会走到这里（复核 r8/r9/r10
+    反复点名同一类），所以在最外层统一兜成 rc=2 + 一句可区分的文案。
+    KeyboardInterrupt / SystemExit 不在此列（继承自 BaseException）。
+    """
+    try:
+        return _main()
+    except Exception as exc:  # noqa: BLE001 —— 兜底就是要最宽
+        print(f"{RED}⛔ 未预期异常（环境/输入错，非指标回退）: {type(exc).__name__}: {exc}{RESET}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

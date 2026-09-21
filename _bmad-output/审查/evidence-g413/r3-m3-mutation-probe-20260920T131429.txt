@@ -1,0 +1,21 @@
+=== PROBE M-3a: memory runner（校验被挪到 alive 之后）===
+rc=2  含「不符」=False  含「backend 不可达」=True
+⇒ pin 会不会红：会（pin 是承重的）
+--- mutant 输出 ---
+[91m⛔ backend 不可达 (http://localhost:8011/api/v1/health) — 先起 backend 再跑门禁。环境不可用 ≠ 指标回退, exit 2。[0m
+
+=== PROBE M-3b: vault runner（校验被挪到 run_tiers 之后）===
+Traceback (most recent call last):
+  File "<stdin>", line 41, in <module>
+  File "/tmp/g413-r3/run_vault_mut.py", line 488, in main
+    gold = yaml.safe_load(gold_path.read_text(encoding="utf-8"))
+                          ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 787, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4_1/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py", line 771, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/private/tmp/tests/regression/vault_gold_set_shadow.yaml'
+
+（本文件是首跑：probe B 因变异体路径常量指向 /tmp 而 FileNotFoundError，作废。以 r3-m3-mutation-probe-20260920T131448.txt 为准。）

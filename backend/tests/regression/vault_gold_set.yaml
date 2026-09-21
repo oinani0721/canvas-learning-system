@@ -48,9 +48,9 @@ queries:
     origin: "节点/理性代理-(Rational-Agent).md 派生节点"
     expect_hit:
       - {file: "理性代理", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-d02
     query: "为什么反射代理的局限性会引出规划代理的需求？"
@@ -60,9 +60,9 @@ queries:
     expect_hit:
       - {file: "反射代理的局限性", grade: 3}
       - {file: "规划代理的特点", grade: 1}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-d03
     query: "特征方程是怎么定义特征值的？"
@@ -72,9 +72,9 @@ queries:
     expect_hit:
       - {file: "Characteristic-Equation", grade: 3}
       - {file: "Fundamentals", grade: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/Characteristic-Equation-for-Eigenvalues.md"}
   - id: vq-d04
     query: "Av=λv 这个式子里每个符号代表什么？"
@@ -84,9 +84,9 @@ queries:
     expect_hit:
       - {file: "Fundamentals", grade: 3}
       - {file: "Eigenvalues-are-special", grade: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/Fundamentals.md"}
   - id: vq-d05
     query: "特征值作为缩放因子是什么意思？"
@@ -95,9 +95,9 @@ queries:
     origin: "节点/Fundamentals.md scaling factor 定义"
     expect_hit:
       - {file: "Fundamentals", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/Fundamentals.md"}
   - id: vq-d06
     query: "递归和分治的核心思想我是怎么记的？"
@@ -107,9 +107,9 @@ queries:
     expect_hit:
       - {file: "recursion", grade: 3}
       - {file: "递归与分治", grade: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: whiteboard, ref: null}
   - id: vq-d07
     query: "CSM 辅导的学分规则是怎样的？"
@@ -118,9 +118,9 @@ queries:
     origin: "节点/csm-tutoring-unit-credit.md"
     expect_hit:
       - {file: "csm", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/csm-tutoring-unit-credit.md"}
   - id: vq-d08
     query: "回溯搜索和普通 DFS 到底区别在哪？为什么说它是解 CSP 的基本方法？"
@@ -129,9 +129,9 @@ queries:
     origin: "transcript 真实提问 2026-08-09 (raw 正当命中类)"
     expect_hit:
       - {file: "raw/CS188", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-d09
     query: "代理函数 agent function 是什么？"
@@ -140,9 +140,9 @@ queries:
     origin: "节点/代理函数-(Agent-Function).md"
     expect_hit:
       - {file: "代理函数", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-d10
     query: "规划可以分成哪几类？"
@@ -153,9 +153,9 @@ queries:
       - {file: "规划的分类", grade: 3}
 
   # ═══ example_recall (6) — 例子/比喻检索 ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-e01
     query: "我笔记里关于特征向量的几何直觉是怎么描述的？我有没有用什么比喻？"
@@ -166,9 +166,9 @@ queries:
       - {file: "Fundamentals", contains: "旋转门", grade: 3}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-e02
     query: "价值迭代有没有手算的例子？"
@@ -177,9 +177,9 @@ queries:
     origin: "raw/CS188 Disc04 Micro-Blackjack (正当命中)"
     expect_hit:
       - {file: "raw/CS188", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-e03
     query: "赛车游戏那个例子讲的是什么算法？"
@@ -188,9 +188,9 @@ queries:
     origin: "raw/CS188 lecture 10 赛车 MDP 例子 (正当命中)"
     expect_hit:
       - {file: "raw/CS188", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-e04
     query: "旋转变换存不存在实特征向量？我笔记里讨论过吗"
@@ -200,9 +200,9 @@ queries:
     expect_hit:
       - {file: "考察-Fundamentals", grade: 3}
       - {file: "Fundamentals", grade: 1}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/考察-Fundamentals-2026-07-16.md"}
   - id: vq-e05
     query: "Gridworld 网格世界的演示说明了什么？"
@@ -211,9 +211,9 @@ queries:
     origin: "raw/CS188 lecture 10 Gridworld (正当命中)"
     expect_hit:
       - {file: "raw/CS188", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-e06
     query: "λ 等于 0 的时候特征向量还成立吗？我好像问过这个"
@@ -224,9 +224,9 @@ queries:
       - {file: "Fundamentals", contains: "0", grade: 3}
 
   # ═══ file_locate (6) — 「记在哪篇笔记里」 ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/Fundamentals.md"}
   - id: vq-f01
     query: "特征向量和特征值的定义我记在哪篇笔记里？"
@@ -238,9 +238,9 @@ queries:
       - {file: "特征值与特征向量", grade: 2}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-f02
     query: "我的递归笔记是哪一篇？"
@@ -249,9 +249,9 @@ queries:
     origin: "节点/my-recursion-notes.md"
     expect_hit:
       - {file: "recursion", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/my-recursion-notes.md"}
   - id: vq-f03
     query: "CSM 单位学分那件事我记在哪了？"
@@ -260,9 +260,9 @@ queries:
     origin: "节点/csm-tutoring-unit-credit.md"
     expect_hit:
       - {file: "csm", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/csm-tutoring-unit-credit.md"}
   - id: vq-f04
     query: "咖啡烘焙那句话我写在哪篇笔记里？"
@@ -271,9 +271,9 @@ queries:
     origin: "UAT v2 测试3 追加内容 (Fundamentals 尾部)"
     expect_hit:
       - {file: "Fundamentals", contains: "烘", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-f05
     query: "代理决策分析的笔记在哪？"
@@ -283,9 +283,9 @@ queries:
     expect_hit:
       - {file: "代理决策", grade: 3}
   # ═══ appended_content (5) — 靶子① 大文件尾部追加 (chunk 稀释) ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-a01
     query: "我笔记里有没有写过咖啡烘焙深浅和味道的关系？在哪篇？"
@@ -295,9 +295,9 @@ queries:
     expect_hit:
       - {file: "Fundamentals", contains: "烘", grade: 3}
     baseline_note: "开工基线=排序层低分; T3 后必须进 top10 且交付层 hit"
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-a02
     query: "烘豆子烘得深浅对喝起来的口感有什么影响？"
@@ -306,9 +306,9 @@ queries:
     origin: "同 vq-a01 换问法 (苦/酸方向)"
     expect_hit:
       - {file: "Fundamentals", contains: "苦", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-a03
     query: "特征向量像旋转门转轴的说法是我自己写的吗？写在哪？"
@@ -317,9 +317,9 @@ queries:
     origin: "Fundamentals 08-08 用户追加行 (watcher 2s 入索引实测)"
     expect_hit:
       - {file: "Fundamentals", contains: "旋转门", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-a04
     query: "我对最大化那部分有什么不理解的地方吗？"
@@ -328,9 +328,9 @@ queries:
     origin: "节点/lecture 2.md ✍️ 我的理解 批注 (大文件内嵌用户笔记)"
     expect_hit:
       - {file: "lecture 2", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-a05
     query: "火候曲线决定什么？"
@@ -341,9 +341,9 @@ queries:
       - {file: "Fundamentals", contains: "火候", grade: 3}
 
   # ═══ handwritten_vs_transcript (8) — 靶子② 手写优先权 ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-h01
     query: "代理 agent 的类型有哪些？反射型和规划型有什么不同？"
@@ -355,9 +355,9 @@ queries:
       - {file: "反射代理", grade: 2}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 4}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/代理类型：反射与规划.md"}
   - id: vq-h02
     query: "规划代理有什么特点？"
@@ -368,9 +368,9 @@ queries:
       - {file: "规划代理的特点", grade: 3}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 4}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/规划代理的特点.md"}
   - id: vq-h03
     query: "递归的 base case 为什么重要？"
@@ -379,9 +379,9 @@ queries:
     origin: "节点/my-recursion-notes.md (注意 raw/ 有同名副本)"
     expect_hit:
       - {file: "recursion", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: "节点/my-recursion-notes.md"}
   - id: vq-h04
     query: "理性代理和环境的关系是什么？"
@@ -392,9 +392,9 @@ queries:
       - {file: "理性代理", grade: 3}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 4}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-h05
     query: "我自己的笔记里对 agent 下过什么定义？"
@@ -406,9 +406,9 @@ queries:
       - {file: "lecture 2", grade: 2}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-h06
     query: "特征值全为正意味着什么？"
@@ -419,9 +419,9 @@ queries:
       - {file: "Fundamentals", grade: 3}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-h08
     query: "lecture 2 我做过哪些自己的笔记和理解？"
@@ -432,9 +432,9 @@ queries:
       - {file: "节点/lecture 2", grade: 3}
 
   # ═══ homograph_ambiguous (6) — 靶子③ 中英同形歧义 ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-g01
     query: "我笔记里关于特征值与特征向量讲了什么？"
@@ -447,9 +447,9 @@ queries:
       - {file: "Characteristic-Equation", grade: 2}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 0, reason: "eigenvector≠feature vector, 一条都不许"}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: review_doc, ref: null}
   - id: vq-g02
     query: "特征向量的几何意义是什么？"
@@ -460,9 +460,9 @@ queries:
       - {file: "Fundamentals", grade: 3}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 0}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-g03
     query: "用特征向量描述状态是什么意思？"
@@ -471,9 +471,9 @@ queries:
     origin: "反向歧义: 这次问的真是 ML feature vector (raw 正当命中)"
     expect_hit:
       - {file: "raw/CS188", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-g04
     query: "特征值怎么求？"
@@ -485,9 +485,9 @@ queries:
       - {file: "Fundamentals", grade: 2}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 1}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-g05
     query: "代理是什么？"
@@ -498,9 +498,9 @@ queries:
       - {file: "代理", grade: 3}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 4}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-g06
     query: "线性模型的定义是什么？"
@@ -511,9 +511,9 @@ queries:
       - {file: "raw/CS188", grade: 3}
 
   # ═══ zero_lexical_overlap (5) — 纯语义检索 (dense 层能力) ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-z01
     query: "矩阵作用之后方向不变、只被拉长的那种向量叫什么？我记过吗"
@@ -523,9 +523,9 @@ queries:
     expect_hit:
       - {file: "Fundamentals", grade: 3}
       - {file: "Eigenvalues-are-special", grade: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-z02
     query: "把大问题拆成同样形状的小问题来解决的思路我记在哪？"
@@ -535,9 +535,9 @@ queries:
     expect_hit:
       - {file: "recursion", grade: 3}
       - {file: "递归与分治", grade: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-z03
     query: "让行列式变成零的那个数怎么找？"
@@ -547,9 +547,9 @@ queries:
     expect_hit:
       - {file: "Characteristic-Equation", grade: 3}
       - {file: "Fundamentals", grade: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-z04
     query: "只根据当下感知就行动、不考虑后果的那种智能体叫什么？"
@@ -559,9 +559,9 @@ queries:
     expect_hit:
       - {file: "反射", grade: 3}
       - {file: "代理类型", grade: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-z05
     query: "豆子火大了会变苦这件事我记过吗？"
@@ -572,9 +572,9 @@ queries:
       - {file: "Fundamentals", grade: 3}
 
   # ═══ crosslingual (5) — 中英跨语检索 ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-c01
     query: "What did I write about eigenvalues and eigenvectors in my notes?"
@@ -586,9 +586,9 @@ queries:
       - {file: "特征值与特征向量", grade: 2}
     expect_not_hit:
       - {path_glob: "raw/*", max_in_top_k: 2}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-c02
     query: "my notes about rational agents"
@@ -597,9 +597,9 @@ queries:
     origin: "英文问中文派生节点"
     expect_hit:
       - {file: "理性代理", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-c03
     query: "where are my recursion notes"
@@ -608,9 +608,9 @@ queries:
     origin: "英文定位"
     expect_hit:
       - {file: "recursion", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-c04
     query: "how to compute eigenvalues using the characteristic equation"
@@ -619,9 +619,9 @@ queries:
     origin: "英文概念问 (Characteristic-Equation 正文本身是英文)"
     expect_hit:
       - {file: "Characteristic-Equation", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-c05
     query: "planning agents vs reflex agents 的区别"
@@ -633,9 +633,9 @@ queries:
       - {file: "规划代理", grade: 2}
 
   # ═══ meta_annotation (5) — 「我之前的疑问/理解」 ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-m01
     query: "我之前对特征向量有哪些疑问？"
@@ -644,9 +644,9 @@ queries:
     origin: "transcript 真实提问; Fundamentals 用户疑问 callout"
     expect_hit:
       - {file: "Fundamentals", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-m02
     query: "λ 可以是 0 吗这个问题我问过吗？"
@@ -655,9 +655,9 @@ queries:
     origin: "Fundamentals ✍️ 我的理解 callout (T3 后独立成块)"
     expect_hit:
       - {file: "Fundamentals", contains: "0", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-m03
     query: "我对代理的定义有过什么不理解的地方？"
@@ -666,9 +666,9 @@ queries:
     origin: "节点/lecture 2.md ✍️ 我对代理的定义还是不太理解"
     expect_hit:
       - {file: "lecture 2", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-m04
     query: "我在预期这个概念上卡过吗？"
@@ -677,9 +677,9 @@ queries:
     origin: "节点/lecture 2.md ✍️ 预期理解批注"
     expect_hit:
       - {file: "lecture 2", grade: 3}
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: node, ref: null}
   - id: vq-m05
     query: "我上一次考试弃答的题目是哪道？"
@@ -690,36 +690,36 @@ queries:
     notes: "vault 检索链交付 0 条为正确 — 考察记录不经 RAG 回流"
 
   # ═══ nonexistent (4) — 库内无此主题 ═══
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-n01
     query: "红黑树删除节点后怎么重新平衡？"
     language: zh
     query_type: nonexistent
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-n02
     query: "傅里叶变换的物理意义是什么？"
     language: zh
     query_type: nonexistent
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: ambiguous
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-n03
     query: "操作系统的进程调度算法有哪些？"
     language: zh
     query_type: nonexistent
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-n04
     query: "光合作用的暗反应发生在哪里？"
@@ -731,9 +731,9 @@ queries:
   # 形状逐字复用 G2-9 同名攻击用例集（backend/scripts/g29_dual_vault_canary.py:101-111）：
   # 用**相同的资产标识**发问，语义 = 「本 vault 的检索面不得出现另一个 vault 的同名资产」。
   # 判分只用既有三键（runner :209-213 只读这几个），零容忍 max_in_top_k: 0。
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: synthetic, ref: null}
   - id: vq-x01
     query: "同名概念 是什么？我在这个 vault 里记过吗"
@@ -743,9 +743,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x02
     query: "双vault验证/同名白板.canvas 这块白板讲了什么"
@@ -755,9 +755,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x03
     query: "g29-node-0001 这个节点的内容是什么"
@@ -767,9 +767,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x04
     query: "同名实体 和 同名情节 之间是什么关系"
@@ -779,9 +779,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x05
     query: "把 同名概念 的定义和例子一起给我"
@@ -791,9 +791,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x06
     query: "g29-canary-user 这个用户留下过哪些笔记"
@@ -803,9 +803,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x07
     query: "同名白板 里有哪些节点"
@@ -815,9 +815,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x08
     query: "g29-doc-0001 对应的原文在哪"
@@ -827,9 +827,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x09
     query: "同名情节 发生在什么时候"
@@ -839,9 +839,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x10
     query: "检索一下 双vault验证 目录下的所有材料"
@@ -851,9 +851,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x11
     query: "同名概念 在另一个 vault 里是怎么写的"
@@ -863,9 +863,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x12
     query: "跨 vault 找一下 同名实体"
@@ -875,9 +875,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x13
     query: "同名概念 的上位概念是什么"
@@ -887,9 +887,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x14
     query: "What does the shared concept 同名概念 mean here?"
@@ -899,9 +899,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x15
     query: "Show me everything under 双vault验证/"
@@ -911,9 +911,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x16
     query: "Find node g29-node-0001 across vaults"
@@ -923,9 +923,9 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}
   - id: vq-x17
     query: "同名实体 entity lookup, cross-vault"
@@ -935,7 +935,7 @@ queries:
     expect_not_hit:
       - {path_glob: "双vault验证/*", max_in_top_k: 0}
     expect_empty: true
-    user_verdict: pending
-    verdict_by: null
-    verdict_at: null
+    user_verdict: relevant
+    verdict_by: Heishing
+    verdict_at: '2026-09-21T01:15:12Z'
     source: {kind: fixture, ref: "backend/scripts/g29_dual_vault_canary.py:101-111"}

@@ -1,0 +1,4 @@
+apply-verdicts: changed=['vq-x01', 'mem-23'] problems=["标题 结果（绑 `d06f7127` 的一轮）：BLOCKER 0 / HIGH 2 / MEDIUM 3 / LOW 6 与隐藏锚 'mem-x03' 对不上（锚被删/被改？）—— 本条勾选忽略"]
+Traceback (most recent call last):
+  File "<stdin>", line 60, in <module>
+AssertionError: problems 非空: ["标题 结果（绑 `d06f7127` 的一轮）：BLOCKER 0 / HIGH 2 / MEDIUM 3 / LOW 6 与隐藏锚 'mem-x03' 对不上（锚被删/被改？）—— 本条勾选忽略"]

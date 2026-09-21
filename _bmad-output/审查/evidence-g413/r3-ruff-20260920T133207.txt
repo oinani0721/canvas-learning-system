@@ -1,0 +1,7 @@
+# ruff r3 (20260920T133207)
+## check
+All checks passed!
+rc=0
+## format --check
+2 files already formatted
+rc=0

@@ -1,0 +1,14 @@
+=== PROBE M-3a: memory runner（校验被挪到 alive 之后）===
+rc=2  含「不符」=False  含「backend 不可达」=True
+⇒ pin 会不会红：会（pin 是承重的）
+
+=== PROBE M-3b: vault runner（校验被挪到 run_tiers 之后）===
+rc=2  run_tiers 被调用=['run_tiers']  含「sha256 期望」=False
+⇒ pin 会不会红：会（pin 是承重的）
+--- mutant 输出 ---
+[91m⛔ 评测环境异常 (非指标回退): run_tiers 不该在校验失败前被调用（M-3 pin）[0m
+
+=== 对照：未变异的真 runner（同条件）===
+rc=2  run_tiers 被调用=['run_tiers']  含「无法校验」或早退=False
+
+（本文件第二段对照口径有误（未篡改 manifest 时 run_tiers 本就会被调用），作废。以 r3-m3-mutation-probe-20260920T131448.txt 为准——该文件对照段已改为「篡改 manifest 副本 + 真 runner」。）

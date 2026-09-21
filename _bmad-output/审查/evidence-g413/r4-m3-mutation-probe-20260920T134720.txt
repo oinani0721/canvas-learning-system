@@ -1,0 +1,4 @@
+[变异体 + pin(alive=False)] rc=2 含不符=False ⇒ pin 红 = True
+[变异体 + 无 pin(alive=True) ] rc=0 含不符=False ⇒ 与正确顺序不可区分 = False
+
+（本文件为 r4 首跑：对照段设计有误（未篡改 manifest 时 run_tiers 本就会被调用），结论「不可区分=False」不成立，已作废。以 r4-m3-mutation-probe-20260920T134729.txt 为准。）

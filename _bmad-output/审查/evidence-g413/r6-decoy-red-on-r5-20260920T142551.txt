@@ -1,0 +1,2 @@
+r5 代码（691b1d3e）对 decoy 构造：changed=['q2'] problems=[] bytes_changed=True
+⇒ 新测试在 r5 上会红 = True

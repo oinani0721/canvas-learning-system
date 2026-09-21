@@ -1,0 +1,3 @@
+backend/tests/regression/vault_gold_set.yaml: unchanged=58 diffs=0
+backend/tests/regression/memory_gold_set.yaml: unchanged=25 diffs=0
+AST checked=12 diffs=0

@@ -1,0 +1,5 @@
+fixture sha256 = 604c092d8e756b5eebc59935e1ceb43cfee922bfad892f799442ca1baf8b564a
+fixture bytes = 488
+[r5 源码 691b1d3e] changed=['q2'] bytes_changed=True problems=[]
+[HEAD 源码（r7）] changed=[] bytes_changed=False problems=['q2: user_verdict 行不是规范形态（\'"user_verdict": irrelevant\'）—— 该条不动']
+⇒ 先红（r5 落写）=True；后绿（HEAD 拒绝零写）=True

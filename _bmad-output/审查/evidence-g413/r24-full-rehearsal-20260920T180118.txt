@@ -1,0 +1,10 @@
+[A] apply-verdicts: changed=103 problems=0 (标了 103 条)
+[A]   vault_gold_set.yaml: lines_changed=225 (期望 309)
+Traceback (most recent call last):
+  File "/tmp/g413-r3/full_rehearsal.py", line 111, in <module>
+    run_scenario("A", None, expect_approve_ok=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/g413-r3/full_rehearsal.py", line 85, in run_scenario
+    assert len(diff) == want, f"{p.name} 行变化数不符"
+           ^^^^^^^^^^^^^^^^^
+AssertionError: vault_gold_set.yaml 行变化数不符

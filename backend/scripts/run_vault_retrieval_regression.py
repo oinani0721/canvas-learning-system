@@ -33,7 +33,7 @@ resolve_table_name 落错表 = 假基线。
   ... --shadow                                    # exploration 集合只报告
   ... --json                                      # 追加机器可读 JSON
 
-exit: 0 = 通过 / 1 = 指标回退或硬禁违规 / 2 = 环境不可用
+exit: 0 = 通过 / 1 = 指标回退或硬禁违规 / 2 = 环境或输入错（manifest/金集/配置不可跑等；最外层兜底，2026-09-20 G4-13 r11）
 """
 
 import argparse
@@ -469,7 +469,7 @@ def print_report(report: dict, hook: dict) -> None:
             print(f"    {e['id']} [{e['query_type']}] top5={e.get('top5_paths', [])[:3]}")
 
 
-def main() -> int:
+def _main() -> int:
     parser = argparse.ArgumentParser(description="vault 检索 gold set 回归门禁 (RAG-S2)")
     parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--reason", default="")
@@ -573,6 +573,21 @@ def main() -> int:
         return 1
     print(f"{GREEN}✅ 门禁通过 (基线 {baseline.get('run_at', '?')}){RESET}")
     return 0
+
+
+def main() -> int:
+    """rc 契约兜底（G4-13 r11）：``0`` 通过 / ``1`` 指标回退 / ``2`` 环境或输入错。
+
+    ``_main`` 里任何**未预期异常**冒泡都会被 shell 记成 exit 1 —— 冒充「指标回退」档。
+    金集/配置里没被 ``verify_gold_set_file`` 拦下的畸形值正会走到这里（复核 r8/r9/r10
+    反复点名同一类），所以在最外层统一兜成 rc=2 + 一句可区分的文案。
+    KeyboardInterrupt / SystemExit 不在此列（继承自 BaseException）。
+    """
+    try:
+        return _main()
+    except Exception as exc:  # noqa: BLE001 —— 兜底就是要最宽
+        print(f"{RED}⛔ 未预期异常（环境/输入错，非指标回退）: {type(exc).__name__}: {exc}{RESET}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

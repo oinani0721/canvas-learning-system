@@ -1,0 +1,11 @@
+=== PROBE M-3a: memory runner 变异体（校验被挪到 alive 之后）===
+rc=2  含「不符」=False  含「backend 不可达」=True
+⇒ 新 pin 会红（pin 承重）
+
+=== PROBE M-3b: vault runner 变异体（校验被挪到 run_tiers 之后）===
+rc=2  run_tiers 被调用=True  含「sha256 期望」=False
+⇒ 新 pin 会红（pin 承重）
+
+=== 对照（同条件、未变异、manifest 被篡改）：verify 必须先失败、run_tiers 不许被调用 ===
+rc=2  run_tiers 被调用=False  含「sha256 期望」=True
+⇒ 对照成立（校验先行）

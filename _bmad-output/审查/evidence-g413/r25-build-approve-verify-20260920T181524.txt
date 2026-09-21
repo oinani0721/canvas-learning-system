@@ -1,0 +1,14 @@
+# build --bump-revision（20260920T181524）
+OK build revision=3 main=103 attack=20 -> gold_set_manifest.yaml
+build_rc=0
+
+# approve（20260920T181524）
+⛔ --checklist 不存在或不是文件: _bmad-output/验收单/UAT-CARD-G4-13-2026-09-19-裁定清单.md
+approve_rc=1
+
+# verify（20260920T181524）
+OK backend/tests/regression/vault_gold_set.yaml sha256=34f246345525… queries=75
+OK backend/tests/regression/memory_gold_set.yaml sha256=5c1f9e6c9c39… queries=28
+OK backend/tests/regression/vault_gold_set_shadow.yaml sha256=c7b25fcc9c0b… queries=2
+OK backend/tests/regression/memory_gold_set_shadow.yaml sha256=582df3afe892… queries=0
+verify_rc=0

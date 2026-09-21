@@ -1,0 +1,37 @@
+# CARD-G4-13 r13 独立复核任务书（Codex × DeepSeek V4.1 Flash · 开发/证据面）
+
+> 复核对象 = commit `fe8952de`（父 `07d5c34b`）；批次 `[BATCH-2026-09-18-第十五批 / CARD-G4-13]`。
+> 只读复核，**不改任何文件**。
+
+## ① 背景与最小读取面
+
+r12 复核对 `07d5c34b` 报 **B=0/H=0/M=2/L=6**：M1 空白串顶穿「非空 str」；M2 `max_in_top_k` 无上界；
+LOW-1 grade 放宽副作用；LOW-2 `contains` 未守；LOW-3 `hard_cap` 无上界；LOW-6 登记可见性。
+`fe8952de` 逐条修（`_nonempty_str` 全量、`max_in_top_k`/`hard_cap` 上界、`_grade_ok` ASCII+≤10、
+`contains` 非空）。
+
+最小读取面：
+- `git --no-pager diff 07d5c34b fe8952de -- backend/scripts/gold_set_manifest_tool.py backend/tests/regression/test_gold_set_manifest_g413.py`
+- `backend/scripts/gold_set_manifest_tool.py` 第 390-700（守卫全段）
+- `_bmad-output/审查/codex-review-CARD-G4-13-r12.md`（上一轮全文）
+- `_bmad-output/验收单/UAT-CARD-G4-13-2026-09-19.md` §二十
+- 证据：`_bmad-output/审查/evidence-g413/r13-*`
+
+## ② 核对点
+
+1. M1/M2 与 LOW-1/2/3 逐条复算（r12 源码 vs r13 源码同 fixture 的「拒/收/异常」表）；
+2. 新守卫是否误拒四真金集（含 `expect_hit.contains` 缺失/空、`markers` 全量、`hard_cap/min_relevance`
+   全表）或未来合法扩展；
+3. 是否还有「守卫 T 但 runner 落 rc=1 或 fail-open / 恒真」的新路径（含 Unicode 空白、全角数字、
+   `expect_not_hit` 多个条目、`max_in_top_k`=0 语义、`doc_types` 含空白、`contains` 与 `grade` 组合）；
+4. 5 个新 case 是否真判别、无空转；gate 80 / 目录级 1993 自洽；13 轮数字链一致；
+5. UAT §二十 / §19.3 残余登记（LOW-4/5、L-5）是否诚实、无 overclaim。
+
+## ③ 输出格式
+
+逐条 **BLOCKER/HIGH/MEDIUM/LOW**（无则写「未发现」）+ `file:line` + 一句话复现思路；
+一段「未被拦下的输入 / 对照输入 / 负控输入 / 门未覆盖的路径」；末尾「本轮总评：B= / H= / M= / L=」。
+
+## ④ 边界
+
+只读；不改文件；不连 7691/7687/8011；不跑非 shadow runner；不评 G4-14/R-SLO/L-5/103 条语义。
