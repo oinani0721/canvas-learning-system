@@ -1,0 +1,10 @@
+# openapi drift + pyright（post-P9 最终树）@ 1e9070375759a1044d087f385423a20727dd8249  2026-09-20 20:20:54 -0700
+## 命令: backend/.venv/bin/python scripts/spec-tools/check-openapi-drift.py --snapshot backend/openapi.json
+DRIFT: none (paths=199 schemas=357)
+drift_rc=0
+## 命令: (cd backend && $P app)；P=
+P test -x: OK
+WARNING: there is a new pyright version available (v1.1.411 -> v1.1.414).
+Please install the new version or set PYRIGHT_PYTHON_FORCE_VERSION to `latest`
+
+pyright_rc=0
