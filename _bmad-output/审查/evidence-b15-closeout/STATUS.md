@@ -6,7 +6,23 @@
 - 终跑门（全部在最终 tip）：openapi `DRIFT: none`；pyright `app` **0 errors**；tests/unit **只减**（32 vs 基线 33，0 引入/1 修）；**7692 四文件 107 passed**；contract 3 文件 = 2 既有红/75 passed（与基线逐字同）；G8-10 checker failures=0 rc=0。
 - schemathesis 面（test_openapi_contract.py 89 操作）本机 ≈2 分钟/条 → 显式 skip 登记（未跑全量）。
 
-## 剩余（等用户裁定 ⇒ 才 ff/push；协议 §1 + 用户 goal 停止条件）
+
+## 终局门（全部在 8a651d2a / P9 合入后 da825921 复跑，原始日志已入库）
+- openapi `DRIFT: none (paths=199 schemas=357)`；pyright `app` **0 errors**（绝对路径 + nvm node 自证；feature 树 venv 无 pyright）。
+- tests/unit：**只减**（32 vs 基线 33；0 引入 / 1 修）——**含 node 相关 33 条的两次跑**：homebrew node 崩（llhttp 9.3 缺）致 65 红的跑档亦入库并归因；nvm node v24.16.0 复跑 = 32。
+- 7692 四文件：**107 passed / 0 failed**（FINAL-107 原始日志）；contract 3 非 pact：2 既有红 / 75 passed（与基线逐字同）。
+- tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
+- G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 verdict=PASS（129 文件：119 equiv + 10 声明例外）。
+- **schemathesis 89-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
+- 推送：分支 origin/backup = 51acf6cd（其后 da825921 待推）；**33 tag 逐个三列 SHA 全 OK**（见 push-and-tags-evidence-*.txt）。
+
+## D-15 轮次
+- r1（绑 51acf6cd）：B0/H3/M4/L6 → 处置见 `D-15-r1-整改说明.md`（H-1 fixture 回退 / H-2 107 原始日志入库 / H-3 语义门 / M-1 推送证据 / M-2 口径收窄 / M-3 存档入库）→ **r2 待跑（绑最终 HEAD）**。
+
+## 追加合入（2026-09-20 晚）
+- **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。
+
+## 剩余（原等用户裁定项；P9 已收口）
 1. **G8-7 签字位**（UAT-CARD-G8-7-2026-09-20 :90 起 6 步体验勾选 + :95 旅程签字）：走查已执行、产物 sha 已落；用户未勾 ⇒ 登记为「待签字（或 SKIP）」。
 2. **G6-13 J07 / G4-13 103 标注**：无口令 ⇒ not_run + SKIP 登记（第十六批）；若有口令则改走窗口。
 3. **feature 树 3 处删除处置**（research-pack 3 文件 / .gdr prompt / 2026-05-27 任务书）：恢复 or 保留。

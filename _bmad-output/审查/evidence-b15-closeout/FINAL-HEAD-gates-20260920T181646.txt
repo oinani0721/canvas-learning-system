@@ -1,0 +1,11 @@
+# FINAL-HEAD gate re-run @ 8a651d2a01a081b4b306289018aa9da3122a90a2  2026-09-20 18:16:46 -0700
+## openapi drift
+DRIFT: none (paths=199 schemas=357)
+## pyright app
+0 errors, 83 warnings, 0 informations
+# 注：feature 树 backend/.venv 无 pyright；经 card-v5-lance venv 绝对路径 + nvm node v24.16.0（PYRIGHT_PYTHON_GLOBAL_NODE=1；homebrew node 25.8.2 的 libllhttp.9.3.dylib 缺失导致默认路径崩溃）执行
+
+（注：pyright 由共享 venv 绝对路径执行：card-v5-lance/backend/.venv/bin/pyright；feature 树 backend/.venv 无 pyright）
+## G8-10 checker
+chains=6 obj07=5 failures=0 source_digest=411a417503c6d0aedb599cd7f0af30f3 expect_digest=411a417503c6d0aedb599cd7f0af30f3 head=8a651d2a01a081b4b306289018aa9da3122a90a2 dirty=101 dirty_tracked=1 dirty_untracked=100
+rc=0 digest=411a417503c6d0aedb599cd7f0af30f3
