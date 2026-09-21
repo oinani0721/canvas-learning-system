@@ -1,0 +1,24 @@
+# v2.2 负控（r5-H1 自证）——两例均应 rc=1 且 [FAIL] 非空（证明非 vacuous PASS）  TS=20260920T211104
+
+## 负控 1：BASE=deadbeef（坏引用 ⇒ Git 失败必须红）
+$ python3 v22-neg-badbase.py <树根>
+# candidate=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev head=85a157dc
+## p1 tip=39144558 pin=39144558 code_drift=0 files=0
+## p2 tip=ac52e3b8 pin=ac52e3b8 code_drift=0 files=0
+## p3 tip=80665fc1 pin=32a405a4 code_drift=0 files=0
+## p4 tip=aa126e5b pin=aa126e5b code_drift=0 files=0
+## p5 tip=7af5306b pin=7af5306b code_drift=0 files=0
+  ...
+[FAIL] count-guard: checked=0 < 100（防空枚举）
+
+checked=0 equiv=0 exceptions=0 undecided_diff=0 missing=0 empty=0 lane_empty=10 failures=21
+verdict=FAIL
+neg1_rc=1
+
+## 负控 2：p3 code-face pin 改回 9c4e7e82（人为 code drift ⇒ 必须红）
+$ python3 v22-neg-drift.py <树根>
+## p3 tip=80665fc1 pin=9c4e7e82 code_drift=5 files=5
+[FAIL] code-drift: p3 9c4e7e82..80665fc1 非 _bmad-output 面 5 文件: ['backend/tests/unit/test_vault_install_manifest.py', 'backend/tests/unit/test_verify_install_manifest.py', 'scripts/j01_e2e.sh']
+checked=129 equiv=123 exceptions=6 undecided_diff=0 missing=0 empty=0 lane_empty=0 failures=1
+verdict=FAIL
+neg2_rc=1

@@ -15,14 +15,16 @@
 - G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 v2 verdict=PASS（129 文件：123 equiv + 6 声明例外；逐 lane tip 记录）。
 - **schemathesis 90-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
 - 推送：分支 local=origin=backup 逐 commit 对齐；`83a280db` 的 branch push 自证 = `branch-push-verify-20260920T203135.txt`（local/origin/backup 三列 + ls-remote 活态）；**35 tag 逐个三列 SHA 全 OK**（`push-and-tags-evidence-20260920T202239.txt` + `push-and-tags-evidence-20260920T203021.txt`）。
-- 注（r5 前置）：代码面门共绑 `1e907037`（openapi/pyright post-P9）与 P9/8a651d2a 树；`1e907037..83a280db` 的 tracked 差异全部在 `_bmad-output/**`（docs-only）；**本整改档（r5 绑）唯一代码面改动** = `backend/tests/contract/test_openapi_contract.py:42-45` 注释 89→90 / 93→94 GET（行为零变更；schemathesis 面仍显式 skip；contract 3-file 门不含该文件）。
+- 冻结声明（r6 前置）：B15 面 = 主干冻结档；P3 lane 冻结后 docs-only 证据推进（32a405a4→ec9845fa→80665fc1→…）**显式排除**（`b15-freeze-exclusions.json`），登记第十六批；semantic v2.2 以 code-face pin 监控（文档面容忍 / 代码面异动即红）。
+- 注：代码面门共绑 `1e907037`（openapi/pyright post-P9）与 P9/8a651d2a 树；`1e907037..83a280db` 的 tracked 差异全部在 `_bmad-output/**`（docs-only）；r4/r5 两轮整改的代码面改动累计 = `backend/tests/contract/test_openapi_contract.py:42-46` 注释行（89→90 / 93→94 GET、206/117→211/121 口径），行为零变更（schemathesis 面仍显式 skip；contract 3-file 门不含该文件）。
 
 ## D-15 轮次
 - r1（绑 51acf6cd）：B0/H3/M4/L6 → 处置见 `D-15-r1-整改说明.md`（H-1 fixture 回退 / H-2 107 原始日志入库 / H-3 语义门 / M-1 推送证据 / M-2 口径收窄 / M-3 存档入库）。
 - r2（绑 fe19b5bb）：B0/H2/M3/L6 → 语义门 v2、post-P9 全门复跑入库、口径更正（见 `D-15-r1-整改说明.md` + `cross-lane-semantic2-*.txt` + `openapi-pyright-postP9-*.txt` + `FINAL-HEAD-gates-*`）。
 - r3（绑 d5555a18）：B1/H3/M5/L4 → 整改见 `D-15-r3-整改说明.md`（推送对齐 / 车道回复-3 入库 / post-P9 openapi+pyright 原始档 / 语义门 v2 / M-2~M-5 口径 / 35 tag 刷新）；**r3 复核存档已入库**。
 - r4（绑 `83a280db`）：**B0/H1/M2/L2**（H1=post-final G8-7 用户回复-3 漂移；M1=总账 §六口径；M2=r4 prompt / tip push transcript 未入库；L1=源码注释 89/93；L2=semantic blob 未查 rc）→ 整改见 `D-15-r4-整改说明.md`（用户回复-3+UAT 链接入库 / 总账口径 / prompt+push transcript 入库 / 注释 89→90 / semantic v2.1 fail-closed）；**r4 复核存档已入库**。
-- r5：绑本整改档 tip（GLM-5.3 max；prompt 于运行前生成、审后随 r5 档入库）——待跑。
+- r5（绑 `85a157dc`）：**B1/H1/M0/L2**（B1=P3 lane 冻结后证据面推进/未显式排除；H1=semantic 仍 fail-open；L1=源码注释 206/117 残余；L2=旧 push 档 tag 分解公式）→ 整改见 `D-15-r5-整改说明.md`（P3 面显式排除冻结档 + semantic v2.2 fail-closed（含两负控）+ 注释 211/90/121 + tag 分解勘误）；**r5 复核存档已入库**。
+- r6：绑本整改档 tip（GLM-5.3 max；prompt 审后随 r6 档入库）——待跑。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。

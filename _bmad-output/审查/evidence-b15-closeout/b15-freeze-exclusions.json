@@ -1,0 +1,17 @@
+{
+  "freeze_local": "2026-09-20 21:12 -0700",
+  "b15_code_face": "feature-obsidian-hybrid-dev（主干；代码面自 1e907037 起除 r5-L1 注释勘误外零变更）",
+  "excluded_faces": [
+    {
+      "worktree": "card-p3-deploy",
+      "card": "CARD-G8-7 (P3)",
+      "since": "34c29691",
+      "observed_tips": ["32a405a4", "ec9845fa", "80665fc1"],
+      "status_at_freeze": "G8-7 证据审计仍在活动（r17 审查 21:08 启动；r15 = B0/H1/M1/L1、r16 处置已提交）",
+      "reason": "车道审计未收敛，合入将构成「push 未验候选」；且 G8-7 用户签字位未勾 ⇒ 两种口径下均为非 pass",
+      "registered_as": "第十六批（待车道收敛后按自身 D-15 复核合入）"
+    }
+  ],
+  "guard": "semantic v2.2 以 code-face pin（r3 对比轮 tip）监控：P3 docs-only 前进可容忍（code_drift=0）；任何非 _bmad-output 面异动 ⇒ [CODE-DRIFT] 红",
+  "documented_in": ["D-15-r5-整改说明.md", "未合卡追踪台账.md", "STATUS.md", "第十五批-完成的卡-汇报.md"]
+}

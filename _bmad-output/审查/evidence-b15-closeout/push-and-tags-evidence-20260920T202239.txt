@@ -2,7 +2,7 @@
 local=469f0fbf963797d84c77d0c22cb8046265c20059
 origin=469f0fbf963797d84c77d0c22cb8046265c20059
 backup=469f0fbf963797d84c77d0c22cb8046265c20059
-== 本批 tag（本次刷新：32 原批卡 + R-SLO-locked + G8-10 + G4-13-verdicts + G8-7-final = 35）==
+== 本批 tag（本次刷新：31 卡级 squash + G8-10 收口 squash = 32 卡〔G8-10 即 32 卡之一〕，再加 R-SLO-locked / G4-13-verdicts / G8-7-final 三个后续 tag = 35）（r5-L2 勘误：原写「32 原批卡 + R-SLO-locked + G8-10 + …」会误导出 36）==
 OK merged-squash/card/p1-storage-CARD-DEBT-11 local=16f6d79509e87a8bc61d5d71ba768d2e34ad0ee5 origin=16f6d79509e87a8bc61d5d71ba768d2e34ad0ee5 backup=16f6d79509e87a8bc61d5d71ba768d2e34ad0ee5
 OK merged-squash/card/p1-storage-CARD-G4-5 local=f10392f5847b69e2ee77a4d6bca92513ff976fe6 origin=f10392f5847b69e2ee77a4d6bca92513ff976fe6 backup=f10392f5847b69e2ee77a4d6bca92513ff976fe6
 OK merged-squash/card/p1-storage-CARD-LANCE-DUALWRITE-NEVER-WRITES local=33dd438ef55cca477e85f79405bb4ec298335e60 origin=33dd438ef55cca477e85f79405bb4ec298335e60 backup=33dd438ef55cca477e85f79405bb4ec298335e60
