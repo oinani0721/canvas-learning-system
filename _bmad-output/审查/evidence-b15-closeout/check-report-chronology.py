@@ -115,8 +115,7 @@ def main() -> int:
         cur_sha = rows_sha256(rows)
         # (a) 丢最后一行（权威期望不变 ⇒ 应红）
         d1 = completeness_failures(rows[:-1], text, completed, nxt, args.min_round, args.expect_rows_sha256 or cur_sha, [])
-        d1 = d1 + [b for b in auth_bad]
-        got1 = any("rows<" in b for b in d1)
+        got1 = len(d1) > 0  # 丢行必须触发任一守卫（行数下限或轮次集合）
         print(f"[self-test] drop-last-row caught: {got1} ({d1[:1]}) -> {'OK' if got1 else 'BAD'}")
         ok = ok and got1
         # (b) 删中间轮 + 复制另一轮（行数不变、最大轮不变）

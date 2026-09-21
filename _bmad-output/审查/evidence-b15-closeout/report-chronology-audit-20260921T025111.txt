@@ -1,0 +1,19 @@
+# 汇报时序/完整性机器门 v4 实跑（提交后；字面可复现命令 + HEAD/脚本 sha） 20260921T025111
+# runner HEAD=90a11c80757d122eb550efc8cb62a90a15275deb
+# script(相对根)=_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py sha256=9d859e8b6ce8b820696e81f17ba67b5e1d10756640f74e3d4030e97ee7d7c768
+# cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev
+
+## 段 1：常规逐行检查
+$ cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev && python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev --min-round r4 --expect-rows-sha256 f9b37a356368fa4e81e128b5673a9d19be40e49abc0cf13ba9c4c567ea1c62f6
+[OK] :31 row=09-21 02:49 commit=09-21 02:50:58 -> row<=commit
+
+rows=23 rows_sha256=f9b37a356368fa4e81e128b5673a9d19be40e49abc0cf13ba9c4c567ea1c62f6 min_round=r4 completed=r19 next=r20 violations=0
+verdict=PASS
+rc=0
+
+## 段 2：自证 --self-test（丢行/删中间+复制置换/哈希篡改三类必须被捕捉）
+$ cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev && python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev --min-round r4 --self-test
+[self-test] drop-last-row caught: True (["round-set mismatch: 报告=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18'] != 期望标注轮次=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19']（r1–r3 为叙事行）"]) -> OK
+[self-test] delete+duplicate bypass caught: True (['min-round mismatch: 期望 r4，实测 r5', "round-set mismatch: 报告=['r18', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19'] != 期望标注轮次=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19']（r1–r3 为叙事行）"]) -> OK
+[self-test] rows-sha256 tamper caught: True -> OK
+selftest_rc=0
