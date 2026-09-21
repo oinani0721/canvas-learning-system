@@ -1,0 +1,47 @@
+# 汇报时序/完整性机器门 v5.1 实跑（提交态脚本；全量 stdout；rc 直接取自脚本） 20260921T033515
+# runner HEAD=d9308f103b133db8bde03803885f79a6f2946c09
+# script(相对根)=_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py
+# script_sha256(worktree)=a34479e2487a461c19763a3ed56dd7b8127b9f08d954ddd4999d668824590054
+# script_blob_sha256(git show HEAD:$SC)=a34479e2487a461c19763a3ed56dd7b8127b9f08d954ddd4999d668824590054  ⇒ runner HEAD 与脚本同一 blob
+# cwd=/Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev
+
+## 段 1：常规逐行检查（全量 stdout）
+$ cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev && python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev --min-round r4 --expect-rows-sha256 2ffbbc5a5c5fa6669bcc28f79e9e34f5870705fdcaac697947674260e9c3102d
+[OK] :8 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :9 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :10 row=09-19 17:45 commit=09-20 17:52:12 -> row<=commit
+[OK] :11 row=09-19 18:21 commit=09-20 17:52:12 -> row<=commit
+[OK] :12 row=09-19 20:59 commit=09-20 17:52:12 -> row<=commit
+[OK] :14 row=09-20 17:50 commit=09-20 22:55:23 -> row<=commit
+[OK] :15 row=09-20 20:30 commit=09-20 23:08:38 -> row<=commit
+[OK] :16 row=09-20 20:53 commit=09-20 20:54:06 -> row<=commit
+[OK] :17 row=09-20 21:12 commit=09-20 21:12:32 -> row<=commit
+[OK] :18 row=09-20 21:29 commit=09-20 22:37:22 -> row<=commit
+[OK] :19 row=09-20 21:51 commit=09-20 22:37:22 -> row<=commit
+[OK] :20 row=09-20 22:15 commit=09-20 22:36:34 -> row<=commit
+[OK] :21 row=09-20 22:36 commit=09-20 22:36:34 -> row<=commit
+[OK] :22 row=09-20 22:55 commit=09-20 22:55:23 -> row<=commit
+[OK] :23 row=09-20 23:05 commit=09-20 23:08:38 -> row<=commit
+[OK] :24 row=09-20 23:20 commit=09-20 23:27:40 -> row<=commit
+[OK] :25 row=09-20 23:40 commit=09-20 23:45:32 -> row<=commit
+[OK] :26 row=09-21 00:18 commit=09-21 01:43:25 -> row<=commit
+[OK] :27 row=09-21 01:19 commit=09-21 01:43:25 -> row<=commit
+[OK] :28 row=09-21 01:45 commit=09-21 02:09:36 -> row<=commit
+[OK] :29 row=09-21 02:05 commit=09-21 02:50:58 -> row<=commit
+[OK] :30 row=09-21 02:28 commit=09-21 02:50:58 -> row<=commit
+[OK] :31 row=09-21 02:49 commit=09-21 02:50:58 -> row<=commit
+[OK] :32 row=09-21 03:05 commit=09-21 03:13:07 -> row<=commit
+[OK] :33 row=09-21 03:30 commit=09-21 03:35:14 -> row<=commit
+
+rows=25 rows_sha256=2ffbbc5a5c5fa6669bcc28f79e9e34f5870705fdcaac697947674260e9c3102d min_round=r4 completed=r21 next=r22 violations=0
+verdict=PASS
+rc=0
+输出 sha256=07831e00fc4968c0227ca94a6fa93252d2745917a1da0be6da133acff701e7bc
+
+## 段 2：自证 --self-test（全量 stdout）
+$ cd /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev && python3 /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev/_bmad-output/审查/evidence-b15-closeout/check-report-chronology.py /Users/Heishing/Desktop/canvas/canvas-learning-system/.claude/worktrees/feature-obsidian-hybrid-dev --min-round r4 --self-test
+[self-test] drop-last-row caught: True (["round-set mismatch: 报告=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20'] != 期望标注轮次=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21']（r1–r3 为叙事行）"]) -> OK
+[self-test] delete+duplicate bypass caught: True (['min-round mismatch: 期望 r4，实测 r5', "round-set mismatch: 报告=['r20', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21'] != 期望标注轮次=['r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15', 'r16', 'r17', 'r18', 'r19', 'r20', 'r21']（r1–r3 为叙事行）"]) -> OK
+[self-test] rows-sha256 tamper caught: True -> OK
+selftest_rc=0
+输出 sha256=34dbeb7d65aa72d082e283e6e3f83329e3c1a73a3412925bc72fa14eff89da42
