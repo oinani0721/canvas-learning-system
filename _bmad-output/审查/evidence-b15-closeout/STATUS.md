@@ -3,8 +3,8 @@
 ## 候选树就绪（tip 6819f74e，树净；全部门已跑）
 - 32 卡全合（G8-10 squash `0400d848` = 24 lane commits，r21 绑 67db0c61 = B/H/M/L 0/0/0/0）。
 - 协议回写 `f26e6a85`；R-SLO 锁版 `69d26ed5`（用户口令+签字）；集成修复 `2bdbc685`/`d0e42bc4`/`4f6d17ca`（7692 门新契约）；底账重锚 `62151cf1`/`46984d80`；D40 `04eb9a9f`；台账/总账 `2d6d9abf`；复核存档 `22f68228`；终证据 `6819f74e`。
-- 终跑门（全部在最终 tip）：openapi `DRIFT: none`；pyright `app` **0 errors**；tests/unit **只减**（32 vs 基线 33，0 引入/1 修）；**7692 四文件 107 passed**；contract 3 文件 = 2 既有红/75 passed（与基线逐字同）；G8-10 checker failures=0 rc=0。
-- schemathesis 面（test_openapi_contract.py 89 操作）本机 ≈2 分钟/条 → 显式 skip 登记（未跑全量）。
+- 终跑门（全部在最终 tip）：openapi `DRIFT: none`；pyright `app` **0 errors**；tests/unit **只减**（32 vs 基线 33，0 引入/1 修）；**7692 四文件 107 passed**；contract 3 文件 = 2 既有红/75 passed（红 nodeid 集合/计数与基线等价）；G8-10 checker failures=0 rc=0。
+- schemathesis 面（test_openapi_contract.py 90 操作）本机 ≈2 分钟/条 → 显式 skip 登记（未跑全量）。
 
 
 ## 终局门（全部在 8a651d2a / P9 合入后 da825921 复跑，原始日志已入库）
@@ -13,11 +13,15 @@
 - 7692 四文件：**107 passed / 0 failed**（FINAL-107 原始日志）；contract 3 非 pact：2 既有红 / 75 passed（红 nodeid 集合与计数与基线等价）。
 - tests/regression 目录级（P9 合入后）：**2289 passed / 6 skipped / 1 xfailed，rc=0**。
 - G8-10 checker：候选/主干树 failures=0 rc=0；语义等价机器门 v2 verdict=PASS（129 文件：123 equiv + 6 声明例外；逐 lane tip 记录）。
-- **schemathesis 89-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
-- 推送：分支 origin/backup = 51acf6cd（其后 da825921 待推）；**33 tag 逐个三列 SHA 全 OK**（见 push-and-tags-evidence-*.txt）。
+- **schemathesis 90-operation 面：显式 skip 登记**（本机 ≈2 分钟/op，全量不可行）——收口不表述为“全门已跑”。
+- 推送：分支 local=origin=backup 逐 commit 对齐（r3 整改续 `5a2abccc` + 本前置档；审前复核 = remote-tracking refs `origin|backup/worktree-feature-obsidian-hybrid-dev` 与 ls-remote transcript，见 r4 prompt）；**35 tag 逐个三列 SHA 全 OK**（`push-and-tags-evidence-20260920T202239.txt` + r4 前置 refresh 档）。
+- 注（r4 前置）：代码面门共绑 `1e907037`（openapi/pyright post-P9）与 P9/8a651d2a 树；`1e907037..HEAD` 的 tracked 差异全部在 `_bmad-output/**`（docs-only，逐文件列见 r4 prompt 与本目录证据档）。
 
 ## D-15 轮次
-- r1（绑 51acf6cd）：B0/H3/M4/L6 → 处置见 `D-15-r1-整改说明.md`（H-1 fixture 回退 / H-2 107 原始日志入库 / H-3 语义门 / M-1 推送证据 / M-2 口径收窄 / M-3 存档入库）→ **r2 待跑（绑最终 HEAD）**。
+- r1（绑 51acf6cd）：B0/H3/M4/L6 → 处置见 `D-15-r1-整改说明.md`（H-1 fixture 回退 / H-2 107 原始日志入库 / H-3 语义门 / M-1 推送证据 / M-2 口径收窄 / M-3 存档入库）。
+- r2（绑 fe19b5bb）：B0/H2/M3/L6 → 语义门 v2、post-P9 全门复跑入库、口径更正（见 `D-15-r1-整改说明.md` + `cross-lane-semantic2-*.txt` + `openapi-pyright-postP9-*.txt` + `FINAL-HEAD-gates-*`）。
+- r3（绑 d5555a18）：B1/H3/M5/L4 → 整改见 `D-15-r3-整改说明.md`（推送对齐 / 车道回复-3 入库 / post-P9 openapi+pyright 原始档 / 语义门 v2 / M-2~M-5 口径 / 35 tag 刷新）；**r3 复核存档已入库**。
+- r4：绑本次前置档 tip（GLM-5.3 max；prompt = `_bmad-output/审查/prompts/codex-prompt-B15-CLOSEOUT-r4.md`，绑 SHA 以 prompt 首部为准）——审查中。
 
 ## 追加合入（2026-09-20 晚）
 - **P9 CARD-G4-13 用户裁定**：103/103 verdicts + `status: approved` 签字 → squash `89be3d0e` + 尾档 `da825921`（车道终轮 GLM 0/0/0/0 绑 64f109bb）；台账/总账已同步（P9 行由 SKIP 改为已收口）。
@@ -57,8 +61,8 @@ ff-only → feature 收尾登记 commit（命令卡/进度表/协议侧清理/�
   - 门：**7692 四文件 107 passed / 0 failed**（独立复跑）。
 
 ## 门证据（截至 16:05）
-- openapi drift: none ✓；pyright app: 0 errors ✓；tests/unit: 只减 ✓；contract 3 文件: 2 已知红/75 passed（与基线逐字同）✓；7692 四文件: 107 passed ✓。
-- schemathesis 面（test_openapi_contract.py 89 操作）本机 ≈2 分钟/条 → 未跑全量（待用户裁定：直接跳过登记 or 长跑）。
+- openapi drift: none ✓；pyright app: 0 errors ✓；tests/unit: 只减 ✓；contract 3 文件: 2 已知红/75 passed（红集合/计数等价）✓；7692 四文件: 107 passed ✓。
+- schemathesis 面（test_openapi_contract.py 90 操作）本机 ≈2 分钟/条 → 未跑全量（待用户裁定：直接跳过登记 or 长跑）。
 
 ## 待办（按序）
 1. **A1 G8-10**：r9 = B0/H0/M4/L1（不满足全零）→ 车道 r10 进行中；收敛后合入候选树（/tmp/b15-closeout/merge-g810.sh；commits 4120e0b6 c35eb6d0 9457ba43 dce85102 3457f70b 9a22c33b + r10+）。

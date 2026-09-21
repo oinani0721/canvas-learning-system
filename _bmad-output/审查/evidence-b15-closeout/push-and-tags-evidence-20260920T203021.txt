@@ -1,0 +1,44 @@
+# push/tag 证据（r4 前置 refresh）  2026-09-20 20:30:21 -0700
+# 口径：本档生成于 tip=5a2abccc37f79e89be2604fbc9f696a770330f74；来源 = git ls-remote（活态读）+ 本地 tag 解析。
+#      tip 自身（本档随首个后续 docs 提交推 origin+backup）的对齐 transcript 见 r4 prompt。
+local=5a2abccc37f79e89be2604fbc9f696a770330f74
+origin=5a2abccc37f79e89be2604fbc9f696a770330f74（ls-remote --heads origin）
+backup=5a2abccc37f79e89be2604fbc9f696a770330f74（ls-remote --heads backup）
+== 本批 tag（35）逐个三列 SHA（local = 本地 tag^{commit}；origin/backup = ls-remote peel）==
+OK merged-squash/card/p1-storage-CARD-DEBT-11 local=16f6d79509e87a8bc61d5d71ba768d2e34ad0ee5 origin=16f6d79509e87a8bc61d5d71ba768d2e34ad0ee5 backup=16f6d79509e87a8bc61d5d71ba768d2e34ad0ee5
+OK merged-squash/card/p1-storage-CARD-G4-5 local=f10392f5847b69e2ee77a4d6bca92513ff976fe6 origin=f10392f5847b69e2ee77a4d6bca92513ff976fe6 backup=f10392f5847b69e2ee77a4d6bca92513ff976fe6
+OK merged-squash/card/p1-storage-CARD-LANCE-DUALWRITE-NEVER-WRITES local=33dd438ef55cca477e85f79405bb4ec298335e60 origin=33dd438ef55cca477e85f79405bb4ec298335e60 backup=33dd438ef55cca477e85f79405bb4ec298335e60
+OK merged-squash/card/p1-storage-CARD-LANCE-INDEX-DELETE-CONTRACT local=a018da8ee8604d99d6110500fcf32f7d052e742d origin=a018da8ee8604d99d6110500fcf32f7d052e742d backup=a018da8ee8604d99d6110500fcf32f7d052e742d
+OK merged-squash/card/p10-docs-CARD-G1-3 local=b703d839f5effa15512adf80278a8f397d91d5f3 origin=b703d839f5effa15512adf80278a8f397d91d5f3 backup=b703d839f5effa15512adf80278a8f397d91d5f3
+OK merged-squash/card/p10-docs-CARD-R-RC local=f7d57a186811780af936f51c8b6d80ea1c4649f2 origin=f7d57a186811780af936f51c8b6d80ea1c4649f2 backup=f7d57a186811780af936f51c8b6d80ea1c4649f2
+OK merged-squash/card/p10-docs-CARD-R-SLO local=e66e6c44efe6b5d32762ac8998014131f4006578 origin=e66e6c44efe6b5d32762ac8998014131f4006578 backup=e66e6c44efe6b5d32762ac8998014131f4006578
+OK merged-squash/card/p10-docs-R-SLO-locked local=69d26ed5f4d6ed752675409bb89eba24325fd61d origin=69d26ed5f4d6ed752675409bb89eba24325fd61d backup=69d26ed5f4d6ed752675409bb89eba24325fd61d
+OK merged-squash/card/p2-outbox-CARD-DEADLETTER-PATH-ANCHOR local=95054d18fc1f77a798fe00f0489d8a895c911d55 origin=95054d18fc1f77a798fe00f0489d8a895c911d55 backup=95054d18fc1f77a798fe00f0489d8a895c911d55
+OK merged-squash/card/p2-outbox-CARD-REPLAY-REWRITE local=4806540f0c2d4437065a19237d5079918872daee origin=4806540f0c2d4437065a19237d5079918872daee backup=4806540f0c2d4437065a19237d5079918872daee
+OK merged-squash/card/p2-outbox-CARD-STAGING-WRITERS-BOUNDED local=1bb72634105e521f33296b713b0ee51b306e79fb origin=1bb72634105e521f33296b713b0ee51b306e79fb backup=1bb72634105e521f33296b713b0ee51b306e79fb
+OK merged-squash/card/p3-deploy-CARD-DEBT-10 local=daaaf778445e37e58aabed4203a2cc910ed05460 origin=daaaf778445e37e58aabed4203a2cc910ed05460 backup=daaaf778445e37e58aabed4203a2cc910ed05460
+OK merged-squash/card/p3-deploy-CARD-G2-11 local=00ba0946264f22a9e451b9bed6ca29b173d7edac origin=00ba0946264f22a9e451b9bed6ca29b173d7edac backup=00ba0946264f22a9e451b9bed6ca29b173d7edac
+OK merged-squash/card/p3-deploy-CARD-G8-7 local=72ebffbb15557c464ead81d84778ff5a2c3289c4 origin=72ebffbb15557c464ead81d84778ff5a2c3289c4 backup=72ebffbb15557c464ead81d84778ff5a2c3289c4
+OK merged-squash/card/p3-deploy-G8-7-final local=d5555a18e946b4f27344a1e895590987c4199501 origin=d5555a18e946b4f27344a1e895590987c4199501 backup=d5555a18e946b4f27344a1e895590987c4199501
+OK merged-squash/card/p4-fsrs-CARD-CARD-STATES-ATOMIC-WRITE local=e27e6ea5d95e89980fa1fc322f14ae7988f26d8f origin=e27e6ea5d95e89980fa1fc322f14ae7988f26d8f backup=e27e6ea5d95e89980fa1fc322f14ae7988f26d8f
+OK merged-squash/card/p4-fsrs-CARD-G3-8 local=5faa51f2c7092cf84c8356d094771c8c8075ced9 origin=5faa51f2c7092cf84c8356d094771c8c8075ced9 backup=5faa51f2c7092cf84c8356d094771c8c8075ced9
+OK merged-squash/card/p4-fsrs-CARD-G8-4 local=7e57cc05a68c7b954302da6fefa161af007b616f origin=7e57cc05a68c7b954302da6fefa161af007b616f backup=7e57cc05a68c7b954302da6fefa161af007b616f
+OK merged-squash/card/p5-review-CARD-G6-13 local=6fd4da95dcec05e19388e755860e0bf9a331e95e origin=6fd4da95dcec05e19388e755860e0bf9a331e95e backup=6fd4da95dcec05e19388e755860e0bf9a331e95e
+OK merged-squash/card/p5-review-CARD-G6-9c-R3 local=cbcc290e0145e8696152eeca55ec02d407c23da4 origin=cbcc290e0145e8696152eeca55ec02d407c23da4 backup=cbcc290e0145e8696152eeca55ec02d407c23da4
+OK merged-squash/card/p5-review-CARD-REVIEW-CHAIN-PUSH-STATE local=0f8f6326c70c3ca589f750ab2d26bce74da0c6d9 origin=0f8f6326c70c3ca589f750ab2d26bce74da0c6d9 backup=0f8f6326c70c3ca589f750ab2d26bce74da0c6d9
+OK merged-squash/card/p6-skills-w-CARD-G8-3 local=4b3c28d31701d571ff5f10aa1ebbad6dacc76d64 origin=4b3c28d31701d571ff5f10aa1ebbad6dacc76d64 backup=4b3c28d31701d571ff5f10aa1ebbad6dacc76d64
+OK merged-squash/card/p6-skills-w-CARD-HARNESS-TREE-PARSE-R2 local=6e0396df55d4ef231422991e8a01f7058b1794d6 origin=6e0396df55d4ef231422991e8a01f7058b1794d6 backup=6e0396df55d4ef231422991e8a01f7058b1794d6
+OK merged-squash/card/p6-skills-w-CARD-SEB-WRITER-SUBSTRING-TMP local=a457daae7e0c51b432058863b032497eb97c7742 origin=a457daae7e0c51b432058863b032497eb97c7742 backup=a457daae7e0c51b432058863b032497eb97c7742
+OK merged-squash/card/p6-skills-w-G8-10 local=0400d84851b604e0ac29d3caeaff89c5ecad0d5b origin=0400d84851b604e0ac29d3caeaff89c5ecad0d5b backup=0400d84851b604e0ac29d3caeaff89c5ecad0d5b
+OK merged-squash/card/p7-skills-x-CARD-G5-10 local=b74555397e82c179caaa9af100e70e237583e827 origin=b74555397e82c179caaa9af100e70e237583e827 backup=b74555397e82c179caaa9af100e70e237583e827
+OK merged-squash/card/p7-skills-x-CARD-G5-12 local=9154e688b4ee4522152b15bcc3b727cb397daa8b origin=9154e688b4ee4522152b15bcc3b727cb397daa8b backup=9154e688b4ee4522152b15bcc3b727cb397daa8b
+OK merged-squash/card/p7-skills-x-CARD-G5-7 local=84689c314fa9c68764b19332b1ff035098739a0a origin=84689c314fa9c68764b19332b1ff035098739a0a backup=84689c314fa9c68764b19332b1ff035098739a0a
+OK merged-squash/card/p8-backend-CARD-EXC-HANDLER-WIRE-REDACT local=ffb5ae7ca24ef903d43954563a55a52db7b5dd5c origin=ffb5ae7ca24ef903d43954563a55a52db7b5dd5c backup=ffb5ae7ca24ef903d43954563a55a52db7b5dd5c
+OK merged-squash/card/p8-backend-CARD-G1-1 local=e772a9d1724d60da86db0ff12e6787d6e0e77faa origin=e772a9d1724d60da86db0ff12e6787d6e0e77faa backup=e772a9d1724d60da86db0ff12e6787d6e0e77faa
+OK merged-squash/card/p8-backend-CARD-PYRIGHT-TAIL-BEHAVIOR local=a3d11bf2bee81c58854e4c35634347d942bbf29a origin=a3d11bf2bee81c58854e4c35634347d942bbf29a backup=a3d11bf2bee81c58854e4c35634347d942bbf29a
+OK merged-squash/card/p9-testinfra-CARD-DEBT-1 local=ee834eb0c69779d206df5827f1f1ab3c0495ee8d origin=ee834eb0c69779d206df5827f1f1ab3c0495ee8d backup=ee834eb0c69779d206df5827f1f1ab3c0495ee8d
+OK merged-squash/card/p9-testinfra-CARD-G4-13 local=76286f4f4579b0799a724adcca29f691c34e810b origin=76286f4f4579b0799a724adcca29f691c34e810b backup=76286f4f4579b0799a724adcca29f691c34e810b
+OK merged-squash/card/p9-testinfra-CARD-W4-GUARD-TAIL-R2 local=851357cee45b05cbbefb49440cd3a224ae84778c origin=851357cee45b05cbbefb49440cd3a224ae84778c backup=851357cee45b05cbbefb49440cd3a224ae84778c
+OK merged-squash/card/p9-testinfra-G4-13-verdicts local=89be3d0e8a577db7bd94c729df05e120b08663b4 origin=89be3d0e8a577db7bd94c729df05e120b08663b4 backup=89be3d0e8a577db7bd94c729df05e120b08663b4
+mismatch=0（35/35 OK）
+# 说明：另有历史 tag 若干（origin 157 / backup 153 ls-remote ref 行，含 peel 行），不在本批 35 个之列。

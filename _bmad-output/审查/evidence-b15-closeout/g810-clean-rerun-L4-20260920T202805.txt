@@ -1,0 +1,136 @@
+# G8-10 checker 干净复跑（D-15 r3 L-4 闭合档）@ 5a2abccc37f79e89be2604fbc9f696a770330f74（复跑 2026-09-20 20:28 PDT）
+# 目的：① 解释 r3-L4「同源 digest 差异」② 补 dirty_tracked=0 的逐行 dirty 清单 ③ 给出可复算口径
+# 环境：python3 = Python 3.14.4（系统解释器）；树 = feature-obsidian-hybrid-dev
+# checker = _bmad-output/审查/evidence-g810/check_g810_refs.py
+#   sha256(f7c63b3c7be635bca7909a5be9e771f8d19fff6dfb76ace79634a827fc0f887f)
+# ledger  = _bmad-output/implementation-artifacts/2026-08-28-G8-9-统一验收门底账.md
+#   sha256(bce08bd06e49cf5b7bd290167d79d4bfaf069cffa66b64216e876f27f9662f92)（工作区字节）
+# 复算口径：--expect-digest 必填（checker:74）。digest = 全部引用源文件 blob sha256 + 脚本自身 + 底账 + HEAD 的组合
+#   （checker:73-75 定义 / :738-747 计算）⇒ digest 天然与 HEAD 绑定；复算 = 先跑一次读出 source_digest，再回填复跑。
+
+## 运行 1/2（探针：占位 expect，用于读出 actual digest）
+$ cd <树根> && python3 _bmad-output/审查/evidence-g810/check_g810_refs.py \
+    --ledger _bmad-output/implementation-artifacts/2026-08-28-G8-9-统一验收门底账.md --root <树根绝对路径> \
+    --expect-digest 00000000000000000000000000000000
+digest-drift: expect=00000000000000000000000000000000 actual=45b50cb12084bf368da672ff19999ca4
+chains=6 obj07=5 failures=1 source_digest=45b50cb12084bf368da672ff19999ca4 expect_digest=00000000000000000000000000000000 head=5a2abccc37f79e89be2604fbc9f696a770330f74 dirty=103 dirty_tracked=0 dirty_untracked=103
+rc=1（唯一 failure = digest-drift：占位 expect ≠ actual；chains=6 / obj07=5 判据全过）
+
+## 运行 2/2（确认：回填运行 1 读出的 actual digest）
+$ ... --expect-digest 45b50cb12084bf368da672ff19999ca4
+chains=6 obj07=5 failures=0 source_digest=45b50cb12084bf368da672ff19999ca4 expect_digest=45b50cb12084bf368da672ff19999ca4 head=5a2abccc37f79e89be2604fbc9f696a770330f74 dirty=103 dirty_tracked=0 dirty_untracked=103
+rc=0
+
+## dirty 清单（git -c core.quotepath=false status --porcelain 全文；dirty_tracked=0，dirty=103 全为 untracked）
+?? .gdr/exam-pack-files.txt
+?? .gdr/instruction-exam-board-v1-dev.md
+?? .gdr/instruction-exam-question-design.md
+?? .gdr/instruction-graphiti-approval-review.md
+?? .gdr/instruction-sync-contract-review.md
+?? .session-takeover/
+?? _bmad-output/.venv-freeze-2026-08-24.txt
+?? _bmad-output/AGENTS.md
+?? _bmad-output/DEBT-15-验收单-2026-08-30.md
+?? _bmad-output/R68_邮件台账_主表.md
+?? "_bmad-output/Session 1：Claude A4 Red Team 2 轮回复.md"
+?? "_bmad-output/Session 1：Claude A4 Red Team.md"
+?? "_bmad-output/Session 2 W0-CODEX-GOV01-A4 2 轮回复.md"
+?? "_bmad-output/Session 2 W0-CODEX-GOV01-A4.md"
+?? "_bmad-output/Session 3：Codex Phase 0A Ready Queue.md"
+?? "_bmad-output/Session 4：Claude post-A03 Lane Map.md"
+?? _bmad-output/UAT-CARD-G3-3-2026-09-05.md
+?? "_bmad-output/fresh Codex reviewer.md"
+?? _bmad-output/implementation-artifacts/goal-cards/2026-08-27-第四批小goal卡-README诚实化与G5G2启动.md
+?? _bmad-output/implementation-artifacts/goal-cards/2026-09-01-第九批开跑手册-7车道8卡.md
+?? _bmad-output/implementation-artifacts/goal-cards/第九批-goals/
+?? "_bmad-output/审查 MEDIUM-2 快照泄漏.md"
+?? _bmad-output/审查/2026-06-13-graphiti-主链终验-审查包.xml
+?? _bmad-output/审查/2026-08-15-ChatGPT第一段裁定-吸收与独立核实.md
+?? _bmad-output/审查/2026-08-15-vault-retrieval-baseline-independent-recalc.json
+?? _bmad-output/审查/2026-08-15-vault-retrieval-baseline-independent-recalc.py
+?? _bmad-output/审查/2026-08-15-全项目对抗审查-第一段-GPT56Pro-裁定.md
+?? _bmad-output/审查/2026-08-15-全项目对抗审查-第一段-pack.xml
+?? _bmad-output/审查/2026-08-15-全项目对抗审查-第一段-任务书.md
+?? _bmad-output/审查/2026-08-17-Codex对抗审查-R10第一批次实际成果.md
+?? _bmad-output/审查/2026-08-17-Codex对抗审查-任务书.md
+?? _bmad-output/审查/2026-08-17-Codex对抗审查-独立裁定报告.md
+?? _bmad-output/审查/2026-08-17-Codex裁定-吸收与两家交叉对照.md
+?? _bmad-output/审查/2026-08-17-R10复审11项发现-处置回应.md
+?? _bmad-output/审查/2026-08-19-Codex对抗审查-P1-05b收官复核.md
+?? _bmad-output/审查/2026-08-19-Codex对抗审查-R11第二批实际成果.md
+?? _bmad-output/审查/2026-08-19-Codex对抗审查-R11返工反馈进一步复核.md
+?? _bmad-output/审查/2026-08-19-P1-05b-收官审查包-源码附件.md
+?? _bmad-output/审查/2026-08-19-P1-05b-收官审查包-给Codex.md
+?? _bmad-output/审查/2026-08-20-Codex对抗审查-P1-05c第四轮终裁.md
+?? _bmad-output/审查/2026-08-20-P1-05c-四轮审查包-源码附件.md
+?? _bmad-output/审查/2026-08-20-P1-05d-五轮审查包-源码附件.md
+?? _bmad-output/审查/2026-08-23-GOV01-A4-并行执行计划-通俗版.md
+?? _bmad-output/审查/2026-08-24-Canvas-Learning-System-24小时跨模型Session执行编排与授权书.md
+?? _bmad-output/审查/2026-08-24-主Goal当前阻断与下一步-通俗版.md
+?? _bmad-output/审查/2026-08-24-主Goal拆解运行可能性-并行对抗性审查报告.md
+?? _bmad-output/审查/codex-review-B15-CLOSEOUT-r3.md
+?? _bmad-output/审查/evidence-b14/integ2/tags-push-20260918T020253.txt
+?? _bmad-output/审查/evidence-b14/push-batch14-plan-20260914T160126.txt
+?? _bmad-output/审查/evidence-b14/push-branch-verify-20260911T140534.txt
+?? _bmad-output/审查/evidence-b14/tags-push-retry-20260911T111712.txt
+?? _bmad-output/审查/evidence-conv-2026-09-20/
+?? _bmad-output/审查/evidence-skill-2026-09-20/
+?? _bmad-output/审查/feature-audit-review_pack_2026-07-30.md
+?? _bmad-output/审查/memory-system_pack_2026-07-22.md
+?? _bmad-output/审查/memory-system_research_pack_2026-07-22.md
+?? _bmad-output/审查/r10-evidence-2026-08-17/
+?? _bmad-output/平台选择与社区配置核对-2026-09-17.md
+?? "_bmad-output/截屏2026-08-27 上午5.44.36.png"
+?? "_bmad-output/新 goal 计划.md"
+?? "_bmad-output/未命名 1.md"
+?? "_bmad-output/未命名 2.md"
+?? "_bmad-output/未命名 3.md"
+?? "_bmad-output/未命名 4.md"
+?? _bmad-output/未命名.md
+?? _bmad-output/样稿-错误候选复盘UX-方案A预览.md
+?? _bmad-output/特征值与特征向量-2026-07-24-0405.md
+?? _bmad-output/研究/2026-07-18-检验白板重复考察-熟练度收敛机制调研.md
+?? _bmad-output/研究/2026-07-19-测试收尾与开发路线提案.md
+?? _bmad-output/研究/2026-07-19-错误候选复盘UX重设计提案.md
+?? _bmad-output/研究/2026-07-20-错误候选筛选正确性-对抗审查裁决.md
+?? _bmad-output/研究/2026-08-15-raw治理与广度回顾-调研综合与设计基础.md
+?? _bmad-output/研究/2026-08-15-信息收集回顾-原型演示产物.md
+?? _bmad-output/研究/2026-08-15-全项目现状核实-设计说的vs代码做的.md
+?? _bmad-output/研究/2026-08-15-思维导图-Excalidraw-需求与迭代记录.md
+?? _bmad-output/研究/2026-08-15-批注回复-R1-新skill定位与数据基础核实.md
+?? _bmad-output/研究/2026-08-15-批注回复-R2-Karpathy考证与raw定性撤回.md
+?? _bmad-output/研究/2026-08-15-材料三分类-设计修正与实证.md
+?? _bmad-output/研究/2026-08-15-面2-22问-项目内已有答案挖掘.md
+?? _bmad-output/研究/2026-08-15-面2-需求澄清结果-用户逐字定案.md
+?? _bmad-output/研究/2026-08-16-CLS正向资产盘点-项目实际拥有什么.md
+?? _bmad-output/研究/2026-08-16-Graphiti写读设计全景与Dashboard数据源底账.md
+?? _bmad-output/研究/2026-08-16-raw材料管理报告书-落地版.md
+?? _bmad-output/研究/2026-08-16-学生使用场景报告-深度学习与搜集调研的完整旅程.md
+?? _bmad-output/研究/2026-08-16-广度回顾skill-设计方案.md
+?? _bmad-output/研究/2026-08-16-批注回复-R3-白名单删除判据设计.md
+?? _bmad-output/研究/2026-08-16-批注回复-R5-调研报告去向-跨vault文件夹-RAG裁决链.md
+?? _bmad-output/研究/2026-08-16-批注回复-R6-补frontmatter的显而易见操作方式.md
+?? _bmad-output/研究/2026-08-16-批注回复-R7-挂身份时机与按板管理鱼龙混杂材料.md
+?? _bmad-output/研究/2026-08-16-批注回复-R8-清待处理skill详细使用流程.md
+?? _bmad-output/研究/2026-08-16-设计讨论书-待批事项完整汇总-逐项审批单.md
+?? _bmad-output/研究/2026-08-17-批注回复-R10-P0-1收官通俗报告与下一批次提案.md
+?? _bmad-output/研究/2026-08-17-批注回复-R9-八项裁决通俗解释.md
+?? _bmad-output/研究/2026-08-24-多Session无人值守编排-社区方案调研.md
+?? _bmad-output/研究/2026-09-20-调研收敛文档-待裁决与边界.md
+?? _bmad-output/研究/2026-09-20-调研收敛文档-模板-历程层.md
+?? _bmad-output/研究/2026-09-20-调研收敛文档-模板-报告层.md
+?? _bmad-output/研究/2026-09-20-调研收敛文档-生成规则.md
+?? _bmad-output/研究/2026-09-20-调研收敛文档-选型报告.md
+?? _bmad-output/自动化系统_OpenClaw_记忆RAG调研_2026-07-01.md
+?? _bmad-output/验收单/2026-06-27-UAT-A+prime同步契约-用户验收.md
+?? _bmad-output/验收单/2026-07-29-Canvas-Learning-System-全系统-UAT-验收清单.md
+?? canvas-vault/.claude/cache/
+
+## r3-L4「两个 digest」溯源（结论：非同 head；digest 差异有据）
+- g810-checker-FINAL-20260920T172022.txt 头行：head=46984d802d2c55030b70452d49286d6b37f37567（digest=088fdb09…）
+- FINAL-HEAD-gates-20260920T181646.txt 第 10 行：head=8a651d2a01a081b4b306289018aa9da3122a90a2（digest=411a4175…）
+  ⇒ 两档并非同一 HEAD（r3 报文按「同一 46984d80」表述，此处按原始行更正）。
+- 46984d80→8a651d2a 的 tracked 差异 = 51 个文件，全部在 _bmad-output/**（非 _bmad-output 计数 = 0）；
+  两树的底账 blob 与 checker blob 逐字同（ledger=94d04ad3e3a2488de8ecffbd2dc197f58c2fb19d；checker=551aa89081712d5ca4e1709fbc83787e9139b596）
+  ⇒ digest 变化来自 digest 定义中的 HEAD 分量与（如有）引用源文件变动，非底账/脚本被改写。
+- r3-L4 的「dirty_tracked=1 且未列脏文件」面在本次复跑不存在：dirty_tracked=0，103 项 untracked 逐行列于上。

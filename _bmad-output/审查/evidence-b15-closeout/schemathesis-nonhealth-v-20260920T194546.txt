@@ -1354,3 +1354,10 @@ rc=1
 #    不以“全门已跑”表述；收口依赖 = contract 3 非 pact（2 既有红/75 passed，红集合与计数与基线等价）
 #    + 四文件 7692 门 107 passed + 其余全门。
 #  · 尝试证据（本档 + `schemathesis-nonhealth-a-*` 收集数核 + `schemathesis-collect-manifest.txt`）随本 commit 入库。
+#
+# ── 勘误（r3-M2 处置；随 r4 前置档入库）──
+#  · 上文归因块「89/92-operation」计数笔误：schemathesis 面实数 = **90**（本目录 schemathesis-ops-90.txt 恰 90 行；
+#    collect manifest 中 SchemathesisFunction = 90；collected 92 = 90 schemathesis + 2 非 schemathesis 测试）。
+#  · 上文「首个 op（GET /api/v1/ping）即 Timeout」与原始日志不符：原始次序 = GET /api/v1/ping **FAILED**（本档第 14 行）
+#    → GET /api/v1/system/startup-check **Timeout**（本档第 15 行起）。
+#  · 结论不变：本面按**显式 skip 登记**（范围限制），不表述为“全门已跑”。
